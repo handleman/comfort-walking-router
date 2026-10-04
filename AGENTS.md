@@ -3,8 +3,8 @@
 Greenfield repo for learning spec-driven development. No app code yet; example app spec comes later.
 
 ## State
-- Stack (proposed, unverified): Python + FastAPI + Svelte + Leaflet, OSM/Overpass, SQLite cache first. See `docs/tech-stack.md`.
-- No manifests yet (`pyproject.toml` / `requirements.txt` / `app/` / `frontend/package.json`), no CI. Do not assume commands work — proposed test/lint/typecheck: `pytest`, `ruff check .`, `mypy .`.
+- Stack (proposed, unverified): Python + FastAPI + Svelte + TypeScript + Leaflet, OSM/Overpass, SQLite cache first. See `docs/tech-stack.md`.
+- No manifests yet (`pyproject.toml` / `requirements.txt` / `app/` / `frontend/package.json`), no CI. Do not assume commands work — proposed test/lint/typecheck: `pytest`, `ruff check .`, `mypy .`, `npm run check` (frontend).
 - `opencode.json`: project-local `context7` MCP (remote `https://mcp.context7.com/mcp`).
 - SDD layout (Option 2, Spec-Kit style): constitution in `.specify/memory/constitution.md`, durable docs in `docs/` (`mission.md`, `tech-stack.md`, `roadmap.md`, `architecture/` ADRs), transient work in `specs/NNN-name/` (`spec.md` → `plan.md` → `tasks.md`, `contracts/` when needed). Templates in `.specify/templates/`.
 - Do not invent commands or config. Verify via manifests/scripts before claiming a workflow exists.
