@@ -10,11 +10,10 @@
 - Spec: `specs/001-example-app/spec.md` → plan → tasks → implement.
 
 ## 2 — Spec milestones (each its own `specs/NNN-*/`, ADR if cross-cutting)
-- `002-map-ux`: Svelte + TS inputs (start/end, hot/cloudy toggle), Leaflet route + explanation panel, loading/error/empty states. Accept: toggle flips preference, errors readable, `npm run check` clean.
-- `003-cache-perf`: SQLite cache keying + TTL + cache-hit metric; debounce + timeouts on routing/geodata providers. Accept: repeat query skips externals, slow-backend degrades gracefully.
-- `004-weather-sun`: real weather-aware sun preference (hot/cloudy auto + manual override). Accept: sunny-hot prefers shade, overcast prefers sun, override respected.
-- `005-saved-routes`: Postgres for saved routes/prefs (+ accounts if needed). Accept: save/recall route, prefs persist; needs ADR (storage switch).
-- `006-comfort-plus`: richer factors (surface, lighting, safety/traffic). Accept: each factor toggled + explained, no MVP regression.
+- 001 already covers `002-map-ux` (Svelte UI) and `003-cache-perf` (SQLite cache) as its ACs — no separate stages.
+- `004-weather-sun` (spec→plan→tasks done): Open-Meteo auto preference + manual override. Accept: thresholds, source chip, cached fetch, graceful fallback.
+- `005-saved-routes` (spec→plan→tasks done, ADR-007): opaque-bearer pseudo-auth, no-accounts Postgres routes + prefs, 90-day route TTL. Accept: holder scoping (404), sweep, clean migrations, cache untouched.
+- `006-comfort-plus` (spec→plan→tasks done): lighting + traffic toggles (equal weights). Accept: fixture-pair flips, honest tag gaps, no 001 regression.
 - `007-live-position` (spec drafted): walk-mode marker, no voiceover. Sim + GPS providers, snap + sustained-drift (>30 m, ~10 s/3 fixes) tap-to-reroute warning, auto-center toggle, arrival banner + Stop. No auto-rerouting.
 - `008-mapbox-routing` (spec drafted, post-MVP): swap OSRM interim → Mapbox free tier behind provider interface. Accept: contract unchanged, token backend-only, cache-hit skips Mapbox, no live calls in tests.
 
