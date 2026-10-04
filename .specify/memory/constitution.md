@@ -6,7 +6,7 @@ Source of truth for spec-driven workflow. Keep small; link details, don't duplic
 See `docs/mission.md`. Comfort-first walking router; learn full SDD loop via minimal web map MVP.
 
 ## Tech Stack
-See `docs/tech-stack.md`. Python + FastAPI + Svelte + TypeScript + Leaflet, OSM/Overpass data, SQLite cache first (Postgres later). Proposed verify: `pytest`, `ruff check .`, `mypy .`, `npm run check` — unverified until manifests land.
+See `docs/tech-stack.md`. Python + FastAPI + Svelte + TypeScript + Leaflet, OSRM-interim geometry + OSM/Overpass comfort (Mapbox in 008), SQLite cache first (Postgres later). Proposed verify: `pytest`, `ruff check .`, `mypy .`, `npm run check` — unverified until manifests land.
 
 ## Roadmap
 See `docs/roadmap.md`. (TBD.)

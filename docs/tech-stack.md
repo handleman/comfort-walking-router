@@ -3,7 +3,8 @@
 - Language: Python (version TBD at first spec; target 3.12+).
 - Backend: FastAPI (serves scoring API + static map page).
 - Frontend: Svelte + TypeScript for business logic (with Leaflet for map rendering) served as static build output by FastAPI. Svelte build step required (Vite).
-- Route + comfort data: OpenStreetMap via Overpass API (no keys). OSM tags for parks/trees/paths/roads.
+- Route geometry: OSRM demo server, walking (MVP interim, keyless). Post-MVP: Mapbox Directions API walking (free tier, `MAPBOX_TOKEN` env, backend-only) in `008-mapbox-routing`. No self-hosting (product decision).
+- Comfort data: OpenStreetMap via Overpass API (no keys). OSM tags for parks/trees/paths/roads.
 - Storage: stateless first, SQLite cache for OSM responses/scores. Postgres later for saved routes/prefs.
 - Test: pytest. Lint: ruff. Types: mypy.
 

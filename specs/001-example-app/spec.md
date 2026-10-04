@@ -1,12 +1,12 @@
 # 001 Comfort-First Walk — Spec
 
 ## What / Why
-Minimal web map for comfortable walking routes (not shortest): start/end → comfort-scored route + why-explanation. Proves full SDD loop on FastAPI + Svelte + Leaflet + OSM.
+Minimal web map for comfortable walking routes (not shortest): start/end → comfort-scored route + why-explanation. Proves full SDD loop on FastAPI + Svelte + Leaflet + OSM (OSRM interim; Mapbox in 008).
 
 ## Scope
 - In scope:
   - Svelte + Leaflet page: enter start/end, toggle hot/cloudy preference, view scored route.
-  - FastAPI `POST /route` scoring API over OSM/Overpass data; factors v1: shade + sun + quiet.
+  - FastAPI `POST /route` scoring API over OSRM-interim geometry + OSM/Overpass comfort data; factors v1: shade + sun + quiet. (Mapbox replaces OSRM in `008-mapbox-routing`.)
   - SQLite cache for OSM responses/scores.
 - Non-goals:
   - No auth, no saved history, no Postgres.
