@@ -3,10 +3,10 @@
 Source of truth for spec-driven workflow. Keep small; link details, don't duplicate.
 
 ## Mission
-See `docs/mission.md`. (TBD — example app spec comes later.)
+See `docs/mission.md`. Comfort-first walking router; learn full SDD loop via minimal web map MVP.
 
 ## Tech Stack
-See `docs/tech-stack.md`. (TBD — no stack chosen. Do not assume commands.)
+See `docs/tech-stack.md`. Python + FastAPI + Svelte + Leaflet, OSM/Overpass data, SQLite cache first (Postgres later). Proposed verify: `pytest`, `ruff check .`, `mypy .` — unverified until manifests land.
 
 ## Roadmap
 See `docs/roadmap.md`. (TBD.)
@@ -18,3 +18,4 @@ See `docs/roadmap.md`. (TBD.)
 4. Cross-cutting decisions require an ADR in `docs/architecture/`. See `adr-001-template.md`.
 5. Prefer editing existing files over creating new ones; minimal diff per spec.
 6. Verify via executable sources (manifests, scripts, CI) before claiming a workflow exists.
+7. Quality gates per spec: `pytest` green + `ruff check .` clean + `mypy` clean before merge. Map change must render + score a demo route.
