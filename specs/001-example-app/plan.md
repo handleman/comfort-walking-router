@@ -14,4 +14,4 @@ Backend-first: FastAPI `POST /route` accepts place names or lat-lon + hot/cloudy
 ## Risks / Open Questions
 - OSRM demo rate limits / downtime (MVP interim) — mitigate with cache + short timeout + single retry; Mapbox replaces it in `008-mapbox-routing`.
 - Overpass + Nominatim usage policy / latency — debounce frontend, cache aggressively, attribute OSM.
-- Contracts shape TBD in `contracts/route.json` during step 1.
+- Contracts shape per ADR-005 (GeoJSON, enums, error envelope); field-level detail lands in `contracts/route.json` during step 1.
