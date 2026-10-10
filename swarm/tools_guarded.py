@@ -8,9 +8,24 @@ from pathlib import Path
 from typing import Any, Type
 
 from crewai.tools import BaseTool
+from crewai_tools import FileReadTool
 from pydantic import BaseModel, Field
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Small models lose the plot when tool outputs flood context (819k-token blowup
+# on Qwen-9B, 2026-10-10). Hard cap every tool observation.
+MAX_OBSERVATION = 3000
+
+
+class TrimmedFileReadTool(FileReadTool):
+    """FileReadTool with truncated observations — anti-loop guard for small models."""
+
+    def _run(self, *args: Any, **kwargs: Any) -> str:
+        out = super()._run(*args, **kwargs)
+        if len(out) > MAX_OBSERVATION:
+            return out[:MAX_OBSERVATION] + f"\n…[truncated {len(out) - MAX_OBSERVATION} chars; re-read with start_line/line_count]"
+        return out
 
 
 class EditArgs(BaseModel):

@@ -62,8 +62,7 @@ Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task),
 - `Guarded Shell` — allowlist only: `pytest`, `ruff`, `mypy`, `git diff`, `ls`, `cat`. 120s timeout, repo cwd. Everything else returns `BLOCKED`.
 - Read-only: `FileReadTool`, `DirectoryReadTool`.
 
-## Gates (sequence)
-Planner → Coder → Reviewer run once; `flow` re-runs `pytest` + `ruff check .` + `mypy .`
+## Gates (sequence)Planner → Coder → Reviewer run once; `flow` re-runs `pytest` + `ruff check .` + `mypy .`
 itself (never trusts agent claims). Red gates → fix round: Coder (+ Reviewer re-verify)
 with the gate transcript, max 1 round (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red →
 `needs_human`, TUI pauses, `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
@@ -76,6 +75,12 @@ swarm/.venv/bin/python -m pytest swarm/tests -v
 ## Traces & logs (all inside the project, never `/tmp`)
 - Pilot runs: `swarm/runs/<ts>/{run.json,events.jsonl,usage.json}` (+ `latest` pointer, `approved.json`).
 - Ad-hoc probes/debug: `swarm/runs/probes/<name>-<date>.log`. `swarm/runs/` is gitignored.
+
+## Anti-loop guards (Qwen-9B wanders: re-reads files, blows 262k ctx)
+- `TrimmedFileReadTool`: observations capped at 3000 chars (re-read via `start_line`/`line_count`).
+- No `DirectoryReadTool`: `ls` via Guarded Shell has fewer wandering branches.
+- Task prompts carry hard loop rules (≤6 tool calls, never re-read, answer from observations).
+- `max_iter` 10/10/5 + 1 fix round max. Still stuck → `needs_human`.
 
 ## Troubleshooting
 - `429 free-models-per-min` (OpenRouter): per-minute quota on `:free` (20/min). Wait ~60s and retry; LLMs already set `max_retries=5`. Persistent → change `SWARM_PLANNER_MODEL` to another `:free` id from `curl "https://openrouter.ai/api/v1/models?supported_parameters=tools&sort=pricing-low-to-high"`.

@@ -5,28 +5,28 @@ from __future__ import annotations
 from pathlib import Path
 
 from crewai import Agent, Crew, Process, Task
-from crewai_tools import DirectoryReadTool, FileReadTool
 
 from swarm.llms import coder_llm, planner_llm, reviewer_llm
 from swarm.spec_loader import SpecTask
-from swarm.tools_guarded import EditTool, ShellTool
+from swarm.tools_guarded import EditTool, ShellTool, TrimmedFileReadTool
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_FIX_ROUNDS = 1  # gate fail → coder retry with transcript, then human (no endless loop)
 
 
 def build_crew(spec_dir: str, task: SpecTask) -> Crew:
-    read = FileReadTool()
-    ls = DirectoryReadTool()
+    read = TrimmedFileReadTool()
     edit = EditTool()
     shell = ShellTool()
+    # NOTE: no DirectoryReadTool — `ls` via Guarded Shell covers listing with
+    # far fewer wandering branches for small models.
 
     planner = Agent(
         role="Spec Planner",
         goal="Expand one spec task into an exact file-operation list. No code writes.",
         backstory="You plan minimal diffs from specs/ context. You never write files.",
         llm=planner_llm(),
-        tools=[read, ls],
+        tools=[read, shell],
         verbose=False,
         max_iter=10,  # fail fast: small models loop instead of converging (2026-10-10)
     )
@@ -50,13 +50,18 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
     )
 
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
+    loop_rules = (
+        "Loop rules (hard): at most 6 tool calls, then write the final answer; "
+        "never read the same file twice; `ls` instead of guessing paths; "
+        "answer from what you already observed."
+    )
     t_plan = Task(
-        description=f"Expand {ctx} into an exact file list + edit sequence. Read specs/{spec_dir}/spec.md, plan.md, tasks.md and constitution first.",
+        description=f"Expand {ctx} into an exact file list + edit sequence. Read specs/{spec_dir}/spec.md, plan.md, tasks.md and constitution first. {loop_rules}",
         expected_output="Ordered file-operation list with exact paths and one-line purpose each.",
         agent=planner,
     )
     t_code = Task(
-        description=f"Execute the plan for {ctx}. Use Repo Edit for every file change.",
+        description=f"Execute the plan for {ctx}. Use Repo Edit for every file change. {loop_rules}",
         expected_output="Diff summary (files changed) + note of any deviation from plan.",
         agent=coder,
         context=[t_plan],
@@ -72,7 +77,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
 
 def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
     """Coder + Reviewer only: fix what the gates rejected. Bounded by MAX_FIX_ROUNDS in flow."""
-    read = FileReadTool()
+    read = TrimmedFileReadTool()
     edit = EditTool()
     shell = ShellTool()
 
@@ -98,7 +103,9 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
     t_fix = Task(
         description=(
             f"Fix round for {ctx}. The previous attempt FAILED gates:\n{transcript[:3000]}\n"
-            "Change only what the transcript rejects. Use Repo Edit for every file change."
+            "Change only what the transcript rejects. Use Repo Edit for every file change. "
+            "Loop rules (hard): at most 6 tool calls, then write the final answer; "
+            "never read the same file twice."
         ),
         expected_output="Diff summary of the fix + what gate line each change addresses.",
         agent=coder,
