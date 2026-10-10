@@ -34,6 +34,7 @@ class SwarmTUI(App[None]):
         self._active = "crew"
         self._tasks: list[str] = []
         self._plan_noted = False
+        self._meta_dir: Path | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -79,6 +80,9 @@ class SwarmTUI(App[None]):
                 self._flow = flow
                 self._run_dir = flow.run_dir
                 self._task_id = flow.state.task_id or self._task_id
+                if flow.state.spec_dir:
+                    self._spec = flow.state.spec_dir
+                self._rebuild_tasklist()
                 self._plan_noted = False
                 self.call_from_thread(self._pane_log, "crew", f"── task {self._task_id}: {status} ──")
                 if status != "green":
@@ -130,12 +134,47 @@ class SwarmTUI(App[None]):
         self._plan_noted = True
         if cached is not None:
             self._pane_log("planner", f"plan cached, planner skipped ({cached.name})")
+            try:
+                from swarm.crew import parse_steps
+
+                for i, step in enumerate(parse_steps(cached.read_text()), 1):
+                    self._pane_log("planner", f"STEP {i}: {step[:120]}")
+            except Exception:
+                pass
         else:
             self._pane_log("planner", "no cached plan — planner running")
 
     # ---- tail mode ----
+    def _rebuild_tasklist(self) -> None:
+        """Refresh the task list marks for the current spec/task."""
+        try:
+            from swarm.spec_loader import load_spec_tasks
+
+            _, tasks = load_spec_tasks(REPO_ROOT, self._spec, None)
+            lv = self.query_one("#tasklist", ListView)
+            lv.clear()
+            for t in tasks:
+                mark = "▶" if t.id == self._task_id else "·"
+                lv.append(ListItem(Static(f"{mark} {t.id}: {t.brief[:60]}")))
+        except Exception:
+            pass
+
+    def _sync_tail_meta(self) -> None:
+        """Adopt the tailed run's spec/task so tasklist + plan note match it."""
+        if self._meta_dir == self._run_dir or self._run_dir is None:
+            return
+        self._meta_dir = self._run_dir
+        try:
+            meta = json.loads((self._run_dir / "meta.json").read_text())
+        except Exception:
+            return
+        self._spec = str(meta.get("spec", self._spec))
+        self._task_id = str(meta.get("task", self._task_id))
+        self._rebuild_tasklist()
+
     def _poll_tail(self) -> None:
         assert self._run_dir
+        self._sync_tail_meta()
         fp = self._run_dir / "events.jsonl"
         if fp.is_file():
             lines = fp.read_text().splitlines()
@@ -200,6 +239,10 @@ class SwarmTUI(App[None]):
                 extra = f" status={r.get('status')} gates={r.get('gates')}"
                 if r.get("plan_reused"):
                     extra += " plan=cached"
+                if r.get("senior_used"):
+                    extra += " senior"
+                if r.get("dev_attempts"):
+                    extra += f" attempt={r.get('dev_attempts')}"
             except Exception:
                 pass
         elif self._plan_noted:

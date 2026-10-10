@@ -23,6 +23,8 @@ class SwarmState(BaseModel):
     result: str = ""
     gates: dict[str, int] = {}
     fix_rounds: int = 0
+    dev_attempts: int = 0
+    senior_used: bool = False
     transcript: str = ""
     plan_reused: bool = False
 
@@ -133,10 +135,12 @@ class SwarmFlow(Flow[SwarmState]):
     @listen(load_spec)
     def run_crew(self, ctx: dict[str, str]) -> str:
         from swarm.crew import (
+            DEV_ATTEMPTS,
             MAX_FIX_ROUNDS,
             build_fix_crew,
             build_plan_crew,
             build_review_crew,
+            build_senior_crew,
             build_step_crew,
             parse_steps,
         )
@@ -178,31 +182,53 @@ class SwarmFlow(Flow[SwarmState]):
             steps = parse_steps(plan_text) or ([plan_text] if plan_text else [])
             if not steps:
                 raise SystemExit("planner returned no usable plan")
-            # Micro-execution: fresh coder (fresh context) per step; reviewer only at the end.
-            step_outs: list[str] = []
-            for i, step in enumerate(steps, 1):
-                _, step_out = _kickoff(build_step_crew(self._spec_dir, task, step, i, len(steps)))
-                step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
-            work_summary = "\n".join(step_outs)
-            _, review_out = _kickoff(build_review_crew(self._spec_dir, task, work_summary))
-            self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
+            gates: dict[str, int] = {}
+            transcript = ""
+            # Dev phase (micro-steps + review + gates + fix round), up to
+            # DEV_ATTEMPTS; then senior escalation, then human.
+            while True:
+                self.state.dev_attempts += 1
+                # Micro-execution: fresh coder (fresh context) per step; reviewer only at the end.
+                step_outs: list[str] = []
+                for i, step in enumerate(steps, 1):
+                    _, step_out = _kickoff(build_step_crew(self._spec_dir, task, step, i, len(steps)))
+                    step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
+                work_summary = "\n".join(step_outs)
+                _, review_out = _kickoff(build_review_crew(self._spec_dir, task, work_summary))
+                self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
+                # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
+                base_rounds = self.state.fix_rounds
+                gates, transcript = self._run_gates()
+                while not all(v == 0 for v in gates.values()) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
+                    self.state.fix_rounds += 1
+                    self.state.transcript = transcript
+                    try:
+                        _, fix_out = _kickoff(build_fix_crew(self._spec_dir, task, transcript))
+                        self.state.result = str(fix_out)[:8000]
+                    except SystemExit as e:
+                        self.state.result = str(e)[:4000]
+                        break
+                    gates, transcript = self._run_gates()
+                if all(v == 0 for v in gates.values()) or self.state.dev_attempts >= DEV_ATTEMPTS:
+                    break
+            if not all(v == 0 for v in gates.values()):
+                # Senior escalation: one full fix pass by the strong free-tier
+                # brain, then QA re-verifies via the normal review + gates.
+                self.state.senior_used = True
+                try:
+                    _, senior_out = _kickoff(build_senior_crew(self._spec_dir, task, transcript))
+                    self.state.result = str(senior_out)[:8000]
+                except SystemExit as e:
+                    self.state.result = str(e)[:4000]
+                    raise
+                _, review_out = _kickoff(build_review_crew(self._spec_dir, task, self.state.result))
+                self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
+                gates, transcript = self._run_gates()
         except SystemExit as e:
             self.state.result = str(e)[:4000]
             self.state.status = "crew_error"
             self.save_run("crew_error")
             raise
-        # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
-        gates, transcript = self._run_gates()
-        while not all(v == 0 for v in gates.values()) and self.state.fix_rounds < MAX_FIX_ROUNDS:
-            self.state.fix_rounds += 1
-            self.state.transcript = transcript
-            try:
-                _, fix_out = _kickoff(build_fix_crew(self._spec_dir, task, transcript))
-                self.state.result = str(fix_out)[:8000]
-            except SystemExit as e:
-                self.state.result = str(e)[:4000]
-                break
-            gates, transcript = self._run_gates()
         self.state.gates = gates
         self.state.transcript = transcript
         self.state.status = "crew_done"
@@ -223,6 +249,8 @@ class SwarmFlow(Flow[SwarmState]):
             "status": status,
             "gates": self.state.gates,
             "fix_rounds": self.state.fix_rounds,
+            "dev_attempts": self.state.dev_attempts,
+            "senior_used": self.state.senior_used,
             "plan_reused": self.state.plan_reused,
             "result_tail": self.state.result[-2000:],
             "gate_transcript_tail": self.state.transcript[-2000:],
@@ -247,27 +275,53 @@ def _next_after(ids: list[str], current: str) -> str | None:
     return nxt
 
 
+# The harness never implements itself: pilots stay out of the swarm spec.
+HARNESS_SPECS = ("009-swarm-harness",)
+
+
+def _spec_after(repo_root: Path, current_dir: str) -> str | None:
+    """Next spec dir (directory order) that has tasks, skipping the harness spec."""
+    specs = repo_root / "specs"
+    names = sorted(
+        p.name
+        for p in specs.iterdir()
+        if p.is_dir() and (p / "tasks.md").is_file() and p.name not in HARNESS_SPECS
+    )
+    return _next_after(names, current_dir)
+
+
 def run_tasks(spec_prefix: str, start_task: str, *, allow_paid: bool = False, replan: bool = False, commit: bool = True, single: bool = False) -> Any:
-    """Run one spec task per SwarmFlow; on green, loop to the next task.
+    """Run one spec task per SwarmFlow; on green, loop to the next task and spec.
 
     Yields (flow, status) per task. Stops after the first non-green task,
-    after the last task, or immediately when `single` is set. Each task keeps
-    its own run_dir + run.json; green tasks autocommit (see save_run).
+    after the last task of the last spec, or immediately when `single` is set.
+    Each task keeps its own run_dir + run.json; green tasks autocommit (see save_run).
     """
     from swarm.spec_loader import load_spec_tasks
 
-    _, all_tasks = load_spec_tasks(REPO_ROOT, spec_prefix, None)
+    spec_path, all_tasks = load_spec_tasks(REPO_ROOT, spec_prefix, None)
+    spec_dir = spec_path.name
     ids = [t.id for t in all_tasks]
     if start_task not in ids:
         raise SystemExit(f"No task {start_task} in {spec_prefix} (have: {ids})")
     task_id: str | None = start_task
-    while task_id is not None:
-        flow = SwarmFlow(spec_prefix, task_id, allow_paid=allow_paid, replan=replan, commit=commit)
-        status = flow.kickoff()
-        yield flow, status
-        if single or status != "green":
-            break
-        task_id = _next_after(ids, task_id)
+    flow_spec = spec_prefix  # keep the original prefix form: plan-cache keys depend on it
+    while True:
+        while task_id is not None:
+            flow = SwarmFlow(flow_spec, task_id, allow_paid=allow_paid, replan=replan, commit=commit)
+            status = flow.kickoff()
+            yield flow, status
+            if single or status != "green":
+                return
+            task_id = _next_after(ids, task_id)
+        # Spec done and green: advance to the next spec with tasks.
+        spec_dir = _spec_after(REPO_ROOT, spec_dir) or ""
+        if not spec_dir:
+            return
+        flow_spec = spec_dir
+        _, all_tasks = load_spec_tasks(REPO_ROOT, spec_dir, None)
+        ids = [t.id for t in all_tasks]
+        task_id = ids[0] if ids else None
 
 
 def main() -> None:

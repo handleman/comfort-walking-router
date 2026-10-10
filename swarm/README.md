@@ -76,10 +76,19 @@ at the micro-steps with the cached plan (`plan_reused: true` in `run.json`). `--
 ## Autonomous loop (default)
 A green run autocommits in-scope changes (`swarm: <spec>-<task> green … (autocommit)`,
 out-of-scope files never added, `.env*` refused) and pushes, then loops back to the
-planner for the next task in `tasks.md` order. First non-green task stops the loop
-(`needs_human`/`crew_error` in that task's `run.json`). Flags: `--single` runs only the
-given task, `--no-commit` skips autocommit+push (passed through `run.sh` extra args,
+planner for the next task — and after a spec's last task, to the next spec with tasks
+(directory order; specs without `tasks.md` and the `009-swarm-harness` spec itself are
+skipped). First non-green task stops the whole loop (`needs_human`/`crew_error` in that
+task's `run.json`). Flags: `--single` runs only the given task, `--no-commit` skips
+autocommit+push (passed through `run.sh` extra args,
 e.g. `./swarm/run.sh 001 T1 --single`).
+
+## Escalation (dev ×3 → senior → QA)
+Each task gets up to `DEV_ATTEMPTS` (3) dev phases (micro-steps + review + 1 fix round
+each, cached plan reused). Still red → one senior pass: `SWARM_SENIOR_MODEL`
+(OpenRouter `:free`, must differ from planner; Zen free tier is locked to OpenCode
+clients) fixes everything in one go via `build_senior_crew`, then QA re-verifies and
+gates re-run. Still red → `needs_human`. Attempts + `senior_used` recorded in `run.json`.
 
 ## Unit tests (no LLM, no network)
 ```bash

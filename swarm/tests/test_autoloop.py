@@ -56,3 +56,47 @@ def test_commit_refuses_env_paths(monkeypatch):
     rec = _commit_changes("001", "T2", "do things")
     assert rec["commit"].startswith("refused")
     assert calls == []
+
+
+def test_senior_llm_uses_configured_model(monkeypatch):
+    from swarm.llms import senior_llm
+
+    monkeypatch.setenv("SWARM_SENIOR_MODEL", "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free")
+    llm = senior_llm()
+    assert llm.model == "nvidia/nemotron-3-ultra-550b-a55b:free"  # provider prefix routed off
+    assert llm.additional_params.get("extra_body") is None
+
+
+def test_senior_llm_requires_env(monkeypatch):
+    import pytest
+
+    from swarm.llms import senior_llm
+
+    monkeypatch.delenv("SWARM_SENIOR_MODEL", raising=False)
+    with pytest.raises(RuntimeError):
+        senior_llm()
+
+
+def test_build_senior_crew_structure():
+    from swarm.crew import build_senior_crew
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
+    crew = build_senior_crew("001", task, "pytest exit=1")
+    assert [a.role for a in crew.agents] == ["Senior Developer", "QA Gatekeeper"]
+    assert len(crew.tasks) == 2
+    assert len(crew.agents[0].tools) >= 4
+
+
+def test_spec_after_order_and_skips(tmp_path):
+    from swarm.flow import _spec_after
+
+    specs = tmp_path / "specs"
+    for name, has_tasks in [("001-a", True), ("004-b", True), ("007-c", False), ("009-swarm-harness", True)]:
+        d = specs / name
+        d.mkdir(parents=True)
+        if has_tasks:
+            (d / "tasks.md").write_text("x")
+    assert _spec_after(tmp_path, "001-a") == "004-b"
+    assert _spec_after(tmp_path, "004-b") is None  # 007-c has no tasks, harness excluded
+    assert _spec_after(tmp_path, "zzz") is None

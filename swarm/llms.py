@@ -109,6 +109,15 @@ def reviewer_llm(*, allow_paid: bool = False) -> LLM:
     )
 
 
+def senior_llm(*, allow_paid: bool = False) -> LLM:
+    """Escalation brain: strong free-tier model (OpenRouter :free, verified tool-calling)."""
+    return _openrouter_llm(
+        "SWARM_SENIOR_MODEL",
+        temperature=0,
+        allow_paid=allow_paid,
+    )
+
+
 def zen_fallback_llm() -> LLM:
     model = _model("SWARM_ZEN_FALLBACK_MODEL")
     _guard(model, allow_paid=True)  # free-tier id passes guard

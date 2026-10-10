@@ -84,6 +84,7 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_FIX_ROUNDS = 1  # gate fail → coder retry with transcript, then human (no endless loop)
+DEV_ATTEMPTS = 3  # dev phase (steps + review + fix round) retries before senior escalation
 
 
 def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
@@ -272,3 +273,60 @@ def build_exec_crew(spec_dir: str, task: SpecTask, plan_text: str) -> Crew:
         context=[t_code],
     )
     return Crew(agents=[coder, reviewer], tasks=[t_code, t_verify], process=Process.sequential, verbose=False)
+
+
+def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
+    """Senior Developer (strong free-tier brain) + QA Reviewer: one-shot escalation.
+
+    Used after DEV_ATTEMPTS dev phases all failed gates. The senior fixes ALL
+    gate failures in one pass then hands back to QA for re-verification.
+    """
+    from swarm.llms import senior_llm
+
+    read = TrimmedFileReadTool()
+    edit = EditTool()
+    shell = ShellTool()
+
+    senior = Agent(
+        role="Senior Developer",
+        goal="Fix every gate failure in one pass. Largest diff necessary, no thrash.",
+        backstory=(
+            "You are the senior escalation: the junior coder failed repeatedly. "
+            "Read the gate transcript, fix every failure completely and coherently "
+            "(imports must resolve, sync/async must match, types must check). "
+            "You run no network commands."
+        ),
+        llm=senior_llm(),
+        tools=[read, CreateTool(), edit, shell],
+        verbose=False,
+        max_iter=12,
+    )
+    reviewer = Agent(
+        role="QA Gatekeeper",
+        goal="Block done unless pytest+ruff+mypy evidence is attached and green.",
+        backstory="You verify with Guarded Shell and report exit codes honestly.",
+        llm=reviewer_llm(),
+        tools=[read, shell],
+        verbose=False,
+        max_iter=5,
+    )
+    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
+    t_fix = Task(
+        description=(
+            f"Senior fix for {ctx}. The junior dev FAILED gates repeatedly, latest transcript:\n{transcript[:4000]}\n"
+            "Fix EVERY failure in one pass: make imports resolve, sync/async coherent, "
+            "types mypy-clean, lint ruff-clean (`ruff check --fix .` is allowed for mechanical nits). "
+            "Use Repo Create for new files, Repo Edit for existing files. "
+            "Loop rules (hard): at most 10 tool calls, then write the final answer; "
+            "never read the same file twice." + " " + SCOPE_RULE
+        ),
+        expected_output="Diff summary of the fix + what gate line each change addresses.",
+        agent=senior,
+    )
+    t_verify = Task(
+        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy .` via Guarded Shell and paste exit codes + tails.",
+        expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit and PASS/BLOCKED verdict.",
+        agent=reviewer,
+        context=[t_fix],
+    )
+    return Crew(agents=[senior, reviewer], tasks=[t_fix, t_verify], process=Process.sequential, verbose=False)
