@@ -56,7 +56,7 @@ class EditTool(BaseTool):
         return self._run(*args, **kwargs)
 
 
-ALLOW = re.compile(r"^(pytest|ruff|mypy|git diff|ls|cat)\b")
+ALLOW = re.compile(r"^(pytest|ruff|mypy|git diff|git status|ls|cat|grep|npm)\b")
 
 
 class ShellArgs(BaseModel):
@@ -65,7 +65,11 @@ class ShellArgs(BaseModel):
 
 class ShellTool(BaseTool):
     name: str = "Guarded Shell"
-    description: str = "Run allowlisted read-only/verify commands (pytest, ruff, mypy, git diff, ls, cat). 120s timeout, repo cwd."
+    description: str = (
+        "Run allowlisted commands: pytest, ruff, mypy (gates); git diff/status (read-only); "
+        "ls, cat, grep (read-only inspection); npm run check/build (frontend gates). "
+        "120s timeout, repo cwd. No network, no writes, no python -c."
+    )
     args_schema: Type[BaseModel] = ShellArgs
     timeout: int = 120
 

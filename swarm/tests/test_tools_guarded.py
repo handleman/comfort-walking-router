@@ -6,6 +6,16 @@ def test_shell_blocks_non_allowlisted():
     assert out.startswith("BLOCKED")
 
 
+def test_shell_blocks_writes_and_network():
+    for cmd in ("python -c '1'", "sed -i s/a/b/ f", "curl http://x", "pip install y"):
+        assert ShellTool()._run(cmd).startswith("BLOCKED"), cmd
+
+
+def test_shell_allows_extended_readonly():
+    for cmd in ("git status --short", "grep -n once README.md", "ls README.md"):
+        assert ShellTool()._run(cmd).startswith("exit="), cmd
+
+
 def test_shell_allows_ls():
     out = ShellTool()._run("ls README.md")
     assert "exit=0" in out
