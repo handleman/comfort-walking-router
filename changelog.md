@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-10-10 (swarm harness)
+- swarm: reviewer defaults to local QA (`ollama/swarm-qa:latest`, `Modelfile.qa`: 32k ctx + evidence discipline) — PASS and BLOCKED verdicts both verified live, dev→QA loop now quota-free; nemotron kept as alt; `make swarm-qa-image`
 - swarm: inner escalation — a micro-step failing `STEP_ATTEMPTS` (3) is rescued inline by the senior (`build_senior_step_crew`, quota passes through, task-level senior ×2 unchanged); diagram + tests
 - swarm: quota-stop — `free-models-per-day` 429 at any LLM call halts the pilot at once (no retry/escalation) with `quota_exhausted` status, `quota_note` in `run.json`, `QUOTA EXHAUSTED` in `up.log`; gate listener preserves terminal states; resume after reset
 - EOD: 001-T1/T2 landed green ($0); loop fully armed (dev×3 → senior×2 → QA, autocommit, cross-spec) but T3 blocked — OpenRouter `free-models-per-day` 429 hit during planning; partial trace in `swarm/runs/20261010-205051/` (no `run.json`); resume with `./swarm/run.sh 001 T3` after quota reset

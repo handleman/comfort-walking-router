@@ -1,7 +1,7 @@
 # Comfort walking router — top-level shortcuts.
 # App targets land with 001-T1 (pytest/ruff/mypy/npm). Swarm targets work now.
 
-.PHONY: swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local swarm-coder-image swarm-stop
+.PHONY: swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local swarm-coder-image swarm-qa-image swarm-stop
 
 swarm-run: ## Pilot run: make swarm-run [SPEC=001] [TASK=T1]
 	./swarm/run.sh $(SPEC) $(TASK)
@@ -23,6 +23,9 @@ swarm-test: ## Harness unit tests (no LLM, no network)
 
 swarm-coder-image: ## Build tuned local coder image (swarm/ollama/Modelfile -> swarm-coder:latest)
 	ollama create swarm-coder -f swarm/ollama/Modelfile
+
+swarm-qa-image: ## Build tuned local QA image (swarm/ollama/Modelfile.qa -> swarm-qa:latest)
+	ollama create swarm-qa -f swarm/ollama/Modelfile.qa
 
 swarm-stop: ## Stop the currently running pilot (Ollama/dashboards untouched)
 	./swarm/stop.sh

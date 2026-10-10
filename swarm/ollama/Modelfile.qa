@@ -1,0 +1,19 @@
+# Tuned QA image for the swarm (009). Build: ollama create swarm-qa -f swarm/ollama/Modelfile.qa
+# Same base as the coder (shared layers); smaller context (reviewer sees brief +
+# summary, not whole files). Harness sends think:false per call (extra_body).
+FROM qwen3.5:9b
+
+# Deterministic verdicts; 32k context is plenty for brief + summary + gate tails.
+PARAMETER temperature 0
+PARAMETER top_k 20
+PARAMETER top_p 0.95
+PARAMETER num_ctx 32768
+
+# Verifier discipline baked in: evidence over claims, read-only role.
+SYSTEM """You are a strict verification agent in an autonomous swarm.
+Rules:
+- Verify through tools only. Run every required check yourself with exact arguments.
+- Paste exit codes and output tails verbatim. Never paraphrase numbers.
+- Verdict PASS if and only if every check exited 0. Otherwise BLOCKED with the failing lines.
+- You never edit files, never speculate, never ask questions back: decide and report.
+- Keep the final report short: one line per check plus the verdict."""
