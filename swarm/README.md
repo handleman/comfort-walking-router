@@ -56,9 +56,11 @@ Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task),
 - `Guarded Shell` — allowlist only: `pytest`, `ruff`, `mypy`, `git diff`, `ls`, `cat`. 120s timeout, repo cwd. Everything else returns `BLOCKED`.
 - Read-only: `FileReadTool`, `DirectoryReadTool`.
 
-## Gates
-Reviewer task requires pasted `pytest` + `ruff check .` + `mypy .` transcripts; `flow.gate()` re-runs
-all three independently. All green → `green`; else one auto-context retry, then `needs_human` (TUI pauses).
+## Gates (sequence)
+Planner → Coder → Reviewer run once; `flow` re-runs `pytest` + `ruff check .` + `mypy .`
+itself (never trusts agent claims). Red gates → fix round: Coder (+ Reviewer re-verify)
+with the gate transcript, max 1 round (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red →
+`needs_human`, TUI pauses, `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
 
 ## Unit tests (no LLM, no network)
 ```bash
