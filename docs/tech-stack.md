@@ -8,6 +8,12 @@
 - Storage: stateless first, SQLite cache for OSM responses/scores. Postgres later for saved routes/prefs.
 - Test: pytest. Lint: ruff. Types: mypy.
 
+## Swarm harness (009, learning goal #2 — no manifests yet)
+- Orchestration: CrewAI (Flows + sequential Crews, `crewai[litellm]` + `crewai-tools`), Python 3.12 venv (`uv venv -p 3.12`; system 3.14 unsupported by CrewAI).
+- Models (free-first): local Ollama `qwen3.5:9b` (Coder) at `http://localhost:11434`; OpenRouter `:free` tool-capable (Planner/Reviewer); Zen free fallback (`muse-spark-1.3-contributor-free`, …). Paid only with explicit flag.
+- Dashboard: Textual console TUI (task panes, live stream via CrewAI event bus, approve/retry keys, cost bar) + `swarm/runs/<ts>/run.json` trace. No web dashboard in v1.
+- Secrets: `.env` (gitignored) — `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, `OLLAMA_BASE_URL`; see ADR-006.
+
 ## Proposed commands (confirm when manifests land)
 - Backend install: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (or `pip install -e .[dev]` if pyproject).
 - Frontend install/build: `npm install` + `npm run build` in `frontend/` (Vite/Svelte, manifest TBD).

@@ -17,5 +17,9 @@
 - `007-live-position` (spec drafted): walk-mode marker, no voiceover. Sim + GPS providers, snap + sustained-drift (>30 m, ~10 s/3 fixes) tap-to-reroute warning, auto-center toggle, arrival banner + Stop. No auto-rerouting.
 - `008-mapbox-routing` (spec drafted, post-MVP): swap OSRM interim → Mapbox free tier behind provider interface. Accept: contract unchanged, token backend-only, cache-hit skips Mapbox, no live calls in tests.
 
-## 3 — Non-goals (no spec yet)
+## 3 — 009 Swarm harness: learn agentic autonomous loops (in progress)
+- Pure CrewAI coder swarm + Textual console dashboard implementing specs task-by-task, free-first routing (local Ollama Qwen drafts → OpenRouter `:free` planner/reviewer → Zen free fallback, paid opt-in only).
+- Pilot: `001-T1` scaffold only at $0 with `run.json` trace + constitution gates. Spec: `specs/009-swarm-harness/`.
+
+## 4 — Non-goals (no spec yet)
 - Turn-by-turn, mobile native, offline maps.

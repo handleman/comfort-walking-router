@@ -3,7 +3,7 @@
 Source of truth for spec-driven workflow. Keep small; link details, don't duplicate.
 
 ## Mission
-See `docs/mission.md`. Comfort-first walking router; learn full SDD loop via minimal web map MVP.
+See `docs/mission.md`. Comfort-first walking router; learn full SDD loop via minimal web map MVP + swarming agents / agentic autonomous loops with CrewAI (`specs/009-swarm-harness/`).
 
 ## Tech Stack
 See `docs/tech-stack.md`. Python + FastAPI + Svelte + TypeScript + Leaflet, OSRM-interim geometry + OSM/Overpass comfort (Mapbox in 008), SQLite cache first (Postgres later). Proposed verify: `pytest`, `ruff check .`, `mypy .`, `npm run check` — unverified until manifests land.

@@ -1,0 +1,47 @@
+# Secrets — ADR-006 env-only (never commit values; commit *.example only)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python — backend, swarm harness (venv, caches, test/coverage)
+.venv/
+venv/
+swarm/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.uv/
+
+# Node / Svelte / Vite — frontend/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.svelte-kit/
+frontend/.svelte-kit/
+vite.config.*.timestamp-*.mjs
+
+# Data — SQLite/OSM cache (ADR-004), swarm run traces
+*.db
+*.sqlite
+*.sqlite-journal
+*.osm
+*.pbf
+swarm/runs/
+swarm/*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
