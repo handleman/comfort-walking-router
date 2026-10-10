@@ -51,10 +51,13 @@ def coder_llm() -> LLM:
     _guard(model, allow_paid=True)
     return LLM(
         model=model,
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        api_base=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         temperature=0,
-        # Qwen thinking blocks break LiteLLM tool-call parsing ("None or empty");
-        # think:false restores native tool_calls (verified 2026-10-10).
+        # Qwen thinking blocks break tool-call parsing ("None or empty").
+        # think:false must travel via LiteLLM: CrewAI's native
+        # openai_compatible route drops extra_body, so force is_litellm
+        # (verified 2026-10-10: thinking suppressed, tool_calls present).
+        is_litellm=True,
         extra_body={"think": False},
     )
 
@@ -65,8 +68,9 @@ def _openrouter_llm(env_var: str, *, temperature: float, allow_paid: bool = Fals
     if model.startswith("ollama/"):  # local override: same factory, no cloud calls
         return LLM(
             model=model,
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            api_base=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             temperature=temperature,
+            is_litellm=True,  # native route drops extra_body; think:false needs LiteLLM
             extra_body={"think": False},  # see coder_llm note: thinking breaks tool_calls
         )
     if model.startswith("zen/"):  # OpenCode Zen free tier, e.g. zen/<free-chat-model>
