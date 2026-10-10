@@ -67,7 +67,7 @@ Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task),
 Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
 context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-runs
 `pytest` + `ruff check .` + `mypy .` itself (never trusts agent claims). Red gates → fix
-round: Coder (+ Reviewer re-verify) with the gate transcript, max 1 round
+round: Coder (+ Reviewer re-verify) with the gate transcript, max 2 rounds
 (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
 `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
 Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md`; retries resume
@@ -84,11 +84,28 @@ autocommit+push (passed through `run.sh` extra args,
 e.g. `./swarm/run.sh 001 T1 --single`).
 
 ## Escalation (dev ×3 → senior → QA)
-Each task gets up to `DEV_ATTEMPTS` (3) dev phases (micro-steps + review + 1 fix round
-each, cached plan reused). Still red → one senior pass: `SWARM_SENIOR_MODEL`
+Each task gets up to `DEV_ATTEMPTS` (3) dev phases (micro-steps + review + 2 fix rounds
+each, cached plan reused). Still red → up to `SENIOR_ATTEMPTS` (2) senior passes: `SWARM_SENIOR_MODEL`
 (OpenRouter `:free`, must differ from planner; Zen free tier is locked to OpenCode
 clients) fixes everything in one go via `build_senior_crew`, then QA re-verifies and
 gates re-run. Still red → `needs_human`. Attempts + `senior_used` recorded in `run.json`.
+
+## Role sequence
+```mermaid
+flowchart TB
+    P["Spec Planner<br/>(fresh plan or cached)"] --> STEPS["Dev phase, ≤3 attempts:<br/>fresh Coder per STEP"]
+    STEPS --> REV["QA Reviewer<br/>(gate evidence)"]
+    REV --> GATES["Flow gates<br/>pytest + ruff + mypy + scope"]
+    GATES -->|green| COMMIT["Autocommit + push<br/>next task / next spec"]
+    GATES -->|red, fix rounds left ≤2| FIX["Coder fix round<br/>(transcript + FIX_RULES)"]
+    FIX --> GATES
+    GATES -->|red, dev attempts left| STEPS
+    GATES -->|red, dev exhausted| SENIOR["Senior Developer, ≤2 rounds<br/>(strong :free brain + FIX_RULES)"]
+    SENIOR --> REV2["QA Reviewer<br/>(re-verify)"]
+    REV2 --> GATES2["Flow gates"]
+    GATES2 -->|green| COMMIT
+    GATES2 -->|red| HUMAN["needs_human"]
+```
 
 ## Unit tests (no LLM, no network)
 ```bash

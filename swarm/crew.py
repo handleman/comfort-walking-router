@@ -43,6 +43,16 @@ SCOPE_RULE = (
     "Touch ONLY files under app/, frontend/, contracts/, requirements*.txt, pyproject.toml. "
     "NEVER modify swarm/, specs/, docs/, .env*."
 )
+# Findings from 001-T2 thrash (2026-10-10): fix rounds converged only when the
+# agent fixed coherently instead of patching single lines. Shared by fix + senior crews.
+FIX_RULES = (
+    "Fix COMPLETELY and coherently, not one line at a time: imports must resolve "
+    "(relative imports within the package, never bare top-level names for package "
+    "modules); sync/async must match (never await a sync function — make the caller "
+    "match its callees); implementations must match their ABC signatures. Run "
+    "`ruff check --fix .` first for mechanical nits, then hand-fix the rest. "
+    "Delete stray files you created at wrong paths instead of leaving them."
+)
 MAX_STEPS = 8
 
 
@@ -83,8 +93,9 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     return Crew(agents=[reviewer], tasks=[t_verify], process=Process.sequential, verbose=False)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MAX_FIX_ROUNDS = 1  # gate fail → coder retry with transcript, then human (no endless loop)
+MAX_FIX_ROUNDS = 2  # gate fail → coder retry with transcript (twice), then escalate/human
 DEV_ATTEMPTS = 3  # dev phase (steps + review + fix round) retries before senior escalation
+SENIOR_ATTEMPTS = 2  # senior one-shot fix passes before giving up to human
 
 
 def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
@@ -210,6 +221,7 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         description=(
             f"Fix round for {ctx}. The previous attempt FAILED gates:\n{transcript[:3000]}\n"
             "Change only what the transcript rejects. Use Repo Create for new files, Repo Edit for existing files. "
+            + FIX_RULES + " "
             "Loop rules (hard): at most 6 tool calls, then write the final answer; "
             "never read the same file twice." + " " + SCOPE_RULE
         ),
@@ -314,8 +326,7 @@ def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
     t_fix = Task(
         description=(
             f"Senior fix for {ctx}. The junior dev FAILED gates repeatedly, latest transcript:\n{transcript[:4000]}\n"
-            "Fix EVERY failure in one pass: make imports resolve, sync/async coherent, "
-            "types mypy-clean, lint ruff-clean (`ruff check --fix .` is allowed for mechanical nits). "
+            "Fix EVERY failure in one pass. " + FIX_RULES + " "
             "Use Repo Create for new files, Repo Edit for existing files. "
             "Loop rules (hard): at most 10 tool calls, then write the final answer; "
             "never read the same file twice." + " " + SCOPE_RULE

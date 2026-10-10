@@ -100,3 +100,22 @@ def test_spec_after_order_and_skips(tmp_path):
     assert _spec_after(tmp_path, "001-a") == "004-b"
     assert _spec_after(tmp_path, "004-b") is None  # 007-c has no tasks, harness excluded
     assert _spec_after(tmp_path, "zzz") is None
+
+
+def test_escalation_budgets():
+    from swarm.crew import DEV_ATTEMPTS, SENIOR_ATTEMPTS
+
+    assert DEV_ATTEMPTS == 3
+    assert SENIOR_ATTEMPTS == 2
+
+
+def test_fix_rules_shared_by_fix_and_senior_crews():
+    from swarm.crew import FIX_RULES, build_fix_crew, build_senior_crew
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
+    fix_desc = build_fix_crew("001", task, "ruff exit=1").tasks[0].description
+    senior_desc = build_senior_crew("001", task, "ruff exit=1").tasks[0].description
+    assert "ruff check --fix" in FIX_RULES
+    assert FIX_RULES in fix_desc
+    assert FIX_RULES in senior_desc

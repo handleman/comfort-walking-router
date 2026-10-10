@@ -25,6 +25,7 @@ class SwarmState(BaseModel):
     fix_rounds: int = 0
     dev_attempts: int = 0
     senior_used: bool = False
+    senior_rounds: int = 0
     transcript: str = ""
     plan_reused: bool = False
 
@@ -137,6 +138,7 @@ class SwarmFlow(Flow[SwarmState]):
         from swarm.crew import (
             DEV_ATTEMPTS,
             MAX_FIX_ROUNDS,
+            SENIOR_ATTEMPTS,
             build_fix_crew,
             build_plan_crew,
             build_review_crew,
@@ -212,18 +214,21 @@ class SwarmFlow(Flow[SwarmState]):
                 if all(v == 0 for v in gates.values()) or self.state.dev_attempts >= DEV_ATTEMPTS:
                     break
             if not all(v == 0 for v in gates.values()):
-                # Senior escalation: one full fix pass by the strong free-tier
-                # brain, then QA re-verifies via the normal review + gates.
-                self.state.senior_used = True
-                try:
-                    _, senior_out = _kickoff(build_senior_crew(self._spec_dir, task, transcript))
-                    self.state.result = str(senior_out)[:8000]
-                except SystemExit as e:
-                    self.state.result = str(e)[:4000]
-                    raise
-                _, review_out = _kickoff(build_review_crew(self._spec_dir, task, self.state.result))
-                self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
-                gates, transcript = self._run_gates()
+                # Senior escalation: up to SENIOR_ATTEMPTS full fix passes by the
+                # strong free-tier brain, QA re-verifies each round via review + gates.
+                while not all(v == 0 for v in gates.values()) and self.state.senior_rounds < SENIOR_ATTEMPTS:
+                    self.state.senior_used = True
+                    self.state.senior_rounds += 1
+                    self.state.transcript = transcript
+                    try:
+                        _, senior_out = _kickoff(build_senior_crew(self._spec_dir, task, transcript))
+                        self.state.result = str(senior_out)[:8000]
+                    except SystemExit as e:
+                        self.state.result = str(e)[:4000]
+                        raise
+                    _, review_out = _kickoff(build_review_crew(self._spec_dir, task, self.state.result))
+                    self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
+                    gates, transcript = self._run_gates()
         except SystemExit as e:
             self.state.result = str(e)[:4000]
             self.state.status = "crew_error"
@@ -251,6 +256,7 @@ class SwarmFlow(Flow[SwarmState]):
             "fix_rounds": self.state.fix_rounds,
             "dev_attempts": self.state.dev_attempts,
             "senior_used": self.state.senior_used,
+            "senior_rounds": self.state.senior_rounds,
             "plan_reused": self.state.plan_reused,
             "result_tail": self.state.result[-2000:],
             "gate_transcript_tail": self.state.transcript[-2000:],

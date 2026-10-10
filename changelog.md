@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-10-10 (swarm harness)
+- swarm: agent rules from T2 findings (`FIX_RULES` shared by fix + senior crews: resolvable imports, sync/async match, ABC signatures, `ruff check --fix` first, delete strays); `MAX_FIX_ROUNDS` 1→2, senior retries ×2 (`SENIOR_ATTEMPTS`); role-sequence mermaid diagram in `swarm/README.md`
 - swarm: cross-spec loop — green runs advance planner→dev→QA across specs in directory order (specs without `tasks.md` and `009-swarm-harness` skipped); TUI rebuilds task list per spec/task in live + tail modes
 - swarm: senior escalation — dev phase retries ×3 (`DEV_ATTEMPTS`), then one senior pass (`SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free`, tool-calling verified, must differ from planner) + QA re-verify; Zen free tier unusable from harness (FreeTierError), OpenRouter Claude all priced
 - swarm: autonomous loop — green runs autocommit in-scope scaffold + push (`swarm: <spec>-<task> green (autocommit)`, `.env*` refused), then loop back to planner for next task (`run_tasks`, `--single`/`--no-commit` escapes); TUI tail mode shows plan-cached note via run `meta.json` (was live-mode only)
