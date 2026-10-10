@@ -33,6 +33,7 @@ class SwarmTUI(App[None]):
         self._tail_off = 0
         self._active = "crew"
         self._tasks: list[str] = []
+        self._plan_noted = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -98,7 +99,26 @@ class SwarmTUI(App[None]):
                 break
             self._handle(ev)
             drained += 1
+        self._note_plan_cache()
         self._refresh_status()
+
+    def _note_plan_cache(self) -> None:
+        """Planner pane must never look dead: report cached vs fresh plan."""
+        if self._plan_noted:
+            return
+        plans = REPO_ROOT / "swarm" / "runs" / "plans"
+        cached = None
+        if plans.is_dir():
+            cands = sorted(plans.glob(f"*-{self._task_id}.md"))
+            match = [c for c in cands if self._spec in c.stem]
+            cached = (match or cands or [None])[0]
+        if cached is None and self._run_dir is None:
+            return  # run hasn't started, nothing to report yet
+        self._plan_noted = True
+        if cached is not None:
+            self._log("planner", f"plan cached, planner skipped ({cached.name})")
+        else:
+            self._log("planner", "no cached plan — planner running")
 
     # ---- tail mode ----
     def _poll_tail(self) -> None:
@@ -164,8 +184,14 @@ class SwarmTUI(App[None]):
             try:
                 r = json.loads(rj.read_text())
                 extra = f" status={r.get('status')} gates={r.get('gates')}"
+                if r.get("plan_reused"):
+                    extra += " plan=cached"
             except Exception:
                 pass
+        elif self._plan_noted:
+            plans = REPO_ROOT / "swarm" / "runs" / "plans"
+            if plans.is_dir() and list(plans.glob(f"*-{self._task_id}.md")):
+                extra = " plan=cached (planner skipped)"
         self._set_status(f"spec={self._spec} task={self._task_id} run={self._run_dir.name}{extra} cost=$0")
 
     # ---- keys ----
