@@ -78,6 +78,37 @@ def build_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: int, tot
     return Crew(agents=[coder], tasks=[t_step], process=Process.sequential, verbose=False)
 
 
+def build_senior_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: int, total: int, last_error: str) -> Crew:
+    """Senior Developer executes one micro-step the junior coder failed repeatedly."""
+    from swarm.llms import senior_llm
+
+    senior = Agent(
+        role="Senior Developer",
+        goal="Execute one small step completely and coherently. No thrash.",
+        backstory=(
+            "You are the senior escalation for a single stuck step: the junior coder "
+            "failed it repeatedly. Read the step and the last error, then do it right "
+            "in one pass. You run no network commands."
+        ),
+        llm=senior_llm(),
+        tools=[TrimmedFileReadTool(), CreateTool(), EditTool(), ShellTool()],
+        verbose=False,
+        max_iter=12,
+    )
+    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)}"
+    t_step = Task(
+        description=(
+            f"Senior rescue for micro-step {idx}/{total} for {ctx} (no other work):\n{step_text[:2000]}\n"
+            f"The junior failed with: {last_error[:1000]}\n"
+            "Use Repo Create for new files, Repo Edit for existing ones. " + FIX_RULES + " "
+            "Loop rules (hard): at most 10 tool calls, then write the result."
+        ),
+        expected_output=f"Step {idx} diff summary: files changed + one line each.",
+        agent=senior,
+    )
+    return Crew(agents=[senior], tasks=[t_step], process=Process.sequential, verbose=False)
+
+
 def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     """Reviewer only, after all micro-steps: run gates, paste evidence."""
     reviewer = _reviewer()
@@ -96,6 +127,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_FIX_ROUNDS = 2  # gate fail → coder retry with transcript (twice), then escalate/human
 DEV_ATTEMPTS = 3  # dev phase (steps + review + fix round) retries before senior escalation
 SENIOR_ATTEMPTS = 2  # senior one-shot fix passes before giving up to human
+STEP_ATTEMPTS = 3  # micro-step kickoff retries before senior step rescue
 
 
 def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:

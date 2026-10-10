@@ -109,6 +109,54 @@ def test_escalation_budgets():
     assert SENIOR_ATTEMPTS == 2
 
 
+def test_is_quota_error():
+    from swarm.flow import _is_quota_error
+
+    quota = Exception("Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day-high-balance.'}}")
+    assert _is_quota_error(quota) is True
+    assert _is_quota_error(Exception("Provider returned error 429, retry shortly")) is False
+    assert _is_quota_error(ValueError("Invalid response from LLM call - None or empty.")) is False
+
+
+def test_quota_exhausted_is_system_exit():
+    from swarm.flow import _QuotaExhausted
+
+    assert issubclass(_QuotaExhausted, SystemExit)
+
+
+def test_gate_preserves_terminal_status():
+    from swarm.flow import SwarmFlow, SwarmState
+
+    class Stub:
+        pass
+
+    for terminal in ("quota_exhausted", "crew_error"):
+        stub = Stub()
+        stub.state = SwarmState(status=terminal, gates={})
+        assert SwarmFlow.gate(stub, "whatever") == terminal
+    live = Stub()
+    live.state = SwarmState(status="crew_done", gates={"pytest -q": 0})
+    assert SwarmFlow.gate(live, "x") == "green"
+
+
+def test_step_attempts_budget():
+    from swarm.crew import STEP_ATTEMPTS
+
+    assert STEP_ATTEMPTS == 3
+
+
+def test_build_senior_step_crew_structure():
+    from swarm.crew import FIX_RULES, build_senior_step_crew
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
+    crew = build_senior_step_crew("001", task, "STEP 5: do the thing", 5, 6, "crew failed twice")
+    assert [a.role for a in crew.agents] == ["Senior Developer"]
+    assert len(crew.tasks) == 1
+    assert FIX_RULES in crew.tasks[0].description
+    assert "crew failed twice" in crew.tasks[0].description
+
+
 def test_fix_rules_shared_by_fix_and_senior_crews():
     from swarm.crew import FIX_RULES, build_fix_crew, build_senior_crew
     from swarm.spec_loader import SpecTask

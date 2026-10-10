@@ -28,6 +28,16 @@ class SwarmState(BaseModel):
     senior_rounds: int = 0
     transcript: str = ""
     plan_reused: bool = False
+    quota_note: str = ""
+
+
+class _QuotaExhausted(SystemExit):
+    """Daily free-model quota hit: stop the pilot, do not retry or escalate."""
+
+
+def _is_quota_error(e: Exception) -> bool:
+    s = f"{type(e).__name__}: {e}".lower()
+    return "free-models-per-day" in s
 
 
 def plan_cache_path(spec_dir: str, task_id: str) -> Path:
@@ -139,10 +149,12 @@ class SwarmFlow(Flow[SwarmState]):
             DEV_ATTEMPTS,
             MAX_FIX_ROUNDS,
             SENIOR_ATTEMPTS,
+            STEP_ATTEMPTS,
             build_fix_crew,
             build_plan_crew,
             build_review_crew,
             build_senior_crew,
+            build_senior_step_crew,
             build_step_crew,
             parse_steps,
         )
@@ -160,6 +172,9 @@ class SwarmFlow(Flow[SwarmState]):
                     out = crew.kickoff()
                     return crew, str(out)[:8000]
                 except Exception as e:
+                    if _is_quota_error(e):
+                        # Daily quota: retrying or escalating is pointless, stop now.
+                        raise _QuotaExhausted(f"free-models-per-day quota hit: {e}"[:500]) from e
                     last_err = e
             raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
 
@@ -191,9 +206,26 @@ class SwarmFlow(Flow[SwarmState]):
             while True:
                 self.state.dev_attempts += 1
                 # Micro-execution: fresh coder (fresh context) per step; reviewer only at the end.
+                # A step failing STEP_ATTEMPTS times is rescued by the senior, then we continue.
                 step_outs: list[str] = []
                 for i, step in enumerate(steps, 1):
-                    _, step_out = _kickoff(build_step_crew(self._spec_dir, task, step, i, len(steps)))
+                    step_out = ""
+                    last_err: BaseException | None = None
+                    for _ in range(STEP_ATTEMPTS):
+                        try:
+                            _, step_out = _kickoff(build_step_crew(self._spec_dir, task, step, i, len(steps)))
+                            last_err = None
+                            break
+                        except _QuotaExhausted:
+                            raise
+                        except SystemExit as e:
+                            last_err = e
+                    if last_err is not None:
+                        self.state.senior_used = True
+                        self.state.senior_rounds += 1
+                        _, step_out = _kickoff(
+                            build_senior_step_crew(self._spec_dir, task, step, i, len(steps), str(last_err))
+                        )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
                 work_summary = "\n".join(step_outs)
                 _, review_out = _kickoff(build_review_crew(self._spec_dir, task, work_summary))
@@ -229,6 +261,13 @@ class SwarmFlow(Flow[SwarmState]):
                     _, review_out = _kickoff(build_review_crew(self._spec_dir, task, self.state.result))
                     self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
                     gates, transcript = self._run_gates()
+        except _QuotaExhausted as e:
+            self.state.result = str(e)[:4000]
+            self.state.status = "quota_exhausted"
+            self.state.quota_note = f"{self._spec_dir}/{self.state.task_id or self._task_id}: {e}"[:500]
+            print(f"QUOTA EXHAUSTED: {self.state.quota_note} — pilot stopped, resume after reset", flush=True)
+            self.save_run("quota_exhausted")
+            return self.state.result
         except SystemExit as e:
             self.state.result = str(e)[:4000]
             self.state.status = "crew_error"
@@ -242,7 +281,10 @@ class SwarmFlow(Flow[SwarmState]):
     @listen(run_crew)
     def gate(self, result: str) -> str:
         # Gates already ran inside run_crew (fix loop needs them mid-stage);
-        # this listener only maps them to a final status.
+        # this listener only maps them to a final status. Terminal states
+        # (crew_error without raise, quota_exhausted) pass through untouched.
+        if self.state.status in ("crew_error", "quota_exhausted"):
+            return self.state.status
         self.state.status = "green" if all(v == 0 for v in self.state.gates.values()) else "needs_human"
         return self.state.status
 
@@ -257,6 +299,7 @@ class SwarmFlow(Flow[SwarmState]):
             "dev_attempts": self.state.dev_attempts,
             "senior_used": self.state.senior_used,
             "senior_rounds": self.state.senior_rounds,
+            "quota_note": self.state.quota_note,
             "plan_reused": self.state.plan_reused,
             "result_tail": self.state.result[-2000:],
             "gate_transcript_tail": self.state.transcript[-2000:],

@@ -85,15 +85,22 @@ e.g. `./swarm/run.sh 001 T1 --single`).
 
 ## Escalation (dev ×3 → senior → QA)
 Each task gets up to `DEV_ATTEMPTS` (3) dev phases (micro-steps + review + 2 fix rounds
-each, cached plan reused). Still red → up to `SENIOR_ATTEMPTS` (2) senior passes: `SWARM_SENIOR_MODEL`
+each, cached plan reused). A single micro-step failing `STEP_ATTEMPTS` (3) times is
+rescued by the senior inline, then the phase continues. Still red after all dev phases →
+up to `SENIOR_ATTEMPTS` (2) senior passes: `SWARM_SENIOR_MODEL`
 (OpenRouter `:free`, must differ from planner; Zen free tier is locked to OpenCode
 clients) fixes everything in one go via `build_senior_crew`, then QA re-verifies and
 gates re-run. Still red → `needs_human`. Attempts + `senior_used` recorded in `run.json`.
 
+Quota: any LLM call failing with `free-models-per-day` stops the pilot immediately —
+no retry, no escalation — with status `quota_exhausted`, a `quota_note` in `run.json`,
+and a `QUOTA EXHAUSTED` line in `up.log`. Resume after the daily reset.
+
 ## Role sequence
 ```mermaid
 flowchart TB
-    P["Spec Planner<br/>(fresh plan or cached)"] --> STEPS["Dev phase, ≤3 attempts:<br/>fresh Coder per STEP"]
+    P["Spec Planner<br/>(fresh plan or cached)"] --> STEPS["Dev phase, ≤3 attempts:<br/>fresh Coder per STEP, ≤3 tries each"]
+    STEPS -.->|step fails 3×| SENIOR
     STEPS --> REV["QA Reviewer<br/>(gate evidence)"]
     REV --> GATES["Flow gates<br/>pytest + ruff + mypy + scope"]
     GATES -->|green| COMMIT["Autocommit + push<br/>next task / next spec"]
@@ -105,6 +112,8 @@ flowchart TB
     REV2 --> GATES2["Flow gates"]
     GATES2 -->|green| COMMIT
     GATES2 -->|red| HUMAN["needs_human"]
+    STEPS -.->|free-models-per-day 429| Q["quota_exhausted<br/>pilot stops + report"]
+    SENIOR -.->|free-models-per-day 429| Q
 ```
 
 ## Unit tests (no LLM, no network)

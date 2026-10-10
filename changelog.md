@@ -1,6 +1,9 @@
 # Changelog
 
 ## 2026-10-10 (swarm harness)
+- swarm: inner escalation — a micro-step failing `STEP_ATTEMPTS` (3) is rescued inline by the senior (`build_senior_step_crew`, quota passes through, task-level senior ×2 unchanged); diagram + tests
+- swarm: quota-stop — `free-models-per-day` 429 at any LLM call halts the pilot at once (no retry/escalation) with `quota_exhausted` status, `quota_note` in `run.json`, `QUOTA EXHAUSTED` in `up.log`; gate listener preserves terminal states; resume after reset
+- EOD: 001-T1/T2 landed green ($0); loop fully armed (dev×3 → senior×2 → QA, autocommit, cross-spec) but T3 blocked — OpenRouter `free-models-per-day` 429 hit during planning; partial trace in `swarm/runs/20261010-205051/` (no `run.json`); resume with `./swarm/run.sh 001 T3` after quota reset
 - swarm: agent rules from T2 findings (`FIX_RULES` shared by fix + senior crews: resolvable imports, sync/async match, ABC signatures, `ruff check --fix` first, delete strays); `MAX_FIX_ROUNDS` 1→2, senior retries ×2 (`SENIOR_ATTEMPTS`); role-sequence mermaid diagram in `swarm/README.md`
 - swarm: cross-spec loop — green runs advance planner→dev→QA across specs in directory order (specs without `tasks.md` and `009-swarm-harness` skipped); TUI rebuilds task list per spec/task in live + tail modes
 - swarm: senior escalation — dev phase retries ×3 (`DEV_ATTEMPTS`), then one senior pass (`SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free`, tool-calling verified, must differ from planner) + QA re-verify; Zen free tier unusable from harness (FreeTierError), OpenRouter Claude all priced
