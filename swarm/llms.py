@@ -1,8 +1,8 @@
-"""Free-first LLM factory (009 AC-1/AC-2). Single place auditing model routing.
+"""LLM factory (009 AC-1/AC-2). No hardcoded models: every model id comes from env.
 
-Tiers: Coder=local Ollama Qwen (always free/local), Planner/Reviewer=OpenRouter
-:free ordered fallback, Zen free as fallback. Paid models hard-blocked unless
-SWARM_ALLOW_PAID=1 AND explicit allow_paid=True passed.
+Routing by prefix: ollama/* → local Ollama, zen/* → OpenCode Zen gateway,
+else OpenRouter. Paid models hard-blocked unless SWARM_ALLOW_PAID=1 AND
+explicit allow_paid=True passed.
 """
 
 from __future__ import annotations
@@ -27,6 +27,16 @@ def _allow_paid() -> bool:
     return os.getenv("SWARM_ALLOW_PAID", "0") == "1"
 
 
+def _model(env_var: str) -> str:
+    """Required model id from env — no hardcoded fallbacks."""
+    model = os.getenv(env_var, "")
+    if not model:
+        raise RuntimeError(
+            f"{env_var} is not set. Copy swarm/.env.example to .env and set every SWARM_*_MODEL."
+        )
+    return model
+
+
 def _guard(model: str, *, allow_paid: bool) -> None:
     if ":free" in model or model.startswith("ollama/") or "contributor-free" in model or model.endswith("-free"):
         return
@@ -38,8 +48,8 @@ def _guard(model: str, *, allow_paid: bool) -> None:
 
 
 def coder_llm() -> LLM:
-    model = os.getenv("SWARM_CODER_MODEL", "ollama/qwen3.5:9b")
-    _guard(model, allow_paid=True)  # ollama passes guard; explicit anyway
+    model = _model("SWARM_CODER_MODEL")
+    _guard(model, allow_paid=True)
     return LLM(
         model=model,
         base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
@@ -50,8 +60,8 @@ def coder_llm() -> LLM:
     )
 
 
-def _openrouter_llm(env_var: str, default: str, *, temperature: float, allow_paid: bool = False) -> LLM:
-    model = os.getenv(env_var, default)
+def _openrouter_llm(env_var: str, *, temperature: float, allow_paid: bool = False) -> LLM:
+    model = _model(env_var)
     _guard(model, allow_paid=allow_paid)
     if model.startswith("ollama/"):  # local override: same factory, no cloud calls
         return LLM(
@@ -60,7 +70,7 @@ def _openrouter_llm(env_var: str, default: str, *, temperature: float, allow_pai
             temperature=temperature,
             extra_body={"think": False},  # see coder_llm note: thinking breaks tool_calls
         )
-    if model.startswith("zen/"):  # OpenCode Zen free tier, e.g. zen/space-bunny-free
+    if model.startswith("zen/"):  # OpenCode Zen free tier, e.g. zen/<free-chat-model>
         return LLM(
             model=model.removeprefix("zen/"),
             custom_openai=True,  # gateway mode: keeps custom base_url (verified 2026-10-10)
@@ -83,7 +93,6 @@ def _openrouter_llm(env_var: str, default: str, *, temperature: float, allow_pai
 def planner_llm(*, allow_paid: bool = False) -> LLM:
     return _openrouter_llm(
         "SWARM_PLANNER_MODEL",
-        "ollama/qwen3.5:9b",
         temperature=0.2,
         allow_paid=allow_paid,
     )
@@ -92,18 +101,17 @@ def planner_llm(*, allow_paid: bool = False) -> LLM:
 def reviewer_llm(*, allow_paid: bool = False) -> LLM:
     return _openrouter_llm(
         "SWARM_REVIEWER_MODEL",
-        "ollama/qwen3.5:9b",
         temperature=0,
         allow_paid=allow_paid,
     )
 
 
 def zen_fallback_llm() -> LLM:
-    model = os.getenv("SWARM_ZEN_FALLBACK_MODEL", "openai/muse-spark-1.3-contributor-free")
+    model = _model("SWARM_ZEN_FALLBACK_MODEL")
     _guard(model, allow_paid=True)  # free-tier id passes guard
     return LLM(
         model=model,
-        base_url=os.getenv("SWARM_ZEN_BASE_URL", "https://opencode.ai/zen/v1/chat/completions"),
+        base_url=os.getenv("SWARM_ZEN_BASE_URL", "https://opencode.ai/zen/v1"),
         api_key=os.environ.get("OPENCODE_API_KEY", ""),
         temperature=0,
         timeout=120,
