@@ -19,6 +19,8 @@ class SwarmState(BaseModel):
     status: str = "init"
     result: str = ""
     gates: dict[str, int] = {}
+    fix_rounds: int = 0
+    transcript: str = ""
 
 
 class SwarmFlow(Flow[SwarmState]):
@@ -42,9 +44,25 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.spec_dir, self.state.task_id = self._spec_dir, tasks[0].id
         return {"spec_path": str(spec_path), "task": tasks[0].id, "brief": tasks[0].brief}
 
+    def _run_gates(self) -> tuple[dict[str, int], str]:
+        """Run constitution gates independently (never trust agent claims)."""
+        from swarm.tools_guarded import ShellTool
+
+        shell = ShellTool()
+        gates: dict[str, int] = {}
+        tails: list[str] = []
+        for cmd in ("pytest -q", "ruff check .", "mypy ."):
+            out = shell._run(cmd)
+            try:
+                gates[cmd] = int(out.split("exit=")[1].split()[0])
+            except Exception:
+                gates[cmd] = 99
+            tails.append(f"$ {cmd}\n{out[-1200:]}")
+        return gates, "\n".join(tails)
+
     @listen(load_spec)
     def run_crew(self, ctx: dict[str, str]) -> str:
-        from swarm.crew import build_crew
+        from swarm.crew import MAX_FIX_ROUNDS, build_crew, build_fix_crew
         from swarm.events import SwarmListener
         from swarm.spec_loader import load_spec_tasks
 
@@ -66,6 +84,21 @@ class SwarmFlow(Flow[SwarmState]):
             self.save_run("crew_error")
             raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
         self.state.result = str(out)[:8000]
+        # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
+        gates, transcript = self._run_gates()
+        while not all(v == 0 for v in gates.values()) and self.state.fix_rounds < MAX_FIX_ROUNDS:
+            self.state.fix_rounds += 1
+            self.state.transcript = transcript
+            try:
+                fix_crew = build_fix_crew(self._spec_dir, tasks[0], transcript)
+                fix_out = fix_crew.kickoff()
+                self.state.result = str(fix_out)[:8000]
+            except Exception as e:  # noqa: BLE001
+                self.state.result = f"FIX {self.state.fix_rounds} CREW_ERROR: {type(e).__name__}: {e}"[:4000]
+                break
+            gates, transcript = self._run_gates()
+        self.state.gates = gates
+        self.state.transcript = transcript
         self.state.status = "crew_done"
         try:
             usage = crew.usage_metrics  # type: ignore[attr-defined]
@@ -76,18 +109,9 @@ class SwarmFlow(Flow[SwarmState]):
 
     @listen(run_crew)
     def gate(self, result: str) -> str:
-        from swarm.tools_guarded import ShellTool
-
-        shell = ShellTool()
-        gates: dict[str, int] = {}
-        for cmd in ("pytest -q", "ruff check .", "mypy ."):
-            out = shell._run(cmd)
-            try:
-                gates[cmd] = int(out.split("exit=")[1].split()[0])
-            except Exception:
-                gates[cmd] = 99
-        self.state.gates = gates
-        self.state.status = "green" if all(v == 0 for v in gates.values()) else "needs_human"
+        # Gates already ran inside run_crew (fix loop needs them mid-stage);
+        # this listener only maps them to a final status.
+        self.state.status = "green" if all(v == 0 for v in self.state.gates.values()) else "needs_human"
         return self.state.status
 
     @listen(gate)
@@ -97,7 +121,9 @@ class SwarmFlow(Flow[SwarmState]):
             "task": self.state.task_id,
             "status": status,
             "gates": self.state.gates,
+            "fix_rounds": self.state.fix_rounds,
             "result_tail": self.state.result[-2000:],
+            "gate_transcript_tail": self.state.transcript[-2000:],
             "cost": 0,
             "cost_note": "free-first: local + :free only unless allow_paid",
         }
