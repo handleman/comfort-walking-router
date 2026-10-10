@@ -79,11 +79,11 @@ class SwarmTUI(App[None]):
         self._run_dir = flow.run_dir
         try:
             status = flow.kickoff()
-            self.call_from_thread(self._log, "crew", f"flow finished: {status}")
+            self.call_from_thread(self._pane_log, "crew", f"flow finished: {status}")
         except SystemExit as e:
-            self.call_from_thread(self._log, "crew", f"flow stopped: {e}")
-        except Exception as e:  # noqa: BLE001
-            self.call_from_thread(self._log, "crew", f"flow crashed: {type(e).__name__}: {e}")
+            self.call_from_thread(self._pane_log, "crew", f"flow stopped: {e}")
+        except Exception as e:
+            self.call_from_thread(self._pane_log, "crew", f"flow crashed: {type(e).__name__}: {e}")
         self.call_from_thread(self._refresh_status)
 
     def _poll_live(self) -> None:
@@ -107,18 +107,18 @@ class SwarmTUI(App[None]):
         if self._plan_noted:
             return
         plans = REPO_ROOT / "swarm" / "runs" / "plans"
-        cached = None
+        cached: Path | None = None
         if plans.is_dir():
             cands = sorted(plans.glob(f"*-{self._task_id}.md"))
             match = [c for c in cands if self._spec in c.stem]
-            cached = (match or cands or [None])[0]
+            cached = (match + cands + [None])[0]
         if cached is None and self._run_dir is None:
             return  # run hasn't started, nothing to report yet
         self._plan_noted = True
         if cached is not None:
-            self._log("planner", f"plan cached, planner skipped ({cached.name})")
+            self._pane_log("planner", f"plan cached, planner skipped ({cached.name})")
         else:
-            self._log("planner", "no cached plan — planner running")
+            self._pane_log("planner", "no cached plan — planner running")
 
     # ---- tail mode ----
     def _poll_tail(self) -> None:
@@ -145,23 +145,23 @@ class SwarmTUI(App[None]):
         t = ev.get("type", "")
         if t == "agent_started":
             self._active = ev.get("pane", "crew")
-            self._log(self._active, f"▶ {ev.get('agent', '?')} started")
+            self._pane_log(self._active, f"▶ {ev.get('agent', '?')} started")
         elif t == "agent_done":
-            self._log(ev.get("pane", "crew"), f"✔ {ev.get('agent', '?')} done")
+            self._pane_log(ev.get("pane", "crew"), f"✔ {ev.get('agent', '?')} done")
         elif t in ("agent_error", "llm_failed", "task_failed", "crew_failed"):
-            self._log(ev.get("pane", "crew"), f"✘ {ev.get('text', t)[:200]}")
+            self._pane_log(ev.get("pane", "crew"), f"✘ {ev.get('text', t)[:200]}")
         elif t == "chunk":
             pane = self._active if self._active in PANES else "coder"
-            self._log(pane, ev.get("text", "")[:500])
+            self._pane_log(pane, ev.get("text", "")[:500])
         elif t == "task_started":
-            self._log("crew", f"task: {ev.get('text', '')[:120]}")
+            self._pane_log("crew", f"task: {ev.get('text', '')[:120]}")
         elif t == "task_done":
-            self._log("crew", "task done")
+            self._pane_log("crew", "task done")
         elif t == "crew_done":
-            self._log("crew", "crew done")
+            self._pane_log("crew", "crew done")
             self._refresh_status()
 
-    def _log(self, pane: str, text: str) -> None:
+    def _pane_log(self, pane: str, text: str) -> None:
         if pane not in PANES:
             pane = "coder"
         try:
@@ -203,7 +203,7 @@ class SwarmTUI(App[None]):
             (self._run_dir / "approved.json").write_text('{"approved": true}')
             self._set_status(f"approved {self._run_dir.name}")
         elif key == "r" and not self._tail:
-            self._log("crew", "── retry: new run, same spec/task ──")
+            self._pane_log("crew", "── retry: new run, same spec/task ──")
             threading.Thread(target=self._run_flow, daemon=True).start()
 
 

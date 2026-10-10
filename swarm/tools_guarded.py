@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Type
+from typing import Any
 
 from crewai.tools import BaseTool
 from crewai_tools import FileReadTool
@@ -37,7 +37,7 @@ class EditArgs(BaseModel):
 class EditTool(BaseTool):
     name: str = "Repo Edit"
     description: str = "Replace one exact occurrence of oldString with newString in a repo-relative file."
-    args_schema: Type[BaseModel] = EditArgs
+    args_schema: type[BaseModel] = EditArgs
 
     def _run(self, path: str, oldString: str, newString: str, **kwargs: Any) -> str:
         target = (REPO_ROOT / path).resolve()
@@ -58,6 +58,25 @@ class EditTool(BaseTool):
 
 ALLOW = re.compile(r"^(pytest|ruff|mypy|git diff|git status|ls|cat|grep|npm)\b")
 
+# Coder scope: only these repo-relative prefixes may change (SWARM_SCOPE overrides,
+# comma-separated). Everything else (swarm/, specs/, docs/, .env*) is off-limits.
+DEFAULT_SCOPE = ("app/", "frontend/", "contracts/", "requirements-dev.txt", "requirements.txt", "pyproject.toml")
+
+
+def scope_violations(changed: list[str], scope: tuple[str, ...] = DEFAULT_SCOPE) -> list[str]:
+    return [p for p in changed if not p.startswith(tuple(scope))]
+
+
+def _git_changed() -> list[str]:
+    try:
+        p = subprocess.run(
+            "git status --short", shell=True, cwd=REPO_ROOT, capture_output=True, text=True, timeout=30,
+            check=False,
+        )
+        return [line[3:].strip().strip('"').split(" -> ")[-1] for line in p.stdout.splitlines() if line.strip()]
+    except (OSError, subprocess.SubprocessError):
+        return []
+
 
 class ShellArgs(BaseModel):
     command: str = Field(..., description="Allowlisted shell command")
@@ -70,15 +89,21 @@ class ShellTool(BaseTool):
         "ls, cat, grep (read-only inspection); npm run check/build (frontend gates). "
         "120s timeout, repo cwd. No network, no writes, no python -c."
     )
-    args_schema: Type[BaseModel] = ShellArgs
+    args_schema: type[BaseModel] = ShellArgs
     timeout: int = 120
 
     def _run(self, command: str, **kwargs: Any) -> str:
         if not ALLOW.match(command.strip()):
             return f"BLOCKED: not allowlisted: {command!r}"
         try:
+            import os as _os
+
+            env = dict(_os.environ)
+            # Gates must run with the harness venv (system PATH lacks pytest/ruff/mypy).
+            venv_bin = str(REPO_ROOT / "swarm" / ".venv" / "bin")
+            env["PATH"] = venv_bin + _os.pathsep + env.get("PATH", "")
             p = subprocess.run(
-                command, shell=True, cwd=REPO_ROOT, capture_output=True, text=True, timeout=self.timeout
+                command, shell=True, cwd=REPO_ROOT, capture_output=True, text=True, timeout=self.timeout, env=env, check=False
             )
         except subprocess.TimeoutExpired:
             return "BLOCKED: timeout after 120s"
@@ -97,7 +122,7 @@ class CreateArgs(BaseModel):
 class CreateTool(BaseTool):
     name: str = "Repo Create"
     description: str = "Create a new repo-relative file with content. Refuses if the file exists (use Repo Edit) or the path escapes the repo."
-    args_schema: Type[BaseModel] = CreateArgs
+    args_schema: type[BaseModel] = CreateArgs
 
     def _run(self, path: str, content: str = "", **kwargs: Any) -> str:
         target = (REPO_ROOT / path).resolve()

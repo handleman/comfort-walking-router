@@ -38,7 +38,11 @@ def _reviewer() -> Agent:
     )
 
 
-STEP_RE = re.compile(r"^STEP\s*(\d+)\s*[:.\-–]\s*(.+)$", re.M)
+STEP_RE = re.compile(r"^STEP\s*(\d+)\s*[:.\-–]\s*(.+)$", re.MULTILINE)
+SCOPE_RULE = (
+    "Touch ONLY files under app/, frontend/, contracts/, requirements*.txt, pyproject.toml. "
+    "NEVER modify swarm/, specs/, docs/, .env*."
+)
 MAX_STEPS = 8
 
 
@@ -101,7 +105,7 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
             f"independently executable). Read specs/{spec_dir}/spec.md, plan.md, tasks.md and constitution first. "
             "Output format (exact, one per line): `STEP n: <file> — <one precise action>`. "
             "4–8 steps. No other text. Loop rules (hard): at most 6 tool calls, then write the answer; "
-            "never read the same file twice; `ls` instead of guessing paths."
+            "never read the same file twice; `ls` instead of guessing paths." + " " + SCOPE_RULE
         ),
         expected_output="STEP 1: ...\nSTEP 2: ... (4-8 lines, nothing else)",
         agent=planner,
@@ -147,7 +151,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
     loop_rules = (
         "Loop rules (hard): at most 6 tool calls, then write the final answer; "
-        "never read the same file twice; `ls` instead of guessing paths; "
+        "never read the same file twice; `ls` instead of guessing paths; " + SCOPE_RULE + " "
         "answer from what you already observed."
     )
     t_plan = Task(
@@ -156,7 +160,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
             f"independently executable). Read specs/{spec_dir}/spec.md, plan.md, tasks.md and constitution first. "
             "Output format (exact, one per line): `STEP n: <file> — <one precise action>`. "
             "4–8 steps. No other text. Loop rules (hard): at most 6 tool calls, then write the answer; "
-            "never read the same file twice; `ls` instead of guessing paths."
+            "never read the same file twice; `ls` instead of guessing paths." + " " + SCOPE_RULE
         ),
         expected_output="STEP 1: ...\nSTEP 2: ... (4-8 lines, nothing else)",
         agent=planner,
@@ -206,7 +210,7 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
             f"Fix round for {ctx}. The previous attempt FAILED gates:\n{transcript[:3000]}\n"
             "Change only what the transcript rejects. Use Repo Create for new files, Repo Edit for existing files. "
             "Loop rules (hard): at most 6 tool calls, then write the final answer; "
-            "never read the same file twice."
+            "never read the same file twice." + " " + SCOPE_RULE
         ),
         expected_output="Diff summary of the fix + what gate line each change addresses.",
         agent=coder,
@@ -250,7 +254,7 @@ def build_exec_crew(spec_dir: str, task: SpecTask, plan_text: str) -> Crew:
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
     loop_rules = (
         "Loop rules (hard): at most 6 tool calls, then write the final answer; "
-        "never read the same file twice; `ls` instead of guessing paths; "
+        "never read the same file twice; `ls` instead of guessing paths; " + SCOPE_RULE + " "
         "answer from what you already observed."
     )
     t_code = Task(

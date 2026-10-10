@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
@@ -56,7 +57,14 @@ class SwarmFlow(Flow[SwarmState]):
 
     def _run_gates(self) -> tuple[dict[str, int], str]:
         """Run constitution gates independently (never trust agent claims)."""
-        from swarm.tools_guarded import ShellTool
+        import os as _os
+
+        from swarm.tools_guarded import (
+            DEFAULT_SCOPE,
+            ShellTool,
+            _git_changed,
+            scope_violations,
+        )
 
         shell = ShellTool()
         gates: dict[str, int] = {}
@@ -68,6 +76,11 @@ class SwarmFlow(Flow[SwarmState]):
             except Exception:
                 gates[cmd] = 99
             tails.append(f"$ {cmd}\n{out[-1200:]}")
+        # Scope: coder may only touch scaffold paths (SWARM_SCOPE overrides).
+        scope = tuple(s for s in _os.getenv("SWARM_SCOPE", "").split(",") if s) or DEFAULT_SCOPE
+        bad = scope_violations(_git_changed(), scope)
+        gates["scope"] = 0 if not bad else 1
+        tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
 
     @listen(load_spec)
@@ -87,19 +100,19 @@ class SwarmFlow(Flow[SwarmState]):
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
         cache = plan_cache_path(self._spec_dir, task.id)
 
-        def _kickoff(crew: object) -> tuple[object, str]:
+        def _kickoff(crew: Any) -> tuple[Any, str]:
             last_err: Exception | None = None
             for _ in (1, 2):  # one fresh re-kickoff on transient failure
                 try:
-                    out = crew.kickoff()  # type: ignore[union-attr]
+                    out = crew.kickoff()
                     return crew, str(out)[:8000]
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     last_err = e
             raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
 
-        def _plan_text(crew: object) -> str:
+        def _plan_text(crew: Any) -> str:
             try:
-                plan_out = getattr(crew.tasks[0], "output", None)  # type: ignore[union-attr]
+                plan_out = getattr(crew.tasks[0], "output", None)
                 text = getattr(plan_out, "raw", None) or str(plan_out)
                 return text if text != "None" else ""
             except Exception:
