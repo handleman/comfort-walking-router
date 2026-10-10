@@ -65,6 +65,10 @@ all three independently. All green → `green`; else one auto-context retry, the
 swarm/.venv/bin/python -m pytest swarm/tests -v
 ```
 
+## Traces & logs (all inside the project, never `/tmp`)
+- Pilot runs: `swarm/runs/<ts>/{run.json,events.jsonl,usage.json}` (+ `latest` pointer, `approved.json`).
+- Ad-hoc probes/debug: `swarm/runs/probes/<name>-<date>.log`. `swarm/runs/` is gitignored.
+
 ## Troubleshooting
 - `429 free-models-per-min` (OpenRouter): per-minute quota on `:free` (20/min). Wait ~60s and retry; LLMs already set `max_retries=5`. Persistent → change `SWARM_PLANNER_MODEL` to another `:free` id from `curl "https://openrouter.ai/api/v1/models?supported_parameters=tools&sort=pricing-low-to-high"`.
 - `Python >=3.10,<3.14 required`: recreate venv with `-p 3.12`.
