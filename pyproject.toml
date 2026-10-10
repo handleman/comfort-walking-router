@@ -1,0 +1,9 @@
+# Root lint config. The constitution gates on `ruff check .` clean; the ignores
+# below are scoped to harness files where broad-except resilience is deliberate:
+# event listeners and the TUI must never crash the pilot on transient LLM/tool
+# errors, and gate/flow fallbacks map failures to codes, not tracebacks.
+[tool.ruff.lint.per-file-ignores]
+"swarm/events.py" = ["BLE001", "S110"]
+"swarm/tui.py" = ["BLE001", "S110"]
+"swarm/flow.py" = ["BLE001"]
+"swarm/llms.py" = ["BLE001", "S110"]

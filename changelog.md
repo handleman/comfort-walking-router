@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-10-10 (swarm harness)
+- fix: gates green at root — `pytest`/`ruff`/`mypy` resolve via `swarm/.venv` PATH in `ShellTool`, packaging (`swarm/__init__.py`, `tests/__init__.py`), root ruff per-file-ignores for deliberate broad-excepts; installs: ruff/mypy/fastapi in swarm venv; scope guard (`DEFAULT_SCOPE` + `scope` gate, pilot confined to scaffold paths)
 - swarm: implement 009 T1–T7 — `swarm/` (CrewAI 1.15.27, Python 3.12 venv), prefix-routed free-first LLMs, guarded tools, Flow + event trace, parallel Textual dashboard with `--tail` attach, `run/dash/up.sh` + root `Makefile`
 - swarm: findings — OpenRouter `:free` 429s under loop load; Qwen thinking breaks LiteLLM tool parsing (`extra_body={"think": False}`); Zen needs `custom_openai` gateway + v1-root base; verified brains (nemotron `:free`, `space-bunny-free`, local Qwen)
 - docs: README entry + quickstart (`make swarm-*`), tech-stack swarm section, AGENTS commands, 009 tasks T1–T7 checked; T8 pilot in progress
