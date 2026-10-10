@@ -59,6 +59,7 @@ Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task),
 
 ## Agent tools (guarded, `swarm/tools_guarded.py`)
 - `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail (no path escapes).
+- `Repo Create` — new files only (makes parent dirs, refuses existing/escapes). Scaffold needs it: without it the coder cannot create `app/__init__.py` et al.
 - `Guarded Shell` — allowlist only: `pytest`, `ruff`, `mypy`, `git diff`, `ls`, `cat`. 120s timeout, repo cwd. Everything else returns `BLOCKED`.
 - Read-only: trimmed file reads (3000 chars max); `ls` via Guarded Shell (no directory-search tool).
 

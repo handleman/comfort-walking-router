@@ -9,7 +9,7 @@ from crewai import Agent, Crew, Process, Task
 
 from swarm.llms import coder_llm, planner_llm, reviewer_llm
 from swarm.spec_loader import SpecTask
-from swarm.tools_guarded import EditTool, ShellTool, TrimmedFileReadTool
+from swarm.tools_guarded import CreateTool, EditTool, ShellTool, TrimmedFileReadTool
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -20,7 +20,7 @@ def _coder() -> Agent:
         goal="Execute one small step with Repo Edit only. Smallest diff.",
         backstory="You write scaffold files precisely. You run no network commands.",
         llm=coder_llm(),
-        tools=[TrimmedFileReadTool(), EditTool(), ShellTool()],
+        tools=[TrimmedFileReadTool(), CreateTool(), EditTool(), ShellTool()],
         verbose=False,
         max_iter=6,  # micro-steps must finish in a few calls or fail fast
     )
@@ -55,7 +55,7 @@ def build_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: int, tot
     t_step = Task(
         description=(
             f"Execute micro-step {idx}/{total} for {ctx} (no other work):\n{step_text[:2000]}\n"
-            "Use Repo Edit for file changes. Loop rules (hard): at most 5 tool calls, "
+            "Use Repo Create for new files, Repo Edit for existing ones. Loop rules (hard): at most 5 tool calls, "
             "then write the result; never read the same file twice."
         ),
         expected_output=f"Step {idx} diff summary: files changed + one line each.",
@@ -130,7 +130,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
         goal="Execute the plan with Repo Edit only. Smallest diff that satisfies the ACs.",
         backstory="You write scaffold files precisely. You run no network commands.",
         llm=coder_llm(),
-        tools=[read, edit, shell],
+        tools=[read, CreateTool(), edit, shell],
         verbose=False,
         max_iter=10,  # fail fast: unbounded re-reads blew 262k ctx on Qwen-9B (2026-10-10)
     )
@@ -162,7 +162,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
         agent=planner,
     )
     t_code = Task(
-        description=f"Execute the plan for {ctx}. Use Repo Edit for every file change. {loop_rules}",
+        description=f"Execute the plan for {ctx}. Use Repo Create for new files, Repo Edit for existing files. {loop_rules}",
         expected_output="Diff summary (files changed) + note of any deviation from plan.",
         agent=coder,
         context=[t_plan],
@@ -187,7 +187,7 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         goal="Fix exactly what the gate transcript rejects. Smallest diff.",
         backstory="You fix scaffold files precisely. You run no network commands.",
         llm=coder_llm(),
-        tools=[read, edit, shell],
+        tools=[read, CreateTool(), edit, shell],
         verbose=False,
         max_iter=10,
     )
@@ -204,7 +204,7 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
     t_fix = Task(
         description=(
             f"Fix round for {ctx}. The previous attempt FAILED gates:\n{transcript[:3000]}\n"
-            "Change only what the transcript rejects. Use Repo Edit for every file change. "
+            "Change only what the transcript rejects. Use Repo Create for new files, Repo Edit for existing files. "
             "Loop rules (hard): at most 6 tool calls, then write the final answer; "
             "never read the same file twice."
         ),
@@ -234,7 +234,7 @@ def build_exec_crew(spec_dir: str, task: SpecTask, plan_text: str) -> Crew:
         goal="Execute the approved plan with Repo Edit only. Smallest diff that satisfies the ACs.",
         backstory="You write scaffold files precisely. You run no network commands.",
         llm=coder_llm(),
-        tools=[read, edit, shell],
+        tools=[read, CreateTool(), edit, shell],
         verbose=False,
         max_iter=10,
     )
@@ -256,7 +256,7 @@ def build_exec_crew(spec_dir: str, task: SpecTask, plan_text: str) -> Crew:
     t_code = Task(
         description=(
             f"Execute this APPROVED plan for {ctx} (do not re-plan, do not deviate without reason):\n"
-            f"{plan_text[:4000]}\nUse Repo Edit for every file change. {loop_rules}"
+            f"{plan_text[:4000]}\nUse Repo Create for new files, Repo Edit for existing files. {loop_rules}"
         ),
         expected_output="Diff summary (files changed) + note of any deviation from plan.",
         agent=coder,

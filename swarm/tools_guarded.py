@@ -83,3 +83,27 @@ class ShellTool(BaseTool):
 
     async def _arun(self, *args: Any, **kwargs: Any) -> str:
         return self._run(*args, **kwargs)
+
+
+class CreateArgs(BaseModel):
+    path: str = Field(..., description="Repo-relative file path to create (parents made as needed)")
+    content: str = Field(default="", description="Initial file content")
+
+
+class CreateTool(BaseTool):
+    name: str = "Repo Create"
+    description: str = "Create a new repo-relative file with content. Refuses if the file exists (use Repo Edit) or the path escapes the repo."
+    args_schema: Type[BaseModel] = CreateArgs
+
+    def _run(self, path: str, content: str = "", **kwargs: Any) -> str:
+        target = (REPO_ROOT / path).resolve()
+        if REPO_ROOT not in target.parents and target != REPO_ROOT:
+            return f"BLOCKED: {path} escapes repo root"
+        if target.exists():
+            return f"BLOCKED: {path} already exists (use Repo Edit)"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+        return f"OK: created {path} ({len(content)} chars)"
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        return self._run(*args, **kwargs)
