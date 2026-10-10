@@ -50,14 +50,21 @@ class SwarmFlow(Flow[SwarmState]):
 
         _, tasks = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
-        crew = build_crew(self._spec_dir, tasks[0])
-        try:
-            out = crew.kickoff()
-        except Exception as e:  # e.g. 429 free-tier limit: still write a trace
-            self.state.result = f"CREW_ERROR: {type(e).__name__}: {e}"[:4000]
+        # Local small models intermittently return empty responses and lose the
+        # plot; one fresh re-kickoff recovers transient failures (2026-10-10).
+        last_err: Exception | None = None
+        for attempt in (1, 2):
+            try:
+                crew = build_crew(self._spec_dir, tasks[0])
+                out = crew.kickoff()
+                break
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                self.state.result = f"ATTEMPT {attempt} CREW_ERROR: {type(e).__name__}: {e}"[:4000]
+        else:
             self.state.status = "crew_error"
             self.save_run("crew_error")
-            raise SystemExit(f"crew failed, trace in {self.run_dir}/run.json") from e
+            raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
         self.state.result = str(out)[:8000]
         self.state.status = "crew_done"
         try:
