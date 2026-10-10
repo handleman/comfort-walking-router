@@ -8,11 +8,13 @@
 - Storage: stateless first, SQLite cache for OSM responses/scores. Postgres later for saved routes/prefs.
 - Test: pytest. Lint: ruff. Types: mypy.
 
-## Swarm harness (009, learning goal #2 — no manifests yet)
-- Orchestration: CrewAI (Flows + sequential Crews, `crewai[litellm]` + `crewai-tools`), Python 3.12 venv (`uv venv -p 3.12`; system 3.14 unsupported by CrewAI).
-- Models (free-first): local Ollama `qwen3.5:9b` (Coder) at `http://localhost:11434`; OpenRouter `:free` tool-capable (Planner/Reviewer); Zen free fallback (`muse-spark-1.3-contributor-free`, …). Paid only with explicit flag.
-- Dashboard: Textual console TUI (task panes, live stream via CrewAI event bus, approve/retry keys, cost bar) + `swarm/runs/<ts>/run.json` trace. No web dashboard in v1.
-- Secrets: `.env` (gitignored) — `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, `OLLAMA_BASE_URL`; see ADR-006.
+## Swarm harness (009, learning goal #2 — implemented, pilot pending)
+- Orchestration: CrewAI 1.15.27 (Flows + sequential Planner→Coder→Reviewer, `crewai[litellm]` + `crewai-tools`), Python 3.12 venv (`swarm/.venv`; system 3.14 unsupported by CrewAI).
+- Models (free-first, prefix-routed in `swarm/llms.py`): `ollama/*` → local Ollama, `zen/*` → OpenCode Zen (`custom_openai` gateway), else OpenRouter. Working config: planner `openrouter/nvidia/nemotron-3-super-120b-a12b:free`, reviewer `zen/space-bunny-free`, coder local `qwen3.5:9b` (+`extra_body={"think": False}`, required — Qwen thinking blocks break LiteLLM tool parsing). Paid hard-blocked unless `SWARM_ALLOW_PAID=1`.
+- Known limits (2026-10-10): OpenRouter `:free` shared pool 429s under agentic-loop load (~20–50 calls/pilot); Zen free model endpoints differ per model (`/chat/completions` vs `/responses` — only the former wired).
+- Dashboard: parallel Textual TUI (per-agent panes, task list, approve/retry keys) + `--tail` attach to any run + `swarm/runs/<ts>/{run.json,events.jsonl}` trace. No web dashboard in v1.
+- Commands: `make swarm-run` / `make swarm-dash` / `make swarm-up` / `make swarm-test` (`swarm/{run,dash,up}.sh` underneath; `runs/latest` pointer).
+- Secrets: `.env` (gitignored) — `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, `OLLAMA_BASE_URL`, `SWARM_{PLANNER,REVIEWER,CODER}_MODEL`; see ADR-006.
 
 ## Proposed commands (confirm when manifests land)
 - Backend install: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (or `pip install -e .[dev]` if pyproject).

@@ -1,10 +1,9 @@
 # Changelog
 
-## 2026-10-10
-- docs: dual learning goal (SDD + CrewAI swarming loops) in mission/constitution/AGENTS, roadmap 009 stage, tech-stack swarm section
-- docs: add README.md entry point (docs map, specs table, quickstart)
-- specs: add 009-swarm-harness (spec/plan/tasks) — pure CrewAI + Textual TUI, free-first routing, 001-T1 pilot
-- chore: harden .gitignore (env variants, venvs, node, sqlite, swarm runs, OS/editors)
+## 2026-10-10 (swarm harness)
+- swarm: implement 009 T1–T7 — `swarm/` (CrewAI 1.15.27, Python 3.12 venv), prefix-routed free-first LLMs, guarded tools, Flow + event trace, parallel Textual dashboard with `--tail` attach, `run/dash/up.sh` + root `Makefile`
+- swarm: findings — OpenRouter `:free` 429s under loop load; Qwen thinking breaks LiteLLM tool parsing (`extra_body={"think": False}`); Zen needs `custom_openai` gateway + v1-root base; verified brains (nemotron `:free`, `space-bunny-free`, local Qwen)
+- docs: README entry + quickstart (`make swarm-*`), tech-stack swarm section, AGENTS commands, 009 tasks T1–T7 checked; T8 pilot in progress
 
 ## 2026-10-04
 - docs: add changelog skill and bootstrap changelog.md

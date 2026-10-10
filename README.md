@@ -23,7 +23,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 | `006-comfort-plus` | spec→plan→tasks done | Lighting + traffic toggles |
 | `007-live-position` | spec drafted | Walk-mode marker, drift warning, no auto-reroute |
 | `008-mapbox-routing` | spec drafted | OSRM interim → Mapbox behind interface |
-| `009-swarm-harness` | spec→plan→tasks done, not implemented | CrewAI swarm + Textual TUI; pilot = `001-T1` at $0 |
+| `009-swarm-harness` | harness implemented, pilot `001-T1` in progress | CrewAI swarm + parallel Textual dashboard; free-first routing verified per-model |
 
 Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 
@@ -31,7 +31,7 @@ Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 1. Read `docs/mission.md` → `docs/roadmap.md` → the spec you care about.
 2. Secrets: copy `.env.example` → `.env` (gitignored, ADR-006). Never commit keys. Current keys: `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, `OLLAMA_BASE_URL`, later `MAPBOX_TOKEN` (backend-only).
 3. App: no manifests yet — commands in `docs/tech-stack.md` are proposed until `app/` + `frontend/package.json` land (then `pytest`, `ruff check .`, `mypy .`, `npm run check`).
-4. Swarm pilot (after `swarm/` lands per 009 tasks): `python -m swarm.flow --spec 001 --task T1 --no-paid`, watch Textual TUI, check `swarm/runs/<ts>/run.json` (must show $0).
+4. Swarm: `make swarm-up` (pilot in background + dashboard attached), `make swarm-dash` (attach to current pilot), `make swarm-test` (unit tests). Pilot writes `swarm/runs/<ts>/run.json` (must show $0). Full usage: `swarm/README.md`.
 
 ## Status
-No app or swarm code yet — specs only. See `changelog.md` for history.
+App: no code yet — specs only. Swarm harness: implemented (`swarm/`, `Makefile` targets), pilot `001-T1` not green yet. See `changelog.md` for history.

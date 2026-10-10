@@ -7,7 +7,7 @@ Greenfield repo for learning spec-driven development + swarming agents / agentic
 - No manifests yet (`pyproject.toml` / `requirements.txt` / `app/` / `frontend/package.json`), no CI. Do not assume commands work — proposed test/lint/typecheck: `pytest`, `ruff check .`, `mypy .`, `npm run check` (frontend).
 - `opencode.json`: project-local `context7` MCP (remote `https://mcp.context7.com/mcp`).
 - SDD layout (Option 2, Spec-Kit style): constitution in `.specify/memory/constitution.md`, durable docs in `docs/` (`mission.md`, `tech-stack.md`, `roadmap.md`, `architecture/` ADRs), transient work in `specs/NNN-name/` (`spec.md` → `plan.md` → `tasks.md`, `contracts/` when needed). Templates in `.specify/templates/`.
-- Swarm (learning goal 2, `specs/009-swarm-harness/`): pure CrewAI coders + Textual TUI, free-first (Ollama Qwen local → OpenRouter `:free` → Zen free fallback). No `swarm/` code yet.
+- Swarm (learning goal 2, `specs/009-swarm-harness/`): pure CrewAI coders + parallel Textual dashboard, free-first prefix routing (Ollama local → OpenRouter `:free` → Zen free). Commands: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test`. Usage: `swarm/README.md`.
 - Do not invent commands or config. Verify via manifests/scripts before claiming a workflow exists.
 
 ## When stack is chosen

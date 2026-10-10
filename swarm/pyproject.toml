@@ -1,0 +1,20 @@
+[project]
+name = "swarm"
+version = "0.1.0"
+description = "Free-first CrewAI swarm harness (009) — implements specs task-by-task"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "crewai[litellm]",
+    "crewai-tools",
+    "textual",
+    "python-dotenv",
+    "rich",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
