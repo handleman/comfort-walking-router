@@ -60,14 +60,17 @@ Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task),
 ## Agent tools (guarded, `swarm/tools_guarded.py`)
 - `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail (no path escapes).
 - `Guarded Shell` — allowlist only: `pytest`, `ruff`, `mypy`, `git diff`, `ls`, `cat`. 120s timeout, repo cwd. Everything else returns `BLOCKED`.
-- Read-only: `FileReadTool`, `DirectoryReadTool`.
+- Read-only: trimmed file reads (3000 chars max); `ls` via Guarded Shell (no directory-search tool).
 
-## Gates (sequence)Planner → Coder → Reviewer run once; `flow` re-runs `pytest` + `ruff check .` + `mypy .`
-itself (never trusts agent claims). Red gates → fix round: Coder (+ Reviewer re-verify)
-with the gate transcript, max 1 round (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red →
-`needs_human`, TUI pauses, `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
+## Gates (sequence)
+Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
+context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-runs
+`pytest` + `ruff check .` + `mypy .` itself (never trusts agent claims). Red gates → fix
+round: Coder (+ Reviewer re-verify) with the gate transcript, max 1 round
+(`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
+`r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
 Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md`; retries resume
-at the coder with the cached plan (`plan_reused: true` in `run.json`). `--replan` forces re-planning.
+at the micro-steps with the cached plan (`plan_reused: true` in `run.json`). `--replan` forces re-planning.
 
 ## Unit tests (no LLM, no network)
 ```bash

@@ -72,70 +72,80 @@ class SwarmFlow(Flow[SwarmState]):
 
     @listen(load_spec)
     def run_crew(self, ctx: dict[str, str]) -> str:
-        from swarm.crew import MAX_FIX_ROUNDS, build_crew, build_exec_crew, build_fix_crew
+        from swarm.crew import (
+            MAX_FIX_ROUNDS,
+            build_fix_crew,
+            build_plan_crew,
+            build_review_crew,
+            build_step_crew,
+            parse_steps,
+        )
         from swarm.events import SwarmListener
         from swarm.spec_loader import load_spec_tasks
 
-        _, tasks = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)
+        task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
-        cache = plan_cache_path(self._spec_dir, tasks[0].id)
+        cache = plan_cache_path(self._spec_dir, task.id)
 
-        def _kickoff(crew: object) -> object:
+        def _kickoff(crew: object) -> tuple[object, str]:
             last_err: Exception | None = None
             for _ in (1, 2):  # one fresh re-kickoff on transient failure
                 try:
-                    return crew.kickoff()  # type: ignore[union-attr]
+                    out = crew.kickoff()  # type: ignore[union-attr]
+                    return crew, str(out)[:8000]
                 except Exception as e:  # noqa: BLE001
                     last_err = e
             raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
 
-        last_crew: object = None
+        def _plan_text(crew: object) -> str:
+            try:
+                plan_out = getattr(crew.tasks[0], "output", None)  # type: ignore[union-attr]
+                text = getattr(plan_out, "raw", None) or str(plan_out)
+                return text if text != "None" else ""
+            except Exception:
+                return ""
+
         try:
             if cache.is_file() and not self._replan:
-                # Plan already proven good in a previous run: resume at coder.
+                # Proven plan: resume at micro-steps, skip re-planning.
                 plan_text = cache.read_text()
                 self.state.plan_reused = True
-                last_crew = build_exec_crew(self._spec_dir, tasks[0], plan_text)
-                out = _kickoff(last_crew)
             else:
-                crew = build_crew(self._spec_dir, tasks[0])
-                last_crew = crew
-                out = _kickoff(crew)
-                # Persist the approved plan for downstream retries (skip re-plan).
-                try:
-                    plan_out = getattr(crew.tasks[0], "output", None)
-                    plan_text = getattr(plan_out, "raw", None) or str(plan_out)
-                    if plan_text and plan_text != "None":
-                        cache.write_text(plan_text[:8000])
-                except Exception:
-                    pass
+                plan_crew, _ = _kickoff(build_plan_crew(self._spec_dir, task))
+                plan_text = _plan_text(plan_crew)
+                if plan_text:
+                    cache.write_text(plan_text[:8000])
+            steps = parse_steps(plan_text) or ([plan_text] if plan_text else [])
+            if not steps:
+                raise SystemExit("planner returned no usable plan")
+            # Micro-execution: fresh coder (fresh context) per step; reviewer only at the end.
+            step_outs: list[str] = []
+            for i, step in enumerate(steps, 1):
+                _, step_out = _kickoff(build_step_crew(self._spec_dir, task, step, i, len(steps)))
+                step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
+            work_summary = "\n".join(step_outs)
+            _, review_out = _kickoff(build_review_crew(self._spec_dir, task, work_summary))
+            self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
         except SystemExit as e:
             self.state.result = str(e)[:4000]
             self.state.status = "crew_error"
             self.save_run("crew_error")
             raise
-        self.state.result = str(out)[:8000]
         # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
         gates, transcript = self._run_gates()
         while not all(v == 0 for v in gates.values()) and self.state.fix_rounds < MAX_FIX_ROUNDS:
             self.state.fix_rounds += 1
             self.state.transcript = transcript
             try:
-                fix_crew = build_fix_crew(self._spec_dir, tasks[0], transcript)
-                fix_out = fix_crew.kickoff()
+                _, fix_out = _kickoff(build_fix_crew(self._spec_dir, task, transcript))
                 self.state.result = str(fix_out)[:8000]
-            except Exception as e:  # noqa: BLE001
-                self.state.result = f"FIX {self.state.fix_rounds} CREW_ERROR: {type(e).__name__}: {e}"[:4000]
+            except SystemExit as e:
+                self.state.result = str(e)[:4000]
                 break
             gates, transcript = self._run_gates()
         self.state.gates = gates
         self.state.transcript = transcript
         self.state.status = "crew_done"
-        try:
-            usage = last_crew.usage_metrics  # type: ignore[union-attr]
-            (self.run_dir / "usage.json").write_text(str(usage))
-        except Exception:
-            pass
         return self.state.result
 
     @listen(run_crew)
