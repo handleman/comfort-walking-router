@@ -27,6 +27,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
         llm=planner_llm(),
         tools=[read, ls],
         verbose=False,
+        max_iter=10,  # fail fast: small models loop instead of converging (2026-10-10)
     )
     coder = Agent(
         role="Python Scaffold Coder",
@@ -35,6 +36,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
         llm=coder_llm(),
         tools=[read, edit, shell],
         verbose=False,
+        max_iter=10,  # fail fast: unbounded re-reads blew 262k ctx on Qwen-9B (2026-10-10)
     )
     reviewer = Agent(
         role="QA Gatekeeper",
@@ -43,6 +45,7 @@ def build_crew(spec_dir: str, task: SpecTask) -> Crew:
         llm=reviewer_llm(),
         tools=[read, shell],
         verbose=False,
+        max_iter=5,
     )
 
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
