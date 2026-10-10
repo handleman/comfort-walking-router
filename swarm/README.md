@@ -66,6 +66,8 @@ Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task),
 itself (never trusts agent claims). Red gates → fix round: Coder (+ Reviewer re-verify)
 with the gate transcript, max 1 round (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red →
 `needs_human`, TUI pauses, `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
+Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md`; retries resume
+at the coder with the cached plan (`plan_reused: true` in `run.json`). `--replan` forces re-planning.
 
 ## Unit tests (no LLM, no network)
 ```bash
