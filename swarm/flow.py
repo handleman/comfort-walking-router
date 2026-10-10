@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 from pathlib import Path
 
 from crewai.flow.flow import Flow, listen, start
@@ -21,13 +22,22 @@ class SwarmState(BaseModel):
     gates: dict[str, int] = {}
     fix_rounds: int = 0
     transcript: str = ""
+    plan_reused: bool = False
+
+
+def plan_cache_path(spec_dir: str, task_id: str) -> Path:
+    d = REPO_ROOT / "swarm" / "runs" / "plans"
+    d.mkdir(parents=True, exist_ok=True)
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{spec_dir}-{task_id}")
+    return d / f"{safe}.md"
 
 
 class SwarmFlow(Flow[SwarmState]):
-    def __init__(self, spec_dir: str, task_id: str, no_tui: bool = True, allow_paid: bool = False) -> None:
+    def __init__(self, spec_dir: str, task_id: str, no_tui: bool = True, allow_paid: bool = False, replan: bool = False) -> None:
         super().__init__()
         self._spec_dir = spec_dir
         self._task_id = task_id
+        self._replan = replan
         self.run_dir = REPO_ROOT / "swarm" / "runs" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         self.run_dir.mkdir(parents=True, exist_ok=True)
         # latest-run pointer: dash.sh attaches here (atomic write, before any LLM call)
@@ -62,27 +72,48 @@ class SwarmFlow(Flow[SwarmState]):
 
     @listen(load_spec)
     def run_crew(self, ctx: dict[str, str]) -> str:
-        from swarm.crew import MAX_FIX_ROUNDS, build_crew, build_fix_crew
+        from swarm.crew import MAX_FIX_ROUNDS, build_crew, build_exec_crew, build_fix_crew
         from swarm.events import SwarmListener
         from swarm.spec_loader import load_spec_tasks
 
         _, tasks = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
-        # Local small models intermittently return empty responses and lose the
-        # plot; one fresh re-kickoff recovers transient failures (2026-10-10).
-        last_err: Exception | None = None
-        for attempt in (1, 2):
-            try:
+        cache = plan_cache_path(self._spec_dir, tasks[0].id)
+
+        def _kickoff(crew: object) -> object:
+            last_err: Exception | None = None
+            for _ in (1, 2):  # one fresh re-kickoff on transient failure
+                try:
+                    return crew.kickoff()  # type: ignore[union-attr]
+                except Exception as e:  # noqa: BLE001
+                    last_err = e
+            raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
+
+        last_crew: object = None
+        try:
+            if cache.is_file() and not self._replan:
+                # Plan already proven good in a previous run: resume at coder.
+                plan_text = cache.read_text()
+                self.state.plan_reused = True
+                last_crew = build_exec_crew(self._spec_dir, tasks[0], plan_text)
+                out = _kickoff(last_crew)
+            else:
                 crew = build_crew(self._spec_dir, tasks[0])
-                out = crew.kickoff()
-                break
-            except Exception as e:  # noqa: BLE001
-                last_err = e
-                self.state.result = f"ATTEMPT {attempt} CREW_ERROR: {type(e).__name__}: {e}"[:4000]
-        else:
+                last_crew = crew
+                out = _kickoff(crew)
+                # Persist the approved plan for downstream retries (skip re-plan).
+                try:
+                    plan_out = getattr(crew.tasks[0], "output", None)
+                    plan_text = getattr(plan_out, "raw", None) or str(plan_out)
+                    if plan_text and plan_text != "None":
+                        cache.write_text(plan_text[:8000])
+                except Exception:
+                    pass
+        except SystemExit as e:
+            self.state.result = str(e)[:4000]
             self.state.status = "crew_error"
             self.save_run("crew_error")
-            raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
+            raise
         self.state.result = str(out)[:8000]
         # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
         gates, transcript = self._run_gates()
@@ -101,7 +132,7 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.transcript = transcript
         self.state.status = "crew_done"
         try:
-            usage = crew.usage_metrics  # type: ignore[attr-defined]
+            usage = last_crew.usage_metrics  # type: ignore[union-attr]
             (self.run_dir / "usage.json").write_text(str(usage))
         except Exception:
             pass
@@ -122,6 +153,7 @@ class SwarmFlow(Flow[SwarmState]):
             "status": status,
             "gates": self.state.gates,
             "fix_rounds": self.state.fix_rounds,
+            "plan_reused": self.state.plan_reused,
             "result_tail": self.state.result[-2000:],
             "gate_transcript_tail": self.state.transcript[-2000:],
             "cost": 0,
@@ -137,8 +169,10 @@ def main() -> None:
     ap.add_argument("--task", default="T1")
     ap.add_argument("--no-tui", action="store_true", default=True)
     ap.add_argument("--allow-paid", action="store_true", default=False)
+    ap.add_argument("--replan", action="store_true", default=False,
+                    help="ignore cached plan and run the planner again")
     args = ap.parse_args()
-    flow = SwarmFlow(args.spec, args.task, no_tui=args.no_tui, allow_paid=args.allow_paid)
+    flow = SwarmFlow(args.spec, args.task, no_tui=args.no_tui, allow_paid=args.allow_paid, replan=args.replan)
     print(flow.kickoff())
 
 

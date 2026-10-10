@@ -117,3 +117,53 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         context=[t_fix],
     )
     return Crew(agents=[coder, reviewer], tasks=[t_fix, t_verify], process=Process.sequential, verbose=False)
+
+
+def build_exec_crew(spec_dir: str, task: SpecTask, plan_text: str) -> Crew:
+    """Coder + Reviewer only, driven by a cached plan — skips re-planning.
+
+    Used when a previous run already produced a good plan but failed downstream.
+    """
+    read = TrimmedFileReadTool()
+    edit = EditTool()
+    shell = ShellTool()
+
+    coder = Agent(
+        role="Python Scaffold Coder",
+        goal="Execute the approved plan with Repo Edit only. Smallest diff that satisfies the ACs.",
+        backstory="You write scaffold files precisely. You run no network commands.",
+        llm=coder_llm(),
+        tools=[read, edit, shell],
+        verbose=False,
+        max_iter=10,
+    )
+    reviewer = Agent(
+        role="QA Gatekeeper",
+        goal="Block done unless pytest+ruff+mypy evidence is attached and green.",
+        backstory="You verify with Guarded Shell and report exit codes honestly.",
+        llm=reviewer_llm(),
+        tools=[read, shell],
+        verbose=False,
+        max_iter=5,
+    )
+    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
+    loop_rules = (
+        "Loop rules (hard): at most 6 tool calls, then write the final answer; "
+        "never read the same file twice; `ls` instead of guessing paths; "
+        "answer from what you already observed."
+    )
+    t_code = Task(
+        description=(
+            f"Execute this APPROVED plan for {ctx} (do not re-plan, do not deviate without reason):\n"
+            f"{plan_text[:4000]}\nUse Repo Edit for every file change. {loop_rules}"
+        ),
+        expected_output="Diff summary (files changed) + note of any deviation from plan.",
+        agent=coder,
+    )
+    t_verify = Task(
+        description=f"Verify {ctx}: run `pytest`, `ruff check .`, `mypy .` via Guarded Shell and paste exit codes + tails.",
+        expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit and PASS/BLOCKED verdict.",
+        agent=reviewer,
+        context=[t_code],
+    )
+    return Crew(agents=[coder, reviewer], tasks=[t_code, t_verify], process=Process.sequential, verbose=False)
