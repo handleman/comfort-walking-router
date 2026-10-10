@@ -12,7 +12,7 @@ Pilot scope: `001-T1` only. Roles: Planner + Coder + Reviewer, sequential.
 ```bash
 uv venv -p 3.12 swarm/.venv
 VIRTUAL_ENV="$PWD/swarm/.venv" uv pip install -p "$PWD/swarm/.venv/bin/python" -e 'swarm/[dev]'
-cp swarm/.env.example swarm/.env   # optional overrides; root .env is loaded too
+cp .env.example .env   # optional overrides (keys stay empty until you fill them)
 swarm/.venv/bin/python -c "from crewai import LLM,Agent,Task,Crew; print('ok')"
 ```
 

@@ -32,7 +32,7 @@ def _model(env_var: str) -> str:
     model = os.getenv(env_var, "")
     if not model:
         raise RuntimeError(
-            f"{env_var} is not set. Copy swarm/.env.example to .env and set every SWARM_*_MODEL."
+            f"{env_var} is not set. Copy .env.example to .env and set every SWARM_*_MODEL."
         )
     return model
 
