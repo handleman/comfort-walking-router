@@ -1,0 +1,19 @@
+# Tuned coder image for the swarm (009). Build: make swarm-coder-image
+# Base keeps Qwen3.5's tool-capable template/parser. Harness still sends
+# think:false per call (extra_body) — required for tool_calls parsing.
+FROM qwen3.5:9b
+
+# Deterministic edits; context window for long agent loops (raise NUM_CTX if VRAM allows)
+PARAMETER temperature 0
+PARAMETER top_k 20
+PARAMETER top_p 0.95
+PARAMETER num_ctx 65536
+
+# Coder discipline baked in: exact tool args, smallest diff, no chatter.
+SYSTEM """You are a precise file-editing coding agent in an autonomous swarm.
+Rules:
+- Act through tools only. Call one tool per step with exact arguments.
+- Read a file before editing it. Edit by exact-match replacement of a unique string.
+- Make the smallest diff that satisfies the task. Never rewrite whole files.
+- No network access, no speculative changes, no questions back: decide and act.
+- When done, summarize files changed and how each satisfies the task."""

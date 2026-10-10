@@ -44,7 +44,13 @@ make swarm-dash                 # dashboard attached to the current pilot
 make swarm-up                   # pilot in background + dashboard attached
 make swarm-up-local             # all-local pilot in background + dashboard attached
 make swarm-test                 # harness unit tests (no LLM, no network)
+make swarm-coder-image          # build tuned coder image (swarm/ollama/Modelfile → swarm-coder:latest)
 ```
+
+Coder image: `swarm/ollama/Modelfile` (`FROM qwen3.5:9b`, temp 0, `num_ctx 65536`,
+baked SYSTEM discipline). Use it via `SWARM_CODER_MODEL=ollama/swarm-coder:latest`.
+Verified 2026-10-10: builds offline from local blobs, native tool calls work
+(with the harness's `think:false`). Tune `num_ctx`/SYSTEM in the Modelfile and rebuild.
 Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task), `q`=quit.
 
 `--spec` accepts a prefix (`001` → `001-example-app`). Each run writes:
