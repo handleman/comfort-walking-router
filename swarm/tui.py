@@ -72,14 +72,18 @@ class SwarmTUI(App[None]):
 
     # ---- live mode ----
     def _run_flow(self) -> None:
-        from swarm.flow import SwarmFlow
+        from swarm.flow import run_tasks
 
-        flow = SwarmFlow(self._spec, self._task_id)
-        self._flow = flow
-        self._run_dir = flow.run_dir
         try:
-            status = flow.kickoff()
-            self.call_from_thread(self._pane_log, "crew", f"flow finished: {status}")
+            for flow, status in run_tasks(self._spec, self._task_id):
+                self._flow = flow
+                self._run_dir = flow.run_dir
+                self._task_id = flow.state.task_id or self._task_id
+                self._plan_noted = False
+                self.call_from_thread(self._pane_log, "crew", f"── task {self._task_id}: {status} ──")
+                if status != "green":
+                    break
+            self.call_from_thread(self._pane_log, "crew", "flow finished")
         except SystemExit as e:
             self.call_from_thread(self._pane_log, "crew", f"flow stopped: {e}")
         except Exception as e:
@@ -106,11 +110,20 @@ class SwarmTUI(App[None]):
         """Planner pane must never look dead: report cached vs fresh plan."""
         if self._plan_noted:
             return
+        # Tail mode is launched with default spec/task args: prefer the tailed
+        # run's own meta.json so the note matches the run being watched.
+        spec, task_id = self._spec, self._task_id
+        if self._tail and self._run_dir:
+            try:
+                meta = json.loads((self._run_dir / "meta.json").read_text())
+                spec, task_id = meta.get("spec", spec), meta.get("task", task_id)
+            except Exception:
+                pass
         plans = REPO_ROOT / "swarm" / "runs" / "plans"
         cached: Path | None = None
         if plans.is_dir():
-            cands = sorted(plans.glob(f"*-{self._task_id}.md"))
-            match = [c for c in cands if self._spec in c.stem]
+            cands = sorted(plans.glob(f"*-{task_id}.md"))
+            match = [c for c in cands if spec in c.stem]
             cached = (match + cands + [None])[0]
         if cached is None and self._run_dir is None:
             return  # run hasn't started, nothing to report yet
@@ -132,6 +145,7 @@ class SwarmTUI(App[None]):
                 except Exception:
                     pass
             self._tail_off = len(lines)
+        self._note_plan_cache()
         rj = self._run_dir / "run.json"
         if rj.is_file():
             try:

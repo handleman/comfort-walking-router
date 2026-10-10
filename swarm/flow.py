@@ -6,6 +6,7 @@ import argparse
 import datetime as dt
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -33,16 +34,62 @@ def plan_cache_path(spec_dir: str, task_id: str) -> Path:
     return d / f"{safe}.md"
 
 
+def _resolve_scope() -> tuple[str, ...]:
+    """Coder scope: SWARM_SCOPE (comma-separated) overrides, else DEFAULT_SCOPE."""
+    import os as _os
+
+    from swarm.tools_guarded import DEFAULT_SCOPE
+
+    return tuple(s for s in _os.getenv("SWARM_SCOPE", "").split(",") if s) or DEFAULT_SCOPE
+
+
+def _commit_changes(spec_id: str, task_id: str, brief: str) -> dict[str, str]:
+    """Commit + push in-scope worktree changes. Out-of-scope files are never added."""
+    from swarm.tools_guarded import _git_changed, scope_violations
+
+    rec: dict[str, str] = {}
+    scope = _resolve_scope()
+    changed = _git_changed()
+    in_scope = [p for p in changed if p not in scope_violations([p], scope)]
+    if any(".env" in p for p in in_scope):
+        rec["commit"] = "refused: .env-looking path in scope set"
+        return rec
+    if not in_scope:
+        rec["commit"] = "clean (nothing in scope changed)"
+        return rec
+
+    def _sh(args: list[str]) -> tuple[int, str]:
+        p = subprocess.run(args, check=False, cwd=REPO_ROOT, capture_output=True, text=True, timeout=120)
+        return p.returncode, (p.stdout + p.stderr)[-500:]
+
+    rc, out = _sh(["git", "add", "-A", "--", *in_scope])
+    if rc != 0:
+        rec["commit"] = f"git add failed: {out}"
+        return rec
+    msg = f"swarm: {spec_id}-{task_id} green — {brief[:80]} (autocommit)"
+    rc, out = _sh(["git", "commit", "-m", msg])
+    if rc != 0:
+        rec["commit"] = f"git commit failed: {out}"
+        return rec
+    rec["commit"] = msg
+    rc, out = _sh(["git", "push"])
+    rec["push"] = "ok" if rc == 0 else f"failed: {out}"
+    return rec
+
+
 class SwarmFlow(Flow[SwarmState]):
-    def __init__(self, spec_dir: str, task_id: str, no_tui: bool = True, allow_paid: bool = False, replan: bool = False) -> None:
+    def __init__(self, spec_dir: str, task_id: str, no_tui: bool = True, allow_paid: bool = False, replan: bool = False, commit: bool = True) -> None:
         super().__init__()
         self._spec_dir = spec_dir
         self._task_id = task_id
         self._replan = replan
+        self._commit = commit
         self.run_dir = REPO_ROOT / "swarm" / "runs" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         self.run_dir.mkdir(parents=True, exist_ok=True)
         # latest-run pointer: dash.sh attaches here (atomic write, before any LLM call)
         (REPO_ROOT / "swarm" / "runs" / "latest").write_text(self.run_dir.name)
+        # meta.json: TUI tail mode reads the run's own spec/task from here.
+        (self.run_dir / "meta.json").write_text(json.dumps({"spec": spec_dir, "task": task_id}))
         print(f"run_dir={self.run_dir}", flush=True)
 
     @start()
@@ -57,10 +104,7 @@ class SwarmFlow(Flow[SwarmState]):
 
     def _run_gates(self) -> tuple[dict[str, int], str]:
         """Run constitution gates independently (never trust agent claims)."""
-        import os as _os
-
         from swarm.tools_guarded import (
-            DEFAULT_SCOPE,
             ShellTool,
             _git_changed,
             scope_violations,
@@ -77,11 +121,14 @@ class SwarmFlow(Flow[SwarmState]):
                 gates[cmd] = 99
             tails.append(f"$ {cmd}\n{out[-1200:]}")
         # Scope: coder may only touch scaffold paths (SWARM_SCOPE overrides).
-        scope = tuple(s for s in _os.getenv("SWARM_SCOPE", "").split(",") if s) or DEFAULT_SCOPE
-        bad = scope_violations(_git_changed(), scope)
+        bad = scope_violations(_git_changed(), _resolve_scope())
         gates["scope"] = 0 if not bad else 1
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
+
+    def _commit_green(self, brief: str) -> dict[str, str]:
+        """Commit + push in-scope changes after a green run. Never touches out-of-scope files."""
+        return _commit_changes(self.state.spec_dir, self.state.task_id, brief)
 
     @listen(load_spec)
     def run_crew(self, ctx: dict[str, str]) -> str:
@@ -170,7 +217,7 @@ class SwarmFlow(Flow[SwarmState]):
 
     @listen(gate)
     def save_run(self, status: str) -> str:
-        payload = {
+        payload: dict[str, Any] = {
             "spec": self.state.spec_dir,
             "task": self.state.task_id,
             "status": status,
@@ -182,8 +229,45 @@ class SwarmFlow(Flow[SwarmState]):
             "cost": 0,
             "cost_note": "free-first: local + :free only unless allow_paid",
         }
+        if status == "green" and self._commit:
+            from swarm.spec_loader import load_spec_tasks
+
+            task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
+            payload["autocommit"] = self._commit_green(task.brief)
         (self.run_dir / "run.json").write_text(json.dumps(payload, indent=2))
         return status
+
+
+def _next_after(ids: list[str], current: str) -> str | None:
+    """Next task id in spec order after `current`; None when done."""
+    try:
+        nxt = ids[ids.index(current) + 1]
+    except (ValueError, IndexError):
+        return None
+    return nxt
+
+
+def run_tasks(spec_prefix: str, start_task: str, *, allow_paid: bool = False, replan: bool = False, commit: bool = True, single: bool = False) -> Any:
+    """Run one spec task per SwarmFlow; on green, loop to the next task.
+
+    Yields (flow, status) per task. Stops after the first non-green task,
+    after the last task, or immediately when `single` is set. Each task keeps
+    its own run_dir + run.json; green tasks autocommit (see save_run).
+    """
+    from swarm.spec_loader import load_spec_tasks
+
+    _, all_tasks = load_spec_tasks(REPO_ROOT, spec_prefix, None)
+    ids = [t.id for t in all_tasks]
+    if start_task not in ids:
+        raise SystemExit(f"No task {start_task} in {spec_prefix} (have: {ids})")
+    task_id: str | None = start_task
+    while task_id is not None:
+        flow = SwarmFlow(spec_prefix, task_id, allow_paid=allow_paid, replan=replan, commit=commit)
+        status = flow.kickoff()
+        yield flow, status
+        if single or status != "green":
+            break
+        task_id = _next_after(ids, task_id)
 
 
 def main() -> None:
@@ -194,9 +278,13 @@ def main() -> None:
     ap.add_argument("--allow-paid", action="store_true", default=False)
     ap.add_argument("--replan", action="store_true", default=False,
                     help="ignore cached plan and run the planner again")
+    ap.add_argument("--no-commit", action="store_true", default=False,
+                    help="skip autocommit+push after green runs")
+    ap.add_argument("--single", action="store_true", default=False,
+                    help="run only the given task, do not loop to the next one")
     args = ap.parse_args()
-    flow = SwarmFlow(args.spec, args.task, no_tui=args.no_tui, allow_paid=args.allow_paid, replan=args.replan)
-    print(flow.kickoff())
+    for flow, status in run_tasks(args.spec, args.task, allow_paid=args.allow_paid, replan=args.replan, commit=not args.no_commit, single=args.single):
+        print(f"{flow.state.task_id}: {status}")
 
 
 if __name__ == "__main__":

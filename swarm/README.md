@@ -73,6 +73,14 @@ round: Coder (+ Reviewer re-verify) with the gate transcript, max 1 round
 Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md`; retries resume
 at the micro-steps with the cached plan (`plan_reused: true` in `run.json`). `--replan` forces re-planning.
 
+## Autonomous loop (default)
+A green run autocommits in-scope changes (`swarm: <spec>-<task> green … (autocommit)`,
+out-of-scope files never added, `.env*` refused) and pushes, then loops back to the
+planner for the next task in `tasks.md` order. First non-green task stops the loop
+(`needs_human`/`crew_error` in that task's `run.json`). Flags: `--single` runs only the
+given task, `--no-commit` skips autocommit+push (passed through `run.sh` extra args,
+e.g. `./swarm/run.sh 001 T1 --single`).
+
 ## Unit tests (no LLM, no network)
 ```bash
 swarm/.venv/bin/python -m pytest swarm/tests -v
