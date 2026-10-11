@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-10-11 (swarm harness)
+- swarm: planner robustness — validate before caching (garbage never cached), one replan retry (`PLAN_ATTEMPTS`=2) instead of instant crew_error; reviewer must verdict BLOCKED on empty diffs (defense in depth with the vacancy guard)
 - swarm: false-green guards — planner output without `STEP` lines fails loudly (`_resolve_steps`, no raw-text fallback); fresh-plan green with zero in-scope changes demoted to `needs_human` (`vacancy_note`); tail dashboard follows `latest` across tasks
 - swarm: checkpoint resume — bare `make swarm-up` / `run.sh` derives (spec, task) from run history (`_resume_point`, `--resume` flag): green → next, red/killed → retry, all-green → exit; explicit args override
 - swarm: reviewer defaults to local QA (`ollama/swarm-qa:latest`, `Modelfile.qa`: 32k ctx + evidence discipline) — PASS and BLOCKED verdicts both verified live, dev→QA loop now quota-free; nemotron kept as alt; `make swarm-qa-image`

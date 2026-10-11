@@ -233,3 +233,19 @@ def test_resolve_steps_rejects_garbage():
     assert _resolve_steps("STEP 1: do x\nSTEP 2: do y") == ["do x", "do y"]
     assert _resolve_steps("<tool_call> ls -la </tool_call>") == []
     assert _resolve_steps("") == []
+
+
+def test_plan_attempts_budget():
+    from swarm.crew import PLAN_ATTEMPTS
+
+    assert PLAN_ATTEMPTS == 2
+
+
+def test_reviewer_blocks_noop():
+    from swarm.crew import build_review_crew
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T3", ac_refs=("AC-2",), brief="do things")
+    desc = build_review_crew("001", task, "all done").tasks[0].description
+    assert "BLOCKED (no-op)" in desc
+    assert "git status --short" in desc

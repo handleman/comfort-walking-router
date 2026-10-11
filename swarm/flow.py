@@ -159,6 +159,7 @@ class SwarmFlow(Flow[SwarmState]):
         from swarm.crew import (
             DEV_ATTEMPTS,
             MAX_FIX_ROUNDS,
+            PLAN_ATTEMPTS,
             SENIOR_ATTEMPTS,
             STEP_ATTEMPTS,
             build_fix_crew,
@@ -200,15 +201,20 @@ class SwarmFlow(Flow[SwarmState]):
                 return ""
 
         try:
+            plan_text = ""
             if cache.is_file() and not self._replan:
-                # Proven plan: resume at micro-steps, skip re-planning.
-                plan_text = cache.read_text()
-                self.state.plan_reused = True
-            else:
+                cached = cache.read_text()
+                if _resolve_steps(cached):
+                    # Proven plan: resume at micro-steps, skip re-planning.
+                    plan_text = cached
+                    self.state.plan_reused = True
+            for _ in range(PLAN_ATTEMPTS):
+                if _resolve_steps(plan_text):
+                    break
                 plan_crew, _ = _kickoff(build_plan_crew(self._spec_dir, task))
                 plan_text = _plan_text(plan_crew)
-                if plan_text:
-                    cache.write_text(plan_text[:8000])
+            if _resolve_steps(plan_text):
+                cache.write_text(plan_text[:8000])
             steps = _resolve_steps(plan_text)
             if not steps:
                 raise SystemExit("planner returned no usable plan (no STEP lines)")

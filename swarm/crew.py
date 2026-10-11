@@ -116,18 +116,22 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     t_verify = Task(
         description=(
             f"Final verification for {ctx}. The coder reports:\n{work_summary[:3000]}\n"
-            "Run `pytest`, `ruff check .`, `mypy .` via Guarded Shell and paste exit codes + tails."
+            "Run `pytest`, `ruff check .`, `mypy .` via Guarded Shell and paste exit codes + tails. "
+            "Also list changed files via `git status --short`: if the coder changed nothing "
+            "relevant to the brief, verdict BLOCKED (no-op), never PASS on an empty diff."
         ),
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit and PASS/BLOCKED verdict.",
         agent=reviewer,
     )
     return Crew(agents=[reviewer], tasks=[t_verify], process=Process.sequential, verbose=False)
 
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_FIX_ROUNDS = 2  # gate fail → coder retry with transcript (twice), then escalate/human
 DEV_ATTEMPTS = 3  # dev phase (steps + review + fix round) retries before senior escalation
 SENIOR_ATTEMPTS = 2  # senior one-shot fix passes before giving up to human
 STEP_ATTEMPTS = 3  # micro-step kickoff retries before senior step rescue
+PLAN_ATTEMPTS = 2  # planner retries on unparseable output before giving up
 
 
 def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:

@@ -123,7 +123,8 @@ flowchart TB
     GATES2 -->|green| COMMIT
     GATES2 -->|red| HUMAN["needs_human"]
     GATES -->|green but no changes| VACANT["needs_human<br/>(vacuous pass)"]
-    P -.->|no STEP lines| PLANFAIL["crew_error<br/>(unusable plan)"]
+    P -->|unparseable, replan ≤2| P
+    P -->|still unusable| PLANFAIL["crew_error<br/>(unusable plan)"]
     STEPS -.->|free-models-per-day 429| Q["quota_exhausted<br/>pilot stops + report"]
     SENIOR -.->|free-models-per-day 429| Q
 ```
