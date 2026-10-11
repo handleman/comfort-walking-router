@@ -325,13 +325,9 @@ class SwarmFlow(Flow[SwarmState]):
             "cost": 0,
             "cost_note": "free-first: local + :free only unless allow_paid",
         }
-        if status == "green" and self._commit:
-            from swarm.spec_loader import load_spec_tasks
-
-            task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
-            payload["autocommit"] = self._commit_green(task.brief)
         if status == "green" and not self.state.plan_reused:
             # Fresh plan that changed nothing in scope = vacuous pass, not green.
+            # Runs BEFORE autocommit: committing would wipe the worktree evidence.
             from swarm.tools_guarded import _git_changed, scope_violations
 
             before: set[str] = getattr(self, "_files_before", set())
@@ -343,6 +339,11 @@ class SwarmFlow(Flow[SwarmState]):
                 status = "needs_human"
                 payload["status"] = status
                 payload["vacancy_note"] = "green gates but no in-scope changes from a fresh plan"
+        if status == "green" and self._commit:
+            from swarm.spec_loader import load_spec_tasks
+
+            task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
+            payload["autocommit"] = self._commit_green(task.brief)
         (self.run_dir / "run.json").write_text(json.dumps(payload, indent=2))
         return status
 

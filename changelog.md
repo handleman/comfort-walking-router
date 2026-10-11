@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-10-11 (swarm harness)
+- fix: vacancy check runs before autocommit (committing first wiped the worktree evidence, false-flagging real green runs — caught on 001-T5)
 - specs: add 010-e2e-playwright (MVP final gate — chromium-only E2E for all user scenarios, fixtures/sim determinism, no live internet in CI); coder scope extended with `.gitignore` (008-T2 and 010-T1 both need it)
 - swarm: planner robustness — validate before caching (garbage never cached), one replan retry (`PLAN_ATTEMPTS`=2) instead of instant crew_error; reviewer must verdict BLOCKED on empty diffs (defense in depth with the vacancy guard)
 - swarm: false-green guards — planner output without `STEP` lines fails loudly (`_resolve_steps`, no raw-text fallback); fresh-plan green with zero in-scope changes demoted to `needs_human` (`vacancy_note`); tail dashboard follows `latest` across tasks
