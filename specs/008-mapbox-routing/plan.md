@@ -1,14 +1,25 @@
 # 008 Mapbox Routing — Plan
 
 ## Approach
-Backend-only provider swap: implement Mapbox Directions (walking, free tier) behind the scorer interface introduced in 001 T2, preserving the ADR-005 contract byte-for-shape. Token handling follows ADR-006. Reference spec AC-1..AC-4.
+Backend-only provider swap behind the scorer interface from 001-T2 (`RouteProvider` ABC):
+new `app/providers/mapbox.py` implementing `route(start, end)` over Mapbox Directions
+(walking profile), preserving the ADR-005 contract byte-for-shape so the frontend is
+untouched. Token handling per ADR-006 (env, backend-only, fail-fast). Preconditions:
+001 T2 (provider interface), T4 (SQLite cache), `contracts/route.json`. Reference spec AC-1..AC-4.
 
 ## Steps
-1. Mapbox client in `app/`: walking profile, 1–2 alternatives, short timeout + single retry; fixture-recorded unit tests (no live calls) proving distance/time + GeoJSON `LineString` output (AC-1, AC-4).
-2. Token wiring: `MAPBOX_TOKEN` env, backend-only; missing/empty aborts startup with clear message; add `.env.example` + gitignore rule + `tech-stack.md` note per ADR-006 (AC-2).
-3. Cache/quota: reuse 001 SQLite cache unchanged; add calls-vs-cache-hits logging for quota visibility (AC-3).
-4. Contract conformance: `POST /route` shape identical to 001; frontend untouched; integration test replays a recorded Mapbox fixture through scorer → response schema validated against `contracts/route.json` (AC-1).
-5. Verify: `pytest` + `ruff check .` + `mypy .` clean; one live smoke (single route) off-CI to confirm quota + shape (AC-4).
+1. Mapbox client `app/providers/mapbox.py`: walking profile, 1–2 alternatives, short timeout
++ single retry; returns GeoJSON `LineString` + distance/time; fixture-recorded unit tests
+(`app/tests/fixtures/mapbox-*.json`, no live calls in CI) (AC-1, AC-4).
+2. Token wiring: `MAPBOX_TOKEN` from env, backend-only (never to frontend); missing/empty
+aborts startup with a clear message; document in `.env.example` + `docs/tech-stack.md`
+per ADR-006 (AC-2).
+3. Cache/quota: reuse the 001 SQLite cache unchanged (cache-hit skips Mapbox); add
+calls-vs-cache-hits INFO logging for quota visibility (AC-3).
+4. Contract conformance: replay a recorded Mapbox fixture through scorer → validate
+response against `contracts/route.json`; frontend untouched (AC-1).
+5. Verify: `pytest` + `ruff check .` + `mypy .` clean; one manual live smoke (single route)
+off-CI to confirm quota + shape (AC-4).
 
 ## Risks / Open Questions
 - Free-tier quota exhaustion in dev — cache-first + fixture tests bound usage; live smoke is manual, not CI.
