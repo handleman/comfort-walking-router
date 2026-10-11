@@ -225,3 +225,11 @@ def test_resume_none_when_all_green_or_empty(tmp_path):
     _resume_tree(tmp_path, {"20261011-100000": {"run.json": json.dumps({"spec": "001-x", "task": "T1", "status": "green"})}},
                  {"001-x": "- [ ] T1 (AC-1): aaa\n"})
     assert _resume_point(tmp_path) is None
+
+
+def test_resolve_steps_rejects_garbage():
+    from swarm.flow import _resolve_steps
+
+    assert _resolve_steps("STEP 1: do x\nSTEP 2: do y") == ["do x", "do y"]
+    assert _resolve_steps("<tool_call> ls -la </tool_call>") == []
+    assert _resolve_steps("") == []

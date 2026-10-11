@@ -175,6 +175,18 @@ class SwarmTUI(App[None]):
     def _poll_tail(self) -> None:
         assert self._run_dir
         self._sync_tail_meta()
+        # Follow the loop across tasks: jump when a newer run becomes latest.
+        try:
+            cur = (REPO_ROOT / "swarm" / "runs" / "latest").read_text().strip()
+            want = self._run_dir.parent / cur
+            if cur and want.is_dir() and want != self._run_dir:
+                self._run_dir = want
+                self._tail_off = 0
+                self._plan_noted = False
+                self._sync_tail_meta()
+                self._pane_log("crew", f"── following {cur} ──")
+        except Exception:
+            pass
         fp = self._run_dir / "events.jsonl"
         if fp.is_file():
             lines = fp.read_text().splitlines()

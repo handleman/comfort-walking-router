@@ -56,6 +56,10 @@ Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task),
 `--spec` accepts a prefix (`001` → `001-example-app`). Each run writes:
 - `swarm/runs/<ts>/run.json` — spec, task, status (`green`/`needs_human`/`crew_error`), gate exit codes, cost (must be `0` for T8).
 - `swarm/runs/<ts>/events.jsonl` — streamed agent events; `usage.json` when available.
+Tail mode follows the loop: when a newer run becomes `latest`, the dashboard jumps to it
+(task list + plan note re-sync). Plan validation: planner output without `STEP` lines fails
+the run instead of executing garbage; a fresh plan producing no in-scope changes is
+`needs_human` (vacuous pass), never green.
 
 ## Agent tools (guarded, `swarm/tools_guarded.py`)
 - `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail (no path escapes).
@@ -118,6 +122,8 @@ flowchart TB
     REV2 --> GATES2["Flow gates"]
     GATES2 -->|green| COMMIT
     GATES2 -->|red| HUMAN["needs_human"]
+    GATES -->|green but no changes| VACANT["needs_human<br/>(vacuous pass)"]
+    P -.->|no STEP lines| PLANFAIL["crew_error<br/>(unusable plan)"]
     STEPS -.->|free-models-per-day 429| Q["quota_exhausted<br/>pilot stops + report"]
     SENIOR -.->|free-models-per-day 429| Q
 ```

@@ -47,6 +47,17 @@ def plan_cache_path(spec_dir: str, task_id: str) -> Path:
     return d / f"{safe}.md"
 
 
+def _resolve_steps(plan_text: str) -> list[str]:
+    """Planner output → executable micro-steps; [] when unparseable.
+
+    Never fall back to running raw planner text as a step: unparseable plans
+    must fail loudly (001-T3 false-green, 2026-10-11), not execute garbage.
+    """
+    from swarm.crew import parse_steps
+
+    return parse_steps(plan_text)
+
+
 def _resolve_scope() -> tuple[str, ...]:
     """Coder scope: SWARM_SCOPE (comma-separated) overrides, else DEFAULT_SCOPE."""
     import os as _os
@@ -156,13 +167,15 @@ class SwarmFlow(Flow[SwarmState]):
             build_senior_crew,
             build_senior_step_crew,
             build_step_crew,
-            parse_steps,
         )
         from swarm.events import SwarmListener
         from swarm.spec_loader import load_spec_tasks
 
         task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
+        from swarm.tools_guarded import _git_changed
+
+        self._files_before = set(_git_changed())
         cache = plan_cache_path(self._spec_dir, task.id)
 
         def _kickoff(crew: Any) -> tuple[Any, str]:
@@ -196,9 +209,9 @@ class SwarmFlow(Flow[SwarmState]):
                 plan_text = _plan_text(plan_crew)
                 if plan_text:
                     cache.write_text(plan_text[:8000])
-            steps = parse_steps(plan_text) or ([plan_text] if plan_text else [])
+            steps = _resolve_steps(plan_text)
             if not steps:
-                raise SystemExit("planner returned no usable plan")
+                raise SystemExit("planner returned no usable plan (no STEP lines)")
             gates: dict[str, int] = {}
             transcript = ""
             # Dev phase (micro-steps + review + gates + fix round), up to
@@ -311,6 +324,19 @@ class SwarmFlow(Flow[SwarmState]):
 
             task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
             payload["autocommit"] = self._commit_green(task.brief)
+        if status == "green" and not self.state.plan_reused:
+            # Fresh plan that changed nothing in scope = vacuous pass, not green.
+            from swarm.tools_guarded import _git_changed, scope_violations
+
+            before: set[str] = getattr(self, "_files_before", set())
+            new = [
+                p for p in set(_git_changed()) - before
+                if p not in scope_violations([p], _resolve_scope())
+            ]
+            if not new:
+                status = "needs_human"
+                payload["status"] = status
+                payload["vacancy_note"] = "green gates but no in-scope changes from a fresh plan"
         (self.run_dir / "run.json").write_text(json.dumps(payload, indent=2))
         return status
 
