@@ -40,7 +40,7 @@ def _reviewer() -> Agent:
 
 STEP_RE = re.compile(r"^STEP\s*(\d+)\s*[:.\-–]\s*(.+)$", re.MULTILINE)
 SCOPE_RULE = (
-    "Touch ONLY files under app/, frontend/, contracts/, requirements*.txt, pyproject.toml. "
+    "Touch ONLY files under app/, frontend/, contracts/, requirements*.txt, pyproject.toml, .gitignore. "
     "NEVER modify swarm/, specs/, docs/, .env*."
 )
 # Findings from 001-T2 thrash (2026-10-10): fix rounds converged only when the

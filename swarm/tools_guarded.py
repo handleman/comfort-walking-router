@@ -60,7 +60,7 @@ ALLOW = re.compile(r"^(pytest|ruff|mypy|git diff|git status|ls|cat|grep|npm)\b")
 
 # Coder scope: only these repo-relative prefixes may change (SWARM_SCOPE overrides,
 # comma-separated). Everything else (swarm/, specs/, docs/, .env*) is off-limits.
-DEFAULT_SCOPE = ("app/", "frontend/", "contracts/", "requirements-dev.txt", "requirements.txt", "pyproject.toml")
+DEFAULT_SCOPE = ("app/", "frontend/", "contracts/", "requirements-dev.txt", "requirements.txt", "pyproject.toml", ".gitignore")
 
 
 def scope_violations(changed: list[str], scope: tuple[str, ...] = DEFAULT_SCOPE) -> list[str]:
