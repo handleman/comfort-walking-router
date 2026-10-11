@@ -339,6 +339,48 @@ def _spec_after(repo_root: Path, current_dir: str) -> str | None:
     return _next_after(names, current_dir)
 
 
+def _resume_point(repo_root: Path) -> tuple[str, str] | None:
+    """Where the sequence last stopped: (spec, task) to run next.
+
+    Latest run green → next task (or first task of next spec). Latest run red,
+    or killed before writing run.json (meta.json only) → same task again.
+    None when every spec task is green or no history resolves.
+    """
+    from swarm.spec_loader import load_spec_tasks
+
+    runs = repo_root / "swarm" / "runs"
+    if not runs.is_dir():
+        return None
+    dirs = sorted(p for p in runs.iterdir() if p.is_dir() and p.name[:1].isdigit())
+    if not dirs:
+        return None
+    latest = dirs[-1]
+    try:
+        rec = json.loads((latest / "run.json").read_text())
+    except Exception:
+        try:
+            meta = json.loads((latest / "meta.json").read_text())
+            return str(meta.get("spec", "001")), str(meta.get("task", "T1"))
+        except Exception:
+            return None
+    spec = str(rec.get("spec", "001"))
+    task = str(rec.get("task", "T1"))
+    if rec.get("status") != "green":
+        return spec, task
+    spec_path, all_tasks = load_spec_tasks(repo_root, spec, None)
+    ids = [t.id for t in all_tasks]
+    nxt = _next_after(ids, task)
+    if nxt is not None:
+        return spec, nxt
+    nxt_spec = _spec_after(repo_root, spec_path.name)
+    while nxt_spec is not None:
+        _, nt = load_spec_tasks(repo_root, nxt_spec, None)
+        if nt:
+            return nxt_spec, nt[0].id
+        nxt_spec = _spec_after(repo_root, nxt_spec)
+    return None
+
+
 def run_tasks(spec_prefix: str, start_task: str, *, allow_paid: bool = False, replan: bool = False, commit: bool = True, single: bool = False) -> Any:
     """Run one spec task per SwarmFlow; on green, loop to the next task and spec.
 
@@ -385,7 +427,16 @@ def main() -> None:
                     help="skip autocommit+push after green runs")
     ap.add_argument("--single", action="store_true", default=False,
                     help="run only the given task, do not loop to the next one")
+    ap.add_argument("--resume", action="store_true", default=False,
+                    help="derive spec/task from the last checkpoint (green → next, red → retry)")
     args = ap.parse_args()
+    if args.resume:
+        pt = _resume_point(REPO_ROOT)
+        if pt is None:
+            print("all specs complete, nothing to resume")
+            return
+        args.spec, args.task = pt
+        print(f"resuming at {args.spec} {args.task}")
     for flow, status in run_tasks(args.spec, args.task, allow_paid=args.allow_paid, replan=args.replan, commit=not args.no_commit, single=args.single):
         print(f"{flow.state.task_id}: {status}")
 

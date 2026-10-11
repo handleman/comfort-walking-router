@@ -83,6 +83,12 @@ task's `run.json`). Flags: `--single` runs only the given task, `--no-commit` sk
 autocommit+push (passed through `run.sh` extra args,
 e.g. `./swarm/run.sh 001 T1 --single`).
 
+## Resume from checkpoint
+`make swarm-up` / `./swarm/run.sh` with no args resumes where the sequence last stopped:
+latest run green → next task (or next spec); red or killed mid-run (`meta.json` only) →
+same task again; everything green → exits with `all specs complete`. Explicit
+`SPEC TASK` args always override. Resolution lives in `_resume_point` (`--resume` flag).
+
 ## Escalation (dev ×3 → senior → QA)
 Each task gets up to `DEV_ATTEMPTS` (3) dev phases (micro-steps + review + 2 fix rounds
 each, cached plan reused). A single micro-step failing `STEP_ATTEMPTS` (3) times is

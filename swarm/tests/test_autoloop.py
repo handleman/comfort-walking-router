@@ -167,3 +167,61 @@ def test_fix_rules_shared_by_fix_and_senior_crews():
     assert "ruff check --fix" in FIX_RULES
     assert FIX_RULES in fix_desc
     assert FIX_RULES in senior_desc
+
+
+def _resume_tree(root, runs, specs):
+    from pathlib import Path
+
+    root = Path(root)
+    for ts, payload in runs.items():
+        d = root / "swarm" / "runs" / ts
+        d.mkdir(parents=True)
+        for name, content in payload.items():
+            (d / name).write_text(content)
+    for name, tasks_md in specs.items():
+        d = root / "specs" / name
+        d.mkdir(parents=True)
+        if tasks_md is not None:
+            (d / "tasks.md").write_text(tasks_md)
+
+
+def test_resume_red_reruns_same_task(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    _resume_tree(tmp_path, {"20261011-100000": {"run.json": json.dumps({"spec": "001", "task": "T3", "status": "needs_human"})}}, {})
+    assert _resume_point(tmp_path) == ("001", "T3")
+
+
+def test_resume_killed_run_uses_meta(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    _resume_tree(tmp_path, {"20261011-100000": {"meta.json": json.dumps({"spec": "001", "task": "T3"})}}, {})
+    assert _resume_point(tmp_path) == ("001", "T3")
+
+
+def test_resume_green_advances_task_and_spec(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    md = "- [ ] T1 (AC-1): aaa\n- [ ] T2 (AC-1): bbb\n"
+    _resume_tree(tmp_path, {"20261011-100000": {"run.json": json.dumps({"spec": "001-x", "task": "T1", "status": "green"})}},
+                 {"001-x": md, "004-y": "- [ ] T1 (AC-1): ccc\n"})
+    assert _resume_point(tmp_path) == ("001-x", "T2")
+    _resume_tree(tmp_path, {"20261011-110000": {"run.json": json.dumps({"spec": "001-x", "task": "T2", "status": "green"})}}, {})
+    assert _resume_point(tmp_path) == ("004-y", "T1")
+
+
+def test_resume_none_when_all_green_or_empty(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    assert _resume_point(tmp_path) is None
+    _resume_tree(tmp_path, {"20261011-100000": {"run.json": json.dumps({"spec": "001-x", "task": "T1", "status": "green"})}},
+                 {"001-x": "- [ ] T1 (AC-1): aaa\n"})
+    assert _resume_point(tmp_path) is None

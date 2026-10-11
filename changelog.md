@@ -1,6 +1,7 @@
 # Changelog
 
-## 2026-10-10 (swarm harness)
+## 2026-10-11 (swarm harness)
+- swarm: checkpoint resume — bare `make swarm-up` / `run.sh` derives (spec, task) from run history (`_resume_point`, `--resume` flag): green → next, red/killed → retry, all-green → exit; explicit args override
 - swarm: reviewer defaults to local QA (`ollama/swarm-qa:latest`, `Modelfile.qa`: 32k ctx + evidence discipline) — PASS and BLOCKED verdicts both verified live, dev→QA loop now quota-free; nemotron kept as alt; `make swarm-qa-image`
 - swarm: inner escalation — a micro-step failing `STEP_ATTEMPTS` (3) is rescued inline by the senior (`build_senior_step_crew`, quota passes through, task-level senior ×2 unchanged); diagram + tests
 - swarm: quota-stop — `free-models-per-day` 429 at any LLM call halts the pilot at once (no retry/escalation) with `quota_exhausted` status, `quota_note` in `run.json`, `QUOTA EXHAUSTED` in `up.log`; gate listener preserves terminal states; resume after reset
