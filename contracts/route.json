@@ -32,6 +32,15 @@
     "timestamp": {
       "type": "string",
       "format": "date-time"
+    },
+    "comfort_score": {
+      "type": "number"
+    },
+    "explanation": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "required": ["id", "name", "waypoints", "status", "timestamp"]
