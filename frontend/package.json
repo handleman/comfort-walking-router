@@ -9,6 +9,10 @@
   },
   "dependencies": {
     "svelte": "^4.0.0",
-    "@sveltejs/vite-plugin-svelte": "^3.0.0"
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
+    "leaflet": "^1.9.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
   }
 }
