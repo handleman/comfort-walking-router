@@ -31,6 +31,8 @@ Verified 2026-11-08 (tool calls + latency): free unless noted.
 | Zen fallback | `SWARM_ZEN_FALLBACK_MODEL=zen/glm-5.3-flash` (paid, ~$0.006/1k calls) | opt-in, T13 |
 
 All-local variant (no keys, slowest): `make swarm-local` sets every role to Ollama.
+On a quota/429 the flow switches every subsequent crew to `SWARM_<ROLE>_FALLBACK_MODEL`
+(default local `qwen3.5:9b`; senior prefers cheap Zen when `SWARM_ALLOW_PAID=1`), then retries.
 
 Free/cheap menu (re-checked live with a tool-call probe; ids churn, so run
 `make swarm-preflight` before trusting them):
@@ -161,7 +163,7 @@ Each run still has to pass the flow's own gates and scope check (`pytest`, `ruff
 (`swarm: <spec>-<task> green …`) before continuing.
 
 Each run writes:
-- `swarm/runs/<ts>-<pid>-<rand>/run.json` — spec, task, status (`green`/`needs_human`/`crew_error`/…), gate exit codes, cost (must be `0` for free-tier runs).
+- `swarm/runs/<ts>-<pid>-<rand>/run.json` — spec, task, status (`green`/`needs_human`/`crew_error`/…), gate exit codes, usage (tokens/cost/timestamps).
 - `swarm/runs/<ts>/events.jsonl` — streamed agent events; `usage.json` when available.
 Tail mode follows the loop: when a newer run becomes `latest`, the dashboard jumps to it
 (task list + plan note re-sync). Plan validation: planner output without `STEP` lines fails
@@ -217,8 +219,8 @@ out-of-scope files never added, `.env*` refused) and pushes, then loops back to 
 planner for the next task — and after a spec's last task, to the next spec with tasks
 (directory order; specs without `tasks.md` and the harness specs `009`/`012` are
 skipped). First non-green task stops the whole loop (`needs_human`/`crew_error`/
-`commit_failed`/`push_failed`/`awaiting_approval`/`quota_exhausted`/`interrupted`/
-`preflight_failed` in that task's `run.json`).
+`commit_failed`/`push_failed`/`awaiting_approval`/`quota_exhausted`/`budget_exhausted`/
+`interrupted`/`preflight_failed` in that task's `run.json`).
 Flags: `--single` runs only the given task, `--no-commit` skips
 autocommit+push (passed through `run.sh` extra args,
 e.g. `./swarm/run.sh 001 T1 --single`).
@@ -240,9 +242,36 @@ up to `SENIOR_ATTEMPTS` (2) senior passes: `SWARM_SENIOR_MODEL`
 clients) fixes everything in one go via `build_senior_crew`, then QA re-verifies and
 gates re-run. Still red → `needs_human`. Attempts + `senior_used` recorded in `run.json`.
 
-Quota: any LLM call failing with `free-models-per-day` stops the pilot immediately —
-no retry, no escalation — with status `quota_exhausted`, a `quota_note` in `run.json`,
-and a `QUOTA EXHAUSTED` line in `up.log`. Resume after the daily reset.
+Quota: a daily `free-models-per-day` / 429 error first switches the run to fallback
+models (`SWARM_<ROLE>_FALLBACK_MODEL`, default local `qwen3.5:9b`; senior tries
+`zen/glm-5.3-flash` when paid is allowed) and retries. If the fallback is also out,
+the pilot stops with `quota_exhausted`, a `quota_note` in `run.json`, and a
+`QUOTA EXHAUSTED` line in `up.log`. Transient 429/timeout/5xx errors get exponential
+backoff (1s→8s, 3 attempts) before giving up.
+
+## Usage, cost & budgets (012 T11/T14)
+Every kickoff adds `CrewOutput.token_usage` to the run: prompt/completion/cached
+tokens, LLM calls, and the models actually used. `run.json` gains:
+
+```json
+"usage": {"prompt_tokens": 8123, "completion_tokens": 640, "total_tokens": 8763,
+          "llm_calls": 14, "models": ["ollama/swarm-coder:latest"],
+          "cost_usd": 0.0, "started_at": "…", "finished_at": "…", "duration_seconds": 92.4}
+```
+
+Local Ollama and `:free` models are exactly `$0`. A paid model with a known rate
+(`swarm/usage.py`) is estimated from tokens; an unknown paid rate reports
+`cost_usd: null` / `cost=unknown` in the TUI instead of inventing a number.
+
+Budgets are env-driven and stop the pilot with `budget_exhausted`:
+`SWARM_MAX_TOKENS` (2M), `SWARM_MAX_COST_USD` ($0.05), `SWARM_MAX_RUNTIME_SECONDS`
+(7200). Set any to `0` to disable it. `budget_note` records which limit tripped.
+
+## Event listener & dashboard (012 T15)
+Each flow unregisters its CrewAI event handlers on `save_run` (`SwarmListener.teardown`),
+so long autonomous loops do not leak handlers or keep writing to old run dirs.
+Tail mode reads `events.jsonl` from a byte offset with a partial-line buffer instead
+of re-reading the whole file every tick.
 
 ## Role sequence
 ```mermaid

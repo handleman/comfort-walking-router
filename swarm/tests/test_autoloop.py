@@ -464,6 +464,7 @@ def test_run_lock_is_exclusive(tmp_path):
 
 def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",), require=False, commit_rec=None):
     import json
+    import time
     from typing import ClassVar
 
     import swarm.tools_guarded as tg
@@ -490,9 +491,16 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         _require_approval = require
         _commit = True
         _baseline: ClassVar[dict] = {}
+        _started_monotonic = time.monotonic()
 
         def _commit_green(self, brief, changed):
             return commit_rec or {"commit": "ok", "push": "ok", "ok": "1"}
+
+        def _run_cost(self):
+            return 0.0
+
+        def _teardown_listener(self):
+            return None
 
         def _cleanup(self):
             return None
@@ -567,3 +575,88 @@ def test_gate_passes_preflight_failure_through():
         _interrupted = False
 
     assert SwarmFlow.gate(Stub(), "x") == "preflight_failed"
+
+
+def test_record_usage_accumulates_tokens_and_models():
+    import types
+    from typing import ClassVar
+
+    from swarm.flow import SwarmFlow, SwarmState
+
+    class Out:
+        token_usage = types.SimpleNamespace(
+            prompt_tokens=10, completion_tokens=5, cached_prompt_tokens=2,
+            total_tokens=15, successful_requests=1,
+        )
+
+    class Crew:
+        agents: ClassVar[list] = [
+            types.SimpleNamespace(llm=types.SimpleNamespace(model="ollama/x"))
+        ]
+
+    stub = types.SimpleNamespace(state=SwarmState())
+    SwarmFlow._record_usage(stub, Crew(), Out())
+    SwarmFlow._record_usage(stub, Crew(), Out())
+    assert stub.state.prompt_tokens == 20
+    assert stub.state.completion_tokens == 10
+    assert stub.state.cached_prompt_tokens == 4
+    assert stub.state.total_tokens == 30
+    assert stub.state.llm_calls == 2
+    assert stub.state.models_used == ["ollama/x"]
+
+
+def test_check_budget_raises_on_token_limit():
+    import time as _time
+    import types
+
+    import pytest
+
+    from swarm.flow import SwarmFlow, SwarmState, _BudgetExhausted
+
+    stub = types.SimpleNamespace(
+        state=SwarmState(total_tokens=11),
+        _max_tokens=10,
+        _max_cost=0.0,
+        _max_seconds=0,
+        _started_monotonic=_time.monotonic(),
+        _run_cost=lambda: 0.0,
+    )
+    with pytest.raises(_BudgetExhausted, match="token budget"):
+        SwarmFlow._check_budget(stub)
+
+
+def test_check_budget_raises_on_time_limit():
+    import time as _time
+    import types
+
+    import pytest
+
+    from swarm.flow import SwarmFlow, SwarmState, _BudgetExhausted
+
+    stub = types.SimpleNamespace(
+        state=SwarmState(total_tokens=0),
+        _max_tokens=0,
+        _max_cost=0.0,
+        _max_seconds=1,
+        _started_monotonic=_time.monotonic() - 5,
+        _run_cost=lambda: 0.0,
+    )
+    with pytest.raises(_BudgetExhausted, match="time budget"):
+        SwarmFlow._check_budget(stub)
+
+
+def test_teardown_listener_calls_teardown():
+    import types
+
+    from swarm.flow import SwarmFlow
+
+    calls = []
+
+    class Listener:
+        def teardown(self):
+            calls.append("teardown")
+
+    stub = types.SimpleNamespace(listener=Listener())
+    SwarmFlow._teardown_listener(stub)
+    assert calls == ["teardown"]
+    assert stub.listener is not None  # kept: the TUI still drains its queue

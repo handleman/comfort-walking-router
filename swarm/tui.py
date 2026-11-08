@@ -30,7 +30,8 @@ class SwarmTUI(App[None]):
         self._spec, self._task_id, self._tail = spec, task, tail
         self._flow: object = None
         self._run_dir: Path | None = Path(tail) if tail else None
-        self._tail_off = 0
+        self._tail_pos = 0
+        self._tail_buf = b""
         self._active = "crew"
         self._tasks: list[str] = []
         self._plan_noted = False
@@ -181,7 +182,8 @@ class SwarmTUI(App[None]):
             want = self._run_dir.parent / cur
             if cur and want.is_dir() and want != self._run_dir:
                 self._run_dir = want
-                self._tail_off = 0
+                self._tail_pos = 0
+                self._tail_buf = b""
                 self._plan_noted = False
                 self._sync_tail_meta()
                 self._pane_log("crew", f"── following {cur} ──")
@@ -189,13 +191,24 @@ class SwarmTUI(App[None]):
             pass
         fp = self._run_dir / "events.jsonl"
         if fp.is_file():
-            lines = fp.read_text().splitlines()
-            for line in lines[self._tail_off :]:
-                try:
-                    self._handle(json.loads(line))
-                except Exception:
-                    pass
-            self._tail_off = len(lines)
+            # Incremental read: seek to the last offset, keep a partial-line
+            # buffer, and parse only complete lines. Re-reading the whole file
+            # every 0.5 s got slower as events accumulated (012 T15).
+            try:
+                with fp.open("rb") as f:
+                    f.seek(self._tail_pos)
+                    chunk = f.read()
+                    self._tail_pos = f.tell()
+                if chunk:
+                    self._tail_buf += chunk
+                    while b"\n" in self._tail_buf:
+                        raw, self._tail_buf = self._tail_buf.split(b"\n", 1)
+                        try:
+                            self._handle(json.loads(raw.decode("utf-8", "replace")))
+                        except Exception:
+                            pass
+            except OSError:
+                pass
         self._note_plan_cache()
         rj = self._run_dir / "run.json"
         if rj.is_file():
@@ -255,13 +268,23 @@ class SwarmTUI(App[None]):
                     extra += " senior"
                 if r.get("dev_attempts"):
                     extra += f" attempt={r.get('dev_attempts')}"
+                usage = r.get("usage") or {}
+                if usage.get("total_tokens"):
+                    extra += f" tok={usage['total_tokens']}"
+                cost = usage.get("cost_usd", r.get("cost"))
+                if cost is None:
+                    extra += " cost=unknown"
+                elif cost:
+                    extra += f" cost=${cost:.4f}"
+                else:
+                    extra += " cost=$0"
             except Exception:
                 pass
         elif self._plan_noted:
             plans = REPO_ROOT / "swarm" / "runs" / "plans"
             if plans.is_dir() and list(plans.glob(f"*-{self._task_id}.md")):
                 extra = " plan=cached (planner skipped)"
-        self._set_status(f"spec={self._spec} task={self._task_id} run={self._run_dir.name}{extra} cost=$0")
+        self._set_status(f"spec={self._spec} task={self._task_id} run={self._run_dir.name}{extra}")
 
     # ---- keys ----
     def on_key(self, event: object) -> None:

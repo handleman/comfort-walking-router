@@ -62,7 +62,7 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-08: 4 app tests + 88 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
+Last verified 2026-11-08: 4 app tests + 116 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
@@ -84,9 +84,14 @@ make swarm-approve   # release an awaiting_approval hold (defaults to the last c
 ```
 
 Every task writes `swarm/runs/<ts>-<pid>-<rand>/run.json` (status, gate exit codes, changed files,
-reviewer verdict, approval/commit/push, cost — free tiers must show `0`).
+reviewer verdict, approval/commit/push, tokens/cost/duration — free tiers show `$0`).
 Green runs **autocommit and push**; `commit_failed`/`push_failed` are not green.
+Per-run budgets (`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS`) stop a
+runaway loop with `budget_exhausted`; rate limits retry with backoff and fallback models.
 Use `./swarm/run.sh 001 T3 --no-commit` to opt out of committing.
+
+CI (`.github/workflows/ci.yml`) runs the app gates, the harness tests, and the frontend
+check/build on every push and PR, plus a post-merge smoke job on `main`.
 
 ### Adding a spec so the swarm picks it up
 

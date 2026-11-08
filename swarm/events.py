@@ -41,6 +41,7 @@ class SwarmListener:
         self.run_dir = run_dir
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.events: queue.Queue[dict[str, Any]] = queue.Queue()
+        self._handlers: list[tuple[Any, Any]] = []
         outer = self
 
         class _L(BaseEventListener):
@@ -60,58 +61,68 @@ class SwarmListener:
                     TaskStartedEvent,
                 )
 
-                @bus.on(CrewKickoffStartedEvent)
+                def _listen(event_type: Any) -> Any:
+                    """Register + remember the handler so teardown can unregister it."""
+
+                    def deco(fn: Any) -> Any:
+                        bus.on(event_type)(fn)
+                        outer._handlers.append((event_type, fn))
+                        return fn
+
+                    return deco
+
+                @_listen(CrewKickoffStartedEvent)
                 def _cs(source: Any, event: Any) -> None:
                     outer._append({"type": "crew_started"})
 
-                @bus.on(CrewKickoffCompletedEvent)
+                @_listen(CrewKickoffCompletedEvent)
                 def _cc(source: Any, event: Any) -> None:
                     outer._append({"type": "crew_done"})
 
-                @bus.on(CrewKickoffFailedEvent)
+                @_listen(CrewKickoffFailedEvent)
                 def _cf(source: Any, event: Any) -> None:
                     outer._append({"type": "crew_failed", "text": str(event)[:500]})
 
-                @bus.on(TaskStartedEvent)
+                @_listen(TaskStartedEvent)
                 def _ts(source: Any, event: Any) -> None:
                     task = getattr(event, "task", None)
                     desc = getattr(task, "description", str(event)[:200])
                     outer._append({"type": "task_started", "text": str(desc)[:200]})
 
-                @bus.on(TaskCompletedEvent)
+                @_listen(TaskCompletedEvent)
                 def _tc(source: Any, event: Any) -> None:
                     task = getattr(event, "task", None)
                     out = getattr(task, "output", None)
                     outer._append({"type": "task_done", "text": str(out)[-500:]})
 
-                @bus.on(TaskFailedEvent)
+                @_listen(TaskFailedEvent)
                 def _tf(source: Any, event: Any) -> None:
                     outer._append({"type": "task_failed", "text": str(event)[:500]})
 
-                @bus.on(AgentExecutionStartedEvent)
+                @_listen(AgentExecutionStartedEvent)
                 def _as(source: Any, event: Any) -> None:
                     name = _agent_name(getattr(event, "agent", None) or source)
                     outer._append({"type": "agent_started", "agent": name, "pane": pane_for(name)})
 
-                @bus.on(AgentExecutionCompletedEvent)
+                @_listen(AgentExecutionCompletedEvent)
                 def _ac(source: Any, event: Any) -> None:
                     name = _agent_name(getattr(event, "agent", None) or source)
                     outer._append({"type": "agent_done", "agent": name, "pane": pane_for(name)})
 
-                @bus.on(AgentExecutionErrorEvent)
+                @_listen(AgentExecutionErrorEvent)
                 def _ae(source: Any, event: Any) -> None:
                     name = _agent_name(getattr(event, "agent", None) or source)
                     outer._append({"type": "agent_error", "agent": name, "pane": pane_for(name), "text": str(event)[:500]})
 
-                @bus.on(LLMCallStartedEvent)
+                @_listen(LLMCallStartedEvent)
                 def _ls(source: Any, event: Any) -> None:
                     outer._append({"type": "llm_started"})
 
-                @bus.on(LLMCallFailedEvent)
+                @_listen(LLMCallFailedEvent)
                 def _lf(source: Any, event: Any) -> None:
                     outer._append({"type": "llm_failed", "text": str(getattr(event, "error", event))[:300]})
 
-                @bus.on(LLMStreamChunkEvent)
+                @_listen(LLMStreamChunkEvent)
                 def _chunk(source: Any, event: Any) -> None:
                     outer._append({"type": "chunk", "text": str(getattr(event, "chunk", ""))[:2000]})
 
@@ -121,6 +132,24 @@ class SwarmListener:
             crewai_event_bus.validate_dependencies()
         except Exception:
             pass
+
+    def teardown(self) -> None:
+        """Unregister this listener from the global bus (012 T15).
+
+        Without this, every flow in a long autonomous loop leaves its handlers
+        registered, so events leak into old run dirs and memory grows.
+        """
+        try:
+            from crewai.events import crewai_event_bus
+        except Exception:
+            self._handlers.clear()
+            return
+        for event_type, handler in self._handlers:
+            try:
+                crewai_event_bus.off(event_type, handler)
+            except Exception:
+                pass
+        self._handlers.clear()
 
     def _append(self, payload: dict[str, Any]) -> None:
         self.events.put(payload)

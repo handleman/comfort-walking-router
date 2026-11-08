@@ -14,6 +14,7 @@ import re
 import signal
 import subprocess
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,13 @@ from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-TERMINAL_STATUSES = ("crew_error", "quota_exhausted", "interrupted", "preflight_failed")
+TERMINAL_STATUSES = (
+    "crew_error",
+    "quota_exhausted",
+    "budget_exhausted",
+    "interrupted",
+    "preflight_failed",
+)
 
 
 class SwarmState(BaseModel):
@@ -39,19 +46,34 @@ class SwarmState(BaseModel):
     transcript: str = ""
     plan_reused: bool = False
     quota_note: str = ""
+    budget_note: str = ""
     review_verdict: str = ""
     changed_files: list[str] = []
     approval_required: bool = False
     approved: bool = False
+    # Usage/evidence (012 T11): filled from CrewOutput.token_usage.
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cached_prompt_tokens: int = 0
+    total_tokens: int = 0
+    llm_calls: int = 0
+    models_used: list[str] = []
+    started_at: str = ""
+    finished_at: str = ""
 
 
 class _QuotaExhausted(SystemExit):
     """Daily free-model quota hit: stop the pilot, do not retry or escalate."""
 
 
-def _is_quota_error(e: Exception) -> bool:
-    s = f"{type(e).__name__}: {e}".lower()
-    return "free-models-per-day" in s
+class _BudgetExhausted(Exception):
+    """Per-run token/cost/time budget hit (012 T14)."""
+
+
+def _is_quota_error(e: BaseException) -> bool:
+    from swarm.retry import is_quota_error
+
+    return is_quota_error(e)
 
 
 def _runs_dir() -> Path:
@@ -293,6 +315,13 @@ class SwarmFlow(Flow[SwarmState]):
         self._replan = replan
         self._commit = commit
         self._interrupted = False
+        self._started_monotonic = time.monotonic()
+        self.state.started_at = dt.datetime.now().isoformat(timespec="seconds")
+        from swarm.usage import env_float, env_int
+
+        self._max_tokens = env_int("SWARM_MAX_TOKENS", 2_000_000)
+        self._max_cost = env_float("SWARM_MAX_COST_USD", 0.05)
+        self._max_seconds = env_int("SWARM_MAX_RUNTIME_SECONDS", 7200)
         self._lock = RunLock(_runs_dir() / ".lock")
         if not self._lock.acquire():
             raise SystemExit("another swarm run is active (lock: swarm/runs/.lock)")
@@ -346,6 +375,57 @@ class SwarmFlow(Flow[SwarmState]):
     def __del__(self) -> None:
         with contextlib.suppress(Exception):
             self._cleanup()
+
+    # ---- usage & budgets (012 T11/T14) ----
+    def _record_usage(self, crew: Any, out: Any) -> None:
+        tu = getattr(out, "token_usage", None) or getattr(crew, "usage_metrics", None)
+        if tu is None:
+            return
+
+        def _n(key: str) -> int:
+            try:
+                return int(getattr(tu, key, 0) or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        self.state.prompt_tokens += _n("prompt_tokens")
+        self.state.completion_tokens += _n("completion_tokens")
+        self.state.cached_prompt_tokens += _n("cached_prompt_tokens")
+        self.state.total_tokens += _n("total_tokens")
+        self.state.llm_calls += _n("successful_requests")
+        for agent in getattr(crew, "agents", None) or []:
+            model = getattr(getattr(agent, "llm", None), "model", "")
+            if model and model not in self.state.models_used:
+                self.state.models_used.append(model)
+
+    def _run_cost(self) -> float | None:
+        from swarm.usage import estimate_run_cost
+
+        return estimate_run_cost(
+            self.state.models_used, self.state.prompt_tokens, self.state.completion_tokens
+        )
+
+    def _check_budget(self) -> None:
+        from swarm.usage import budget_note
+
+        note = budget_note(
+            total_tokens=self.state.total_tokens,
+            cost_usd=self._run_cost(),
+            elapsed_seconds=time.monotonic() - self._started_monotonic,
+            max_tokens=self._max_tokens,
+            max_cost_usd=self._max_cost,
+            max_seconds=self._max_seconds,
+        )
+        if note:
+            raise _BudgetExhausted(note)
+
+    def _teardown_listener(self) -> None:
+        """Unregister bus handlers but keep the object so the TUI can drain its queue."""
+        listener = getattr(self, "listener", None)
+        if listener is None:
+            return
+        with contextlib.suppress(Exception):
+            listener.teardown()
 
     @start()
     def load_spec(self) -> dict[str, str]:
@@ -421,18 +501,35 @@ class SwarmFlow(Flow[SwarmState]):
         cache = plan_cache_path(self._spec_dir, task.id)
         source_hash = plan_source_hash(self._spec_dir)
 
-        def _kickoff(crew: Any) -> tuple[Any, str]:
+        def _kickoff(build: Any) -> tuple[Any, str]:
+            """Run a fresh crew, with quota fallback + rate-limit backoff (012 T13)."""
+            from swarm.llms import activate_fallbacks, fallbacks_active
+            from swarm.retry import backoff_delay, is_retryable
+
             last_err: Exception | None = None
-            for _ in (1, 2):  # one fresh re-kickoff on transient failure
+            switched = fallbacks_active()
+            for attempt in (1, 2, 3):
                 try:
+                    crew = build()
                     out = crew.kickoff()
-                    return crew, str(out)[:8000]
                 except Exception as e:
-                    if _is_quota_error(e):
-                        # Daily quota: retrying or escalating is pointless, stop now.
-                        raise _QuotaExhausted(f"free-models-per-day quota hit: {e}"[:500]) from e
                     last_err = e
-            raise SystemExit(f"crew failed twice, trace in {self.run_dir}/run.json") from last_err
+                    if _is_quota_error(e):
+                        if not switched:
+                            switched = True
+                            activate_fallbacks()
+                            print("quota hit → retrying with fallback models", flush=True)
+                            continue
+                        raise _QuotaExhausted(f"free-models-per-day quota hit: {e}"[:500]) from e
+                    if is_retryable(e) and attempt < 3:
+                        time.sleep(backoff_delay(attempt))
+                        continue
+                    break
+                else:
+                    self._record_usage(crew, out)
+                    self._check_budget()
+                    return crew, str(out)[:8000]
+            raise SystemExit(f"crew failed after retries, trace in {self.run_dir}/run.json") from last_err
 
         def _plan_text(crew: Any) -> str:
             try:
@@ -453,7 +550,7 @@ class SwarmFlow(Flow[SwarmState]):
             for _ in range(PLAN_ATTEMPTS):
                 if _resolve_steps(plan_text):
                     break
-                plan_crew, _ = _kickoff(build_plan_crew(self._spec_dir, task))
+                plan_crew, _ = _kickoff(lambda: build_plan_crew(self._spec_dir, task))
                 plan_text = _plan_text(plan_crew)
             steps = _resolve_steps(plan_text)
             if not steps:
@@ -473,7 +570,9 @@ class SwarmFlow(Flow[SwarmState]):
                     last_err: BaseException | None = None
                     for _ in range(STEP_ATTEMPTS):
                         try:
-                            _, step_out = _kickoff(build_step_crew(self._spec_dir, task, step, i, len(steps)))
+                            _, step_out = _kickoff(
+                                lambda step=step, i=i: build_step_crew(self._spec_dir, task, step, i, len(steps))
+                            )
                             last_err = None
                             break
                         except _QuotaExhausted:
@@ -484,11 +583,13 @@ class SwarmFlow(Flow[SwarmState]):
                         self.state.senior_used = True
                         self.state.senior_rounds += 1
                         _, step_out = _kickoff(
-                            build_senior_step_crew(self._spec_dir, task, step, i, len(steps), str(last_err))
+                            lambda step=step, i=i, last_err=last_err: build_senior_step_crew(
+                                self._spec_dir, task, step, i, len(steps), str(last_err)
+                            )
                         )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
                 work_summary = "\n".join(step_outs)
-                _, review_out = _kickoff(build_review_crew(self._spec_dir, task, work_summary))
+                _, review_out = _kickoff(lambda work_summary=work_summary: build_review_crew(self._spec_dir, task, work_summary))
                 self.state.review_verdict = reviewer_verdict(review_out)
                 self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
                 # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
@@ -499,7 +600,7 @@ class SwarmFlow(Flow[SwarmState]):
                     self.state.fix_rounds += 1
                     self.state.transcript = transcript
                     try:
-                        _, fix_out = _kickoff(build_fix_crew(self._spec_dir, task, transcript))
+                        _, fix_out = _kickoff(lambda transcript=transcript: build_fix_crew(self._spec_dir, task, transcript))
                         self.state.review_verdict = reviewer_verdict(fix_out)
                         self.state.result = str(fix_out)[:8000]
                     except SystemExit as e:
@@ -517,13 +618,13 @@ class SwarmFlow(Flow[SwarmState]):
                     self.state.senior_rounds += 1
                     self.state.transcript = transcript
                     try:
-                        _, senior_out = _kickoff(build_senior_crew(self._spec_dir, task, transcript))
+                        _, senior_out = _kickoff(lambda transcript=transcript: build_senior_crew(self._spec_dir, task, transcript))
                         self.state.review_verdict = reviewer_verdict(senior_out)
                         self.state.result = str(senior_out)[:8000]
                     except SystemExit as e:
                         self.state.result = str(e)[:4000]
                         raise
-                    _, review_out = _kickoff(build_review_crew(self._spec_dir, task, self.state.result))
+                    _, review_out = _kickoff(lambda: build_review_crew(self._spec_dir, task, self.state.result))
                     self.state.review_verdict = reviewer_verdict(review_out)
                     self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
                     changed = run_delta(self._baseline)
@@ -535,6 +636,13 @@ class SwarmFlow(Flow[SwarmState]):
             self.state.quota_note = f"{self._spec_dir}/{self.state.task_id or self._task_id}: {e}"[:500]
             print(f"QUOTA EXHAUSTED: {self.state.quota_note} — pilot stopped, resume after reset", flush=True)
             self.save_run("quota_exhausted")
+            return self.state.result
+        except _BudgetExhausted as e:
+            self.state.result = str(e)[:4000]
+            self.state.budget_note = str(e)[:500]
+            self.state.status = "budget_exhausted"
+            print(f"BUDGET EXHAUSTED: {e} — pilot stopped", flush=True)
+            self.save_run("budget_exhausted")
             return self.state.result
         except SystemExit as e:
             self.state.result = str(e)[:4000]
@@ -583,6 +691,20 @@ class SwarmFlow(Flow[SwarmState]):
         approved = approval_granted(self.state.spec_dir, self.state.task_id, self.run_dir)
         self.state.changed_files = changed
         self.state.approved = approved
+        self.state.finished_at = dt.datetime.now().isoformat(timespec="seconds")
+        cost = self._run_cost()
+        usage = {
+            "prompt_tokens": self.state.prompt_tokens,
+            "completion_tokens": self.state.completion_tokens,
+            "cached_prompt_tokens": self.state.cached_prompt_tokens,
+            "total_tokens": self.state.total_tokens,
+            "llm_calls": self.state.llm_calls,
+            "models": list(self.state.models_used),
+            "cost_usd": cost,
+            "started_at": self.state.started_at,
+            "finished_at": self.state.finished_at,
+            "duration_seconds": round(time.monotonic() - self._started_monotonic, 1),
+        }
 
         payload: dict[str, Any] = {
             "spec": self.state.spec_dir,
@@ -604,8 +726,14 @@ class SwarmFlow(Flow[SwarmState]):
             "approved": approved,
             "result_tail": self.state.result[-2000:],
             "gate_transcript_tail": self.state.transcript[-2000:],
-            "cost": 0,
-            "cost_note": "free-first: local + :free only unless allow_paid",
+            "cost": cost,
+            "cost_note": (
+                "free/local models"
+                if cost == 0.0
+                else ("unknown price for paid model" if cost is None else "estimated from token usage")
+            ),
+            "usage": usage,
+            "budget_note": self.state.budget_note,
         }
         if status == "green":
             if not in_scope:
@@ -636,8 +764,10 @@ class SwarmFlow(Flow[SwarmState]):
             "changed_files": changed,
             "in_scope_changes": in_scope,
             "approved": approved,
+            "usage": usage,
         }
         (self.run_dir / "run.json").write_text(json.dumps(payload, indent=2))
+        self._teardown_listener()
         self._cleanup()
         return status
 
