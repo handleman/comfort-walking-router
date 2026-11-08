@@ -1,15 +1,39 @@
-<script>
+<script lang="ts">
+  interface Waypoint {
+    lat: number;
+    lng: number;
+  }
+
+  interface LineStringGeometry {
+    type: 'LineString';
+    coordinates: [number, number][];
+  }
+
+  interface Route {
+    id: string;
+    name: string;
+    description?: string;
+    waypoints: Waypoint[];
+    status: 'active' | 'inactive' | 'archived';
+    timestamp: string;
+    comfort_score: number;
+    explanation: string[];
+    geometry: LineStringGeometry;
+    distance_m: number;
+    duration_s: number;
+  }
+
   import { onMount } from 'svelte';
   import L from 'leaflet';
 
-  let mapElement;
-  let map;
-  let routeLayer = null;
+  let mapElement: HTMLDivElement;
+  let map: L.Map | null = null;
+  let routeLayer: L.LayerGroup | null = null;
 
   let start = '';
   let end = '';
   let preference = '';
-  let route = null;
+  let route: Route | null = null;
   let error = '';
   let loading = false;
 
@@ -53,12 +77,13 @@
     if (routeLayer) {
       routeLayer.remove();
     }
-    routeLayer = L.layerGroup().addTo(map);
-    const line = L.geoJSON(route.geometry).addTo(routeLayer);
+    const layer = L.layerGroup().addTo(map);
+    routeLayer = layer;
+    const line = L.geoJSON(route.geometry).addTo(layer);
     route.waypoints.forEach((point, index) => {
       L.circleMarker([point.lat, point.lng], { radius: 6 })
         .bindTooltip(index === 0 ? 'Start' : 'End')
-        .addTo(routeLayer);
+        .addTo(layer);
     });
     map.fitBounds(line.getBounds(), { padding: [24, 24] });
   }
@@ -102,10 +127,10 @@
         <h2>{route.name}</h2>
         <p class="stats">
           {(route.distance_m / 1000).toFixed(2)} km ·
-          {Math.round(route.duration_s / 60)} min ·
-          comfort {route.comfort_score}/100
+          {Math.round(route.duration_s / 60)} min
         </p>
-        <ul>
+        <p class="score">comfort {route.comfort_score}/100</p>
+        <ul class="factors">
           {#each route.explanation as line}
             <li>{line}</li>
           {/each}
@@ -178,6 +203,19 @@
     font-weight: 600;
   }
 
+  .score {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1a7f37;
+  }
+
+  .factors {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+    color: #444;
+  }
+
   #map {
     min-height: 400px;
     height: 100vh;
@@ -194,3 +232,4 @@
     }
   }
 </style>
+style>
