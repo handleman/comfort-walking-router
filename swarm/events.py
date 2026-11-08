@@ -21,6 +21,18 @@ def _agent_name(obj: Any) -> str:
     return str(obj)[:60] if obj is not None else "?"
 
 
+def _event_error(event: Any, limit: int = 500) -> str:
+    """Best human-readable failure text; never dump a raw event repr."""
+    for attr in ("error", "reason", "message"):
+        value = getattr(event, attr, None)
+        if value:
+            return str(value)[:limit]
+    text = str(event)
+    if text.startswith("timestamp="):
+        return type(event).__name__
+    return text[:limit]
+
+
 def pane_for(name: str) -> str:
     n = name.lower()
     if "plan" in n:
@@ -81,7 +93,7 @@ class SwarmListener:
 
                 @_listen(CrewKickoffFailedEvent)
                 def _cf(source: Any, event: Any) -> None:
-                    outer._append({"type": "crew_failed", "text": str(event)[:500]})
+                    outer._append({"type": "crew_failed", "text": _event_error(event)})
 
                 @_listen(TaskStartedEvent)
                 def _ts(source: Any, event: Any) -> None:
@@ -97,7 +109,7 @@ class SwarmListener:
 
                 @_listen(TaskFailedEvent)
                 def _tf(source: Any, event: Any) -> None:
-                    outer._append({"type": "task_failed", "text": str(event)[:500]})
+                    outer._append({"type": "task_failed", "text": _event_error(event)})
 
                 @_listen(AgentExecutionStartedEvent)
                 def _as(source: Any, event: Any) -> None:
@@ -112,7 +124,7 @@ class SwarmListener:
                 @_listen(AgentExecutionErrorEvent)
                 def _ae(source: Any, event: Any) -> None:
                     name = _agent_name(getattr(event, "agent", None) or source)
-                    outer._append({"type": "agent_error", "agent": name, "pane": pane_for(name), "text": str(event)[:500]})
+                    outer._append({"type": "agent_error", "agent": name, "pane": pane_for(name), "text": _event_error(event)})
 
                 @_listen(LLMCallStartedEvent)
                 def _ls(source: Any, event: Any) -> None:
@@ -120,7 +132,7 @@ class SwarmListener:
 
                 @_listen(LLMCallFailedEvent)
                 def _lf(source: Any, event: Any) -> None:
-                    outer._append({"type": "llm_failed", "text": str(getattr(event, "error", event))[:300]})
+                    outer._append({"type": "llm_failed", "text": _event_error(event, 300)})
 
                 @_listen(LLMStreamChunkEvent)
                 def _chunk(source: Any, event: Any) -> None:

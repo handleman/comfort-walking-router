@@ -12,7 +12,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 - Stack: `docs/tech-stack.md` — Python + FastAPI + Svelte + TypeScript + Leaflet, OSM/Overpass, SQLite first; swarm: CrewAI + Textual + Ollama + OpenRouter + Zen.
 - Order of work: `docs/roadmap.md`
 - Rules: `.specify/memory/constitution.md`, `AGENTS.md`
-- Decisions: `docs/architecture/` (ADRs 001–010)
+- Decisions: `docs/architecture/` (ADRs 001–011)
 
 ## Specs
 | Spec | State | What |
@@ -85,6 +85,8 @@ make swarm-approve   # release an awaiting_approval hold (defaults to the last c
 
 Every task writes `swarm/runs/<ts>-<pid>-<rand>/run.json` (status, gate exit codes, changed files,
 reviewer verdict, approval/commit/push, tokens/cost/duration — free tiers show `$0`).
+The dashboard (`make swarm-dash`) shows the queue with per-task outcomes, models/fallback,
+budget gauges, gate exit codes, recent runs, and live agent panes (ADR-011).
 Green runs **autocommit and push**; `commit_failed`/`push_failed` are not green.
 Per-run budgets (`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS`) stop a
 runaway loop with `budget_exhausted`; rate limits retry with backoff and fallback models.

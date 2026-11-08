@@ -1,6 +1,18 @@
 import pytest
 
+from swarm import preflight
 from swarm.preflight import check, is_free_model, model_id, provider
+
+
+@pytest.fixture(autouse=True)
+def _fake_repo(tmp_path, monkeypatch):
+    """CI has no project venvs; point the venv checks at a temp repo."""
+    for rel in (".venv/bin/python", "swarm/.venv/bin/python"):
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("")
+    monkeypatch.setattr(preflight, "REPO_ROOT", tmp_path)
+
 
 LOCAL_ENV = {
     "SWARM_PLANNER_MODEL": "ollama/swarm-coder:latest",

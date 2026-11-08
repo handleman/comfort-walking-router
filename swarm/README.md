@@ -80,7 +80,32 @@ Coder image: `swarm/ollama/Modelfile` (`FROM qwen3.5:9b`, temp 0, `num_ctx 65536
 baked SYSTEM discipline). Use it via `SWARM_CODER_MODEL=ollama/swarm-coder:latest`.
 Verified 2026-10-10: builds offline from local blobs, native tool calls work
 (with the harness's `think:false`). Tune `num_ctx`/SYSTEM in the Modelfile and rebuild.
-Keys: `a`=approve (writes `approved.json`), `r`=retry (new run, same spec/task), `q`=quit.
+
+## Dashboard (Textual)
+`make swarm-dash` / `make swarm-up` open the parallel dashboard:
+
+- **Queue** (left): tasks in order, newest outcome per task from run history
+  (`✓` green, `✗` needs_human, `⏸` approval, `⛔` quota/budget, `▶` current).
+- **Models**: planner/coder/reviewer/senior, `local` for Ollama, `fallback ON`
+  once a quota/429 switched the run; in tail mode it shows the models the run used.
+- **Budget**: tokens / cost / wall-clock against `SWARM_MAX_*` with percentages.
+- **Gates**: exit code per gate (`✓ 0` / `✗ 1`), scope included.
+- **Recent runs**: last tasks for this spec with status, tokens, and cost.
+- **Panes**: planner/coder/reviewer logs; status line has elapsed, tokens, cost,
+  calls, attempts, plan=cached, senior, and approval state.
+
+Tail mode (`--tail swarm/runs/<id>`) follows `run.json` + `events.jsonl` of another
+process and jumps to the newest run automatically. It opens **fresh**: events logged
+before you attached are skipped, panes start empty, and each new task clears the
+previous task's log.
+
+Keys: `a`=approve (run dir + ledger), `r`=retry (live mode), `h`=history for the
+current run (toggle), `p`/`n`=older/newer run, `t`=back to the newest run, `q`=quit.
+History is opt-in, so long runs never flood a newly opened dashboard.
+
+The dashboard is a read-only view; `run.json`/`events.jsonl` stay the contract
+(ADR-011). For per-call spans when debugging, an optional OpenInference/OTel export
+to a local Phoenix is the recommended add-on — the TUI is not a tracer.
 
 ## How the swarm builds its todo list
 
