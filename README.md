@@ -27,6 +27,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 | `010-e2e-playwright` | spec drafted | Chromium E2E for all user scenarios |
 | `011-dev-run` | done (2026-11-08) | `make dev` one-command startup + contract alignment |
 | `012-dark-factory-harness` | done (2026-11-08) | Dark-factory hardening: truthful green, sandbox, merge queue, observability |
+| `013-dark-factory-phase-2` | spec drafted (2026-11-08) | Done ledger, approval-resume commit, crash checkpoints |
 
 Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 

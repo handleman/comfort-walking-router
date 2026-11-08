@@ -117,7 +117,7 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
   parser, and ids must be `T1`, `T2`, … — `T1a` is not recognized.
 - Task order in the file is the execution order (`T1` → `T2` → …). After the last task, the
   loop moves to the next spec directory with tasks.
-- Skipped automatically: `009-swarm-harness`, `012-dark-factory-harness`, directories without
+- Skipped automatically: `009-swarm-harness`, `012-dark-factory-harness`, `013-dark-factory-phase-2`, directories without
   `tasks.md`, and specs whose tasks are all `[x]`/have no parseable tasks.
 - The planner reads `specs/<dir>/{spec,plan,tasks}.md` plus the constitution. The `brief` it
   receives is the text after the colon on the task line; indented notes below the line are fine
@@ -241,7 +241,7 @@ they are never silently truncated.
 ## Autonomous loop (default)
 A green run autocommits **only the run-delta in-scope changes** and pushes, then loops
 back to the planner for the next task — and after a spec's last task, to the next spec
-with tasks (directory order; specs without `tasks.md` and the harness specs `009`/`012`
+with tasks (directory order; specs without `tasks.md` and the harness specs `009`/`012`/`013`
 are skipped). First non-green task stops the whole loop (`needs_human`/`crew_error`/
 `commit_failed`/`push_failed`/`merge_failed`/`awaiting_approval`/`quota_exhausted`/
 `budget_exhausted`/`interrupted`/`preflight_failed` in that task's `run.json`).
