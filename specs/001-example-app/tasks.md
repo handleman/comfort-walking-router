@@ -4,7 +4,7 @@
 - [x] T2 (AC-1): Backend geocode via Nominatim + base walking route(s) via OSRM demo interim (provider behind interface for 008 Mapbox swap) with distance/time.
 - [x] T4 (AC-3): SQLite cache (start, end, preference); verify cache-hit skips external calls.
 - [x] T5 (AC-1, AC-2): Svelte + Leaflet UI: start/end, hot/cloudy toggle, route + explanation.
-- [ ] T3 (AC-2): Overpass corridor client in `app/providers/overpass.py` (bbox query, timeout + User-Agent, JSON → feature counts) with fixture tests in `tests/test_overpass_provider.py`.
+- [x] T3 (AC-2): Overpass corridor client in `app/providers/overpass.py` (bbox query, timeout + User-Agent, JSON → feature counts) with fixture tests in `tests/test_overpass_provider.py`.
 - [ ] T7 (AC-2): Map OSM tags (trees/green, path/road class, `lit`) into a feature dict in `app/features.py` with fixture tests in `tests/test_features.py`.
 - [ ] T8 (AC-2): Comfort scorer in `app/scoring.py` (shade/sun/quiet with preference weights) with matrix tests in `tests/test_scoring.py`.
 - [ ] T9 (AC-2): Wire the scorer into `POST /route` in `app/main.py` (real `comfort_score` + factor explanation, contract shape unchanged) and extend `tests/test_route_api.py`.

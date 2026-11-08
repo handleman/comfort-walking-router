@@ -17,7 +17,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 ## Specs
 | Spec | State | What |
 | --- | --- | --- |
-| `001-example-app` | T1/T2/T4/T5 done; T3 + T7–T10 queued (comfort scoring) | MVP: scored route + explanation, SQLite cache |
+| `001-example-app` | T1–T5 done; T7–T10 queued (comfort scoring) | MVP: scored route + explanation, SQLite cache |
 | `004-weather-sun` | spec→plan→tasks done | Open-Meteo preference + override |
 | `005-saved-routes` | spec→plan→tasks done | No-accounts Postgres routes + prefs (ADR-007) |
 | `006-comfort-plus` | spec→plan→tasks done | Lighting + traffic toggles |
