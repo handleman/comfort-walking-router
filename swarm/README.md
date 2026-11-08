@@ -2,12 +2,14 @@
 
 Free-first CrewAI swarm that implements `specs/` tasks one at a time (`specs/009-swarm-harness/`, hardened by `specs/012-dark-factory-harness/`).
 Roles: Planner + Coder + Reviewer, sequential; green runs autocommit and advance the queue.
-Phase 0 of 012 is implemented: run-delta attribution, scope/secret guards, truthful green, plan hashing, commit/push coupling, single-run lock, approval holds, and AC evidence in `run.json`.
+Phase 0 of 012 is implemented: run-delta attribution, scope/secret guards, truthful green, plan hashing, commit/push coupling, single-run lock, approval holds, and AC evidence in `run.json`. Phase 1 has started with `make swarm-preflight` (T12).
 
 ## Prereqs
 - `uv` installed; Python 3.12 available (`uv python list`). System Python 3.14 does NOT work with CrewAI (`>=3.10,<3.14`).
 - Ollama serving locally: `ollama serve` + `ollama pull qwen3.5:9b` (default `OLLAMA_BASE_URL=http://localhost:11434`).
-- Keys (never commit): root `.env` with `OPENROUTER_API_KEY` (planner/reviewer `:free` models), `OPENCODE_API_KEY` (Zen free fallback).
+- Keys (never commit): root `.env` with `OPENROUTER_API_KEY` (planner/senior `:free` models);
+  `OPENCODE_API_KEY` only if you route a role to `zen/*` (Zen's free tier is client-only, so the
+  API path is paid — see the model table).
 
 ## Setup
 ```bash
@@ -18,24 +20,45 @@ swarm/.venv/bin/python -c "from crewai import LLM,Agent,Task,Crew; print('ok')"
 ```
 
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
+Verified 2026-11-08 (tool calls + latency): free unless noted.
+
 | Role | Default | Cost |
 | --- | --- | --- |
-| Coder | `SWARM_CODER_MODEL=ollama/qwen3.5:9b` (local) | $0 |
-| Planner | `SWARM_PLANNER_MODEL=ollama/qwen3.5:9b` (local default; set to a `:free` id for cloud brains) | $0 |
-| Reviewer | `SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b` (local default; set to a `:free` id for cloud brains) | $0 |
-| Fallback | `SWARM_ZEN_FALLBACK_MODEL=openai/muse-spark-1.3-contributor-free` via Zen | $0 |
+| Coder | `SWARM_CODER_MODEL=ollama/swarm-coder:latest` (Qwen3.5 9B, `make swarm-coder-image`) | $0 local, ~6–13 s |
+| Planner | `SWARM_PLANNER_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` | $0, 1M ctx, ~1 s |
+| Reviewer | `SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest` (same base, QA prompt) | $0 local |
+| Senior | `SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0, 550B, tools OK |
+| Zen fallback | `SWARM_ZEN_FALLBACK_MODEL=zen/glm-5.3-flash` (paid, ~$0.006/1k calls) | opt-in, T13 |
 
-> 2026-10-10: OpenRouter `:free` shared pool returns upstream 429s under agentic-loop
-> load, so defaults are all-local. Cloud `:free` still works via env override when quota allows.
+All-local variant (no keys, slowest): `make swarm-local` sets every role to Ollama.
+
+Free/cheap menu (re-checked live with a tool-call probe; ids churn, so run
+`make swarm-preflight` before trusting them):
+- OpenRouter `:free` tool-capable: `nvidia/nemotron-3.5-super-vl:free`,
+  `nvidia/nemotron-3-ultra-550b-a55b:free`, `recursive/flint-v1.0:free`,
+  `cohere/north-mini-code:free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`.
+  (`google/gemma-4-*:free` was upstream-429; `nvidia/nemotron-3.5-lightning:free` did not
+  emit tool calls. The old planner id `nemotron-3-super-120b-a12b:free` is gone.)
+- Ollama local: `swarm-coder`/`swarm-qa` (Qwen3.5 9B, 262k ctx), `qwen3.5:9b`,
+  `qwen35-agent`, `llama3.2:1b` (tools work but emits malformed args — not a coder).
+- Zen: **free models are client-only** (`FreeUsageLimitError` when called with an API key);
+  paid models work from the API — `deepseek-v4.1-flash` (~$0.00002/call) and
+  `glm-5.3-flash` are the cheapest. `gpt-5.4-nano` and `beam-free` are region-blocked (DE).
 
 Paid models are hard-blocked: any non-`:free`/non-local/non-`-free` id raises `PermissionError`
 unless `SWARM_ALLOW_PAID=1` in env. Override ids via env, never in code.
 
 Model prefixes route automatically: `ollama/*` → local Ollama, `zen/*` → OpenCode Zen
-(`custom_openai` gateway mode), anything else → OpenRouter. Stronger $0 brains, verified 2026-10-10:
-- Planner: `SWARM_PLANNER_MODEL=openrouter/nvidia/nemotron-3-super-120b-a12b:free`
-- Reviewer: `SWARM_REVIEWER_MODEL=zen/space-bunny-free`
-- Coder stays local (`ollama/qwen3.5:9b` + `extra_body={"think": False}`, required for tool calls).
+(`custom_openai` gateway; `SWARM_ZEN_BASE_URL` must stop at `/v1` — the SDK appends
+`/chat/completions`, a full URL gives 404).
+
+## Preflight (before the first LLM call)
+```bash
+make swarm-preflight                              # roles/models, keys, Ollama pull, cloud lists, venvs, gates
+swarm/.venv/bin/python -m swarm.preflight --offline   # skip provider model-list requests
+```
+`run_crew` runs the same checks automatically and stops with `preflight_failed` if any fail
+(`SWARM_SKIP_PREFLIGHT=1` bypasses). This is 012 T12.
 
 ## Run
 ```bash
@@ -45,6 +68,7 @@ make swarm-dash                 # dashboard attached to the current pilot
 make swarm-up                   # pilot in background + dashboard attached
 make swarm-up-local             # all-local pilot in background + dashboard attached
 make swarm-test                 # harness unit tests (no LLM, no network)
+make swarm-preflight            # validate models/keys/Ollama/venvs/gates (no LLM call)
 make swarm-approve             # grant approval for the last checkpoint task (or SPEC=001 TASK=T3)
 make swarm-approve SPEC=001 TASK=T3  # grant approval for a specific held task
 make swarm-coder-image          # build tuned coder image (swarm/ollama/Modelfile → swarm-coder:latest)
@@ -137,7 +161,7 @@ Each run still has to pass the flow's own gates and scope check (`pytest`, `ruff
 (`swarm: <spec>-<task> green …`) before continuing.
 
 Each run writes:
-- `swarm/runs/<ts>/run.json` — spec, task, status (`green`/`needs_human`/`crew_error`), gate exit codes, cost (must be `0` for T8).
+- `swarm/runs/<ts>-<pid>-<rand>/run.json` — spec, task, status (`green`/`needs_human`/`crew_error`/…), gate exit codes, cost (must be `0` for free-tier runs).
 - `swarm/runs/<ts>/events.jsonl` — streamed agent events; `usage.json` when available.
 Tail mode follows the loop: when a newer run becomes `latest`, the dashboard jumps to it
 (task list + plan note re-sync). Plan validation: planner output without `STEP` lines fails
@@ -193,7 +217,8 @@ out-of-scope files never added, `.env*` refused) and pushes, then loops back to 
 planner for the next task — and after a spec's last task, to the next spec with tasks
 (directory order; specs without `tasks.md` and the harness specs `009`/`012` are
 skipped). First non-green task stops the whole loop (`needs_human`/`crew_error`/
-`commit_failed`/`push_failed`/`awaiting_approval` in that task's `run.json`).
+`commit_failed`/`push_failed`/`awaiting_approval`/`quota_exhausted`/`interrupted`/
+`preflight_failed` in that task's `run.json`).
 Flags: `--single` runs only the given task, `--no-commit` skips
 autocommit+push (passed through `run.sh` extra args,
 e.g. `./swarm/run.sh 001 T1 --single`).

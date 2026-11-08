@@ -62,7 +62,7 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-08: 4 app tests + 73 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
+Last verified 2026-11-08: 4 app tests + 88 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
@@ -78,6 +78,7 @@ make swarm-dash      # attach to a running pilot
 make swarm-run       # foreground pilot (no args = resume from last checkpoint)
 make swarm-local     # all-local Ollama variant (no cloud keys)
 make swarm-test      # harness unit tests (no LLM, no network)
+make swarm-preflight # check models/keys/Ollama/venvs/gates before running
 make swarm-stop      # stop the running pilot
 make swarm-approve   # release an awaiting_approval hold (defaults to the last checkpoint task)
 ```

@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-TERMINAL_STATUSES = ("crew_error", "quota_exhausted", "interrupted")
+TERMINAL_STATUSES = ("crew_error", "quota_exhausted", "interrupted", "preflight_failed")
 
 
 class SwarmState(BaseModel):
@@ -402,6 +402,19 @@ class SwarmFlow(Flow[SwarmState]):
         from swarm.events import SwarmListener
         from swarm.spec_loader import load_spec_tasks
         from swarm.tools_guarded import run_delta
+
+        # Fail before the first LLM call: models, keys, Ollama, venvs, gates.
+        if os.getenv("SWARM_SKIP_PREFLIGHT", "0") != "1":
+            from swarm.preflight import check as preflight_check
+
+            problems = preflight_check()
+            if problems:
+                note = "; ".join(str(p) for p in problems)
+                self.state.result = f"preflight failed: {note}"[:4000]
+                self.state.status = "preflight_failed"
+                print(f"PREFLIGHT FAILED: {note}"[:1500], flush=True)
+                self.save_run("preflight_failed")
+                return self.state.result
 
         task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless

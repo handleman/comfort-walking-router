@@ -3,7 +3,7 @@
 
 .PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck \
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
-	swarm-coder-image swarm-qa-image swarm-stop swarm-approve
+	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -72,6 +72,9 @@ swarm-qa-image: ## Build tuned local QA image (swarm/ollama/Modelfile.qa -> swar
 
 swarm-stop: ## Stop the currently running pilot (Ollama/dashboards untouched)
 	./swarm/stop.sh
+
+swarm-preflight: ## Validate models/keys/Ollama/venvs/gates before a run
+	swarm/.venv/bin/python -m swarm.preflight
 
 swarm-approve: ## Approve a held task: make swarm-approve [SPEC=001] [TASK=T3] (default: last checkpoint)
 	./swarm/run.sh $(if $(SPEC),--spec $(SPEC),) $(if $(TASK),--task $(TASK),) --approve

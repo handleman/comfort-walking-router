@@ -17,14 +17,14 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - Harness tests: `make swarm-test` (uses `swarm/.venv`).
 - Lint: `make lint` (`ruff check .`). Types: `make typecheck` (`mypy app tests`).
 - Frontend: `cd frontend && npm run check` (svelte-check), `npm run build`, `npm run dev`.
-- Swarm: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test|swarm-stop|swarm-approve`.
+- Swarm: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test|swarm-stop|swarm-approve|swarm-preflight`.
 - Approval hold: `./swarm/run.sh 001 T3 --require-approval` (or `SWARM_REQUIRE_APPROVAL=1`); release with `make swarm-approve` (defaults to the last checkpoint task; `SPEC=001 TASK=T3` to be explicit) or the dashboard `a` key.
 
 ## Boundaries / entrypoints
 - `app/` + `tests/` → root `.venv` (app deps only). `swarm/` → `swarm/.venv` (CrewAI). `frontend/` → npm. Do not mix them.
 - Backend entrypoint: `app/main.py` (`app = FastAPI(...)`). `app/router.py` was removed; do not reintroduce a second app/route mount.
 - API contract: `contracts/route.json` is the source of truth (ADR-005): `POST /route`, preference enum `hot`/`cloudy`, GeoJSON `geometry`, `{ code, message }` errors.
-- Swarm queue: the harness reads only unchecked `- [ ] T<n> (AC-…): brief` lines from `specs/*/tasks.md`, in directory order; authoring rules + scope/`--replan` notes are in `swarm/README.md` ("Adding a spec to the swarm todo list"). `009-swarm-harness` and `012-dark-factory-harness` are always skipped (control plane). The swarm does not edit spec files — mark `[x]` yourself after green. Non-green statuses: `needs_human`, `awaiting_approval`, `commit_failed`, `push_failed`, `crew_error`, `quota_exhausted`, `interrupted`.
+- Swarm queue: the harness reads only unchecked `- [ ] T<n> (AC-…): brief` lines from `specs/*/tasks.md`, in directory order; authoring rules + scope/`--replan` notes are in `swarm/README.md` ("Adding a spec to the swarm todo list"). `009-swarm-harness` and `012-dark-factory-harness` are always skipped (control plane). The swarm does not edit spec files — mark `[x]` yourself after green. Non-green statuses: `needs_human`, `awaiting_approval`, `commit_failed`, `push_failed`, `crew_error`, `quota_exhausted`, `interrupted`, `preflight_failed`.
 - Do not invent commands or config. Verify via manifests/scripts before claiming a workflow exists.
 
 ## Spec-driven workflow

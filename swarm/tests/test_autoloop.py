@@ -557,3 +557,13 @@ def test_last_checkpoint_task_reads_latest_run(tmp_path, monkeypatch):
     monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
     assert flow._last_checkpoint_task(tmp_path) == ("001-example-app", "T3")
     assert flow._last_checkpoint_task(tmp_path / "missing") is None
+
+
+def test_gate_passes_preflight_failure_through():
+    from swarm.flow import SwarmFlow, SwarmState
+
+    class Stub:
+        state = SwarmState(status="preflight_failed")
+        _interrupted = False
+
+    assert SwarmFlow.gate(Stub(), "x") == "preflight_failed"

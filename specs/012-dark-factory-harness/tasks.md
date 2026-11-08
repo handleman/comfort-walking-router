@@ -16,7 +16,9 @@ Phase 0 evidence (2026-11-08): `make swarm-test` 73 passed, `make test` 4 passed
 
 ## Phase 1 — observability & resilience (follow-up)
 - [ ] T11 (AC-10): Capture per-run tokens/cost/timestamps from crew usage metrics; remove the hardcoded `cost=$0` in the TUI.
-- [ ] T12 (AC-10): Add a preflight command that checks venvs, model keys, Ollama reachability, and gate binaries before the first LLM call.
+- [x] T12 (AC-10): Add a preflight command that checks venvs, model keys, Ollama reachability, and gate binaries before the first LLM call.
+
+Phase 1 evidence so far (2026-11-08): `swarm/preflight.py` + `make swarm-preflight` validate role ids, provider keys, Ollama pull, cloud model lists, both venvs, and `pytest`/`ruff`/`mypy`; `run_crew` runs it before the first LLM call and stops with `preflight_failed` (`SWARM_SKIP_PREFLIGHT=1` bypasses). Verified live against OpenRouter + local Ollama; 88 harness tests, ruff/mypy clean.
 - [ ] T13 (AC-3): Add model fallback/backoff/retry feedback with quota-aware routing; wire the unused Zen fallback.
 - [ ] T14 (AC-7): Add per-run token/cost/time budgets that stop the loop with a `budget_exhausted` status.
 - [ ] T15 (AC-7): Tear down the CrewAI event listener after each flow; make the TUI tail incremental instead of re-reading `events.jsonl` every tick.

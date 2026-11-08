@@ -119,10 +119,16 @@ def senior_llm(*, allow_paid: bool = False) -> LLM:
 
 
 def zen_fallback_llm() -> LLM:
+    """Quota fallback through the Zen gateway (012 T13; not wired into the crew yet).
+
+    Zen's free tier is client-only, so this is a *paid* cheap model
+    (`zen/glm-5.3-flash`, ~$0.006/1k calls) and requires SWARM_ALLOW_PAID=1.
+    """
     model = _model("SWARM_ZEN_FALLBACK_MODEL")
-    _guard(model, allow_paid=True)  # free-tier id passes guard
+    _guard(model, allow_paid=True)  # free-tier id passes guard; paid needs opt-in
     return LLM(
-        model=model,
+        model=model.removeprefix("zen/"),
+        custom_openai=True,
         base_url=os.getenv("SWARM_ZEN_BASE_URL", "https://opencode.ai/zen/v1"),
         api_key=os.environ.get("OPENCODE_API_KEY", ""),
         temperature=0,
