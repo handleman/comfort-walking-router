@@ -270,7 +270,13 @@ class SwarmTUI(App[None]):
             self.exit()
         elif key == "a" and self._run_dir:
             (self._run_dir / "approved.json").write_text('{"approved": true}')
-            self._set_status(f"approved {self._run_dir.name}")
+            try:
+                from swarm.flow import grant_approval
+
+                grant_approval(self._spec, self._task_id)
+            except Exception:
+                pass
+            self._set_status(f"approved {self._run_dir.name} (ledger written)")
         elif key == "r" and not self._tail:
             self._pane_log("crew", "── retry: new run, same spec/task ──")
             threading.Thread(target=self._run_flow, daemon=True).start()

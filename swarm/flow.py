@@ -1,12 +1,20 @@
-"""SwarmFlow: load spec → run crew → gate → save run.json (009 T6)."""
+"""SwarmFlow: load spec → run crew → gate → commit → save run.json (009 T6, 012 Phase 0)."""
 
 from __future__ import annotations
 
 import argparse
+import atexit
+import contextlib
 import datetime as dt
+import fcntl
+import hashlib
 import json
+import os
 import re
+import signal
 import subprocess
+import threading
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +22,8 @@ from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+TERMINAL_STATUSES = ("crew_error", "quota_exhausted", "interrupted")
 
 
 class SwarmState(BaseModel):
@@ -29,6 +39,10 @@ class SwarmState(BaseModel):
     transcript: str = ""
     plan_reused: bool = False
     quota_note: str = ""
+    review_verdict: str = ""
+    changed_files: list[str] = []
+    approval_required: bool = False
+    approved: bool = False
 
 
 class _QuotaExhausted(SystemExit):
@@ -40,46 +54,111 @@ def _is_quota_error(e: Exception) -> bool:
     return "free-models-per-day" in s
 
 
+def _runs_dir() -> Path:
+    return Path(REPO_ROOT) / "swarm" / "runs"
+
+
+def _safe_key(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value)
+
+
 def plan_cache_path(spec_dir: str, task_id: str) -> Path:
-    d = REPO_ROOT / "swarm" / "runs" / "plans"
+    d = _runs_dir() / "plans"
     d.mkdir(parents=True, exist_ok=True)
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{spec_dir}-{task_id}")
-    return d / f"{safe}.md"
+    return d / f"{_safe_key(f'{spec_dir}-{task_id}')}.md"
+
+
+def _spec_path(spec_dir: str) -> Path:
+    from swarm.spec_loader import load_spec_tasks
+
+    path, _ = load_spec_tasks(REPO_ROOT, spec_dir, None)
+    return path
+
+
+def plan_source_hash(spec_dir: str) -> str:
+    """Hash spec/plan/tasks content so a stale cached plan can never run."""
+    d = _spec_path(spec_dir)
+    h = hashlib.sha256()
+    for name in ("spec.md", "plan.md", "tasks.md"):
+        h.update(name.encode())
+        h.update(b"\0")
+        p = d / name
+        h.update(p.read_bytes() if p.is_file() else b"")
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+PLAN_HEADER_RE = re.compile(r"^<!-- plan-source: ([0-9a-f]{64}) -->\n?")
+
+
+def read_cached_plan(path: Path, source_hash: str) -> str:
+    """Return cached plan text only when its source hash still matches."""
+    try:
+        text = path.read_text()
+    except OSError:
+        return ""
+    m = PLAN_HEADER_RE.match(text)
+    if not m or m.group(1) != source_hash:
+        return ""
+    return text[m.end() :]
+
+
+def write_cached_plan(path: Path, plan_text: str, source_hash: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"<!-- plan-source: {source_hash} -->\n{plan_text[:8000]}")
 
 
 def _resolve_steps(plan_text: str) -> list[str]:
-    """Planner output → executable micro-steps; [] when unparseable.
+    """Planner output → executable micro-steps; [] when unparseable/over-budget.
 
     Never fall back to running raw planner text as a step: unparseable plans
     must fail loudly (001-T3 false-green, 2026-10-11), not execute garbage.
     """
-    from swarm.crew import parse_steps
+    from swarm.crew import parse_steps, steps_usable
 
-    return parse_steps(plan_text)
+    steps = parse_steps(plan_text)
+    return steps if steps_usable(steps) else []
 
 
 def _resolve_scope() -> tuple[str, ...]:
-    """Coder scope: SWARM_SCOPE (comma-separated) overrides, else DEFAULT_SCOPE."""
-    import os as _os
+    from swarm.tools_guarded import resolve_scope
 
-    from swarm.tools_guarded import DEFAULT_SCOPE
-
-    return tuple(s for s in _os.getenv("SWARM_SCOPE", "").split(",") if s) or DEFAULT_SCOPE
+    return resolve_scope()
 
 
-def _commit_changes(spec_id: str, task_id: str, brief: str) -> dict[str, str]:
-    """Commit + push in-scope worktree changes. Out-of-scope files are never added."""
-    from swarm.tools_guarded import _git_changed, scope_violations
+_VERDICT_RE = re.compile(r"\b(PASS|BLOCKED)\b", re.IGNORECASE)
 
-    rec: dict[str, str] = {}
-    scope = _resolve_scope()
-    changed = _git_changed()
-    in_scope = [p for p in changed if p not in scope_violations([p], scope)]
-    if any(".env" in p for p in in_scope):
-        rec["commit"] = "refused: .env-looking path in scope set"
+
+def reviewer_verdict(text: str) -> str:
+    """Last PASS/BLOCKED word in reviewer output; 'unknown' when absent."""
+    hits = _VERDICT_RE.findall(text or "")
+    return hits[-1].lower() if hits else "unknown"
+
+
+def _commit_changes(
+    spec_id: str,
+    task_id: str,
+    brief: str,
+    paths: list[str] | None = None,
+    scope: tuple[str, ...] | None = None,
+) -> dict[str, str]:
+    """Commit + push only the run-delta paths that are in scope.
+
+    Returns ``{commit, push, ok}``; ``ok == "0"`` means the run must not be green.
+    """
+    from swarm.tools_guarded import _git_changed, is_secret_path, scope_violations
+
+    rec: dict[str, str] = {"commit": "", "push": "", "ok": "0"}
+    scope = scope or _resolve_scope()
+    changed = list(paths) if paths is not None else _git_changed()
+    secret = [p for p in changed if is_secret_path(p)]
+    if secret:
+        rec["commit"] = f"refused: .env-looking path in run delta: {secret}"
         return rec
+    in_scope = [p for p in changed if p not in scope_violations([p], scope)]
     if not in_scope:
         rec["commit"] = "clean (nothing in scope changed)"
+        rec["ok"] = "1"
         return rec
 
     def _sh(args: list[str]) -> tuple[int, str]:
@@ -98,6 +177,7 @@ def _commit_changes(spec_id: str, task_id: str, brief: str) -> dict[str, str]:
     rec["commit"] = msg
     rc, out = _sh(["git", "push"])
     rec["push"] = "ok" if rc == 0 else f"failed: {out}"
+    rec["ok"] = "1" if rc == 0 else "0"
     return rec
 
 
@@ -118,20 +198,154 @@ def _frontend_test_command() -> str | None:
     return "npm --prefix frontend test -- --run" if "test" in scripts else None
 
 
+class RunLock:
+    """Repo-wide exclusive lock so two pilots can never share the worktree."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._fh: Any = None
+
+    def acquire(self) -> bool:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._fh = self.path.open("w")
+        try:
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            self._fh.close()
+            self._fh = None
+            return False
+        self._fh.write(str(os.getpid()))
+        self._fh.flush()
+        return True
+
+    def release(self) -> None:
+        if self._fh is None:
+            return
+        try:
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            self._fh.close()
+        except OSError:
+            pass
+        self._fh = None
+
+
+def _unique_run_id() -> str:
+    """Timestamp + pid + random suffix: sortable and collision-free."""
+    base = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    for _ in range(100):
+        rid = f"{base}-{os.getpid()}-{uuid.uuid4().hex[:4]}"
+        if not (_runs_dir() / rid).exists():
+            return rid
+    raise SystemExit("could not allocate a unique run directory")
+
+
+def approval_path(spec_dir: str, task_id: str) -> Path:
+    d = _runs_dir() / "approvals"
+    d.mkdir(parents=True, exist_ok=True)
+    try:
+        key = _spec_path(spec_dir).name
+    except (OSError, SystemExit):
+        key = spec_dir
+    return d / f"{_safe_key(f'{key}-{task_id}')}.json"
+
+
+def approval_granted(spec_dir: str, task_id: str, run_dir: Path | None = None) -> bool:
+    """Approval from this run's approved.json or the task-keyed ledger."""
+    candidates = [approval_path(spec_dir, task_id)]
+    if run_dir is not None:
+        candidates.insert(0, Path(run_dir) / "approved.json")
+    for p in candidates:
+        try:
+            if json.loads(p.read_text()).get("approved") is True:
+                return True
+        except (OSError, json.JSONDecodeError):
+            pass
+    return False
+
+
+def grant_approval(spec_dir: str, task_id: str) -> Path:
+    p = approval_path(spec_dir, task_id)
+    p.write_text(
+        json.dumps(
+            {"approved": True, "spec": spec_dir, "task": task_id, "at": dt.datetime.now().isoformat(timespec="seconds")}
+        )
+    )
+    return p
+
+
 class SwarmFlow(Flow[SwarmState]):
-    def __init__(self, spec_dir: str, task_id: str, no_tui: bool = True, allow_paid: bool = False, replan: bool = False, commit: bool = True) -> None:
+    def __init__(
+        self,
+        spec_dir: str,
+        task_id: str,
+        no_tui: bool = True,
+        allow_paid: bool = False,
+        replan: bool = False,
+        commit: bool = True,
+        require_approval: bool | None = None,
+    ) -> None:
         super().__init__()
         self._spec_dir = spec_dir
         self._task_id = task_id
         self._replan = replan
         self._commit = commit
-        self.run_dir = REPO_ROOT / "swarm" / "runs" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        self._interrupted = False
+        self._lock = RunLock(_runs_dir() / ".lock")
+        if not self._lock.acquire():
+            raise SystemExit("another swarm run is active (lock: swarm/runs/.lock)")
+        atexit.register(self._cleanup)
+        env_approval = os.getenv("SWARM_REQUIRE_APPROVAL", "0") == "1"
+        self._require_approval = env_approval if require_approval is None else require_approval
+        self.state.approval_required = self._require_approval
+        self._install_signals()
+        # Baseline before any LLM/tool call: only this run's changes count.
+        from swarm.tools_guarded import snapshot_worktree
+
+        self._baseline = snapshot_worktree()
+        self.run_dir = _runs_dir() / _unique_run_id()
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        # latest-run pointer: dash.sh attaches here (atomic write, before any LLM call)
-        (REPO_ROOT / "swarm" / "runs" / "latest").write_text(self.run_dir.name)
-        # meta.json: TUI tail mode reads the run's own spec/task from here.
-        (self.run_dir / "meta.json").write_text(json.dumps({"spec": spec_dir, "task": task_id}))
+        (_runs_dir() / "latest").write_text(self.run_dir.name)
+        (_runs_dir() / "swarm.pid").write_text(str(os.getpid()))
+        meta = {
+            "spec": spec_dir,
+            "task": task_id,
+            "pid": os.getpid(),
+            "started_at": dt.datetime.now().isoformat(timespec="seconds"),
+            "approval_required": self._require_approval,
+        }
+        (self.run_dir / "meta.json").write_text(json.dumps(meta))
         print(f"run_dir={self.run_dir}", flush=True)
+
+    def _install_signals(self) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            return
+
+        def _handler(signum: int, _frame: Any) -> None:
+            self._interrupted = True
+            raise SystemExit(128 + signum)
+
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                signal.signal(sig, _handler)
+            except (OSError, ValueError):
+                pass
+
+    def _cleanup(self) -> None:
+        with contextlib.suppress(Exception):
+            self._lock.release()
+        pid = _runs_dir() / "swarm.pid"
+        try:
+            if pid.is_file() and pid.read_text().strip() == str(os.getpid()):
+                pid.unlink()
+        except OSError:
+            pass
+
+    def __del__(self) -> None:
+        with contextlib.suppress(Exception):
+            self._cleanup()
 
     @start()
     def load_spec(self) -> dict[str, str]:
@@ -143,18 +357,14 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.spec_dir, self.state.task_id = self._spec_dir, tasks[0].id
         return {"spec_path": str(spec_path), "task": tasks[0].id, "brief": tasks[0].brief}
 
-    def _run_gates(self) -> tuple[dict[str, int], str]:
+    def _run_gates(self, changed: list[str]) -> tuple[dict[str, int], str]:
         """Run constitution gates independently (never trust agent claims)."""
-        from swarm.tools_guarded import (
-            ShellTool,
-            _git_changed,
-            scope_violations,
-        )
+        from swarm.tools_guarded import ShellTool, scope_violations
 
         shell = ShellTool()
         gates: dict[str, int] = {}
         tails: list[str] = []
-        commands = ["pytest -q", "ruff check .", "mypy ."]
+        commands = ["pytest -q", "ruff check .", "mypy app tests"]
         if frontend_test := _frontend_test_command():
             commands.append(frontend_test)
         for cmd in commands:
@@ -164,15 +374,15 @@ class SwarmFlow(Flow[SwarmState]):
             except Exception:
                 gates[cmd] = 99
             tails.append(f"$ {cmd}\n{out[-1200:]}")
-        # Scope: coder may only touch scaffold paths (SWARM_SCOPE overrides).
-        bad = scope_violations(_git_changed(), _resolve_scope())
+        # Scope: only files changed by this run; pre-existing human edits are ignored.
+        bad = scope_violations(changed, _resolve_scope())
         gates["scope"] = 0 if not bad else 1
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
 
-    def _commit_green(self, brief: str) -> dict[str, str]:
-        """Commit + push in-scope changes after a green run. Never touches out-of-scope files."""
-        return _commit_changes(self.state.spec_dir, self.state.task_id, brief)
+    def _commit_green(self, brief: str, changed: list[str]) -> dict[str, str]:
+        """Commit + push run-delta in-scope changes after a green run."""
+        return _commit_changes(self.state.spec_dir, self.state.task_id, brief, paths=changed)
 
     @listen(load_spec)
     def run_crew(self, ctx: dict[str, str]) -> str:
@@ -191,13 +401,12 @@ class SwarmFlow(Flow[SwarmState]):
         )
         from swarm.events import SwarmListener
         from swarm.spec_loader import load_spec_tasks
+        from swarm.tools_guarded import run_delta
 
         task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
-        from swarm.tools_guarded import _git_changed
-
-        self._files_before = set(_git_changed())
         cache = plan_cache_path(self._spec_dir, task.id)
+        source_hash = plan_source_hash(self._spec_dir)
 
         def _kickoff(crew: Any) -> tuple[Any, str]:
             last_err: Exception | None = None
@@ -223,9 +432,9 @@ class SwarmFlow(Flow[SwarmState]):
         try:
             plan_text = ""
             if cache.is_file() and not self._replan:
-                cached = cache.read_text()
+                cached = read_cached_plan(cache, source_hash)
                 if _resolve_steps(cached):
-                    # Proven plan: resume at micro-steps, skip re-planning.
+                    # Proven plan for the current spec content: skip re-planning.
                     plan_text = cached
                     self.state.plan_reused = True
             for _ in range(PLAN_ATTEMPTS):
@@ -233,11 +442,10 @@ class SwarmFlow(Flow[SwarmState]):
                     break
                 plan_crew, _ = _kickoff(build_plan_crew(self._spec_dir, task))
                 plan_text = _plan_text(plan_crew)
-            if _resolve_steps(plan_text):
-                cache.write_text(plan_text[:8000])
             steps = _resolve_steps(plan_text)
             if not steps:
-                raise SystemExit("planner returned no usable plan (no STEP lines)")
+                raise SystemExit("planner returned no usable plan (no STEP lines or over step budget)")
+            write_cached_plan(cache, plan_text, source_hash)
             gates: dict[str, int] = {}
             transcript = ""
             # Dev phase (micro-steps + review + gates + fix round), up to
@@ -268,20 +476,24 @@ class SwarmFlow(Flow[SwarmState]):
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
                 work_summary = "\n".join(step_outs)
                 _, review_out = _kickoff(build_review_crew(self._spec_dir, task, work_summary))
+                self.state.review_verdict = reviewer_verdict(review_out)
                 self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
                 # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
                 base_rounds = self.state.fix_rounds
-                gates, transcript = self._run_gates()
+                changed = run_delta(self._baseline)
+                gates, transcript = self._run_gates(changed)
                 while not all(v == 0 for v in gates.values()) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
                     self.state.fix_rounds += 1
                     self.state.transcript = transcript
                     try:
                         _, fix_out = _kickoff(build_fix_crew(self._spec_dir, task, transcript))
+                        self.state.review_verdict = reviewer_verdict(fix_out)
                         self.state.result = str(fix_out)[:8000]
                     except SystemExit as e:
                         self.state.result = str(e)[:4000]
                         break
-                    gates, transcript = self._run_gates()
+                    changed = run_delta(self._baseline)
+                    gates, transcript = self._run_gates(changed)
                 if all(v == 0 for v in gates.values()) or self.state.dev_attempts >= DEV_ATTEMPTS:
                     break
             if not all(v == 0 for v in gates.values()):
@@ -293,13 +505,17 @@ class SwarmFlow(Flow[SwarmState]):
                     self.state.transcript = transcript
                     try:
                         _, senior_out = _kickoff(build_senior_crew(self._spec_dir, task, transcript))
+                        self.state.review_verdict = reviewer_verdict(senior_out)
                         self.state.result = str(senior_out)[:8000]
                     except SystemExit as e:
                         self.state.result = str(e)[:4000]
                         raise
                     _, review_out = _kickoff(build_review_crew(self._spec_dir, task, self.state.result))
+                    self.state.review_verdict = reviewer_verdict(review_out)
                     self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
-                    gates, transcript = self._run_gates()
+                    changed = run_delta(self._baseline)
+                    gates, transcript = self._run_gates(changed)
+            self.state.changed_files = run_delta(self._baseline)
         except _QuotaExhausted as e:
             self.state.result = str(e)[:4000]
             self.state.status = "quota_exhausted"
@@ -309,8 +525,8 @@ class SwarmFlow(Flow[SwarmState]):
             return self.state.result
         except SystemExit as e:
             self.state.result = str(e)[:4000]
-            self.state.status = "crew_error"
-            self.save_run("crew_error")
+            self.state.status = "interrupted" if self._interrupted else "crew_error"
+            self.save_run(self.state.status)
             raise
         self.state.gates = gates
         self.state.transcript = transcript
@@ -320,18 +536,46 @@ class SwarmFlow(Flow[SwarmState]):
     @listen(run_crew)
     def gate(self, result: str) -> str:
         # Gates already ran inside run_crew (fix loop needs them mid-stage);
-        # this listener only maps them to a final status. Terminal states
-        # (crew_error without raise, quota_exhausted) pass through untouched.
-        if self.state.status in ("crew_error", "quota_exhausted"):
+        # this listener only maps them to a final status. Terminal states pass
+        # through untouched.
+        if self.state.status in TERMINAL_STATUSES:
             return self.state.status
-        self.state.status = "green" if all(v == 0 for v in self.state.gates.values()) else "needs_human"
+        if getattr(self, "_interrupted", False):
+            self.state.status = "interrupted"
+        elif (
+            not self.state.gates
+            or not all(v == 0 for v in self.state.gates.values())
+            or self.state.review_verdict != "pass"
+        ):
+            self.state.status = "needs_human"
+        else:
+            self.state.status = "green"
         return self.state.status
 
     @listen(gate)
     def save_run(self, status: str) -> str:
+        from swarm.spec_loader import load_spec_tasks
+        from swarm.tools_guarded import in_scope_changes, run_delta
+
+        try:
+            _, tasks = load_spec_tasks(REPO_ROOT, self.state.spec_dir, self.state.task_id)
+            task = tasks[0] if tasks else None
+        except (OSError, SystemExit):
+            task = None
+        brief = task.brief if task else ""
+        ac_refs = list(task.ac_refs) if task else []
+        scope = _resolve_scope()
+        changed = run_delta(self._baseline)
+        in_scope = in_scope_changes(changed, scope)
+        approved = approval_granted(self.state.spec_dir, self.state.task_id, self.run_dir)
+        self.state.changed_files = changed
+        self.state.approved = approved
+
         payload: dict[str, Any] = {
             "spec": self.state.spec_dir,
             "task": self.state.task_id,
+            "brief": brief,
+            "ac_refs": ac_refs,
             "status": status,
             "gates": self.state.gates,
             "fix_rounds": self.state.fix_rounds,
@@ -340,31 +584,48 @@ class SwarmFlow(Flow[SwarmState]):
             "senior_rounds": self.state.senior_rounds,
             "quota_note": self.state.quota_note,
             "plan_reused": self.state.plan_reused,
+            "review_verdict": self.state.review_verdict,
+            "changed_files": changed,
+            "in_scope_changes": in_scope,
+            "approval_required": self._require_approval,
+            "approved": approved,
             "result_tail": self.state.result[-2000:],
             "gate_transcript_tail": self.state.transcript[-2000:],
             "cost": 0,
             "cost_note": "free-first: local + :free only unless allow_paid",
         }
-        if status == "green" and not self.state.plan_reused:
-            # Fresh plan that changed nothing in scope = vacuous pass, not green.
-            # Runs BEFORE autocommit: committing would wipe the worktree evidence.
-            from swarm.tools_guarded import _git_changed, scope_violations
-
-            before: set[str] = getattr(self, "_files_before", set())
-            new = [
-                p for p in set(_git_changed()) - before
-                if p not in scope_violations([p], _resolve_scope())
-            ]
-            if not new:
+        if status == "green":
+            if not in_scope:
+                # Fresh or cached plan that changed nothing in scope = vacuous pass.
+                # Runs BEFORE autocommit: committing would wipe the worktree evidence.
                 status = "needs_human"
-                payload["status"] = status
-                payload["vacancy_note"] = "green gates but no in-scope changes from a fresh plan"
-        if status == "green" and self._commit:
-            from swarm.spec_loader import load_spec_tasks
-
-            task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
-            payload["autocommit"] = self._commit_green(task.brief)
+                payload["vacancy_note"] = "green gates but no in-scope changes from this run"
+            elif self.state.review_verdict != "pass":
+                status = "needs_human"
+                payload["review_note"] = f"reviewer verdict was {self.state.review_verdict!r}, not PASS"
+            elif self._require_approval and not approved:
+                status = "awaiting_approval"
+                payload["approval_note"] = (
+                    f"approval required: press `a` in the dashboard or run with --approve "
+                    f"({approval_path(self.state.spec_dir, self.state.task_id)})"
+                )
+            elif self._commit:
+                rec = self._commit_green(brief, changed)
+                payload["autocommit"] = rec
+                if rec.get("ok") != "1":
+                    status = "push_failed" if rec.get("push", "").startswith("failed") else "commit_failed"
+                    payload["status"] = status
+        payload["status"] = status
+        payload["evidence"] = {
+            "ac_refs": ac_refs,
+            "gates": self.state.gates,
+            "review_verdict": self.state.review_verdict,
+            "changed_files": changed,
+            "in_scope_changes": in_scope,
+            "approved": approved,
+        }
         (self.run_dir / "run.json").write_text(json.dumps(payload, indent=2))
+        self._cleanup()
         return status
 
 
@@ -377,12 +638,12 @@ def _next_after(ids: list[str], current: str) -> str | None:
     return nxt
 
 
-# The harness never implements itself: pilots stay out of the swarm spec.
-HARNESS_SPECS = ("009-swarm-harness",)
+# The harness never implements itself: pilots stay out of harness specs.
+HARNESS_SPECS = ("009-swarm-harness", "012-dark-factory-harness")
 
 
 def _spec_after(repo_root: Path, current_dir: str) -> str | None:
-    """Next spec dir (directory order) that has tasks, skipping the harness spec."""
+    """Next spec dir (directory order) that has tasks, skipping harness specs."""
     specs = repo_root / "specs"
     names = sorted(
         p.name
@@ -431,6 +692,39 @@ def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tu
         for t in tasks:
             if skip != (name, t.id):
                 return name, t.id
+    return None
+
+
+def _last_checkpoint_task(repo_root: Path) -> tuple[str, str] | None:
+    """(spec, task) of the most recent run, held or otherwise.
+
+    `--approve` with no explicit spec/task uses this so `make swarm-approve`
+    releases the task that is actually waiting, not a hardcoded default.
+    """
+    runs = repo_root / "swarm" / "runs"
+    if not runs.is_dir():
+        return None
+    candidates: list[Path] = []
+    pointer = runs / "latest"
+    if pointer.is_file():
+        name = pointer.read_text().strip()
+        if name:
+            candidates.append(runs / name)
+    dirs = sorted(p for p in runs.iterdir() if p.is_dir() and p.name[:1].isdigit())
+    candidates.extend(reversed(dirs))
+    seen: set[Path] = set()
+    for run_dir in candidates:
+        if run_dir in seen:
+            continue
+        seen.add(run_dir)
+        for fname in ("run.json", "meta.json"):
+            try:
+                rec = json.loads((run_dir / fname).read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            spec, task = rec.get("spec"), rec.get("task")
+            if spec and task:
+                return str(spec), str(task)
     return None
 
 
@@ -487,7 +781,16 @@ def _resume_point(repo_root: Path) -> tuple[str, str] | None:
     return _first_open_task(repo_root, (spec_path.name, task))
 
 
-def run_tasks(spec_prefix: str, start_task: str, *, allow_paid: bool = False, replan: bool = False, commit: bool = True, single: bool = False) -> Any:
+def run_tasks(
+    spec_prefix: str,
+    start_task: str,
+    *,
+    allow_paid: bool = False,
+    replan: bool = False,
+    commit: bool = True,
+    single: bool = False,
+    require_approval: bool | None = None,
+) -> Any:
     """Run one spec task per SwarmFlow; on green, loop to the next task and spec.
 
     Yields (flow, status) per task. Stops after the first non-green task,
@@ -505,7 +808,14 @@ def run_tasks(spec_prefix: str, start_task: str, *, allow_paid: bool = False, re
     flow_spec = spec_prefix  # keep the original prefix form: plan-cache keys depend on it
     while True:
         while task_id is not None:
-            flow = SwarmFlow(flow_spec, task_id, allow_paid=allow_paid, replan=replan, commit=commit)
+            flow = SwarmFlow(
+                flow_spec,
+                task_id,
+                allow_paid=allow_paid,
+                replan=replan,
+                commit=commit,
+                require_approval=require_approval,
+            )
             status = flow.kickoff()
             yield flow, status
             if single or status != "green":
@@ -523,8 +833,8 @@ def run_tasks(spec_prefix: str, start_task: str, *, allow_paid: bool = False, re
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--spec", default="001-example-app")
-    ap.add_argument("--task", default="T1")
+    ap.add_argument("--spec", default=None)
+    ap.add_argument("--task", default=None)
     ap.add_argument("--no-tui", action="store_true", default=True)
     ap.add_argument("--allow-paid", action="store_true", default=False)
     ap.add_argument("--replan", action="store_true", default=False,
@@ -535,6 +845,10 @@ def main() -> None:
                     help="run only the given task, do not loop to the next one")
     ap.add_argument("--resume", action="store_true", default=False,
                     help="derive spec/task from the last checkpoint (green → next, red → retry)")
+    ap.add_argument("--require-approval", action="store_true", default=None,
+                    help="hold green runs as awaiting_approval until approved (or SWARM_REQUIRE_APPROVAL=1)")
+    ap.add_argument("--approve", action="store_true", default=False,
+                    help="write the approval ledger for the given (or resumed) spec/task")
     args = ap.parse_args()
     if args.resume:
         pt = _resume_point(REPO_ROOT)
@@ -543,7 +857,25 @@ def main() -> None:
             return
         args.spec, args.task = pt
         print(f"resuming at {args.spec} {args.task}")
-    for flow, status in run_tasks(args.spec, args.task, allow_paid=args.allow_paid, replan=args.replan, commit=not args.no_commit, single=args.single):
+    elif args.approve and args.spec is None and args.task is None:
+        last = _last_checkpoint_task(REPO_ROOT)
+        if last is not None:
+            args.spec, args.task = last
+    args.spec = args.spec or "001-example-app"
+    args.task = args.task or "T1"
+    if args.approve:
+        p = grant_approval(args.spec, args.task)
+        print(f"approved {args.spec} {args.task} → {p}")
+        return
+    for flow, status in run_tasks(
+        args.spec,
+        args.task,
+        allow_paid=args.allow_paid,
+        replan=args.replan,
+        commit=not args.no_commit,
+        single=args.single,
+        require_approval=args.require_approval,
+    ):
         print(f"{flow.state.task_id}: {status}")
 
 

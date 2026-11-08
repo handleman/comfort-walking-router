@@ -1,4 +1,4 @@
-from swarm.tools_guarded import DEFAULT_SCOPE, scope_violations
+from swarm.tools_guarded import DEFAULT_SCOPE, in_scope, scope_violations
 
 
 def test_scope_allows_scaffold_paths():
@@ -7,5 +7,25 @@ def test_scope_allows_scaffold_paths():
 
 
 def test_scope_flags_harness_and_docs():
-    bad = scope_violations(["swarm/crew.py", "docs/x.md", "app/main.py"], DEFAULT_SCOPE)
-    assert bad == ["swarm/crew.py", "docs/x.md"]
+    bad = ["swarm/crew.py", "docs/x.md", "app/main.py"]
+    assert scope_violations(bad, DEFAULT_SCOPE) == ["swarm/crew.py", "docs/x.md"]
+
+
+def test_scope_exact_files_do_not_prefix_match():
+    assert in_scope("pyproject.toml", DEFAULT_SCOPE)
+    assert not in_scope("pyproject.toml.bak", DEFAULT_SCOPE)
+    assert not in_scope("application/x.py", DEFAULT_SCOPE)
+
+
+def test_scope_always_blocks_secrets_and_escapes():
+    for path in (".env", "app/.env.local", "app/key.pem", "../x.py", "/etc/passwd"):
+        assert not in_scope(path, DEFAULT_SCOPE), path
+        assert scope_violations([path], DEFAULT_SCOPE) == [path]
+
+
+def test_scope_rule_matches_default_scope():
+    from swarm.crew import SCOPE_RULE
+
+    for entry in DEFAULT_SCOPE:
+        assert entry in SCOPE_RULE, entry
+    assert "tests/" in SCOPE_RULE

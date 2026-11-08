@@ -26,6 +26,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 | `009-swarm-harness` | harness implemented, pilot running | CrewAI swarm + parallel Textual dashboard |
 | `010-e2e-playwright` | spec drafted | Chromium E2E for all user scenarios |
 | `011-dev-run` | done (2026-11-08) | `make dev` one-command startup + contract alignment |
+| `012-dark-factory-harness` | Phase 0 done (2026-11-08) | Trust/safety hardening for lights-out autonomy |
 
 Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 
@@ -33,7 +34,7 @@ Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 1. Read `docs/mission.md` → `docs/roadmap.md` → the spec you care about.
 2. Secrets: copy `.env.example` → `.env` (gitignored, ADR-006). Never commit keys.
 3. App: `make dev` → UI at http://localhost:5173, API docs at http://localhost:8000/docs. First run creates `.venv` and installs frontend deps; `make dev-setup` pre-installs only.
-4. Swarm: `make swarm-up` (pilot in background + dashboard attached), `make swarm-dash` (attach to current pilot), `make swarm-test` (unit tests). Pilot writes `swarm/runs/<ts>/run.json` (must show $0). Full usage: `swarm/README.md`.
+4. Swarm: `make swarm-up` (pilot in background + dashboard attached), `make swarm-dash` (attach to current pilot), `make swarm-test` (unit tests). Pilot writes `swarm/runs/<ts>-<pid>-<rand>/run.json` (must show $0). Full usage: `swarm/README.md`.
 
 ## Development commands
 
@@ -61,15 +62,15 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-08: 4 app tests + 39 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
+Last verified 2026-11-08: 4 app tests + 73 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
 ## CrewAI swarm (learning goal 2)
 
 The swarm implements unchecked tasks from `specs/NNN-*/tasks.md`, one task at a time:
-Planner → Coder → QA → autocommit + push on green → next task/spec. Full details:
-`swarm/README.md`.
+Planner → Coder → QA → **truthful green** (gates + reviewer `PASS` + non-empty run delta + commit/push)
+→ next task/spec. Full details: `swarm/README.md`.
 
 ```bash
 make swarm-up        # start/resume in background + attach the dashboard
@@ -78,10 +79,13 @@ make swarm-run       # foreground pilot (no args = resume from last checkpoint)
 make swarm-local     # all-local Ollama variant (no cloud keys)
 make swarm-test      # harness unit tests (no LLM, no network)
 make swarm-stop      # stop the running pilot
+make swarm-approve   # release an awaiting_approval hold (defaults to the last checkpoint task)
 ```
 
-Every task writes `swarm/runs/<ts>/run.json` (status, gate exit codes, cost — free tiers must show `0`).
-Green runs **autocommit and push**. Use `./swarm/run.sh 012 T1 --no-commit` to opt out.
+Every task writes `swarm/runs/<ts>-<pid>-<rand>/run.json` (status, gate exit codes, changed files,
+reviewer verdict, approval/commit/push, cost — free tiers must show `0`).
+Green runs **autocommit and push**; `commit_failed`/`push_failed` are not green.
+Use `./swarm/run.sh 001 T3 --no-commit` to opt out of committing.
 
 ### Adding a spec so the swarm picks it up
 
@@ -98,10 +102,11 @@ Green runs **autocommit and push**. Use `./swarm/run.sh 012 T1 --no-commit` to o
    Use `T1`, `T2`, … (no `T1a`), one line per task. Indented notes below the line are fine, but the
    brief on the line is what the planner passes to the coder.
 3. Keep a task coder-sized: one behavior/file, 4–8 planner micro-steps, verifiable by the gates
-   (`pytest`, `ruff check .`, `mypy .`, plus `npm test` once the frontend has a test script).
+   (`pytest`, `ruff check .`, `mypy app tests`, plus `npm test` once the frontend has a test script).
    Put exact paths and AC refs in the brief.
 4. Queue order is `specs/` directory order (`001-…`, `004-…`, …). Specs without `tasks.md` and
-   `009-swarm-harness` are skipped; a spec whose tasks are all `[x]` is treated as done.
+   the harness specs `009-swarm-harness`/`012-dark-factory-harness` are skipped; a spec whose
+   tasks are all `[x]` is treated as done.
 5. If the task must touch paths outside the default coder scope (`app/`, `frontend/`, `tests/`,
    `contracts/`, `requirements*.txt`, `pyproject.toml`, `.gitignore`), widen it explicitly:
 

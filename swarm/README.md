@@ -1,7 +1,8 @@
 # Swarm harness — usage
 
-Free-first CrewAI swarm that implements `specs/` tasks one at a time (`specs/009-swarm-harness/`).
+Free-first CrewAI swarm that implements `specs/` tasks one at a time (`specs/009-swarm-harness/`, hardened by `specs/012-dark-factory-harness/`).
 Roles: Planner + Coder + Reviewer, sequential; green runs autocommit and advance the queue.
+Phase 0 of 012 is implemented: run-delta attribution, scope/secret guards, truthful green, plan hashing, commit/push coupling, single-run lock, approval holds, and AC evidence in `run.json`.
 
 ## Prereqs
 - `uv` installed; Python 3.12 available (`uv python list`). System Python 3.14 does NOT work with CrewAI (`>=3.10,<3.14`).
@@ -44,6 +45,8 @@ make swarm-dash                 # dashboard attached to the current pilot
 make swarm-up                   # pilot in background + dashboard attached
 make swarm-up-local             # all-local pilot in background + dashboard attached
 make swarm-test                 # harness unit tests (no LLM, no network)
+make swarm-approve             # grant approval for the last checkpoint task (or SPEC=001 TASK=T3)
+make swarm-approve SPEC=001 TASK=T3  # grant approval for a specific held task
 make swarm-coder-image          # build tuned coder image (swarm/ollama/Modelfile → swarm-coder:latest)
 ```
 
@@ -63,8 +66,8 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
   parser, and ids must be `T1`, `T2`, … — `T1a` is not recognized.
 - Task order in the file is the execution order (`T1` → `T2` → …). After the last task, the
   loop moves to the next spec directory with tasks.
-- Skipped automatically: `009-swarm-harness`, directories without `tasks.md`, and specs whose
-  tasks are all `[x]`/have no parseable tasks.
+- Skipped automatically: `009-swarm-harness`, `012-dark-factory-harness`, directories without
+  `tasks.md`, and specs whose tasks are all `[x]`/have no parseable tasks.
 - The planner reads `specs/<dir>/{spec,plan,tasks}.md` plus the constitution. The `brief` it
   receives is the text after the colon on the task line; indented notes below the line are fine
   but do not replace the brief.
@@ -94,7 +97,7 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
    Keep `T<n>` and the `(AC-…)` refs on the same line as the brief. The brief must be
    self-contained: one behavior change, exact paths, and what "done" means.
 3. Make each task coder-sized: one file/behavior, ~4–8 planner micro-steps, verifiable by the
-   flow gates (`pytest`, `ruff check .`, `mypy .`, plus `npm test` once `frontend/package.json`
+   flow gates (`pytest`, `ruff check .`, `mypy app tests`, plus `npm test` once `frontend/package.json`
    has a `test` script and vitest is installed). Split larger work into more tasks.
 4. Respect the coder scope. Default: `app/`, `frontend/`, `tests/`, `contracts/`,
    `requirements*.txt`, `pyproject.toml`, `.gitignore`. Anything else needs an explicit override,
@@ -142,36 +145,66 @@ the run instead of executing garbage; a fresh plan producing no in-scope changes
 `needs_human` (vacuous pass), never green.
 
 ## Agent tools (guarded, `swarm/tools_guarded.py`)
-- `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail (no path escapes).
-- `Repo Create` — new files only (makes parent dirs, refuses existing/escapes). Scaffold needs it: without it the coder cannot create `app/__init__.py` et al.
-- `Guarded Shell` — allowlist only: `pytest`, `ruff`, `mypy` (gates); `git diff/status` (read-only); `ls`, `cat`, `grep` (read-only inspection); `npm` (frontend gates). 120s timeout, repo cwd. Deliberately absent: `python -c` (arbitrary exec), `sed/awk` (writes — use Edit/Create), `curl` (no network), `pip/uv` (agents don't manage envs).
-- Read-only: trimmed file reads (3000 chars max); `ls` via Guarded Shell (no directory-search tool).
+- `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail, **coder-scope check**, secret-path refusal.
+- `Repo Create` — new files only (makes parent dirs, refuses existing/escapes), **coder-scope check**, secret-path refusal. Scaffold needs it: without it the coder cannot create `app/__init__.py` et al.
+- `Guarded Shell` — argv-only (`shlex.split` + `shell=False`, never `shell=True`): `pytest`, `ruff check` (including `--fix`), `mypy` (gates); `git status|diff|log` (read-only); `ls`, `cat`, `grep` (read-only inspection, no recursive grep); `npm --prefix frontend run check|build|test`. Rejects shell metacharacters, absolute paths, `..`, `.env*`/key files, `npm install`/`npx`, `pip`/`uv`, and `python -c`. 120s timeout, repo cwd.
+- Read-only: trimmed file reads (3000 chars max) with the same secret/path guard; `ls` via Guarded Shell (no directory-search tool).
 
 ## Gates (sequence)
 Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
 context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-runs
-`pytest` + `ruff check .` + `mypy .` itself (never trusts agent claims). Red gates → fix
+`pytest` + `ruff check .` + `mypy app tests` itself (never trusts agent claims). Red gates → fix
 round: Coder (+ Reviewer re-verify) with the gate transcript, max 2 rounds
 (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
 `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
-Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md`; retries resume
-at the micro-steps with the cached plan (`plan_reused: true` in `run.json`). `--replan` forces re-planning.
+
+Green is deliberately strict (012 AC-4/AC-6):
+1. every gate exits `0` (including the run-delta scope gate);
+2. the Reviewer's final word is `PASS` (missing/`BLOCKED` → `needs_human`);
+3. at least one in-scope file changed **by this run** (cached-plan runs too; no vacuous green);
+4. approval is present when `SWARM_REQUIRE_APPROVAL=1`/`--require-approval`;
+5. commit + push succeed. `commit_failed`/`push_failed` are not green.
+
+Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md` with a
+`<!-- plan-source: sha256 -->` header over `spec.md`+`plan.md`+`tasks.md`. A changed spec
+invalidates the cache automatically; `--replan` still forces re-planning. Zero-step,
+malformed, or over-`MAX_STEPS` plans fail through the normal replan/`crew_error` path —
+they are never silently truncated.
+
+## Trust & safety (012 Phase 0)
+- **Run delta.** The flow hashes every dirty/untracked path before the first LLM call.
+  Gates, vacancy, and autocommit use only paths whose content changed during this run;
+  a human's pre-existing dirty work is neither a gate failure nor committed.
+- **Single writer.** `swarm/runs/.lock` (`flock`) blocks a second pilot; `swarm/runs/swarm.pid`
+  lets `make swarm-stop`/`./swarm/stop.sh` stop the right process. Run dirs use
+  `<timestamp>-<pid>-<rand>` so same-second runs cannot collide.
+- **Signals.** `SIGTERM`/`SIGINT` write `status=interrupted` to `run.json` and release the lock.
+- **Approval holds.** With `--require-approval` (or `SWARM_REQUIRE_APPROVAL=1`), a green run
+  becomes `awaiting_approval` and is not committed. Press `a` in the dashboard or run
+  `make swarm-approve` (it approves the last checkpoint task; add `SPEC=001 TASK=T3` to
+  be explicit). Approval is stored in
+  `swarm/runs/approvals/<spec>-<task>.json` (and `approved.json` in the run dir).
+- **Role-aware prompts.** `SCOPE_RULE` is generated from `DEFAULT_SCOPE`, and the coder role
+  becomes `Frontend Coder`/`Test Coder` when the brief is frontend/TS/npm or test work.
 
 ## Autonomous loop (default)
-A green run autocommits in-scope changes (`swarm: <spec>-<task> green … (autocommit)`,
+A green run autocommits **only the run-delta in-scope changes** (`swarm: <spec>-<task> green … (autocommit)`,
 out-of-scope files never added, `.env*` refused) and pushes, then loops back to the
 planner for the next task — and after a spec's last task, to the next spec with tasks
-(directory order; specs without `tasks.md` and the `009-swarm-harness` spec itself are
-skipped). First non-green task stops the whole loop (`needs_human`/`crew_error` in that
-task's `run.json`). Flags: `--single` runs only the given task, `--no-commit` skips
+(directory order; specs without `tasks.md` and the harness specs `009`/`012` are
+skipped). First non-green task stops the whole loop (`needs_human`/`crew_error`/
+`commit_failed`/`push_failed`/`awaiting_approval` in that task's `run.json`).
+Flags: `--single` runs only the given task, `--no-commit` skips
 autocommit+push (passed through `run.sh` extra args,
 e.g. `./swarm/run.sh 001 T1 --single`).
 
 ## Resume from checkpoint
 `make swarm-up` / `./swarm/run.sh` with no args resumes where the sequence last stopped:
-latest run green → next task (or next spec); red or killed mid-run (`meta.json` only) →
-same task again; everything green → exits with `all specs complete`. Explicit
-`SPEC TASK` args always override. Resolution lives in `_resume_point` (`--resume` flag).
+latest run green → next task (or next spec); red, killed mid-run (`meta.json` only), or
+held (`awaiting_approval`) → same task again; everything green → exits with
+`all specs complete`. Explicit `SPEC TASK` args always override. Resolution lives in
+`_resume_point` (`--resume` flag). To release an approval hold, use
+`make swarm-approve SPEC=… TASK=…` (or `./swarm/run.sh SPEC TASK --approve`), then resume.
 
 ## Escalation (dev ×3 → senior → QA)
 Each task gets up to `DEV_ATTEMPTS` (3) dev phases (micro-steps + review + 2 fix rounds
@@ -193,7 +226,10 @@ flowchart TB
     STEPS -.->|step fails 3×| SENIOR
     STEPS --> REV["QA Reviewer<br/>(gate evidence)"]
     REV --> GATES["Flow gates<br/>pytest + ruff + mypy + scope"]
-    GATES -->|green| COMMIT["Autocommit + push<br/>next task / next spec"]
+    REV -.->|BLOCKED / no verdict| HUMAN
+    GATES -->|green + PASS| COMMIT["Autocommit + push<br/>next task / next spec"]
+    COMMIT -.->|commit/push failed| CF["commit_failed / push_failed"]
+    GATES -->|green, approval required| APPROVE["awaiting_approval<br/>(a / make swarm-approve)"]
     GATES -->|red, fix rounds left ≤2| FIX["Coder fix round<br/>(transcript + FIX_RULES)"]
     FIX --> GATES
     GATES -->|red, dev attempts left| STEPS
@@ -215,7 +251,11 @@ swarm/.venv/bin/python -m pytest swarm/tests -v
 ```
 
 ## Traces & logs (all inside the project, never `/tmp`)
-- Pilot runs: `swarm/runs/<ts>/{run.json,events.jsonl,usage.json}` (+ `latest` pointer, `approved.json`).
+- Pilot runs: `swarm/runs/<ts>-<pid>-<rand>/{run.json,events.jsonl,usage.json}` (+ `latest` pointer).
+  `run.json` records brief, `ac_refs`, changed files, gates, reviewer verdict, approval,
+  commit/push result, and a compact `evidence` block.
+- Approvals: `swarm/runs/approvals/<spec>-<task>.json` (task-keyed, survives retries).
+- Coordination: `swarm/runs/.lock` (flock), `swarm/runs/swarm.pid` (stop target).
 - Ad-hoc probes/debug: `swarm/runs/probes/<name>-<date>.log`. `swarm/runs/` is gitignored.
 
 ## Anti-loop guards (Qwen-9B wanders: re-reads files, blows 262k ctx)

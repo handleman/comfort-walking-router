@@ -5,7 +5,7 @@
 cd "$(dirname "$0")/.." || exit 1
 LATEST="$(cat swarm/runs/latest 2>/dev/null)"
 if [ -z "$LATEST" ] || [ ! -d "swarm/runs/$LATEST" ]; then
-  LATEST="$(ls -1 swarm/runs 2>/dev/null | grep -E '^[0-9]{8}-[0-9]{6}$' | sort | tail -n 1)"
+  LATEST="$(ls -1 swarm/runs 2>/dev/null | grep -E '^[0-9]{8}-[0-9]{6}' | sort | tail -n 1)"
 fi
 if [ -z "$LATEST" ] || [ ! -d "swarm/runs/$LATEST" ]; then
   echo "no pilot run yet. Start one: ./swarm/run.sh (or make swarm-up)"

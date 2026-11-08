@@ -1,4 +1,4 @@
-from swarm.tools_guarded import EditTool, ShellTool
+from swarm.tools_guarded import ALLOWED_COMMANDS, EditTool, ShellTool, _valid_npm
 
 
 def test_shell_blocks_non_allowlisted():
@@ -7,12 +7,27 @@ def test_shell_blocks_non_allowlisted():
 
 
 def test_shell_blocks_writes_and_network():
-    for cmd in ("python -c '1'", "sed -i s/a/b/ f", "curl http://x", "pip install y"):
+    for cmd in ("python -c '1'", "sed -i s/a/b/ f", "curl http://x", "pip install y", "uv sync"):
+        assert ShellTool()._run(cmd).startswith("BLOCKED"), cmd
+
+
+def test_shell_blocks_secret_and_escape_reads():
+    for cmd in ("cat .env", "cat swarm/.env", "cat /etc/passwd", "cat ../secret", "grep -r token .", "ls /tmp"):
+        assert ShellTool()._run(cmd).startswith("BLOCKED"), cmd
+
+
+def test_shell_blocks_shell_metacharacters():
+    for cmd in ("git status; rm -rf /", "git status && echo pwn", "cat README.md | sh", "echo $(whoami)"):
+        assert ShellTool()._run(cmd).startswith("BLOCKED"), cmd
+
+
+def test_shell_blocks_npm_install_and_unprefixed_scripts():
+    for cmd in ("npm install", "npm run check", "npm --prefix frontend install"):
         assert ShellTool()._run(cmd).startswith("BLOCKED"), cmd
 
 
 def test_shell_allows_extended_readonly():
-    for cmd in ("git status --short", "grep -n once README.md", "ls README.md"):
+    for cmd in ("git status --short", "grep -n once README.md", "ls README.md", "ruff check README.md"):
         assert ShellTool()._run(cmd).startswith("exit="), cmd
 
 
@@ -21,13 +36,25 @@ def test_shell_allows_ls():
     assert "exit=0" in out
 
 
+def test_npm_validator_allowlist():
+    assert _valid_npm(["npm", "--prefix", "frontend", "run", "check"])
+    assert _valid_npm(["npm", "--prefix", "frontend", "run", "build"])
+    assert _valid_npm(["npm", "--prefix", "frontend", "test", "--", "--run"])
+    assert not _valid_npm(["npm", "--prefix", "frontend", "run", "test", "--", "--run", "extra"])
+    assert "pip" not in ALLOWED_COMMANDS
+
+
 def test_edit_requires_exact_single_match(tmp_path, monkeypatch):
     import swarm.tools_guarded as tg
 
-    f = tmp_path / "a.txt"
+    (tmp_path / "app").mkdir()
+    f = tmp_path / "app" / "a.txt"
     f.write_text("x x x")
     monkeypatch.setattr(tg, "REPO_ROOT", tmp_path)
-    out = EditTool()._run(path="a.txt", oldString="x", newString="y")
+    out = EditTool()._run(path="app/a.txt", oldString="x", newString="y")
     assert "exactly 1" in out
     out2 = EditTool()._run(path="../escape.txt", oldString="a", newString="b")
     assert out2.startswith("BLOCKED")
+    out3 = EditTool()._run(path="README.md", oldString="a", newString="b")
+    assert out3.startswith("BLOCKED")
+    assert "outside coder scope" in out3

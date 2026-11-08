@@ -135,8 +135,14 @@ def test_gate_preserves_terminal_status():
         stub.state = SwarmState(status=terminal, gates={})
         assert SwarmFlow.gate(stub, "whatever") == terminal
     live = Stub()
-    live.state = SwarmState(status="crew_done", gates={"pytest -q": 0})
+    live.state = SwarmState(status="crew_done", gates={"pytest -q": 0}, review_verdict="pass")
     assert SwarmFlow.gate(live, "x") == "green"
+    blocked = Stub()
+    blocked.state = SwarmState(status="crew_done", gates={"pytest -q": 0}, review_verdict="blocked")
+    assert SwarmFlow.gate(blocked, "x") == "needs_human"
+    unknown = Stub()
+    unknown.state = SwarmState(status="crew_done", gates={"pytest -q": 0})
+    assert SwarmFlow.gate(unknown, "x") == "needs_human"
 
 
 def test_step_attempts_budget():
@@ -297,3 +303,257 @@ def test_reviewer_blocks_noop():
     desc = build_review_crew("001", task, "all done").tasks[0].description
     assert "BLOCKED (no-op)" in desc
     assert "git status --short" in desc
+
+
+def test_reviewer_verdict_parses_last_word():
+    from swarm.flow import reviewer_verdict
+
+    assert reviewer_verdict("pytest exit=0 ... verdict: PASS") == "pass"
+    assert reviewer_verdict("gates red; BLOCKED (no-op)") == "blocked"
+    assert reviewer_verdict("PASS on step 1\nBLOCKED: missing tests") == "blocked"
+    assert reviewer_verdict("all good") == "unknown"
+
+
+def test_resolve_steps_rejects_over_budget():
+    from swarm.flow import _resolve_steps
+
+    nine = "\n".join(f"STEP {i}: app/x.py — edit {i}" for i in range(1, 10))
+    assert _resolve_steps(nine) == []
+
+
+def test_run_delta_ignores_preexisting_dirty_files(tmp_path, monkeypatch):
+    import swarm.tools_guarded as tg
+
+    (tmp_path / "app").mkdir()
+    human = tmp_path / "app" / "human.py"
+    owned = tmp_path / "app" / "owned.py"
+    human.write_text("human edit")
+    monkeypatch.setattr(tg, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(tg, "_git_changed", lambda: ["app/human.py"])
+
+    baseline = tg.snapshot_worktree()
+    owned.write_text("new work")
+    (tmp_path / "app" / "human.py").write_text("human edit")
+    monkeypatch.setattr(tg, "_git_changed", lambda: ["app/human.py", "app/owned.py"])
+    assert tg.run_delta(baseline) == ["app/owned.py"]
+
+    (tmp_path / "app" / "human.py").write_text("human edit v2")
+    assert tg.run_delta(baseline) == ["app/human.py", "app/owned.py"]
+
+
+def test_in_scope_changes_filters_secrets_and_out_of_scope(tmp_path, monkeypatch):
+    import swarm.tools_guarded as tg
+
+    monkeypatch.setattr(tg, "REPO_ROOT", tmp_path)
+    changed = ["app/x.py", "swarm/crew.py", ".env", "tests/test_x.py"]
+    assert tg.in_scope_changes(changed) == ["app/x.py", "tests/test_x.py"]
+    assert tg.scope_violations(changed) == ["swarm/crew.py", ".env"]
+
+
+def test_commit_can_use_explicit_run_delta(monkeypatch):
+    calls = []
+    monkeypatch.setattr("swarm.tools_guarded._git_changed", lambda: ["swarm/human.py"])
+    monkeypatch.setattr(subprocess, "run", lambda args, **kwargs: calls.append(list(args)) or _FakeProc())
+    rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
+    assert rec["ok"] == "1"
+    assert calls[0] == ["git", "add", "-A", "--", "app/x.py"]
+
+
+def test_push_failure_is_not_ok(monkeypatch):
+    class _PushFail(_FakeProc):
+        def __init__(self, args):
+            super().__init__(rc=1 if args[:2] == ["git", "push"] else 0, out="rejected")
+
+    monkeypatch.setattr("swarm.tools_guarded._git_changed", list)
+    monkeypatch.setattr(subprocess, "run", lambda args, **kwargs: _PushFail(list(args)))
+    rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
+    assert rec["commit"].startswith("swarm: 001-T2 green")
+    assert rec["push"].startswith("failed")
+    assert rec["ok"] == "0"
+
+
+def test_plan_cache_invalidates_on_spec_change(tmp_path, monkeypatch):
+    from swarm import flow
+
+    spec = tmp_path / "specs" / "012-x"
+    spec.mkdir(parents=True)
+    (spec / "spec.md").write_text("spec v1")
+    (spec / "plan.md").write_text("plan")
+    (spec / "tasks.md").write_text("- [ ] T1 (AC-1): x\n")
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+
+    h1 = flow.plan_source_hash("012-x")
+    cache = tmp_path / "plan.md"
+    flow.write_cached_plan(cache, "STEP 1: app/x.py — do it", h1)
+    assert flow.read_cached_plan(cache, h1) == "STEP 1: app/x.py — do it"
+
+    (spec / "spec.md").write_text("spec v2")
+    h2 = flow.plan_source_hash("012-x")
+    assert h1 != h2
+    assert flow.read_cached_plan(cache, h2) == ""
+
+
+def test_legacy_plan_cache_without_header_is_ignored(tmp_path):
+    from swarm import flow
+
+    legacy = tmp_path / "plan.md"
+    legacy.write_text("STEP 1: app/x.py — do it")
+    assert flow.read_cached_plan(legacy, "0" * 64) == ""
+
+
+def test_approval_ledger_roundtrip(tmp_path, monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    assert flow.approval_granted("001-x", "T1") is False
+    path = flow.grant_approval("001-x", "T1")
+    assert path.is_file()
+    assert flow.approval_granted("001-x", "T1") is True
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "approved.json").write_text('{"approved": true}')
+    assert flow.approval_granted("other", "T9", run_dir) is True
+
+
+def test_unique_run_ids(tmp_path, monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    first = flow._unique_run_id()
+    second = flow._unique_run_id()
+    assert first != second
+    assert first[:15] == second[:15]  # timestamp prefix stays sortable
+
+
+def test_run_delta_detects_deletion_of_clean_tracked_file(tmp_path, monkeypatch):
+    import swarm.tools_guarded as tg
+
+    (tmp_path / "app").mkdir()
+    monkeypatch.setattr(tg, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(tg, "_git_changed", list)
+    baseline = tg.snapshot_worktree()  # clean: nothing dirty
+    (tmp_path / "app" / "gone.py").write_text("tracked content")
+    monkeypatch.setattr(tg, "_git_changed", lambda: ["app/gone.py"])
+    assert tg.run_delta(baseline) == ["app/gone.py"]
+    (tmp_path / "app" / "gone.py").unlink()
+    assert tg.run_delta(baseline) == ["app/gone.py"]  # deletion is still a run change
+
+
+def test_approval_key_normalizes_spec_prefix(tmp_path, monkeypatch):
+    from swarm import flow
+
+    spec = tmp_path / "specs" / "001-example-app"
+    spec.mkdir(parents=True)
+    (spec / "tasks.md").write_text("- [ ] T1 (AC-1): x\n")
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    assert flow.approval_path("001", "T1") == flow.approval_path("001-example-app", "T1")
+
+
+def test_run_lock_is_exclusive(tmp_path):
+    from swarm.flow import RunLock
+
+    lock_a = RunLock(tmp_path / ".lock")
+    lock_b = RunLock(tmp_path / ".lock")
+    assert lock_a.acquire() is True
+    assert lock_b.acquire() is False
+    lock_a.release()
+    assert lock_b.acquire() is True
+    lock_b.release()
+
+
+def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",), require=False, commit_rec=None):
+    import json
+    from typing import ClassVar
+
+    import swarm.tools_guarded as tg
+    from swarm import flow
+
+    spec = tmp_path / "specs" / "001-x"
+    spec.mkdir(parents=True)
+    (spec / "tasks.md").write_text("- [ ] T1 (AC-1): do x\n")
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(tg, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(tg, "run_delta", lambda baseline: list(changed))
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    class Stub:
+        state = flow.SwarmState(
+            spec_dir="001-x",
+            task_id="T1",
+            gates={"pytest -q": 0},
+            review_verdict=review,
+        )
+        _spec_dir = "001-x"
+        _task_id = "T1"
+        _require_approval = require
+        _commit = True
+        _baseline: ClassVar[dict] = {}
+
+        def _commit_green(self, brief, changed):
+            return commit_rec or {"commit": "ok", "push": "ok", "ok": "1"}
+
+        def _cleanup(self):
+            return None
+
+    stub = Stub()
+    stub.run_dir = run_dir
+    status = flow.SwarmFlow.save_run(stub, "green")
+    payload = json.loads((run_dir / "run.json").read_text())
+    return status, payload
+
+
+def test_save_run_blocks_reviewer_verdict(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(tmp_path, monkeypatch, review="blocked")
+    assert status == "needs_human"
+    assert "reviewer verdict" in payload["review_note"]
+    assert "autocommit" not in payload
+
+
+def test_save_run_blocks_vacancy(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(tmp_path, monkeypatch, changed=())
+    assert status == "needs_human"
+    assert "vacancy_note" in payload
+
+
+def test_save_run_holds_for_approval(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(tmp_path, monkeypatch, require=True)
+    assert status == "awaiting_approval"
+    assert payload["approval_required"] is True
+    assert "autocommit" not in payload
+
+
+def test_save_run_marks_push_failure_non_green(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(
+        tmp_path,
+        monkeypatch,
+        commit_rec={"commit": "ok", "push": "failed: rejected", "ok": "0"},
+    )
+    assert status == "push_failed"
+    assert payload["status"] == "push_failed"
+
+
+def test_save_run_records_ac_evidence(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(tmp_path, monkeypatch)
+    assert status == "green"
+    assert payload["ac_refs"] == ["AC-1"]
+    assert payload["evidence"]["review_verdict"] == "pass"
+    assert payload["evidence"]["changed_files"] == ["app/x.py"]
+    assert payload["autocommit"]["ok"] == "1"
+
+
+def test_last_checkpoint_task_reads_latest_run(tmp_path, monkeypatch):
+    import json
+
+    from swarm import flow
+
+    runs = tmp_path / "swarm" / "runs"
+    held = runs / "20261108-120000-1-aaaa"
+    held.mkdir(parents=True)
+    (held / "run.json").write_text(json.dumps({"spec": "001-example-app", "task": "T3",
+                                               "status": "awaiting_approval"}))
+    (runs / "latest").write_text(held.name)
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    assert flow._last_checkpoint_task(tmp_path) == ("001-example-app", "T3")
+    assert flow._last_checkpoint_task(tmp_path / "missing") is None
