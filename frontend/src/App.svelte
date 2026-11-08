@@ -9,6 +9,11 @@
     coordinates: [number, number][];
   }
 
+  interface Weather {
+    temperature: number;
+    cloudCover: number;
+  }
+
   interface Route {
     id: string;
     name: string;
@@ -21,6 +26,9 @@
     geometry: LineStringGeometry;
     distance_m: number;
     duration_s: number;
+    applied_preference: string;
+    preference_source: 'auto' | 'manual';
+    weather: Weather;
   }
 
   import { onMount } from 'svelte';
@@ -36,6 +44,7 @@
   let route: Route | null = null;
   let error = '';
   let loading = false;
+  let manualOverride = false;
 
   onMount(() => {
     map = L.map(mapElement).setView([48.137, 11.575], 12);
@@ -55,7 +64,7 @@
         body: JSON.stringify({
           start,
           end,
-          preference: preference || null
+          preference: manualOverride ? (preference || null) : null
         })
       });
       const data = await response.json();
@@ -113,6 +122,7 @@
           <option value="cloudy">Cloudy — prefer sun</option>
         </select>
       </label>
+      <label><input type="checkbox" bind:checked={manualOverride} /> Manual override</label>
       <button type="submit" disabled={loading}>
         {loading ? 'Routing…' : 'Find route'}
       </button>
@@ -124,6 +134,7 @@
 
     {#if route}
       <section class="result">
+        <div class="chip">{route.preference_source === 'manual' ? 'Manual' : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}</div>
         <h2>{route.name}</h2>
         <p class="stats">
           {(route.distance_m / 1000).toFixed(2)} km ·
@@ -197,6 +208,15 @@
 
   .error {
     color: #b00020;
+  }
+
+  .chip {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #eef;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
   }
 
   .stats {
