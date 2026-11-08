@@ -62,7 +62,7 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-08: 4 app tests + 116 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
+Last verified 2026-11-08: 4 app tests + 117 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
