@@ -23,6 +23,11 @@ from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+with contextlib.suppress(Exception):
+    # budgets/merge flags must be visible before SwarmFlow.__init__ reads them
+    from dotenv import load_dotenv
+
+    load_dotenv(REPO_ROOT / ".env")
 
 TERMINAL_STATUSES = (
     "crew_error",
@@ -646,7 +651,7 @@ class SwarmFlow(Flow[SwarmState]):
 
         self._max_tokens = env_int("SWARM_MAX_TOKENS", 2_000_000)
         self._max_cost = env_float("SWARM_MAX_COST_USD", 0.05)
-        self._max_seconds = env_int("SWARM_MAX_RUNTIME_SECONDS", 7200)
+        self._max_seconds = env_int("SWARM_MAX_RUNTIME_SECONDS", 14400)
         self._lock = RunLock(_runs_dir() / ".lock")
         if not self._lock.acquire():
             raise SystemExit("another swarm run is active (lock: swarm/runs/.lock)")
@@ -1163,6 +1168,11 @@ class SwarmFlow(Flow[SwarmState]):
                 else ("unknown price for paid model" if cost is None else "estimated from token usage")
             ),
             "usage": usage,
+            "budget": {
+                "max_tokens": self._max_tokens,
+                "max_cost_usd": self._max_cost,
+                "max_runtime_seconds": self._max_seconds,
+            },
             "budget_note": self.state.budget_note,
             "done": {"task_hash": task_hash_value, "spec_hash": spec_hash_value, "recorded": False},
             "resumed_from_step": self.state.resumed_from_step,

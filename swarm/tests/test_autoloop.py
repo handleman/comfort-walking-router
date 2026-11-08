@@ -496,6 +496,9 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         _commit = True
         _baseline: ClassVar[dict] = {}
         _started_monotonic = time.monotonic()
+        _max_tokens = 2_000_000
+        _max_cost = 0.05
+        _max_seconds = 14400
 
         def _commit_green(self, brief, changed, **_kwargs):
             return commit_rec or {"commit": "ok", "push": "ok", "ok": "1"}

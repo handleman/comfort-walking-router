@@ -360,7 +360,7 @@ Local Ollama and `:free` models are exactly `$0`. A paid model with a known rate
 
 Budgets are env-driven and stop the pilot with `budget_exhausted`:
 `SWARM_MAX_TOKENS` (2M), `SWARM_MAX_COST_USD` ($0.05), `SWARM_MAX_RUNTIME_SECONDS`
-(7200). Set any to `0` to disable it. `budget_note` records which limit tripped.
+(14400, per task). Set any to `0` to disable it. `budget_note` records which limit tripped.
 
 ## Event listener & dashboard (012 T15)
 Each flow unregisters its CrewAI event handlers on `save_run` (`SwarmListener.teardown`),
