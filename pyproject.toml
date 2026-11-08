@@ -12,3 +12,12 @@ testpaths = ["tests"]
 "swarm/tui.py" = ["BLE001", "S110"]
 "swarm/flow.py" = ["BLE001"]
 "swarm/llms.py" = ["BLE001", "S110"]
+
+[tool.mypy]
+
+# alembic ships no py.typed stubs and sqlalchemy is not importable in the lint
+# env (DB-backed tests skip without DATABASE_URL). Scoped per-module override,
+# not a blanket ignore.
+[[tool.mypy.overrides]]
+module = ["alembic", "alembic.*", "sqlalchemy", "sqlalchemy.*"]
+ignore_missing_imports = true
