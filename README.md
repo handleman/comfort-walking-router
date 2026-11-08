@@ -28,6 +28,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 | `011-dev-run` | done (2026-11-08) | `make dev` one-command startup + contract alignment |
 | `012-dark-factory-harness` | done (2026-11-08) | Dark-factory hardening: truthful green, sandbox, merge queue, observability |
 | `013-dark-factory-phase-2` | done (2026-11-08) | Done ledger, approval-resume commit, crash checkpoints |
+| `014-walk-guidance-ux` | spec drafted (2026-11-08) | Geolocation, autocomplete, map picking, walker glyph, arrival |
 
 Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 
