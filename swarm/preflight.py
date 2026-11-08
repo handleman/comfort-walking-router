@@ -33,6 +33,7 @@ OPTIONAL_BINARIES = ("npm",)  # frontend gate only when vitest is installed
 
 DEFAULT_OLLAMA = "http://localhost:11434"
 DEFAULT_ZEN = "https://opencode.ai/zen/v1"
+USER_AGENT = "comfort-walking-router/0.1 (swarm-preflight)"
 OPENROUTER_MODELS = "https://openrouter.ai/api/v1/models"
 
 
@@ -71,7 +72,8 @@ def is_free_model(model: str) -> bool:
 
 
 def _get_json(url: str, *, headers: dict[str, str] | None = None, timeout: float = 8.0) -> Any:
-    req = urllib.request.Request(url, headers=headers or {})
+    hdrs = {"User-Agent": USER_AGENT, "Accept": "application/json", **(headers or {})}
+    req = urllib.request.Request(url, headers=hdrs)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read())
 
@@ -80,14 +82,20 @@ def _ping_model_ids(env: dict[str, str], fetch: Callable[..., Any]) -> dict[str,
     """Available model ids per cloud provider (one request each)."""
     avail: dict[str, set[str]] = {}
     if any(provider(env.get(v, "")) == "openrouter" for v in ROLE_VARS):
-        data = fetch(OPENROUTER_MODELS)
+        try:
+            data = fetch(OPENROUTER_MODELS)
+        except Exception as e:
+            raise RuntimeError(f"openrouter model list: {e}") from e
         avail["openrouter"] = {m["id"] for m in data.get("data", [])}
     if any(provider(env.get(v, "")) == "zen" for v in ROLE_VARS):
         base = env.get("SWARM_ZEN_BASE_URL", DEFAULT_ZEN).rstrip("/")
-        data = fetch(
-            f"{base}/models",
-            headers={"Authorization": f"Bearer {env.get('OPENCODE_API_KEY', '')}"},
-        )
+        try:
+            data = fetch(
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {env.get('OPENCODE_API_KEY', '')}"},
+            )
+        except Exception as e:
+            raise RuntimeError(f"zen model list: {e}") from e
         avail["zen"] = {m["id"] for m in data.get("data", [])}
     return avail
 
