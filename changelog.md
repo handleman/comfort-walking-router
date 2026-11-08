@@ -8,6 +8,7 @@
 - tests: app suite `tests/` (contract shape, cache hit, 422 enum, OSRM geometry pass-through); root `pytest` scoped to app tests, harness stays `make swarm-test`
 - specs: 011 done (T1 already green in `f0b17aa`, T2–T4 completed); 001 T1/T2/T4/T5 marked done, T3 comfort scoring (Overpass + shade/sun/quiet) and T6 remain open
 - docs: `AGENTS.md`, `README.md`, `docs/tech-stack.md`, `docs/roadmap.md` record the verified commands, app/harness venv split, and neutral-score caveat
+- docs: swarm usage guide — README quickstart plus `swarm/README.md` sections on how the todo list is parsed (unchecked `- [ ] T<n> (AC-…): brief` lines, directory order, skips) and how to add a spec (spec/plan/tasks, coder scope + `SWARM_SCOPE`, plan cache/`--replan`, checkbox policy); tasks template annotated
 
 ## 2026-10-11 (swarm harness)
 - fix: vacancy check runs before autocommit (committing first wiped the worktree evidence, false-flagging real green runs — caught on 001-T5)

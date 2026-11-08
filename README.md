@@ -65,6 +65,58 @@ Last verified 2026-11-08: 4 app tests + 39 harness tests pass, ruff/mypy/svelte-
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
+## CrewAI swarm (learning goal 2)
+
+The swarm implements unchecked tasks from `specs/NNN-*/tasks.md`, one task at a time:
+Planner → Coder → QA → autocommit + push on green → next task/spec. Full details:
+`swarm/README.md`.
+
+```bash
+make swarm-up        # start/resume in background + attach the dashboard
+make swarm-dash      # attach to a running pilot
+make swarm-run       # foreground pilot (no args = resume from last checkpoint)
+make swarm-local     # all-local Ollama variant (no cloud keys)
+make swarm-test      # harness unit tests (no LLM, no network)
+make swarm-stop      # stop the running pilot
+```
+
+Every task writes `swarm/runs/<ts>/run.json` (status, gate exit codes, cost — free tiers must show `0`).
+Green runs **autocommit and push**. Use `./swarm/run.sh 012 T1 --no-commit` to opt out.
+
+### Adding a spec so the swarm picks it up
+
+1. Create `specs/NNN-name/` with the usual `spec.md` (why, scope, acceptance criteria),
+   `plan.md` (approach, steps, risks), and `tasks.md` (start from `.specify/templates/`).
+2. Write each task as an **unchecked one-line checkbox** in execution order:
+
+   ```markdown
+   - [ ] T1 (AC-1): Add the endpoint in `app/main.py` and its test in `tests/test_api.py`.
+   - [ ] T2 (AC-2): Render the result in `frontend/src/App.svelte`.
+   ```
+
+   The parser only reads lines matching `- [ ] T<n> (AC-…): <brief>`; `[x]` tasks are skipped.
+   Use `T1`, `T2`, … (no `T1a`), one line per task. Indented notes below the line are fine, but the
+   brief on the line is what the planner passes to the coder.
+3. Keep a task coder-sized: one behavior/file, 4–8 planner micro-steps, verifiable by the gates
+   (`pytest`, `ruff check .`, `mypy .`). Put exact paths and AC refs in the brief.
+4. Queue order is `specs/` directory order (`001-…`, `004-…`, …). Specs without `tasks.md` and
+   `009-swarm-harness` are skipped; a spec whose tasks are all `[x]` is treated as done.
+5. If the task must touch paths outside the default coder scope (`app/`, `frontend/`, `contracts/`,
+   `requirements*.txt`, `pyproject.toml`, `.gitignore`), widen it explicitly:
+
+   ```bash
+   SWARM_SCOPE=app/,tests/ make swarm-up
+   ```
+
+   The coder can never edit `swarm/`, `specs/`, `docs/`, or `.env*`.
+6. Start it explicitly the first time (`make swarm-run SPEC=012 TASK=T1`) or let `make swarm-up`
+   resume from run history. **The swarm does not edit spec files**, so mark the task `[x]` yourself
+   after a green run is verified. If you changed a spec after a plan was cached, force a fresh plan:
+
+   ```bash
+   ./swarm/run.sh 012 T1 --replan
+   ```
+
 ## Status
 - App: MVP flow runs end-to-end (`POST /route` → geocode → OSRM → SQLite cache → Leaflet route + explanation). Comfort score is neutral until `001-T3` wires Overpass/scoring; the UI states that explicitly.
 - Swarm harness: implemented (`swarm/`, `Makefile` targets), 39 unit tests green. See `changelog.md` for history.
