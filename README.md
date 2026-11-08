@@ -17,7 +17,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 ## Specs
 | Spec | State | What |
 | --- | --- | --- |
-| `001-example-app` | T1/T2/T4/T5 done; T3 (comfort scoring) open | MVP: scored route + explanation, SQLite cache |
+| `001-example-app` | T1/T2/T4/T5 done; T3 + T7–T10 queued (comfort scoring) | MVP: scored route + explanation, SQLite cache |
 | `004-weather-sun` | spec→plan→tasks done | Open-Meteo preference + override |
 | `005-saved-routes` | spec→plan→tasks done | No-accounts Postgres routes + prefs (ADR-007) |
 | `006-comfort-plus` | spec→plan→tasks done | Lighting + traffic toggles |
@@ -98,14 +98,15 @@ Green runs **autocommit and push**. Use `./swarm/run.sh 012 T1 --no-commit` to o
    Use `T1`, `T2`, … (no `T1a`), one line per task. Indented notes below the line are fine, but the
    brief on the line is what the planner passes to the coder.
 3. Keep a task coder-sized: one behavior/file, 4–8 planner micro-steps, verifiable by the gates
-   (`pytest`, `ruff check .`, `mypy .`). Put exact paths and AC refs in the brief.
+   (`pytest`, `ruff check .`, `mypy .`, plus `npm test` once the frontend has a test script).
+   Put exact paths and AC refs in the brief.
 4. Queue order is `specs/` directory order (`001-…`, `004-…`, …). Specs without `tasks.md` and
    `009-swarm-harness` are skipped; a spec whose tasks are all `[x]` is treated as done.
-5. If the task must touch paths outside the default coder scope (`app/`, `frontend/`, `contracts/`,
-   `requirements*.txt`, `pyproject.toml`, `.gitignore`), widen it explicitly:
+5. If the task must touch paths outside the default coder scope (`app/`, `frontend/`, `tests/`,
+   `contracts/`, `requirements*.txt`, `pyproject.toml`, `.gitignore`), widen it explicitly:
 
    ```bash
-   SWARM_SCOPE=app/,tests/ make swarm-up
+   SWARM_SCOPE=app/,frontend/,tests/,scripts/ make swarm-up
    ```
 
    The coder can never edit `swarm/`, `specs/`, `docs/`, or `.env*`.
@@ -118,5 +119,5 @@ Green runs **autocommit and push**. Use `./swarm/run.sh 012 T1 --no-commit` to o
    ```
 
 ## Status
-- App: MVP flow runs end-to-end (`POST /route` → geocode → OSRM → SQLite cache → Leaflet route + explanation). Comfort score is neutral until `001-T3` wires Overpass/scoring; the UI states that explicitly.
+- App: MVP flow runs end-to-end (`POST /route` → geocode → OSRM → SQLite cache → Leaflet route + explanation). Comfort score is neutral until `001-T3` + T7–T10 wire Overpass/scoring; the UI states that explicitly.
 - Swarm harness: implemented (`swarm/`, `Makefile` targets), 39 unit tests green. See `changelog.md` for history.

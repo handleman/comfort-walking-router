@@ -12,3 +12,8 @@ Scorer slice: extend the 001 scorer with two equal-weight toggle factors sourced
 ## Risks / Open Questions
 - OSM `lit` coverage is patchy — honest-gap explanation is the mitigation, not interpolation.
 - Depends on 001 (scorer, contract); independent of 004/005/007/008.
+
+## Swarm queue (2026-11-08)
+`tasks.md` is normalized into five parser-compatible tasks (Overpass tags, scorer factors, contract
+pass-through, UI toggles, 001 regression matrix). The regression task adds a test file so it is not
+a pure-verification run.

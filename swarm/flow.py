@@ -101,6 +101,23 @@ def _commit_changes(spec_id: str, task_id: str, brief: str) -> dict[str, str]:
     return rec
 
 
+def _frontend_test_command() -> str | None:
+    """Optional frontend gate: `npm test` when the script + vitest binary exist.
+
+    Frontend work (007/010) adds vitest under `frontend/`; backend-only checkouts
+    have no `test` script, so the gate stays dormant instead of failing every run.
+    """
+    pkg = REPO_ROOT / "frontend" / "package.json"
+    vitest = REPO_ROOT / "frontend" / "node_modules" / ".bin" / "vitest"
+    if not pkg.is_file() or not vitest.exists():
+        return None
+    try:
+        scripts = json.loads(pkg.read_text()).get("scripts", {})
+    except (OSError, json.JSONDecodeError):
+        return None
+    return "npm --prefix frontend test -- --run" if "test" in scripts else None
+
+
 class SwarmFlow(Flow[SwarmState]):
     def __init__(self, spec_dir: str, task_id: str, no_tui: bool = True, allow_paid: bool = False, replan: bool = False, commit: bool = True) -> None:
         super().__init__()
@@ -137,7 +154,10 @@ class SwarmFlow(Flow[SwarmState]):
         shell = ShellTool()
         gates: dict[str, int] = {}
         tails: list[str] = []
-        for cmd in ("pytest -q", "ruff check .", "mypy ."):
+        commands = ["pytest -q", "ruff check .", "mypy ."]
+        if frontend_test := _frontend_test_command():
+            commands.append(frontend_test)
+        for cmd in commands:
             out = shell._run(cmd)
             try:
                 gates[cmd] = int(out.split("exit=")[1].split()[0])
@@ -372,12 +392,56 @@ def _spec_after(repo_root: Path, current_dir: str) -> str | None:
     return _next_after(names, current_dir)
 
 
+def _next_open_spec(repo_root: Path, current_dir: str) -> tuple[str, str] | None:
+    """First unchecked task in a spec that sorts after `current_dir`."""
+    from swarm.spec_loader import load_spec_tasks
+
+    nxt_spec = _spec_after(repo_root, current_dir)
+    while nxt_spec is not None:
+        try:
+            _, nt = load_spec_tasks(repo_root, nxt_spec, None)
+        except (OSError, SystemExit):
+            nt = []
+        if nt:
+            return nxt_spec, nt[0].id
+        nxt_spec = _spec_after(repo_root, nxt_spec)
+    return None
+
+
+def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tuple[str, str] | None:
+    """Earliest unchecked task across the queue (wrap-around after the last spec).
+
+    `skip` is the last checkpoint (spec, task): a green task that was never ticked
+    must not be resumed forever when it is the only unchecked line left.
+    """
+    from swarm.spec_loader import load_spec_tasks
+
+    specs = repo_root / "specs"
+    if not specs.is_dir():
+        return None
+    for name in sorted(
+        p.name
+        for p in specs.iterdir()
+        if p.is_dir() and (p / "tasks.md").is_file() and p.name not in HARNESS_SPECS
+    ):
+        try:
+            _, tasks = load_spec_tasks(repo_root, name, None)
+        except (OSError, SystemExit):
+            continue
+        for t in tasks:
+            if skip != (name, t.id):
+                return name, t.id
+    return None
+
+
 def _resume_point(repo_root: Path) -> tuple[str, str] | None:
     """Where the sequence last stopped: (spec, task) to run next.
 
-    Latest run green → next task (or first task of next spec). Latest run red,
-    or killed before writing run.json (meta.json only) → same task again.
-    None when every spec task is green or no history resolves.
+    Latest run green → next task (or first open task of a later spec). Latest run
+    red, or killed before writing run.json (meta.json only) → same task again
+    when it is still unchecked. A checkpoint task that is checked/absent advances
+    to the next open task, then wraps to the earliest open spec so newly added
+    earlier-spec tasks are never stranded. None when every spec task is green.
     """
     from swarm.spec_loader import load_spec_tasks
 
@@ -388,30 +452,39 @@ def _resume_point(repo_root: Path) -> tuple[str, str] | None:
     if not dirs:
         return None
     latest = dirs[-1]
+    status = "green"
     try:
         rec = json.loads((latest / "run.json").read_text())
+        spec = str(rec.get("spec", "001"))
+        task = str(rec.get("task", "T1"))
+        status = str(rec.get("status", "green"))
     except Exception:
         try:
             meta = json.loads((latest / "meta.json").read_text())
-            return str(meta.get("spec", "001")), str(meta.get("task", "T1"))
+            spec = str(meta.get("spec", "001"))
+            task = str(meta.get("task", "T1"))
+            status = "killed"
         except Exception:
             return None
-    spec = str(rec.get("spec", "001"))
-    task = str(rec.get("task", "T1"))
-    if rec.get("status") != "green":
-        return spec, task
-    spec_path, all_tasks = load_spec_tasks(repo_root, spec, None)
+    try:
+        spec_path, all_tasks = load_spec_tasks(repo_root, spec, None)
+    except (OSError, SystemExit):
+        # Missing spec/tasks file: a red/killed checkpoint still retries as written.
+        return (spec, task) if status != "green" else _first_open_task(repo_root, (spec, task))
     ids = [t.id for t in all_tasks]
-    nxt = _next_after(ids, task)
-    if nxt is not None:
-        return spec, nxt
-    nxt_spec = _spec_after(repo_root, spec_path.name)
-    while nxt_spec is not None:
-        _, nt = load_spec_tasks(repo_root, nxt_spec, None)
-        if nt:
-            return nxt_spec, nt[0].id
-        nxt_spec = _spec_after(repo_root, nxt_spec)
-    return None
+    if status != "green" and task in ids:
+        return spec_path.name, task
+    if task in ids:
+        nxt = _next_after(ids, task)
+        if nxt is not None:
+            return spec_path.name, nxt
+    elif ids:
+        # Checkpoint task was marked [x] (or renamed): finish this spec first.
+        return spec_path.name, ids[0]
+    later = _next_open_spec(repo_root, spec_path.name)
+    if later is not None:
+        return later
+    return _first_open_task(repo_root, (spec_path.name, task))
 
 
 def run_tasks(spec_prefix: str, start_task: str, *, allow_paid: bool = False, replan: bool = False, commit: bool = True, single: bool = False) -> Any:

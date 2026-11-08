@@ -15,3 +15,8 @@ Backend-first: FastAPI `POST /route` accepts place names or lat-lon + hot/cloudy
 - OSRM demo rate limits / downtime (MVP interim) — mitigate with cache + short timeout + single retry; Mapbox replaces it in `008-mapbox-routing`.
 - Overpass + Nominatim usage policy / latency — debounce frontend, cache aggressively, attribute OSM.
 - Contracts shape per ADR-005 (GeoJSON, enums, error envelope); field-level detail lands in `contracts/route.json` during step 1.
+
+## Swarm queue (2026-11-08)
+`tasks.md` is normalized to parser-compatible one-line tasks. The old T6 verification checklist
+became a human-gate comment (the harness demotes pure-verification runs to `needs_human`), and the
+coarse T3 was split into T3 + T7–T10: Overpass client, tag mapping, scorer, API wiring, UI score.

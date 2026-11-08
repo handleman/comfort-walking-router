@@ -32,3 +32,8 @@ untouched); manual sim-walk demo + one real-GPS smoke off-CI (AC-8).
 - `watchPosition` battery/accuracy variance across browsers — sim mode is the deterministic fallback; CI gates run sim-only, never real GPS.
 - Depends on 001 T5 (map instance, /route contract); 007 lands after 001 MVP.
 - Frontend toolchain (svelte-check, vitest) may not exist yet — scaffolded inside this stage and pinned in `frontend/package.json`.
+
+## Swarm queue (2026-11-08)
+`tasks.md` is normalized into nine one-line tasks: toolchain + interpolate, snap, drift, arrival,
+providers, walk-mode shell, drift/reroute UI, arrival/stop UI, and an integration test. The
+real-GPS smoke and manual sim-walk demo stay a human/off-CI note.

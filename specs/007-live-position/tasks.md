@@ -1,8 +1,14 @@
 # 007 Live Position — Tasks
 
-- [ ] T1 (AC-2, AC-4, AC-7, AC-8): TS core `frontend/src/lib/navigation/{interpolate,snap,drift,arrival}.ts` + `*.test.ts` per module (seeded ticks, no GPS/DOM); scaffold `npm run check`/`npm test` if missing.
-- [ ] T2 (AC-2, AC-3): `PositionProvider` interface + `simulated.ts` (deterministic 1 s ticks) + `gps.ts` (`watchPosition`, denied → message + sim fallback, cleanup on stop).
-- [ ] T3 (AC-1, AC-6): Walk-mode store + Svelte shell: Start/Stop, origin marker, auto-center default-on toggle, pan-pause until re-enabled.
-- [ ] T4 (AC-4, AC-5): Snapped render always; sustained-drift "Off route — reroute?" warning; tap requeries `POST /route` (replace route); dismiss snoozes until back-on-route or 60 s.
-- [ ] T5 (AC-7): Arrival check (25 m) → banner + tracking stops; Stop button ends session anytime.
-- [ ] T6 (AC-8): Green `npm test` + `npm run check` + `pytest`/`ruff`/`mypy`; sim-walk demo + one real-GPS smoke off-CI.
+- [ ] T1 (AC-2, AC-8): Add a `test` script (vitest) + `vitest` devDep to `frontend/package.json`, run `npm install` there to update the lockfile, then add `frontend/src/lib/navigation/interpolate.ts` and `interpolate.test.ts` (distance-along-LineString with injected ticks).
+- [ ] T2 (AC-4): Add `frontend/src/lib/navigation/snap.ts` + `snap.test.ts` (snap a fix to the nearest route segment/point, returns distance-off-route).
+- [ ] T3 (AC-4): Add `frontend/src/lib/navigation/drift.ts` + `drift.test.ts` (sustained drift: >30 m for ~10 s or 3 consecutive fixes; brief drift stays quiet).
+- [ ] T4 (AC-1, AC-7): Add `frontend/src/lib/navigation/arrival.ts` + `arrival.test.ts` (25 m radius, idempotent arrived signal).
+- [ ] T5 (AC-2, AC-3): Add `PositionProvider` + `simulated.ts` (deterministic 1 s ticks, seedable) + `gps.ts` (`watchPosition`, permission-denied message + sim fallback, cleanup on stop) under `frontend/src/lib/navigation/` with provider tests.
+- [ ] T6 (AC-1, AC-6): Add `frontend/src/lib/walkMode.ts` store + `frontend/src/lib/WalkControls.svelte`: Start/Stop, marker at route origin, auto-center default-on toggle, manual pan pauses follow until re-enabled.
+- [ ] T7 (AC-4, AC-5): Render the marker snapped always; show the tappable "Off route — reroute?" warning on sustained drift; tap requeries `POST /route` from the current position to the same destination and replaces the displayed route; dismiss snoozes until back-on-route or 60 s.
+- [ ] T8 (AC-7): Arrival within 25 m shows the arrived banner and stops tracking; Stop ends the session anytime and removes the marker.
+- [ ] T9 (AC-2, AC-8): Add `frontend/src/lib/navigation/walk.integration.test.ts` covering origin → ticks → drift → reroute → arrival with injected providers and a stubbed `POST /route`.
+
+<!-- Human gate, not queued (no code change): one real-GPS smoke off-CI plus a manual sim-walk
+     demo; then run `npm run check` + `npm test` + `make test`/`lint`/`typecheck` and tick 007 AC-8. -->

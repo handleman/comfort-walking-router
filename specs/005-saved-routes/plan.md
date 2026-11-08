@@ -14,3 +14,8 @@ Storage slice per ADR-004/ADR-007: Postgres repo + migrations behind the existin
 ## Risks / Open Questions
 - Postgres in dev/CI is new infra — container/service pinned at scaffold; cache tests remain SQLite-only.
 - Depends on 001 (routes to save); independent of 004/006/007/008.
+
+## Swarm queue (2026-11-08)
+`tasks.md` is normalized into nine one-line tasks (db, migrations, auth, two repos, API, TTL,
+frontend, cache regression). Projecting Postgres and setting `DATABASE_URL` is a human/infra note:
+DB-backed tests skip when it is unset.

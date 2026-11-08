@@ -7,6 +7,8 @@
 - frontend: working map search — Leaflet CSS, real map height, submit handler, loading/error states, start/end markers, `fitBounds`, explanation panel; fixed Vite plugin import (named `svelte` export), added `svelte-check`/tsconfig
 - tests: app suite `tests/` (contract shape, cache hit, 422 enum, OSRM geometry pass-through); root `pytest` scoped to app tests, harness stays `make swarm-test`
 - specs: 011 done (T1 already green in `f0b17aa`, T2–T4 completed); 001 T1/T2/T4/T5 marked done, T3 comfort scoring (Overpass + shade/sun/quiet) and T6 remain open
+- specs: all open queues normalized for the swarm — 001 split into T3 + T7–T10, 004/005/006/007/008/010 rewritten as one-line parser-compatible tasks; pure-verification checklists converted to human-gate comments; 009-T8 marked done with pilot evidence (`swarm/runs/20261010-181223`: green, $0)
+- swarm: `tests/` added to `DEFAULT_SCOPE` (backend test-writing tasks); `_resume_point` advances when the checkpoint task is checked/absent and wraps to the earliest open spec; optional `npm test` gate runs when `frontend/package.json` has a `test` script and vitest is installed
 - docs: `AGENTS.md`, `README.md`, `docs/tech-stack.md`, `docs/roadmap.md` record the verified commands, app/harness venv split, and neutral-score caveat
 - docs: swarm usage guide — README quickstart plus `swarm/README.md` sections on how the todo list is parsed (unchecked `- [ ] T<n> (AC-…): brief` lines, directory order, skips) and how to add a spec (spec/plan/tasks, coder scope + `SWARM_SCOPE`, plan cache/`--replan`, checkbox policy); tasks template annotated
 

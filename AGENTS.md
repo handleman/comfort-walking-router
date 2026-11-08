@@ -28,6 +28,6 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 ## Spec-driven workflow
 - Spec before code: define requirements, acceptance criteria, and scope in `specs/` before implementing.
 - Clarify first: when requirements are ambiguous, ask the user targeted questions (via `question` tool, 1–2 at a time) and refine the spec docs until clear. Do not guess or implement on ambiguity.
-- Update tasks/ACs in the same change as the implementation. Record completed work and remaining blockers explicitly (see `specs/001-example-app/tasks.md` T3/T6 and `specs/011-dev-run/`).
+- Update tasks/ACs in the same change as the implementation. Record completed work and remaining blockers explicitly (see `specs/001-example-app/tasks.md` T3/T7–T10 and `specs/011-dev-run/`).
 - Keep specs small and verifiable; link implementation back to spec items.
 - Prefer editing existing files over creating new ones; keep changes minimal per spec.

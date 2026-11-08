@@ -1,14 +1,14 @@
 # 001 Comfort-First Walk — Tasks
 
 - [x] T1 (AC-1, AC-4): Scaffold `app/` + `frontend/` + `contracts/route.json`, pin pytest/ruff/mypy.
-  - Done by the swarm (commit `6ae008b`). Root `pyproject.toml` + dev requirements now pin pytest/ruff/mypy.
 - [x] T2 (AC-1): Backend geocode via Nominatim + base walking route(s) via OSRM demo interim (provider behind interface for 008 Mapbox swap) with distance/time.
-  - Done (commit `201b66d`); hardenings in 011: timeouts, User-Agent, correct GeoJSON pass-through, `POST /route`.
-- [ ] T3 (AC-2): Overpass comfort lookup + shade/sun/quiet scorer + why-explanation.
-  - Not complete. `app/providers/overpass.py` still returns `{}` and `app/main.py` does not call the scorer; `POST /route` returns a neutral `comfort_score=50` with an honest explanation. This is the remaining blocker for AC-2.
 - [x] T4 (AC-3): SQLite cache (start, end, preference); verify cache-hit skips external calls.
-  - Done (commit `8187a2d`); cache hit covered by `tests/test_route_api.py::test_identical_query_hits_cache`.
 - [x] T5 (AC-1, AC-2): Svelte + Leaflet UI: start/end, hot/cloudy toggle, route + explanation.
-  - Done (commit `b94dd1a`); completed/fixed in 011 (map height + CSS, submit handler, route drawing, preference select, explanation panel). AC-2 display is ready but scores are neutral until T3.
-- [ ] T6 (AC-4): Green `pytest` + `ruff check .` + `mypy .` + manual demo render.
-  - Gates + route render are green as of 2026-11-08 (`make test`, `make lint`, `make typecheck`, `make swarm-test`, `npm run check`, headless demo). Left open until T3 gives the demo something comfort-specific to show.
+- [ ] T3 (AC-2): Overpass corridor client in `app/providers/overpass.py` (bbox query, timeout + User-Agent, JSON → feature counts) with fixture tests in `tests/test_overpass_provider.py`.
+- [ ] T7 (AC-2): Map OSM tags (trees/green, path/road class, `lit`) into a feature dict in `app/features.py` with fixture tests in `tests/test_features.py`.
+- [ ] T8 (AC-2): Comfort scorer in `app/scoring.py` (shade/sun/quiet with preference weights) with matrix tests in `tests/test_scoring.py`.
+- [ ] T9 (AC-2): Wire the scorer into `POST /route` in `app/main.py` (real `comfort_score` + factor explanation, contract shape unchanged) and extend `tests/test_route_api.py`.
+- [ ] T10 (AC-2): Show the score and each applied factor in `frontend/src/App.svelte`; keep `npm run check` green.
+
+<!-- Human gate, not queued (no code change): after T3/T7–T10 run `make test`, `make lint`,
+     `make typecheck`, `cd frontend && npm run check`, then a live demo and tick 001 AC-2. -->

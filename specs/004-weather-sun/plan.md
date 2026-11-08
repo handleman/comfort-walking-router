@@ -14,3 +14,7 @@ Backend slice on the 001 API: Open-Meteo client + auto-rule + cached fetch, addi
 - Threshold defaults (25°C / 70%) are starting points — revisit with field evidence, no ADR needed for tuning.
 - Open-Meteo availability — fallback path (AC-4) is the mitigation; cache keeps call volume trivial.
 - Depends on 001 (scorer, cache, contract); lands after 001, independent of 007/008.
+
+## Swarm queue (2026-11-08)
+`tasks.md` is normalized: each step is one parser-compatible task (T1 client, T2 auto-rule, T3
+weather cache, T4 contract + wiring, T5 UI). The live-weather smoke stays a human/off-CI note.

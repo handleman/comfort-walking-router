@@ -1,7 +1,7 @@
 # 004 Weather-Sun — Tasks
 
-- [ ] T1 (AC-1, AC-5): Open-Meteo client (temp + cloud at midpoint) + fixture unit tests.
-- [ ] T2 (AC-2, AC-4): Auto-rule (threshold constants) + SQLite weather cache (~30 min TTL) + failure fallback.
-- [ ] T3 (AC-1): Additive contract fields (`applied_preference`, `preference_source`, `weather`) + type mirrors.
-- [ ] T4 (AC-3): Source chip + manual-override toggle wiring in UI.
-- [ ] T5 (AC-5): Gates green + rule-matrix tests + one live smoke off-CI.
+- [ ] T1 (AC-1, AC-5): Open-Meteo client in `app/providers/open_meteo.py` (current temp + cloud at midpoint, timeout + User-Agent) with fixture tests in `tests/test_open_meteo.py`.
+- [ ] T2 (AC-2): Auto-rule in `app/preferences.py` (constants: temp ≥25°C and cloud <70% → hot/shade; cloud ≥70% → cloudy/sun; else caller preference) with matrix tests in `tests/test_preferences.py`.
+- [ ] T3 (AC-4): Weather cache in `app/weather_cache.py` (SQLite, ~30 min TTL, keyed by rounded midpoint) with tests in `tests/test_weather_cache.py`.
+- [ ] T4 (AC-1, AC-4): Wire weather + auto-rule into `POST /route` in `app/main.py` with caller fallback on failure; add `applied_preference`, `preference_source`, `weather` to `contracts/route.json` and test in `tests/test_route_weather.py`.
+- [ ] T5 (AC-3): Add the source chip (`Auto: …` / `Manual`) and manual-override toggle to `frontend/src/App.svelte`; keep `npm run check` green.

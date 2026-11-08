@@ -35,3 +35,8 @@ manual-servers fallback documented; headed mode for local debugging only.
 - Live-backend drift (fixtures stale vs real APIs) — fixtures refreshed deliberately, never
 auto-updated; one manual live smoke per release outside the suite.
 - Depends on 001 (app + contract), 007 (walk-mode sim provider); runs last by directory order.
+
+## Swarm queue (2026-11-08)
+`tasks.md` is normalized into six one-line tasks (toolchain, backend fixture mode, search,
+preferences/cache, walk mode, errors/responsive). `playwright install chromium` and the full
+clean-checkout suite run are human/CI notes, not queued code tasks.

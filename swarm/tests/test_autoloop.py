@@ -227,6 +227,54 @@ def test_resume_none_when_all_green_or_empty(tmp_path):
     assert _resume_point(tmp_path) is None
 
 
+def test_resume_green_checked_task_moves_to_next_open(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    _resume_tree(tmp_path, {"20261011-100000": {"run.json": json.dumps({"spec": "001-x", "task": "T1", "status": "green"})}},
+                 {"001-x": "- [x] T1 (AC-1): done\n- [ ] T2 (AC-1): next\n"})
+    assert _resume_point(tmp_path) == ("001-x", "T2")
+
+
+def test_resume_red_checked_task_advances(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    _resume_tree(tmp_path, {"20261011-100000": {"run.json": json.dumps({"spec": "001-x", "task": "T1", "status": "needs_human"})}},
+                 {"001-x": "- [x] T1 (AC-1): done\n- [ ] T2 (AC-1): next\n"})
+    assert _resume_point(tmp_path) == ("001-x", "T2")
+
+
+def test_resume_green_wraps_to_earlier_open_spec(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    _resume_tree(tmp_path, {"20261011-100000": {"run.json": json.dumps({"spec": "011-z", "task": "T2", "status": "green"})}},
+                 {"001-x": "- [ ] T3 (AC-2): reopened\n", "011-z": "- [x] T2 (AC-1): done\n"})
+    assert _resume_point(tmp_path) == ("001-x", "T3")
+
+
+def test_frontend_test_gate_is_dormant_without_script_or_vitest(tmp_path, monkeypatch):
+    import json
+
+    from swarm import flow
+
+    frontend = tmp_path / "frontend"
+    (frontend / "node_modules" / ".bin").mkdir(parents=True)
+    (frontend / "package.json").write_text(json.dumps({"scripts": {"dev": "vite"}}))
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    assert flow._frontend_test_command() is None
+
+    (frontend / "node_modules" / ".bin" / "vitest").write_text("")
+    assert flow._frontend_test_command() is None
+
+    (frontend / "package.json").write_text(json.dumps({"scripts": {"test": "vitest"}}))
+    assert flow._frontend_test_command() == "npm --prefix frontend test -- --run"
+
+
 def test_resolve_steps_rejects_garbage():
     from swarm.flow import _resolve_steps
 

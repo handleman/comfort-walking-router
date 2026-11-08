@@ -25,3 +25,8 @@ off-CI to confirm quota + shape (AC-4).
 - Free-tier quota exhaustion in dev — cache-first + fixture tests bound usage; live smoke is manual, not CI.
 - Mapbox walking coverage differing from OSRM demo on some paths — scorer is provider-agnostic; diffs surface as comfort-score deltas, not errors.
 - Depends on 001 (interface, cache, contract); lands after 001 MVP.
+
+## Swarm queue (2026-11-08)
+`tasks.md` is normalized into four parser-compatible tasks (provider + fixtures, token fail-fast
+config, cache-hit logging, provider wiring + contract replay). `.env.example`/`docs/tech-stack.md`
+updates and the live smoke are human notes because docs are outside coder scope.

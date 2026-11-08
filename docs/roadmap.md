@@ -5,7 +5,7 @@
 
 ## 1 — 001 MVP: comfort-scored walk (in progress)
 - Done: Svelte + Leaflet map (start/end, preference, route render, explanation panel), FastAPI `POST /route`, OSRM interim geometry, SQLite cache. Verified by `make test` + `make lint` + `make typecheck` + `npm run check` and a live demo route.
-- Open: comfort scoring (`001-T3` / AC-2) — Overpass provider is a stub, API returns a neutral score.
+- Open: comfort scoring (`001-T3` + T7–T10 / AC-2) — Overpass provider is a stub, API returns a neutral score.
 - Spec: `specs/001-example-app/spec.md` → plan → tasks → implement.
 
 ## 2 — Spec milestones (each its own `specs/NNN-*/`, ADR if cross-cutting)

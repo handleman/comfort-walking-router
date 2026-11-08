@@ -69,7 +69,9 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
   receives is the text after the colon on the task line; indented notes below the line are fine
   but do not replace the brief.
 - Progress between invocations comes from `swarm/runs/` history (`_resume_point`): latest green
-  → next task/spec, red or killed → retry the same task.
+  → next task/spec, red or killed → retry the same task. A checkpoint task that is already `[x]`
+  (or was renamed) advances to the next open task; if the rest of the queue is done, resume wraps
+  to the earliest open spec so newly added earlier-spec tasks are not stranded.
 - `--spec` accepts a unique prefix (`001` → `001-example-app`). If two directories share a prefix,
   pass the full directory name.
 
@@ -92,12 +94,14 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
    Keep `T<n>` and the `(AC-…)` refs on the same line as the brief. The brief must be
    self-contained: one behavior change, exact paths, and what "done" means.
 3. Make each task coder-sized: one file/behavior, ~4–8 planner micro-steps, verifiable by the
-   flow gates (`pytest`, `ruff check .`, `mypy .`). Split larger work into more tasks.
-4. Respect the coder scope. Default: `app/`, `frontend/`, `contracts/`, `requirements*.txt`,
-   `pyproject.toml`, `.gitignore`. Anything else needs an explicit override, e.g. tests:
+   flow gates (`pytest`, `ruff check .`, `mypy .`, plus `npm test` once `frontend/package.json`
+   has a `test` script and vitest is installed). Split larger work into more tasks.
+4. Respect the coder scope. Default: `app/`, `frontend/`, `tests/`, `contracts/`,
+   `requirements*.txt`, `pyproject.toml`, `.gitignore`. Anything else needs an explicit override,
+   e.g. adding a `scripts/` prefix:
 
    ```bash
-   SWARM_SCOPE=app/,tests/ make swarm-up
+   SWARM_SCOPE=app/,frontend/,tests/,scripts/ make swarm-up
    ```
 
    `swarm/`, `specs/`, `docs/`, and `.env*` are off-limits to the coder by design. The override
@@ -125,8 +129,9 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
 
    Without it the cached `STEP` list is reused even if the spec changed.
 
-Each run still has to pass the flow's own gates and scope check; green runs autocommit in-scope
-changes and push (`swarm: <spec>-<task> green …`) before continuing.
+Each run still has to pass the flow's own gates and scope check (`pytest`, `ruff`, `mypy`, plus
+`npm test` when the frontend test script exists); green runs autocommit in-scope changes and push
+(`swarm: <spec>-<task> green …`) before continuing.
 
 Each run writes:
 - `swarm/runs/<ts>/run.json` — spec, task, status (`green`/`needs_human`/`crew_error`), gate exit codes, cost (must be `0` for T8).
