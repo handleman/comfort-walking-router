@@ -214,7 +214,7 @@ Green is deliberately strict (012 AC-4/AC-6):
 2. the Reviewer's final word is `PASS` (missing/`BLOCKED` → `needs_human`);
 3. at least one in-scope file changed **by this run** (cached-plan runs too; no vacuous green);
 4. approval is present when `SWARM_REQUIRE_APPROVAL=1`/`--require-approval`;
-5. commit + push succeed. `commit_failed`/`push_failed` are not green.
+5. commit + push succeed. `commit_failed`/`push_failed`/`merge_failed` are not green.
 
 Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md` with a
 `<!-- plan-source: sha256 -->` header over `spec.md`+`plan.md`+`tasks.md`. A changed spec
@@ -239,16 +239,48 @@ they are never silently truncated.
   becomes `Frontend Coder`/`Test Coder` when the brief is frontend/TS/npm or test work.
 
 ## Autonomous loop (default)
-A green run autocommits **only the run-delta in-scope changes** (`swarm: <spec>-<task> green … (autocommit)`,
-out-of-scope files never added, `.env*` refused) and pushes, then loops back to the
-planner for the next task — and after a spec's last task, to the next spec with tasks
-(directory order; specs without `tasks.md` and the harness specs `009`/`012` are
-skipped). First non-green task stops the whole loop (`needs_human`/`crew_error`/
-`commit_failed`/`push_failed`/`awaiting_approval`/`quota_exhausted`/`budget_exhausted`/
-`interrupted`/`preflight_failed` in that task's `run.json`).
+A green run autocommits **only the run-delta in-scope changes** and pushes, then loops
+back to the planner for the next task — and after a spec's last task, to the next spec
+with tasks (directory order; specs without `tasks.md` and the harness specs `009`/`012`
+are skipped). First non-green task stops the whole loop (`needs_human`/`crew_error`/
+`commit_failed`/`push_failed`/`merge_failed`/`awaiting_approval`/`quota_exhausted`/
+`budget_exhausted`/`interrupted`/`preflight_failed` in that task's `run.json`).
 Flags: `--single` runs only the given task, `--no-commit` skips
 autocommit+push (passed through `run.sh` extra args,
 e.g. `./swarm/run.sh 001 T1 --single`).
+
+## Commit path: branch-per-task + merge queue (012 T18)
+Default (`SWARM_MERGE_MODE=merge`):
+1. `git switch -c swarm/<spec>-<task>` (worktree changes travel with it).
+2. `git add` only the run-delta in-scope paths; commit `swarm: <spec>-<task> green …`.
+3. Push the task branch (`git push -u origin <branch>`).
+4. Switch to the base branch (`SWARM_BASE_BRANCH`, default current branch) and
+   `git merge --no-ff` with `merge: swarm <spec>-<task> green`.
+5. Push the base. If that final push fails, local `reset --hard` back to the pre-merge
+   SHA (status `push_failed`, branch kept as the recovery point / `rollback` in `run.json`).
+
+Merge conflicts abort the merge, leave the branch intact, and stop with
+`merge_failed` — never a half-merged green. Out-of-scope dirty files are never staged.
+`SWARM_MERGE_MODE=direct` restores the old commit-straight-to-base path;
+`SWARM_DELETE_MERGED_BRANCH=1` deletes a merged branch locally and remotely.
+
+## Container sandbox (012 T17)
+```bash
+make swarm-sandbox                       # build + run the pilot in Docker
+./swarm/sandbox.sh --dry-run 001 T3      # print the mount/run command, touch nothing
+```
+The image (`swarm/docker/Dockerfile`) has app + harness deps and the gate binaries.
+At runtime the **only mount is the repo** (`$PWD:/work`); no HOME, SSH agent, or
+caches, with `--cap-drop=ALL`, `no-new-privileges`, PID/memory caps, and the host
+UID. Keys come from `--env-file .env` (values, not a mounted file).
+
+- Ollama must listen beyond loopback: `OLLAMA_HOST=0.0.0.0 ollama serve`; the
+  container reaches it at `host.docker.internal:11434` (override with
+  `SWARM_SANDBOX_OLLAMA_URL`).
+- Commits default to **off** in the sandbox (no git credentials): review and commit
+  on the host. Opt in with `SWARM_SANDBOX_ALLOW_COMMIT=1`; for SSH remotes also set
+  `SWARM_SANDBOX_SSH=1` to mount `~/.ssh` read-only.
+- `SWARM_SANDBOX_NO_BUILD=1` reuses the last image; `SWARM_SANDBOX_IMAGE` renames it.
 
 ## Resume from checkpoint
 `make swarm-up` / `./swarm/run.sh` with no args resumes where the sequence last stopped:
@@ -307,7 +339,7 @@ flowchart TB
     REV --> GATES["Flow gates<br/>pytest + ruff + mypy + scope"]
     REV -.->|BLOCKED / no verdict| HUMAN
     GATES -->|green + PASS| COMMIT["Autocommit + push<br/>next task / next spec"]
-    COMMIT -.->|commit/push failed| CF["commit_failed / push_failed"]
+    COMMIT -.->|commit/push/merge failed| CF["commit_failed / push_failed / merge_failed"]
     GATES -->|green, approval required| APPROVE["awaiting_approval<br/>(a / make swarm-approve)"]
     GATES -->|red, fix rounds left ≤2| FIX["Coder fix round<br/>(transcript + FIX_RULES)"]
     FIX --> GATES

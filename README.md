@@ -87,7 +87,10 @@ Every task writes `swarm/runs/<ts>-<pid>-<rand>/run.json` (status, gate exit cod
 reviewer verdict, approval/commit/push, tokens/cost/duration — free tiers show `$0`).
 The dashboard (`make swarm-dash`) shows the queue with per-task outcomes, models/fallback,
 budget gauges, gate exit codes, recent runs, and live agent panes (ADR-011).
-Green runs **autocommit and push**; `commit_failed`/`push_failed` are not green.
+Green runs commit on `swarm/<spec>-<task>`, push, `--no-ff` merge into the base branch, then push
+(conflicts stop with `merge_failed`; `SWARM_MERGE_MODE=direct` opts out).
+`make swarm-sandbox` runs the pilot in Docker with the repo as the only mount.
+`commit_failed`/`push_failed` are not green.
 Per-run budgets (`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS`) stop a
 runaway loop with `budget_exhausted`; rate limits retry with backoff and fallback models.
 Use `./swarm/run.sh 001 T3 --no-commit` to opt out of committing.

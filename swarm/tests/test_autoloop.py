@@ -30,6 +30,7 @@ def _fake_git(monkeypatch, changed, calls):
 
 def test_commit_adds_only_scope_files(monkeypatch):
     calls = []
+    monkeypatch.setenv("SWARM_MERGE_MODE", "direct")
     _fake_git(monkeypatch, ["app/x.py", "swarm/crew.py", "docs/m.md"], calls)
     rec = _commit_changes("001", "T2", "do things")
     assert rec["commit"].startswith("swarm: 001-T2 green")
@@ -352,6 +353,7 @@ def test_in_scope_changes_filters_secrets_and_out_of_scope(tmp_path, monkeypatch
 
 def test_commit_can_use_explicit_run_delta(monkeypatch):
     calls = []
+    monkeypatch.setenv("SWARM_MERGE_MODE", "direct")
     monkeypatch.setattr("swarm.tools_guarded._git_changed", lambda: ["swarm/human.py"])
     monkeypatch.setattr(subprocess, "run", lambda args, **kwargs: calls.append(list(args)) or _FakeProc())
     rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
@@ -360,6 +362,8 @@ def test_commit_can_use_explicit_run_delta(monkeypatch):
 
 
 def test_push_failure_is_not_ok(monkeypatch):
+    monkeypatch.setenv("SWARM_MERGE_MODE", "direct")
+
     class _PushFail(_FakeProc):
         def __init__(self, args):
             super().__init__(rc=1 if args[:2] == ["git", "push"] else 0, out="rejected")
@@ -660,3 +664,143 @@ def test_teardown_listener_calls_teardown():
     SwarmFlow._teardown_listener(stub)
     assert calls == ["teardown"]
     assert stub.listener is not None  # kept: the TUI still drains its queue
+
+
+def _merge_git(monkeypatch, *, merge_rc=0, branch_push_rc=0, base_push_rc=0):
+    calls: list[list[str]] = []
+
+    def fake_run(args, **kwargs):
+        call = list(args)
+        calls.append(call)
+        a = call[1:]
+        out, rc = "ok", 0
+        if a[:2] == ["rev-parse", "--verify"]:
+            rc = 1  # branch does not exist yet
+        elif (
+            a[:2] == ["switch", "-c"]
+            or a[:2] == ["switch", "main"]
+            or a[0] == "add"
+            or a[0] == "commit"
+            or a[:1] == ["reset"]
+        ):
+            rc = 0
+        elif a[:3] == ["push", "-u", "origin"]:
+            rc, out = branch_push_rc, "rejected branch"
+        elif a[:2] == ["rev-parse", "HEAD"]:
+            out = "abc123def"
+        elif a[0] == "merge" and "--abort" in a:
+            rc = 0
+        elif a[0] == "merge":
+            rc, out = merge_rc, "CONFLICT (content)"
+        elif a[:3] == ["push", "origin", "main"]:
+            rc, out = base_push_rc, "rejected base"
+        return _FakeProc(rc=rc, out=out)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("SWARM_BASE_BRANCH", "main")
+    monkeypatch.setenv("SWARM_MERGE_MODE", "merge")
+    monkeypatch.setattr("swarm.tools_guarded._git_changed", list)
+    return calls
+
+
+def test_branch_name_is_sanitized():
+    from swarm.flow import _branch_name
+
+    assert _branch_name("001-example-app", "T3") == "swarm/001-example-app-T3"
+    assert _branch_name("001/x y", "T3:z") == "swarm/001-x-y-T3-z"
+
+
+def test_merge_mode_happy_path(monkeypatch):
+    calls = _merge_git(monkeypatch)
+    rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
+    assert rec["ok"] == "1"
+    assert rec["branch"] == "swarm/001-T2"
+    assert rec["base"] == "main"
+    assert rec["merge"] == "ok"
+    flat = [c[1:] for c in calls]
+    assert ["switch", "-c", "swarm/001-T2"] in flat
+    assert ["add", "-A", "--", "app/x.py"] in flat
+    assert ["merge", "--no-ff", "swarm/001-T2", "-m", "merge: swarm 001-T2 green"] in flat
+    assert ["push", "origin", "main"] in flat
+
+
+def test_merge_conflict_is_not_green(monkeypatch):
+    calls = _merge_git(monkeypatch, merge_rc=1)
+    rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
+    assert rec["ok"] == "0"
+    assert rec["merge"].startswith("conflict")
+    flat = [c[1:] for c in calls]
+    assert ["merge", "--abort"] in flat
+    assert ["push", "origin", "main"] not in flat
+
+
+def test_branch_push_failure_keeps_work_and_untouched_base(monkeypatch):
+    calls = _merge_git(monkeypatch, branch_push_rc=1)
+    rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
+    assert rec["ok"] == "0"
+    assert rec["push"].startswith("failed")
+    assert "kept local branch" in rec["rollback"]
+    flat = [c[1:] for c in calls]
+    assert ["merge", "--no-ff", "swarm/001-T2", "-m", "merge: swarm 001-T2 green"] not in flat
+
+
+def test_base_push_failure_rolls_back_merge(monkeypatch):
+    calls = _merge_git(monkeypatch, base_push_rc=1)
+    rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
+    assert rec["ok"] == "0"
+    assert rec["push"].startswith("failed (merge not pushed)")
+    assert "reset main to abc123de" in rec["rollback"]
+    assert ["reset", "--hard", "abc123def"] in [c[1:] for c in calls]
+
+
+def test_merge_failure_maps_to_merge_failed(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(
+        tmp_path,
+        monkeypatch,
+        commit_rec={"commit": "ok", "push": "ok", "merge": "conflict: boom", "ok": "0"},
+    )
+    assert status == "merge_failed"
+    assert payload["status"] == "merge_failed"
+
+
+def _git_init_repo(repo):
+    import subprocess as sp
+
+    def run(*args):
+        return sp.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True)
+
+    run("init", "-q", "-b", "main")
+    run("config", "user.email", "swarm@test.local")
+    run("config", "user.name", "swarm test")
+    (repo / "app").mkdir()
+    (repo / "app" / "base.py").write_text("x = 1\n")
+    run("add", "-A")
+    run("commit", "-q", "-m", "base")
+    remote = repo.parent / (repo.name + "-remote.git")
+    sp.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    run("remote", "add", "origin", str(remote))
+    run("push", "-q", "-u", "origin", "main")
+    return remote, run
+
+
+def test_merge_mode_against_real_git(tmp_path, monkeypatch):
+    from swarm import flow
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _remote, run = _git_init_repo(repo)
+    (repo / "app" / "new.py").write_text("y = 2\n")
+    monkeypatch.setattr(flow, "REPO_ROOT", repo)
+    monkeypatch.delenv("SWARM_MERGE_MODE", raising=False)
+    monkeypatch.setenv("SWARM_BASE_BRANCH", "main")
+
+    rec = flow._commit_changes("001", "T2", "add new.py", paths=["app/new.py"])
+    assert rec["ok"] == "1", rec
+    assert rec["branch"] == "swarm/001-T2"
+
+    branches = run("branch", "--list", "swarm/001-T2").stdout
+    assert "swarm/001-T2" in branches
+    merge_subject = run("log", "-1", "--merges", "--pretty=%s").stdout.strip()
+    assert merge_subject == "merge: swarm 001-T2 green"
+    assert (repo / "app" / "new.py").is_file()
+    assert run("status", "--porcelain").stdout.strip() == ""

@@ -30,6 +30,7 @@ TERMINAL_STATUSES = (
     "budget_exhausted",
     "interrupted",
     "preflight_failed",
+    "merge_failed",
 )
 
 
@@ -157,6 +158,32 @@ def reviewer_verdict(text: str) -> str:
     return hits[-1].lower() if hits else "unknown"
 
 
+def _git(args: list[str], timeout: int = 120) -> tuple[int, str]:
+    """Run git argv (no shell), returning (rc, tail-of-output)."""
+    p = subprocess.run(
+        ["git", *args],
+        check=False,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    return p.returncode, (p.stdout + p.stderr)[-500:]
+
+
+def _branch_name(spec_id: str, task_id: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", f"{spec_id}-{task_id}").strip("-")
+    return f"swarm/{slug or 'task'}"
+
+
+def _unique_branch(name: str) -> str:
+    """Avoid reusing a branch left by an earlier attempt."""
+    rc, _ = _git(["rev-parse", "--verify", "--quiet", f"refs/heads/{name}"])
+    if rc != 0:
+        return name
+    return f"{name}-{dt.datetime.now().strftime('%H%M%S')}"
+
+
 def _commit_changes(
     spec_id: str,
     task_id: str,
@@ -166,11 +193,17 @@ def _commit_changes(
 ) -> dict[str, str]:
     """Commit + push only the run-delta paths that are in scope.
 
-    Returns ``{commit, push, ok}``; ``ok == "0"`` means the run must not be green.
+    Default mode is branch-per-task + merge queue (012 T18):
+    commit on `swarm/<spec>-<task>`, push it, `--no-ff` merge into the base
+    branch, push the base, and roll the merge back if that final push fails.
+    `SWARM_MERGE_MODE=direct` restores the old commit-straight-to-base behavior.
+
+    Returns ``{commit, push, ok, branch, base, merge, rollback}``;
+    ``ok == "0"`` means the run must not be green.
     """
     from swarm.tools_guarded import _git_changed, is_secret_path, scope_violations
 
-    rec: dict[str, str] = {"commit": "", "push": "", "ok": "0"}
+    rec: dict[str, str] = {"commit": "", "push": "", "merge": "", "rollback": "", "ok": "0"}
     scope = scope or _resolve_scope()
     changed = list(paths) if paths is not None else _git_changed()
     secret = [p for p in changed if is_secret_path(p)]
@@ -187,19 +220,85 @@ def _commit_changes(
         p = subprocess.run(args, check=False, cwd=REPO_ROOT, capture_output=True, text=True, timeout=120)
         return p.returncode, (p.stdout + p.stderr)[-500:]
 
-    rc, out = _sh(["git", "add", "-A", "--", *in_scope])
+    msg = f"swarm: {spec_id}-{task_id} green — {brief[:80]} (autocommit)"
+
+    if os.getenv("SWARM_MERGE_MODE", "merge").lower() == "direct":
+        rc, out = _sh(["git", "add", "-A", "--", *in_scope])
+        if rc != 0:
+            rec["commit"] = f"git add failed: {out}"
+            return rec
+        rc, out = _sh(["git", "commit", "-m", msg])
+        if rc != 0:
+            rec["commit"] = f"git commit failed: {out}"
+            return rec
+        rec["commit"] = msg
+        rc, out = _sh(["git", "push"])
+        rec["push"] = "ok" if rc == 0 else f"failed: {out}"
+        rec["ok"] = "1" if rc == 0 else "0"
+        return rec
+
+    base = os.getenv("SWARM_BASE_BRANCH", "").strip()
+    if not base:
+        rc, out = _git(["rev-parse", "--abbrev-ref", "HEAD"])
+        base = out.strip().splitlines()[-1] if rc == 0 and out.strip() else ""
+        if base == "HEAD":  # detached
+            base = ""
+    if not base or base == "HEAD":
+        rec["commit"] = "refused: detached HEAD (set SWARM_BASE_BRANCH)"
+        return rec
+    rec["base"] = base
+    branch = _unique_branch(_branch_name(spec_id, task_id))
+    rec["branch"] = branch
+
+    rc, out = _git(["switch", "-c", branch])
+    if rc != 0:
+        rec["commit"] = f"git switch -c {branch} failed: {out}"
+        return rec
+    rc, out = _git(["add", "-A", "--", *in_scope])
     if rc != 0:
         rec["commit"] = f"git add failed: {out}"
+        _git(["switch", base])
         return rec
-    msg = f"swarm: {spec_id}-{task_id} green — {brief[:80]} (autocommit)"
-    rc, out = _sh(["git", "commit", "-m", msg])
+    rc, out = _git(["commit", "-m", msg])
     if rc != 0:
         rec["commit"] = f"git commit failed: {out}"
+        _git(["switch", base])
         return rec
     rec["commit"] = msg
-    rc, out = _sh(["git", "push"])
-    rec["push"] = "ok" if rc == 0 else f"failed: {out}"
-    rec["ok"] = "1" if rc == 0 else "0"
+
+    rc, out = _git(["push", "-u", "origin", branch])
+    if rc != 0:
+        rec["push"] = f"failed: {out}"
+        rec["rollback"] = f"kept local branch {branch} (base untouched)"
+        _git(["switch", base])
+        return rec
+    rec["push"] = f"ok ({branch})"
+
+    rc, out = _git(["switch", base])
+    if rc != 0:
+        rec["merge"] = f"switch to {base} failed: {out}"
+        return rec
+    pre_rc, pre = _git(["rev-parse", "HEAD"])
+    pre_sha = pre.strip().splitlines()[-1] if pre_rc == 0 and pre.strip() else ""
+    merge_msg = f"merge: swarm {spec_id}-{task_id} green"
+    rc, out = _git(["merge", "--no-ff", branch, "-m", merge_msg])
+    if rc != 0:
+        _git(["merge", "--abort"])
+        rec["merge"] = f"conflict: {out}"
+        return rec
+    rec["merge"] = "ok"
+
+    rc, out = _git(["push", "origin", base])
+    if rc != 0:
+        rec["push"] = f"failed (merge not pushed): {out}"
+        if pre_sha:
+            _git(["reset", "--hard", pre_sha])
+            rec["rollback"] = f"reset {base} to {pre_sha[:8]}; branch {branch} kept"
+        return rec
+    rec["ok"] = "1"
+    if os.getenv("SWARM_DELETE_MERGED_BRANCH", "0") == "1":
+        _git(["branch", "-d", branch])
+        _git(["push", "origin", "--delete", branch])
     return rec
 
 
@@ -754,7 +853,12 @@ class SwarmFlow(Flow[SwarmState]):
                 rec = self._commit_green(brief, changed)
                 payload["autocommit"] = rec
                 if rec.get("ok") != "1":
-                    status = "push_failed" if rec.get("push", "").startswith("failed") else "commit_failed"
+                    if rec.get("merge", "").startswith(("conflict", "switch")):
+                        status = "merge_failed"
+                    elif rec.get("push", "").startswith("failed"):
+                        status = "push_failed"
+                    else:
+                        status = "commit_failed"
                     payload["status"] = status
         payload["status"] = status
         payload["evidence"] = {
