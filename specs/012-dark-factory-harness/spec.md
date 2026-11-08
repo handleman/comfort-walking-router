@@ -1,5 +1,7 @@
 # 012 Dark-Factory Harness — Spec
 
+**Status: complete** — Phase 0 (trust & safety) and Phase 1 (observability, resilience, sandbox, merge queue) implemented 2026-11-08. T16 (CI) was withdrawn by request; all gates run locally.
+
 ## What / Why
 Turn the 009 pilot into a **lights-out (dark-factory) harness**: specs are the only input; the swarm plans, codes, verifies, repairs, commits, and advances on its own. Humans only handle exceptions (`needs_human`, quota, approval holds).
 
@@ -13,20 +15,29 @@ A 27-run audit of the 009 harness found trust and safety gaps that make autonomy
 - **Dead approval key**: the TUI wrote `approved.json`, but the flow never read it.
 - **Prompt drift**: `SCOPE_RULE` was hardcoded and omitted `tests/`; every task was described as “Python Scaffold Coder”, including frontend/TS tasks.
 
-This spec defines **Phase 0 (trust & safety)**. Observability, model fallback, and budget work stay in Phase 1 tasks.
+This spec covers two phases:
+
+- **Phase 0 — trust & safety (AC-1–AC-10):** truthful green, run-delta attribution, guarded tools, plan integrity, atomic commits, single writer, approval, prompt parity, evidence.
+- **Phase 1 — observability & resilience (T11–T18):** token/cost/timestamp usage, preflight, model fallback/backoff, budgets, listener teardown + incremental TUI tail, branch-per-task merge queue, container sandbox, and the operator dashboard (ADR-011). CI (T16) was added and then withdrawn by request.
 
 ## Scope
-- In scope:
-  - `swarm/flow.py`: run-delta baseline, truthful green, commit/push coupling, plan hash, lock/PID/signals, approval, AC evidence.
+- In scope (implemented):
+  - `swarm/flow.py`: run-delta baseline, truthful green, commit/push coupling, plan hash, lock/PID/signals, approval, AC evidence, usage/budgets, retry/fallback, branch-per-task + merge queue.
   - `swarm/tools_guarded.py`: scope-aware Edit/Create, secret-safe read, argv-based ShellTool with per-command allowlists.
   - `swarm/crew.py`: `SCOPE_RULE` derived from `DEFAULT_SCOPE`, role-aware coder prompts, strict step validation.
-  - `swarm/tui.py`: approval ledger written by `a`.
-  - `swarm/run.sh`, `swarm/stop.sh`, `Makefile`, `swarm/README.md`, `AGENTS.md`, `changelog.md`.
-  - `swarm/tests/`: regression tests for every Phase 0 guard.
-- Out of scope (Phase 1+):
-  - Token/cost/timestamp accounting, preflight, model fallback/backoff, budgets, listener teardown, incremental TUI tail.
-  - Container/VM sandboxing, branch-per-task/merge queue/rollback, PR creation.
+  - `swarm/tui.py`: approval ledger, fresh session start + history browsing, queue/budget/gate panels (ADR-011).
+  - `swarm/events.py`, `swarm/preflight.py`, `swarm/usage.py`, `swarm/retry.py`: listener lifecycle, preflight, usage accounting, backoff.
+  - `swarm/docker/Dockerfile`, `swarm/sandbox.sh`, `.dockerignore`: repo-only mount container sandbox.
+  - `swarm/run.sh`, `swarm/stop.sh`, `swarm/sandbox.sh`, `Makefile`, `swarm/README.md`, `AGENTS.md`, `changelog.md`.
+  - `swarm/tests/`: regression tests for every guard and phase-1 feature.
+- Out of scope (deliberate, no spec yet):
   - Auto-ticking spec checkboxes (the swarm still never edits `specs/`).
+  - PR creation, risk-class routing, branch protection, canary deploy/rollback.
+  - Parallel workers / multiple worktrees (single pilot + single lock).
+  - Crash recovery of a half-finished crew (interrupted runs leave a trace and retry the task).
+  - Per-call OTel/Phoenix tracing (optional follow-up in ADR-011).
+  - Sandbox egress allowlist and diff secret scanning.
+  - GitHub Actions / remote CI.
 
 ## Acceptance Criteria
 - [x] AC-1: **Run delta.** Each run snapshots the changed-worktree file hashes before any LLM call. Gates, vacancy, and autocommit use only files changed by that run; unrelated human edits are neither gate failures nor committed.

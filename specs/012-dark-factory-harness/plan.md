@@ -1,6 +1,6 @@
 # 012 Dark-Factory Harness — Plan
 
-References `specs/012-dark-factory-harness/spec.md` AC-1–AC-10. Phase 0 only: make green trustworthy and the loop safe before adding autonomy features.
+References `specs/012-dark-factory-harness/spec.md` AC-1–AC-10. Phase 0 makes green trustworthy and the loop safe; Phase 1 adds observability, resilience, the sandbox, and the branch/merge queue. Both are complete (T16/CI withdrawn).
 
 ## Approach
 Keep the 009 shape (`Flow` → planner → micro-step coders → reviewer → gates → commit → next task). Add guards at the boundaries where the audit found lies:

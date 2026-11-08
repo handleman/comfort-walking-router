@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-08
+- docs: close 012 — spec status now "complete" (Phase 0 + Phase 1), scope/out-of-scope refreshed, plan intro and README/roadmap updated; T16 still recorded as withdrawn
 - repo: remove the GitHub Actions workflow at the user's request; all gates are local (`make test`, `make swarm-test`, `make lint`, `make typecheck`, frontend `npm run check/build`)
 - swarm: 012 T18 — green commits now run on `swarm/<spec>-<task>`, push the branch, `--no-ff` merge into the base branch, push the base, and `reset --hard` the merge if that final push fails; conflicts abort with `merge_failed`, `SWARM_MERGE_MODE=direct` restores the old path; real-git integration test
 - swarm: 012 T17 verified — Docker sandbox now builds and runs locally with Colima: repo is the only writable mount (`/dev/null` masks `.env` read-only), caps dropped, host UID, no HOME/SSH; full harness suite + real Ollama/OpenRouter model calls pass inside the container; `make swarm-sandbox` / `--dry-run`, commits opt-in

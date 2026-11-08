@@ -26,7 +26,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 | `009-swarm-harness` | harness implemented, pilot running | CrewAI swarm + parallel Textual dashboard |
 | `010-e2e-playwright` | spec drafted | Chromium E2E for all user scenarios |
 | `011-dev-run` | done (2026-11-08) | `make dev` one-command startup + contract alignment |
-| `012-dark-factory-harness` | Phase 0 done (2026-11-08) | Trust/safety hardening for lights-out autonomy |
+| `012-dark-factory-harness` | done (2026-11-08) | Dark-factory hardening: truthful green, sandbox, merge queue, observability |
 
 Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 
