@@ -512,6 +512,12 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         def _delete_progress(self):
             return None
 
+        def _recover_prior_delta(self, task):
+            return [], ""
+
+        def _in_scope_dirty(self):
+            return []
+
         def _cleanup(self):
             return None
 
@@ -529,10 +535,12 @@ def test_save_run_blocks_reviewer_verdict(tmp_path, monkeypatch):
     assert "autocommit" not in payload
 
 
-def test_save_run_blocks_vacancy(tmp_path, monkeypatch):
+def test_save_run_records_empty_vacancy_as_green(tmp_path, monkeypatch):
     status, payload = _save_run_stub(tmp_path, monkeypatch, changed=())
-    assert status == "needs_human"
-    assert "vacancy_note" in payload
+    assert status == "green"
+    assert payload["vacancy_note"].startswith("no in-scope changes")
+    assert payload["autocommit"]["ok"] == "1"
+    assert payload["done"]["recorded"] is True
 
 
 def test_save_run_holds_for_approval(tmp_path, monkeypatch):
@@ -893,3 +901,49 @@ def test_frontend_check_gate_detection(tmp_path, monkeypatch):
     (frontend / "node_modules").mkdir()  # still present but empty = installed
     (frontend / "package.json").write_text('{"scripts": {}}')
     assert _frontend_check_command() is None
+
+
+def test_recover_prior_delta_requires_exact_match(tmp_path, monkeypatch):
+    import json
+    import types
+
+    import swarm.tools_guarded as tg
+    from swarm.flow import SwarmFlow, SwarmState
+    from swarm.spec_loader import SpecTask
+
+    repo = tmp_path / "repo"
+    (repo / "app").mkdir(parents=True)
+    (repo / "app" / "x.py").write_text("x\n")
+    prev = repo / "swarm" / "runs" / "20260101-000000-1-aaaa"
+    cur = repo / "swarm" / "runs" / "20260102-000000-2-bbbb"
+    prev.mkdir(parents=True)
+    cur.mkdir(parents=True)
+    (prev / "meta.json").write_text(json.dumps({"spec": "001-x", "task": "T1"}))
+    (prev / "progress.json").write_text(json.dumps({"delta_hashes": {"app/x.py": "h"}}))
+    monkeypatch.setattr("swarm.flow.REPO_ROOT", repo)
+    monkeypatch.setattr(tg, "REPO_ROOT", repo)
+    monkeypatch.setattr(tg, "_git_changed", lambda: ["app/x.py"])
+
+    stub = types.SimpleNamespace(
+        run_dir=cur,
+        state=SwarmState(spec_dir="001-x", task_id="T1"),
+        _in_scope_dirty=lambda: list(tg._git_changed()),
+    )
+    task = SpecTask(id="T1", ac_refs=("AC-1",), brief="do x")
+    paths, source = SwarmFlow._recover_prior_delta(stub, task)
+    assert paths == ["app/x.py"]
+    assert source == prev.name
+
+    monkeypatch.setattr(tg, "_git_changed", lambda: ["app/x.py", "app/y.py"])
+    assert SwarmFlow._recover_prior_delta(stub, task) == ([], "")
+
+
+def test_commit_empty_vacancy_direct_mode(monkeypatch):
+    calls = []
+    monkeypatch.setenv("SWARM_MERGE_MODE", "direct")
+    _fake_git(monkeypatch, [], calls)
+    rec = _commit_changes("001-x", "T1", "do x", paths=[], allow_empty=True)
+    assert rec["ok"] == "1"
+    commit = next(c for c in calls if c[:2] == ["git", "commit"])
+    assert "--allow-empty" in commit
+    assert "Swarm-Vacancy: 1" in commit[commit.index("-m") + 1]

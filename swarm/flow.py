@@ -203,6 +203,7 @@ def _commit_changes(
     task_hash_value: str = "",
     spec_hash_value: str = "",
     run_id: str = "",
+    allow_empty: bool = False,
 ) -> dict[str, str]:
     """Commit + push only the run-delta paths that are in scope.
 
@@ -227,7 +228,7 @@ def _commit_changes(
         rec["commit"] = f"refused: .env-looking path in run delta: {secret}"
         return rec
     in_scope = [p for p in changed if p not in scope_violations([p], scope)]
-    if not in_scope:
+    if not in_scope and not allow_empty:
         rec["commit"] = "clean (nothing in scope changed)"
         rec["ok"] = "1"
         return rec
@@ -244,14 +245,21 @@ def _commit_changes(
             trailers += f"\nSwarm-Spec-Hash: {spec_hash_value}"
         if run_id:
             trailers += f"\nSwarm-Run: {run_id}"
+    if allow_empty and not in_scope:
+        trailers += "\nSwarm-Vacancy: 1"
     msg = subject + trailers
+    commit_args = ["git", "commit"]
+    if allow_empty and not in_scope:
+        commit_args.append("--allow-empty")
+    commit_args += ["-m", msg]
 
     if os.getenv("SWARM_MERGE_MODE", "merge").lower() == "direct":
-        rc, out = _sh(["git", "add", "-A", "--", *in_scope])
-        if rc != 0:
-            rec["commit"] = f"git add failed: {out}"
-            return rec
-        rc, out = _sh(["git", "commit", "-m", msg])
+        if in_scope:
+            rc, out = _sh(["git", "add", "-A", "--", *in_scope])
+            if rc != 0:
+                rec["commit"] = f"git add failed: {out}"
+                return rec
+        rc, out = _sh(commit_args)
         if rc != 0:
             rec["commit"] = f"git commit failed: {out}"
             return rec
@@ -278,12 +286,13 @@ def _commit_changes(
     if rc != 0:
         rec["commit"] = f"git switch -c {branch} failed: {out}"
         return rec
-    rc, out = _git(["add", "-A", "--", *in_scope])
-    if rc != 0:
-        rec["commit"] = f"git add failed: {out}"
-        _git(["switch", base])
-        return rec
-    rc, out = _git(["commit", "-m", msg])
+    if in_scope:
+        rc, out = _git(["add", "-A", "--", *in_scope])
+        if rc != 0:
+            rec["commit"] = f"git add failed: {out}"
+            _git(["switch", base])
+            return rec
+    rc, out = _git(commit_args[1:])
     if rc != 0:
         rec["commit"] = f"git commit failed: {out}"
         _git(["switch", base])
@@ -812,6 +821,7 @@ class SwarmFlow(Flow[SwarmState]):
         *,
         task_hash_value: str = "",
         spec_hash_value: str = "",
+        allow_empty: bool = False,
     ) -> dict[str, str]:
         """Commit + push run-delta in-scope changes after a green run."""
         return _commit_changes(
@@ -822,7 +832,45 @@ class SwarmFlow(Flow[SwarmState]):
             task_hash_value=task_hash_value,
             spec_hash_value=spec_hash_value,
             run_id=self.run_dir.name,
+            allow_empty=allow_empty,
         )
+
+    def _in_scope_dirty(self) -> list[str]:
+        from swarm.tools_guarded import _git_changed, is_secret_path, scope_violations
+
+        scope = _resolve_scope()
+        return sorted(
+            path
+            for path in _git_changed()
+            if not is_secret_path(path) and path not in scope_violations([path], scope)
+        )
+
+    def _recover_prior_delta(self, task: Any) -> tuple[list[str], str]:
+        """Adopt work left dirty by this task's interrupted run.
+
+        Only when the current in-scope dirty set exactly matches the prior
+        checkpoint/run delta, so unrelated human work is never committed.
+        """
+        prev = _previous_run(REPO_ROOT, self.state.spec_dir, str(task.id), self.run_dir)
+        if prev is None or _run_status(prev) not in ("killed", "interrupted", ""):
+            return [], ""
+        candidates: set[str] = set()
+        try:
+            prog = json.loads((prev / "progress.json").read_text())
+            candidates.update((prog.get("delta_hashes") or {}).keys())
+        except (OSError, json.JSONDecodeError):
+            pass
+        try:
+            rec = json.loads((prev / "run.json").read_text())
+            candidates.update(rec.get("changed_files") or [])
+        except (OSError, json.JSONDecodeError):
+            pass
+        if not candidates:
+            return [], ""
+        dirty = set(self._in_scope_dirty())
+        if dirty != candidates:
+            return [], ""
+        return sorted(candidates), prev.name
 
     def _delete_progress(self) -> None:
         try:
@@ -1198,13 +1246,36 @@ class SwarmFlow(Flow[SwarmState]):
             "recovery": self.state.recovery,
             "recovery_note": self.state.recovery_note,
         }
-        if status == "green":
+        allow_empty = False
+        if status == "green":  # noqa: SIM102 - recovery block is intentionally separate
             if not in_scope:
-                # Fresh or cached plan that changed nothing in scope = vacuous pass.
-                # Runs BEFORE autocommit: committing would wipe the worktree evidence.
-                status = "needs_human"
-                payload["vacancy_note"] = "green gates but no in-scope changes from this run"
-            elif self.state.review_verdict != "pass":
+                # Nothing new from this run. Recover work left by the same task's
+                # interrupted run, else record an empty green commit (already done).
+                recovered, prev_name = self._recover_prior_delta(task) if task else ([], "")
+                dirty_in_scope = self._in_scope_dirty()
+                if recovered:
+                    changed = recovered
+                    in_scope = recovered
+                    in_scope_hashes = hash_paths(in_scope)
+                    payload["changed_files"] = changed
+                    payload["in_scope_changes"] = in_scope
+                    payload["recovered_from"] = prev_name
+                    payload["vacancy_note"] = (
+                        f"recovered pre-existing in-scope work from {prev_name}"
+                    )
+                elif not dirty_in_scope:
+                    allow_empty = True
+                    payload["vacancy_note"] = (
+                        "no in-scope changes; recording an empty green commit (already satisfied)"
+                    )
+                else:
+                    status = "needs_human"
+                    payload["vacancy_note"] = (
+                        "green gates but in-scope work is pre-existing/unrelated: "
+                        f"{dirty_in_scope}"
+                    )
+        if status == "green":
+            if self.state.review_verdict != "pass":
                 status = "needs_human"
                 payload["review_note"] = f"reviewer verdict was {self.state.review_verdict!r}, not PASS"
             elif self._require_approval and not approved:
@@ -1221,6 +1292,7 @@ class SwarmFlow(Flow[SwarmState]):
                     changed,
                     task_hash_value=task_hash_value,
                     spec_hash_value=spec_hash_value,
+                    allow_empty=allow_empty,
                 )
                 payload["autocommit"] = rec
                 if rec.get("ok") == "1":

@@ -198,8 +198,10 @@ Each run writes:
 - `swarm/runs/<ts>/events.jsonl` — streamed agent events; `usage.json` when available.
 Tail mode follows the loop: when a newer run becomes `latest`, the dashboard jumps to it
 (task list + plan note re-sync). Plan validation: planner output without `STEP` lines fails
-the run instead of executing garbage; a fresh plan producing no in-scope changes is
-`needs_human` (vacuous pass), never green.
+the run instead of executing garbage. A run with no new in-scope changes recovers the same
+task's interrupted work when the dirty set matches exactly; otherwise it records an empty
+green commit (`Swarm-Vacancy: 1`) and advances. Only unrelated dirty in-scope work still
+stops as `needs_human`.
 
 ## Agent tools (guarded, `swarm/tools_guarded.py`)
 - `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail, **coder-scope check**, secret-path refusal.
@@ -219,7 +221,9 @@ round: Coder (+ Reviewer re-verify) with the gate transcript, max 2 rounds
 Green is deliberately strict (012 AC-4/AC-6):
 1. every gate exits `0` (including the run-delta scope gate);
 2. the Reviewer's final word is `PASS` (missing/`BLOCKED` → `needs_human`);
-3. at least one in-scope file changed **by this run** (cached-plan runs too; no vacuous green);
+3. a non-empty in-scope run delta, or the same task's recovered interrupted delta, or an
+   empty green commit when the tree is already clean/satisfied (never a blind commit of
+   unrelated dirty work);
 4. approval is present when `SWARM_REQUIRE_APPROVAL=1`/`--require-approval`;
 5. commit + push succeed. `commit_failed`/`push_failed`/`merge_failed` are not green.
 
@@ -394,7 +398,7 @@ flowchart TB
     REV2 --> GATES2["Flow gates"]
     GATES2 -->|green| COMMIT
     GATES2 -->|red| HUMAN["needs_human"]
-    GATES -->|green but no changes| VACANT["needs_human<br/>(vacuous pass)"]
+    GATES -->|green but no changes| VACANT["recover prior work / empty green commit"]
     P -->|unparseable, replan ≤2| P
     P -->|still unusable| PLANFAIL["crew_error<br/>(unusable plan)"]
     STEPS -.->|free-models-per-day 429| Q["quota_exhausted<br/>pilot stops + report"]
