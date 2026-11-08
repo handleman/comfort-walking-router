@@ -42,12 +42,13 @@ FIX_RULES = (
     "modules); sync/async must match (never await a sync function — make the caller "
     "match its callees); implementations must match their ABC signatures. Run "
     "`ruff check --fix .` first for mechanical nits, then hand-fix the rest. "
-    "If the transcript contains svelte-check/TypeScript errors, diagnose the actual "
-    "type mismatch before editing: read the failing expression, infer the type from the "
-    "API response/contract or an existing interface, reuse/extend that type, and narrow "
-    "unions with real guards. Then verify with `npm --prefix frontend run check`. "
-    "Never silence the checker with `any`, `@ts-ignore`, or by deleting/disabling the "
-    "feature; a smaller feature is not a valid fix. "
+    "If the transcript contains svelte-check/TypeScript errors, diagnose the real "
+    "mismatch first: read the failing expression, infer the type from the API "
+    "response/contract or an existing interface, reuse/extend that type, and narrow "
+    "unions with real guards. Try that before any escape. If a correct typing is "
+    "genuinely impossible within this task, a narrow last-resort escape (`any` on one "
+    "value or `@ts-ignore` on one line) is allowed — say why in your final answer. "
+    "Never delete or disable the feature, and never blanket-suppress a file. "
     "Delete stray files you created at wrong paths instead of leaving them."
 )
 MAX_STEPS = 8
@@ -80,8 +81,9 @@ def _stack_hint(task: SpecTask) -> str:
             "This is frontend work: Svelte/TypeScript/npm; keep `npm run check`/`build` green. "
             "Treat TypeScript errors as design feedback: read the failing expression, infer the "
             "type from the API response/contract or the existing interface, reuse or extend that "
-            "type, and narrow unions properly. Never silence errors with `any`, `@ts-ignore`, or "
-            "by deleting/disabling the feature."
+            "type, and narrow unions properly. Try that first. If no correct typing is possible "
+            "in the task, a narrow last-resort `any`/`@ts-ignore` is acceptable with an "
+            "explanation; deleting/disabling the feature or blanket-suppressing the file is not."
         )
     if role == "Test Coder":
         return "This is test work: add focused pytest coverage; do not change behavior beyond the brief."
@@ -110,8 +112,9 @@ def _reviewer() -> Agent:
         goal="Block done unless pytest+ruff+mypy (+npm check) evidence is attached and green.",
         backstory=(
             "You verify with Guarded Shell and report exit codes honestly. "
-            "A TypeScript fix that uses `any`, `@ts-ignore`, or removes/disables the "
-            "feature instead of resolving the type is BLOCKED."
+            "Prefer real type fixes. A fix that removes/disables the feature or "
+            "blanket-suppresses types is BLOCKED; a narrow, explained last-resort "
+            "`any`/`@ts-ignore` may PASS when gates are green and the feature is intact."
         ),
         llm=reviewer_llm(),
         tools=[TrimmedFileReadTool(), ShellTool()],
@@ -182,8 +185,9 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
             "If frontend files changed, also run `npm --prefix frontend run check` and include its exit code. "
             "Also list changed files via `git status --short`: if the coder changed nothing "
             "relevant to the brief, verdict BLOCKED (no-op), never PASS on an empty diff. "
-            "If frontend/TS errors were silenced with `any`, `@ts-ignore`, or by removing the "
-            "feature, verdict BLOCKED. "
+            "If frontend/TS errors were suppressed with a blanket `any`/`@ts-ignore` or by "
+            "removing/disabling the feature, verdict BLOCKED; a narrow, explained last-resort "
+            "escape is acceptable when the feature is intact. "
             "End with exactly one verdict word: PASS or BLOCKED."
         ),
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit and PASS/BLOCKED verdict.",
@@ -248,7 +252,7 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         agent=coder,
     )
     t_verify = Task(
-        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Reject `any`/`@ts-ignore`/feature-removal dodges. End with PASS or BLOCKED.",
+        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. End with PASS or BLOCKED.",
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
         agent=reviewer,
         context=[t_fix],
@@ -292,7 +296,7 @@ def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         agent=senior,
     )
     t_verify = Task(
-        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Reject `any`/`@ts-ignore`/feature-removal dodges. End with PASS or BLOCKED.",
+        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. End with PASS or BLOCKED.",
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
         agent=reviewer,
         context=[t_fix],

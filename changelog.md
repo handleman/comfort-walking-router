@@ -1,7 +1,7 @@
 # Changelog
 
 ## 2026-11-08
-- swarm: T10 feedback loop — `npm --prefix frontend run check` is now a flow gate when `frontend/node_modules` exists, so TypeScript/svelte-check errors reach the coder fix loop instead of stopping at reviewer BLOCKED; fix/senior/reviewer prompts require diagnosing the type mismatch (infer/reuse types) and reject `any`/`@ts-ignore`/feature removal
+- swarm: T10 feedback loop — `npm --prefix frontend run check` is now a flow gate when `frontend/node_modules` exists, so TypeScript/svelte-check errors reach the coder fix loop instead of stopping at reviewer BLOCKED; fix/senior/reviewer prompts require diagnosing the type mismatch first (infer/reuse types), allow a narrow explained `any`/`@ts-ignore` only as a last resort, and still block feature removal or blanket suppression
 - swarm: dashboard `h` opens a scrollable human log (status, notes, reviewer output, gate transcript, changed files, last events); `H` replays history; `run.json` now stores `review_tail` so reviewer output survives `result_tail` truncation
 - swarm: 013 Phase 2 — done ledger from commit trailers (`Swarm-Task`/`Task-Hash`/`Spec-Hash`) so green-but-unchecked tasks are skipped and spec/plan edits reopen them (cache fallback for shallow history); `make swarm-approve`/`--approve`/TUI `a` commit a held run's verified delta through the merge queue (refuses on file/HEAD/in-scope drift); atomic per-step `progress.json` checkpoints resume killed runs after plan/file/age validation, with gates+reviewer always rerun
 - specs: add `013-dark-factory-phase-2` (done ledger, approval-resume commit, crash checkpoints); control-plane spec is skipped by the queue
