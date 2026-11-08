@@ -35,7 +35,17 @@ Keep the 009 shape (`Flow` → planner → micro-step coders → reviewer → ga
 
 ## Status model
 `green` only when every condition passes. Non-green is explicit:
-`needs_human` (gates red, reviewer blocked/unknown, vacancy, approval missing when not configured), `awaiting_approval`, `commit_failed`, `push_failed`, `crew_error`, `quota_exhausted`, `interrupted`.
+`needs_human` (gates red, reviewer blocked/unknown, vacancy, approval missing when not configured), `awaiting_approval`, `commit_failed`, `push_failed`, `crew_error`, `quota_exhausted`, `budget_exhausted`, `interrupted`, `preflight_failed`.
+
+## Phase 1 (T11–T16, implemented 2026-11-08)
+- **Usage/cost (T11).** `_kickoff` folds `CrewOutput.token_usage` into `SwarmState` (prompt/completion/cached/total, LLM calls, models). `swarm/usage.py` prices the run: local + `:free` = `0.0`, one known paid model = estimate, unknown/multiple paid = `null`. `run.json` gains `usage` with start/finish/duration; the TUI renders tokens/cost instead of `cost=$0`.
+- **Budgets (T14).** `SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS` are checked after every kickoff; exceeding one raises `_BudgetExhausted` → `budget_exhausted` + `budget_note`. `0` disables a limit.
+- **Resilience (T13).** `_kickoff` takes a crew *builder* so a step can be rebuilt. Transient 429/timeout/5xx retry with 1s→8s backoff (3 attempts). A daily-quota error calls `activate_fallbacks()` and retries once with `SWARM_<ROLE>_FALLBACK_MODEL` (local Qwen default; senior prefers cheap Zen when paid is allowed), then `quota_exhausted`.
+- **Lifecycle (T15).** `SwarmListener` records `(event, handler)` pairs; `teardown()` calls `crewai_event_bus.off` per flow (the queue object stays for the TUI). Tail mode seeks a byte offset and buffers partial lines.
+- **Preflight (T12).** `swarm/preflight.py` validates roles/keys/Ollama/cloud ids/venvs/gates before the first LLM call; `preflight_failed` stops the run.
+- **CI (T16).** `.github/workflows/ci.yml`: app gates, harness tests, frontend check/build, and a post-merge smoke job on `main`.
+
+Remaining: **T17** container sandbox (process-level guards only today), **T18** branch-per-task + merge queue + rollback (still commits to the current branch).
 
 ## Risks / Open Questions
 - **Run-delta baseline** uses changed-file hashes. A file edited and then restored to its baseline hash is correctly “unchanged”; a file already dirty and further edited is correctly attributed to the run.
