@@ -21,6 +21,11 @@ def test_known_paid_price_is_estimated():
     assert cost == 0.4  # (0.10 + 0.30)
 
 
+def test_price_lookup_survives_stripped_prefix():
+    # CrewAI's LLM.model drops the `zen/` routing prefix.
+    assert estimate_cost({"glm-5.3-flash": (1_000_000, 0)}) == 0.1
+
+
 def test_unknown_paid_price_is_none_not_fake_zero():
     assert estimate_cost({"openrouter/vendor/mystery": (100, 100)}) is None
 

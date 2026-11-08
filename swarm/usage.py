@@ -18,6 +18,16 @@ PRICES_USD_PER_M: dict[str, tuple[float, float]] = {
 }
 
 
+def _rate(model: str) -> tuple[float, float] | None:
+    """Price lookup tolerant of CrewAI stripping the routing prefix."""
+    if model in PRICES_USD_PER_M:
+        return PRICES_USD_PER_M[model]
+    for prefix in ("zen/", "openrouter/"):
+        if prefix + model in PRICES_USD_PER_M:
+            return PRICES_USD_PER_M[prefix + model]
+    return None
+
+
 def is_free(model: str) -> bool:
     return (
         model.startswith("ollama/")
@@ -33,7 +43,7 @@ def estimate_cost(per_model: dict[str, tuple[int, int]]) -> float | None:
     for model, (prompt, completion) in per_model.items():
         if is_free(model):
             continue
-        rate = PRICES_USD_PER_M.get(model)
+        rate = _rate(model)
         if rate is None:
             return None
         total += prompt / 1_000_000 * rate[0] + completion / 1_000_000 * rate[1]
@@ -53,7 +63,7 @@ def estimate_run_cost(
         return 0.0
     if len(set(paid)) != 1:
         return None
-    rate = PRICES_USD_PER_M.get(paid[0])
+    rate = _rate(paid[0])
     if rate is None:
         return None
     total = prompt_tokens / 1_000_000 * rate[0] + completion_tokens / 1_000_000 * rate[1]
