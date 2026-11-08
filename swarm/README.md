@@ -269,14 +269,27 @@ Merge conflicts abort the merge, leave the branch intact, and stop with
 make swarm-sandbox                       # build + run the pilot in Docker
 ./swarm/sandbox.sh --dry-run 001 T3      # print the mount/run command, touch nothing
 ```
-The image (`swarm/docker/Dockerfile`) has app + harness deps and the gate binaries.
-At runtime the **only mount is the repo** (`$PWD:/work`); no HOME, SSH agent, or
-caches, with `--cap-drop=ALL`, `no-new-privileges`, PID/memory caps, and the host
-UID. Keys come from `--env-file .env` (values, not a mounted file).
+Needs a Docker daemon. On macOS without Docker Desktop, Colima works:
+```bash
+brew install colima docker        # already installed here
+colima start --cpu 4 --memory 8 --disk 60   # 8 GB keeps the image build happy
+docker context use colima         # `colima start` usually selects it already
+```
+Verified 2026-11-08 with Colima (8 GB): image build, imports, the full 148-test
+harness suite inside the container, OpenRouter egress, Ollama via
+`host.docker.internal`, and a real coder+planner model call.
 
-- Ollama must listen beyond loopback: `OLLAMA_HOST=0.0.0.0 ollama serve`; the
-  container reaches it at `host.docker.internal:11434` (override with
-  `SWARM_SANDBOX_OLLAMA_URL`).
+The image (`swarm/docker/Dockerfile`) has app + harness deps and the gate binaries.
+At runtime the **only mounts are the repo** (`$PWD:/work`, rw) and a read-only
+`/dev/null` overlay on `.env`, so the coder process/tools cannot read secrets from
+the repo; keys arrive as env values via `--env-file`. No HOME, SSH agent, or host
+caches are mounted, with `--cap-drop=ALL`, `no-new-privileges`, PID/memory caps,
+and the host UID.
+
+- Ollama: the container reaches the host at `host.docker.internal:11434`
+  (override with `SWARM_SANDBOX_OLLAMA_URL`). With Colima this works even when
+  Ollama listens on `127.0.0.1`; on plain Linux, bind it with
+  `OLLAMA_HOST=0.0.0.0 ollama serve`.
 - Commits default to **off** in the sandbox (no git credentials): review and commit
   on the host. Opt in with `SWARM_SANDBOX_ALLOW_COMMIT=1`; for SSH remotes also set
   `SWARM_SANDBOX_SSH=1` to mount `~/.ssh` read-only.

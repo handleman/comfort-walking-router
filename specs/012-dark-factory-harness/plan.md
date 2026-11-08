@@ -45,7 +45,10 @@ Keep the 009 shape (`Flow` → planner → micro-step coders → reviewer → ga
 - **Preflight (T12).** `swarm/preflight.py` validates roles/keys/Ollama/cloud ids/venvs/gates before the first LLM call; `preflight_failed` stops the run.
 - **CI (T16).** `.github/workflows/ci.yml`: app gates, harness tests, frontend check/build, and a post-merge smoke job on `main`.
 
-Remaining: **T17** container sandbox config has landed but is unverified (no Docker daemon on this machine). **T18** is done: each green task commits on `swarm/<spec>-<task>`, pushes it, `--no-ff` merges into the base branch, pushes the base, and rolls back the local merge if that push fails (`SWARM_MERGE_MODE=direct` restores the old behavior).
+Phase 1 is complete (T11–T18). **T17** sandbox verified with Colima: image build, in-container tests,
+OpenRouter/Ollama reachability, repo-only mount with `.env` masked. **T18**: each green task commits on
+`swarm/<spec>-<task>`, pushes it, `--no-ff` merges into the base branch, pushes the base, and rolls back
+the local merge if that push fails (`SWARM_MERGE_MODE=direct` restores the old behavior).
 
 ## Risks / Open Questions
 - **Run-delta baseline** uses changed-file hashes. A file edited and then restored to its baseline hash is correctly “unchanged”; a file already dirty and further edited is correctly attributed to the run.

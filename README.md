@@ -62,7 +62,7 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-08: 4 app tests + 117 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
+Last verified 2026-11-08: 4 app tests + 149 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
@@ -89,7 +89,8 @@ The dashboard (`make swarm-dash`) shows the queue with per-task outcomes, models
 budget gauges, gate exit codes, recent runs, and live agent panes (ADR-011).
 Green runs commit on `swarm/<spec>-<task>`, push, `--no-ff` merge into the base branch, then push
 (conflicts stop with `merge_failed`; `SWARM_MERGE_MODE=direct` opts out).
-`make swarm-sandbox` runs the pilot in Docker with the repo as the only mount.
+`make swarm-sandbox` runs the pilot in Docker with the repo as the only writable mount
+(plus a read-only `/dev/null` over `.env`); on macOS use `colima start --cpu 4 --memory 8 --disk 60`.
 `commit_failed`/`push_failed` are not green.
 Per-run budgets (`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS`) stop a
 runaway loop with `budget_exhausted`; rate limits retry with backoff and fallback models.

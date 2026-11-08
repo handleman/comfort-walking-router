@@ -2,6 +2,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[2]
 
 
@@ -46,6 +48,12 @@ def test_sandbox_can_opt_into_commits():
 def test_sandbox_ssh_mount_is_opt_in():
     out = _dry(env={"SWARM_SANDBOX_SSH": "1"}).stdout
     assert ".ssh:/tmp/.ssh:ro" in out
+
+
+def test_sandbox_masks_dotenv_when_present():
+    if not (REPO / ".env").is_file():
+        pytest.skip("no .env in this checkout")
+    assert "/dev/null:/work/.env:ro" in _dry().stdout
 
 
 def test_dockerfile_and_build_context_are_sane():
