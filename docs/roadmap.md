@@ -21,7 +21,7 @@
 - Pure CrewAI coder swarm + Textual console dashboard implementing specs task-by-task, free-first routing (local Ollama Qwen drafts → OpenRouter `:free` planner/reviewer → Zen free fallback, paid opt-in only).
 - Pilot progress: `001-T1`..`T5` and `011-T1` autocommitted green at $0 with `run.json` traces + constitution gates. Spec: `specs/009-swarm-harness/`.
 - `012-dark-factory-harness` is complete (Phase 0 + Phase 1): truthful green, guarded tools, preflight, budgets, fallback/backoff, branch-per-task merge queue, repo-only sandbox, operator dashboard (ADR-011).
-- `013-dark-factory-phase-2` is drafted: commit-trailer done ledger (no spec edits), approval-resume commit for held runs, and per-step crash checkpoints. Control-plane spec, skipped by the queue.
+- `013-dark-factory-phase-2` is implemented: commit-trailer done ledger (no spec edits), approval-resume commit for held runs, and per-step crash checkpoints. Control-plane spec, skipped by the queue.
 
 ## 4 — Non-goals (no spec yet)
 - Turn-by-turn, mobile native, offline maps.

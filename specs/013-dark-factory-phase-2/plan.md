@@ -1,6 +1,6 @@
 # 013 Dark-Factory Phase 2 — Plan
 
-References `specs/013-dark-factory-phase-2/spec.md` AC-1–AC-10. Builds on 012; keeps the `Flow` shape (planner → micro-step coders → reviewer → gates → branch/merge → next task) and the rule that the swarm never edits `specs/`.
+Status: complete (2026-11-08). References `specs/013-dark-factory-phase-2/spec.md` AC-1–AC-10. Builds on 012; keeps the `Flow` shape (planner → micro-step coders → reviewer → gates → branch/merge → next task) and the rule that the swarm never edits `specs/`.
 
 ## Approach
 

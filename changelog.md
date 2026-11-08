@@ -1,7 +1,8 @@
 # Changelog
 
 ## 2026-11-08
-- specs: add `013-dark-factory-phase-2` (done ledger from commit trailers, approval-resume commit for held runs, per-step crash checkpoints); control-plane spec is skipped by the queue
+- swarm: 013 Phase 2 — done ledger from commit trailers (`Swarm-Task`/`Task-Hash`/`Spec-Hash`) so green-but-unchecked tasks are skipped and spec/plan edits reopen them (cache fallback for shallow history); `make swarm-approve`/`--approve`/TUI `a` commit a held run's verified delta through the merge queue (refuses on file/HEAD/in-scope drift); atomic per-step `progress.json` checkpoints resume killed runs after plan/file/age validation, with gates+reviewer always rerun
+- specs: add `013-dark-factory-phase-2` (done ledger, approval-resume commit, crash checkpoints); control-plane spec is skipped by the queue
 - docs: close 012 — spec status now "complete" (Phase 0 + Phase 1), scope/out-of-scope refreshed, plan intro and README/roadmap updated; T16 still recorded as withdrawn
 - repo: remove the GitHub Actions workflow at the user's request; all gates are local (`make test`, `make swarm-test`, `make lint`, `make typecheck`, frontend `npm run check/build`)
 - swarm: 012 T18 — green commits now run on `swarm/<spec>-<task>`, push the branch, `--no-ff` merge into the base branch, push the base, and `reset --hard` the merge if that final push fails; conflicts abort with `merge_failed`, `SWARM_MERGE_MODE=direct` restores the old path; real-git integration test

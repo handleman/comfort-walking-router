@@ -134,6 +134,15 @@ def run_delta(baseline: dict[str, str]) -> list[str]:
     return sorted(p for p in set(baseline) | set(current) if baseline.get(p) != current.get(p))
 
 
+def hash_paths(paths: list[str]) -> dict[str, str]:
+    """Content hash per path; `<missing>` marks a deleted/not-yet-created path."""
+    out: dict[str, str] = {}
+    for p in paths:
+        digest = _digest(Path(REPO_ROOT) / p)
+        out[p] = digest if digest is not None else "<missing>"
+    return out
+
+
 def in_scope_changes(changed: list[str], scope: tuple[str, ...] | None = None) -> list[str]:
     """Run-delta subset that the coder is allowed to own."""
     return [p for p in changed if in_scope(p, scope) and not is_secret_path(p)]

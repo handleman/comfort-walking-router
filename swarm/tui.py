@@ -767,6 +767,21 @@ class SwarmTUI(App[None]):
     def action_approve(self) -> None:
         if not self._run_dir:
             return
+        status = ""
+        try:
+            status = str(json.loads((self._run_dir / "run.json").read_text()).get("status", ""))
+        except (OSError, json.JSONDecodeError):
+            status = ""
+        if status == "awaiting_approval":
+            from swarm.flow import approve_held_run
+
+            result = approve_held_run(REPO_ROOT, self._spec, self._task_id)
+            if result.get("ok") == "1":
+                self._set_status(f"approved+committed {self._run_dir.name}")
+                self._refresh_status()
+            else:
+                self._set_status(f"approval refused: {result.get('note')}")
+            return
         (self._run_dir / "approved.json").write_text('{"approved": true}')
         try:
             from swarm.flow import grant_approval

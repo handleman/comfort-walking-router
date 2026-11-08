@@ -61,6 +61,9 @@ class SwarmState(BaseModel):
     models_used: list[str] = []
     started_at: str = ""
     finished_at: str = ""
+    resumed_from_step: int = 0
+    recovery: str = ""
+    recovery_note: str = ""
 
 
 class _QuotaExhausted(SystemExit):
@@ -190,6 +193,10 @@ def _commit_changes(
     brief: str,
     paths: list[str] | None = None,
     scope: tuple[str, ...] | None = None,
+    *,
+    task_hash_value: str = "",
+    spec_hash_value: str = "",
+    run_id: str = "",
 ) -> dict[str, str]:
     """Commit + push only the run-delta paths that are in scope.
 
@@ -197,6 +204,9 @@ def _commit_changes(
     commit on `swarm/<spec>-<task>`, push it, `--no-ff` merge into the base
     branch, push the base, and roll the merge back if that final push fails.
     `SWARM_MERGE_MODE=direct` restores the old commit-straight-to-base behavior.
+
+    013: when hashes are supplied, the commit body carries the done-ledger
+    trailers (`Swarm-Task`, `Swarm-Task-Hash`, `Swarm-Spec-Hash`, `Swarm-Run`).
 
     Returns ``{commit, push, ok, branch, base, merge, rollback}``;
     ``ok == "0"`` means the run must not be green.
@@ -220,7 +230,15 @@ def _commit_changes(
         p = subprocess.run(args, check=False, cwd=REPO_ROOT, capture_output=True, text=True, timeout=120)
         return p.returncode, (p.stdout + p.stderr)[-500:]
 
-    msg = f"swarm: {spec_id}-{task_id} green — {brief[:80]} (autocommit)"
+    subject = f"swarm: {spec_id}-{task_id} green — {brief[:80]} (autocommit)"
+    trailers = ""
+    if task_hash_value:
+        trailers = f"\n\nSwarm-Task: {spec_id}/{task_id}\nSwarm-Task-Hash: {task_hash_value}"
+        if spec_hash_value:
+            trailers += f"\nSwarm-Spec-Hash: {spec_hash_value}"
+        if run_id:
+            trailers += f"\nSwarm-Run: {run_id}"
+    msg = subject + trailers
 
     if os.getenv("SWARM_MERGE_MODE", "merge").lower() == "direct":
         rc, out = _sh(["git", "add", "-A", "--", *in_scope])
@@ -397,6 +415,214 @@ def grant_approval(spec_dir: str, task_id: str) -> Path:
     return p
 
 
+def _run_status(run_dir: Path) -> str:
+    """Status of a previous run; meta-only means the process was killed."""
+    try:
+        return str(json.loads((run_dir / "run.json").read_text()).get("status", ""))
+    except (OSError, json.JSONDecodeError):
+        return "killed"
+
+
+def _previous_run(
+    repo_root: Path,
+    spec_dir: str,
+    task_id: str,
+    current_run: Path | None,
+) -> Path | None:
+    """Newest earlier run for the same spec/task."""
+    runs = repo_root / "swarm" / "runs"
+    if not runs.is_dir():
+        return None
+    dirs = sorted(
+        (p for p in runs.iterdir() if p.is_dir() and p.name[:1].isdigit()),
+        reverse=True,
+    )
+    current = current_run.resolve() if current_run else None
+    for d in dirs:
+        if current is not None and d.resolve() == current:
+            continue
+        rec: dict[str, Any] = {}
+        for fname in ("run.json", "meta.json"):
+            try:
+                rec = json.loads((d / fname).read_text())
+                break
+            except (OSError, json.JSONDecodeError):
+                rec = {}
+        if str(rec.get("spec")) == spec_dir and str(rec.get("task")) == task_id:
+            return d
+    return None
+
+
+def load_checkpoint(
+    prev_run: Path,
+    *,
+    spec_dir: str,
+    task_id: str,
+    plan_hash: str,
+    steps: list[str],
+    max_age: int = 86400,
+    now: float | None = None,
+) -> tuple[dict[str, Any] | None, str]:
+    """Validate `progress.json`; returns (payload, '') or (None, reason)."""
+    from swarm.tools_guarded import hash_paths
+
+    try:
+        prog = json.loads((prev_run / "progress.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return None, "no progress.json"
+    if str(prog.get("spec")) != spec_dir or str(prog.get("task")) != task_id:
+        return None, "spec/task changed"
+    if str(prog.get("plan_hash")) != plan_hash:
+        return None, "plan changed"
+    if list(prog.get("steps") or []) != list(steps):
+        return None, "steps changed"
+    completed = int(prog.get("completed") or 0)
+    outputs = list(prog.get("step_outputs") or [])
+    if completed < 0 or completed > len(steps) or len(outputs) != completed:
+        return None, "malformed progress"
+    delta = prog.get("delta_hashes") or {}
+    if not isinstance(delta, dict) or hash_paths(list(delta)) != delta:
+        return None, "worktree changed"
+    try:
+        updated = dt.datetime.fromisoformat(str(prog.get("updated_at", ""))).timestamp()
+    except (TypeError, ValueError):
+        return None, "bad timestamp"
+    if (now if now is not None else time.time()) - updated > max_age:
+        return None, "checkpoint too old"
+    return prog, ""
+
+
+def _find_held_run(repo_root: Path, spec_dir: str, task_id: str) -> Path | None:
+    """Newest run for this task still parked at `awaiting_approval`."""
+    runs = repo_root / "swarm" / "runs"
+    if not runs.is_dir():
+        return None
+    dirs = sorted(
+        (p for p in runs.iterdir() if p.is_dir() and p.name[:1].isdigit()),
+        reverse=True,
+    )
+    for d in dirs:
+        try:
+            rec = json.loads((d / "run.json").read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (
+            rec.get("status") == "awaiting_approval"
+            and str(rec.get("task")) == task_id
+            and str(rec.get("spec")) == spec_dir
+        ):
+            return d
+    return None
+
+
+def approve_held_run(
+    repo_root: Path,
+    spec_prefix: str,
+    task_id: str,
+    *,
+    commit_fn: Any = None,
+) -> dict[str, Any]:
+    """Commit a held run's verified delta through the normal merge queue (013 T4/T5).
+
+    Refuses when the worktree, recorded hashes, or HEAD changed since the hold.
+    Returns ``{ok, code?, note?, run?, autocommit?}``; ``code=="none"`` means the
+    caller should fall back to the next-run approval ledger.
+    """
+    from swarm.done import record_done, spec_plan_hash, task_hash
+    from swarm.spec_loader import load_spec_tasks
+    from swarm.tools_guarded import (
+        _git_changed,
+        hash_paths,
+        is_secret_path,
+        scope_violations,
+    )
+
+    try:
+        spec_path, tasks = load_spec_tasks(repo_root, spec_prefix, task_id)
+    except (OSError, SystemExit) as e:
+        return {"ok": "0", "note": f"spec not found: {e}"}
+    if not tasks:
+        return {"ok": "0", "note": f"no task {task_id} in {spec_prefix}"}
+    task = tasks[0]
+    spec_dir = spec_path.name
+    run_dir = _find_held_run(repo_root, spec_dir, task_id)
+    if run_dir is None:
+        return {"ok": "0", "code": "none", "note": "no held run"}
+
+    try:
+        rec = json.loads((run_dir / "run.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return {"ok": "0", "note": f"unreadable run.json in {run_dir}"}
+    delta = rec.get("delta_hashes") or {}
+    if not isinstance(delta, dict) or not delta:
+        return {"ok": "0", "note": "held run has no delta hashes (rerun the task)"}
+
+    current = hash_paths(list(delta))
+    drifted = sorted(p for p, h in delta.items() if current.get(p) != h)
+    if drifted:
+        return {"ok": "0", "note": f"worktree changed since hold: {drifted}"}
+
+    scope = _resolve_scope()
+    secret = [p for p in delta if is_secret_path(p)]
+    if secret:
+        return {"ok": "0", "note": f"refused: secret path in held delta: {secret}"}
+    changed_now = _git_changed()
+    extra = [
+        p
+        for p in changed_now
+        if p not in delta and p not in scope_violations([p], scope)
+    ]
+    if extra:
+        return {"ok": "0", "note": f"new in-scope changes since hold: {extra}"}
+
+    head = str(rec.get("head", ""))
+    if head:
+        rc, _ = _git(["merge-base", "--is-ancestor", head, "HEAD"])
+        if rc != 0:
+            return {"ok": "0", "note": "HEAD no longer descends from the held run"}
+
+    commit = commit_fn or _commit_changes
+    result = commit(
+        spec_dir,
+        task_id,
+        task.brief,
+        paths=list(delta),
+        task_hash_value=task_hash(task),
+        spec_hash_value=spec_plan_hash(spec_path),
+        run_id=run_dir.name,
+    )
+    if result.get("ok") != "1":
+        rec["approval_error"] = result.get("merge") or result.get("push") or result.get("commit", "commit failed")
+        (run_dir / "run.json").write_text(json.dumps(rec, indent=2))
+        return {"ok": "0", "note": f"commit failed: {rec['approval_error']}", "autocommit": result}
+
+    rec["status"] = "green"
+    rec["approved"] = True
+    rec["autocommit"] = result
+    rec["approval"] = {
+        "mode": "resume",
+        "at": dt.datetime.now().isoformat(timespec="seconds"),
+        "run": run_dir.name,
+    }
+    rec.setdefault("done", {})["recorded"] = True
+    (run_dir / "run.json").write_text(json.dumps(rec, indent=2))
+    record_done(
+        repo_root,
+        spec_dir,
+        task_id,
+        task_hash_value=task_hash(task),
+        spec_hash_value=spec_plan_hash(spec_path),
+        run_id=run_dir.name,
+    )
+    try:
+        (run_dir / "progress.json").unlink()
+    except OSError:
+        pass
+    grant_approval(spec_dir, task_id)
+    return {"ok": "1", "run": run_dir.name, "autocommit": result}
+
+
+
 class SwarmFlow(Flow[SwarmState]):
     def __init__(
         self,
@@ -559,9 +785,88 @@ class SwarmFlow(Flow[SwarmState]):
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
 
-    def _commit_green(self, brief: str, changed: list[str]) -> dict[str, str]:
+    def _commit_green(
+        self,
+        brief: str,
+        changed: list[str],
+        *,
+        task_hash_value: str = "",
+        spec_hash_value: str = "",
+    ) -> dict[str, str]:
         """Commit + push run-delta in-scope changes after a green run."""
-        return _commit_changes(self.state.spec_dir, self.state.task_id, brief, paths=changed)
+        return _commit_changes(
+            self.state.spec_dir,
+            self.state.task_id,
+            brief,
+            paths=changed,
+            task_hash_value=task_hash_value,
+            spec_hash_value=spec_hash_value,
+            run_id=self.run_dir.name,
+        )
+
+    def _delete_progress(self) -> None:
+        try:
+            (self.run_dir / "progress.json").unlink()
+        except OSError:
+            pass
+
+    def _write_progress(
+        self,
+        plan_hash: str,
+        steps: list[str],
+        completed: int,
+        step_outputs: list[str],
+    ) -> None:
+        """Atomically persist step progress so a kill can resume (013 T6)."""
+        from swarm.tools_guarded import hash_paths, run_delta
+
+        payload = {
+            "run_id": self.run_dir.name,
+            "spec": self.state.spec_dir,
+            "task": self.state.task_id,
+            "plan_hash": plan_hash,
+            "steps": list(steps),
+            "completed": completed,
+            "step_outputs": list(step_outputs),
+            "delta_hashes": hash_paths(run_delta(self._baseline)),
+            "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
+        }
+        path = self.run_dir / "progress.json"
+        tmp = path.with_suffix(".tmp")
+        try:
+            tmp.write_text(json.dumps(payload, indent=2))
+            os.replace(tmp, path)
+        except OSError:
+            pass
+
+    def _resume_checkpoint(
+        self,
+        task: Any,
+        plan_text: str,
+        steps: list[str],
+    ) -> tuple[dict[str, Any] | None, str]:
+        """Find a valid checkpoint from a killed/interrupted previous run."""
+        prev = _previous_run(REPO_ROOT, self.state.spec_dir, str(task.id), self.run_dir)
+        if prev is None:
+            return None, ""
+        if _run_status(prev) not in ("killed", "interrupted", ""):
+            return None, ""
+        try:
+            max_age = int(os.getenv("SWARM_RESUME_MAX_AGE_SECONDS", "86400") or 86400)
+        except ValueError:
+            max_age = 86400
+        plan_hash = hashlib.sha256(plan_text.encode()).hexdigest()
+        prog, note = load_checkpoint(
+            prev,
+            spec_dir=self.state.spec_dir,
+            task_id=str(task.id),
+            plan_hash=plan_hash,
+            steps=steps,
+            max_age=max_age,
+        )
+        if prog is None:
+            return None, f"checkpoint in {prev.name} rejected: {note}"
+        return prog, ""
 
     @listen(load_spec)
     def run_crew(self, ctx: dict[str, str]) -> str:
@@ -655,16 +960,34 @@ class SwarmFlow(Flow[SwarmState]):
             if not steps:
                 raise SystemExit("planner returned no usable plan (no STEP lines or over step budget)")
             write_cached_plan(cache, plan_text, source_hash)
+            plan_hash = hashlib.sha256(plan_text.encode()).hexdigest()
+            checkpoint, recovery_note = self._resume_checkpoint(task, plan_text, steps)
+            resume_from = int(checkpoint.get("completed") or 0) if checkpoint else 0
+            checkpoint_outputs = list(checkpoint.get("step_outputs") or []) if checkpoint else []
+            if checkpoint:
+                self.state.resumed_from_step = resume_from
+                self.state.recovery = "checkpoint"
+                print(f"resuming {task.id} after step {resume_from}/{len(steps)}", flush=True)
+            elif recovery_note:
+                self.state.recovery = "restart"
+                self.state.recovery_note = recovery_note
+                print(f"restarting {task.id}: {recovery_note}", flush=True)
             gates: dict[str, int] = {}
             transcript = ""
             # Dev phase (micro-steps + review + gates + fix round), up to
             # DEV_ATTEMPTS; then senior escalation, then human.
             while True:
                 self.state.dev_attempts += 1
+                if self.state.dev_attempts > 1:
+                    resume_from = 0
+                    checkpoint_outputs = []
                 # Micro-execution: fresh coder (fresh context) per step; reviewer only at the end.
                 # A step failing STEP_ATTEMPTS times is rescued by the senior, then we continue.
-                step_outs: list[str] = []
+                step_outs: list[str] = list(checkpoint_outputs)
+                self._write_progress(plan_hash, steps, len(step_outs), step_outs)
                 for i, step in enumerate(steps, 1):
+                    if i <= resume_from:
+                        continue
                     step_out = ""
                     last_err: BaseException | None = None
                     for _ in range(STEP_ATTEMPTS):
@@ -687,6 +1010,7 @@ class SwarmFlow(Flow[SwarmState]):
                             )
                         )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
+                    self._write_progress(plan_hash, steps, i, step_outs)
                 work_summary = "\n".join(step_outs)
                 _, review_out = _kickoff(lambda work_summary=work_summary: build_review_crew(self._spec_dir, task, work_summary))
                 self.state.review_verdict = reviewer_verdict(review_out)
@@ -774,14 +1098,18 @@ class SwarmFlow(Flow[SwarmState]):
 
     @listen(gate)
     def save_run(self, status: str) -> str:
+        from swarm.done import record_done, spec_plan_hash, task_hash
         from swarm.spec_loader import load_spec_tasks
-        from swarm.tools_guarded import in_scope_changes, run_delta
+        from swarm.tools_guarded import hash_paths, in_scope_changes, run_delta
 
+        spec_path: Path | None = None
         try:
-            _, tasks = load_spec_tasks(REPO_ROOT, self.state.spec_dir, self.state.task_id)
+            spec_path, tasks = load_spec_tasks(REPO_ROOT, self.state.spec_dir, self.state.task_id)
             task = tasks[0] if tasks else None
         except (OSError, SystemExit):
             task = None
+        task_hash_value = task_hash(task) if task else ""
+        spec_hash_value = spec_plan_hash(spec_path) if spec_path else ""
         brief = task.brief if task else ""
         ac_refs = list(task.ac_refs) if task else []
         scope = _resolve_scope()
@@ -790,6 +1118,9 @@ class SwarmFlow(Flow[SwarmState]):
         approved = approval_granted(self.state.spec_dir, self.state.task_id, self.run_dir)
         self.state.changed_files = changed
         self.state.approved = approved
+        in_scope_hashes = hash_paths(in_scope)
+        head_rc, head_out = _git(["rev-parse", "HEAD"])
+        head = head_out.strip().splitlines()[-1] if head_rc == 0 and head_out.strip() else ""
         self.state.finished_at = dt.datetime.now().isoformat(timespec="seconds")
         cost = self._run_cost()
         usage = {
@@ -833,6 +1164,10 @@ class SwarmFlow(Flow[SwarmState]):
             ),
             "usage": usage,
             "budget_note": self.state.budget_note,
+            "done": {"task_hash": task_hash_value, "spec_hash": spec_hash_value, "recorded": False},
+            "resumed_from_step": self.state.resumed_from_step,
+            "recovery": self.state.recovery,
+            "recovery_note": self.state.recovery_note,
         }
         if status == "green":
             if not in_scope:
@@ -845,14 +1180,32 @@ class SwarmFlow(Flow[SwarmState]):
                 payload["review_note"] = f"reviewer verdict was {self.state.review_verdict!r}, not PASS"
             elif self._require_approval and not approved:
                 status = "awaiting_approval"
+                payload["delta_hashes"] = in_scope_hashes
+                payload["head"] = head
                 payload["approval_note"] = (
                     f"approval required: press `a` in the dashboard or run with --approve "
                     f"({approval_path(self.state.spec_dir, self.state.task_id)})"
                 )
             elif self._commit:
-                rec = self._commit_green(brief, changed)
+                rec = self._commit_green(
+                    brief,
+                    changed,
+                    task_hash_value=task_hash_value,
+                    spec_hash_value=spec_hash_value,
+                )
                 payload["autocommit"] = rec
-                if rec.get("ok") != "1":
+                if rec.get("ok") == "1":
+                    record_done(
+                        REPO_ROOT,
+                        self.state.spec_dir,
+                        self.state.task_id,
+                        task_hash_value=task_hash_value,
+                        spec_hash_value=spec_hash_value,
+                        run_id=self.run_dir.name,
+                    )
+                    payload["done"]["recorded"] = True
+                    self._delete_progress()
+                else:
                     if rec.get("merge", "").startswith(("conflict", "switch")):
                         status = "merge_failed"
                     elif rec.get("push", "").startswith("failed"):
@@ -861,6 +1214,8 @@ class SwarmFlow(Flow[SwarmState]):
                         status = "commit_failed"
                     payload["status"] = status
         payload["status"] = status
+        if status == "green":
+            self._delete_progress()
         payload["evidence"] = {
             "ac_refs": ac_refs,
             "gates": self.state.gates,
@@ -916,12 +1271,34 @@ def _next_open_spec(repo_root: Path, current_dir: str) -> tuple[str, str] | None
     return None
 
 
-def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tuple[str, str] | None:
-    """Earliest unchecked task across the queue (wrap-around after the last spec).
+def _open_task_ids(repo_root: Path, spec_path: Path, tasks: list[Any]) -> list[str]:
+    """Unchecked tasks minus done-ledger hits for the current spec/plan content."""
+    from swarm.done import done_entries, is_done, spec_plan_hash
 
-    `skip` is the last checkpoint (spec, task): a green task that was never ticked
-    must not be resumed forever when it is the only unchecked line left.
-    """
+    entries = done_entries(repo_root)
+    spec_hash = spec_plan_hash(spec_path)
+    return [
+        str(t.id)
+        for t in tasks
+        if not is_done(entries, spec_path.name, t, spec_hash)
+    ]
+
+
+def _next_todo(all_ids: list[str], todo_ids: list[str], current: str) -> str | None:
+    """Next runnable task after `current`, preserving spec order."""
+    todo = set(todo_ids)
+    try:
+        idx = all_ids.index(current)
+    except ValueError:
+        return todo_ids[0] if todo_ids else None
+    for task_id in all_ids[idx + 1 :]:
+        if task_id in todo:
+            return task_id
+    return None
+
+
+def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tuple[str, str] | None:
+    """Earliest unchecked, not-done task across the queue (wrap-around)."""
     from swarm.spec_loader import load_spec_tasks
 
     specs = repo_root / "specs"
@@ -933,12 +1310,13 @@ def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tu
         if p.is_dir() and (p / "tasks.md").is_file() and p.name not in HARNESS_SPECS
     ):
         try:
-            _, tasks = load_spec_tasks(repo_root, name, None)
+            spec_path, tasks = load_spec_tasks(repo_root, name, None)
         except (OSError, SystemExit):
             continue
-        for t in tasks:
-            if skip != (name, t.id):
-                return name, t.id
+        todo = _open_task_ids(repo_root, spec_path, tasks)
+        for task_id in todo:
+            if skip != (name, task_id):
+                return name, task_id
     return None
 
 
@@ -1013,15 +1391,12 @@ def _resume_point(repo_root: Path) -> tuple[str, str] | None:
         # Missing spec/tasks file: a red/killed checkpoint still retries as written.
         return (spec, task) if status != "green" else _first_open_task(repo_root, (spec, task))
     ids = [t.id for t in all_tasks]
+    todo_ids = _open_task_ids(repo_root, spec_path, all_tasks)
     if status != "green" and task in ids:
         return spec_path.name, task
-    if task in ids:
-        nxt = _next_after(ids, task)
-        if nxt is not None:
-            return spec_path.name, nxt
-    elif ids:
-        # Checkpoint task was marked [x] (or renamed): finish this spec first.
-        return spec_path.name, ids[0]
+    nxt = _next_todo(ids, todo_ids, task)
+    if nxt is not None:
+        return spec_path.name, nxt
     later = _next_open_spec(repo_root, spec_path.name)
     if later is not None:
         return later
@@ -1048,9 +1423,10 @@ def run_tasks(
 
     spec_path, all_tasks = load_spec_tasks(REPO_ROOT, spec_prefix, None)
     spec_dir = spec_path.name
-    ids = [t.id for t in all_tasks]
-    if start_task not in ids:
-        raise SystemExit(f"No task {start_task} in {spec_prefix} (have: {ids})")
+    all_ids = [t.id for t in all_tasks]
+    todo_ids = _open_task_ids(REPO_ROOT, spec_path, all_tasks)
+    if start_task not in all_ids:
+        raise SystemExit(f"No task {start_task} in {spec_prefix} (have: {all_ids})")
     task_id: str | None = start_task
     flow_spec = spec_prefix  # keep the original prefix form: plan-cache keys depend on it
     while True:
@@ -1067,15 +1443,16 @@ def run_tasks(
             yield flow, status
             if single or status != "green":
                 return
-            task_id = _next_after(ids, task_id)
+            task_id = _next_todo(all_ids, todo_ids, task_id)
         # Spec done and green: advance to the next spec with tasks.
         spec_dir = _spec_after(REPO_ROOT, spec_dir) or ""
         if not spec_dir:
             return
         flow_spec = spec_dir
-        _, all_tasks = load_spec_tasks(REPO_ROOT, spec_dir, None)
-        ids = [t.id for t in all_tasks]
-        task_id = ids[0] if ids else None
+        spec_path, all_tasks = load_spec_tasks(REPO_ROOT, spec_dir, None)
+        all_ids = [t.id for t in all_tasks]
+        todo_ids = _open_task_ids(REPO_ROOT, spec_path, all_tasks)
+        task_id = todo_ids[0] if todo_ids else None
 
 
 def main() -> None:
@@ -1095,7 +1472,7 @@ def main() -> None:
     ap.add_argument("--require-approval", action="store_true", default=None,
                     help="hold green runs as awaiting_approval until approved (or SWARM_REQUIRE_APPROVAL=1)")
     ap.add_argument("--approve", action="store_true", default=False,
-                    help="write the approval ledger for the given (or resumed) spec/task")
+                    help="commit a held run now, or write the approval ledger when none is held")
     args = ap.parse_args()
     if args.resume:
         pt = _resume_point(REPO_ROOT)
@@ -1111,9 +1488,16 @@ def main() -> None:
     args.spec = args.spec or "001-example-app"
     args.task = args.task or "T1"
     if args.approve:
-        p = grant_approval(args.spec, args.task)
-        print(f"approved {args.spec} {args.task} → {p}")
-        return
+        held = approve_held_run(REPO_ROOT, args.spec, args.task)
+        if held.get("ok") == "1":
+            print(f"approved+committed {args.spec} {args.task} (run {held.get('run')})")
+            return
+        if held.get("code") == "none":
+            p = grant_approval(args.spec, args.task)
+            print(f"approved {args.spec} {args.task} (no held run; ledger for the next run) → {p}")
+            return
+        print(f"approval failed: {held.get('note')}")
+        raise SystemExit(1)
     for flow, status in run_tasks(
         args.spec,
         args.task,

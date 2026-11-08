@@ -497,13 +497,16 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         _baseline: ClassVar[dict] = {}
         _started_monotonic = time.monotonic()
 
-        def _commit_green(self, brief, changed):
+        def _commit_green(self, brief, changed, **_kwargs):
             return commit_rec or {"commit": "ok", "push": "ok", "ok": "1"}
 
         def _run_cost(self):
             return 0.0
 
         def _teardown_listener(self):
+            return None
+
+        def _delete_progress(self):
             return None
 
         def _cleanup(self):
@@ -804,3 +807,70 @@ def test_merge_mode_against_real_git(tmp_path, monkeypatch):
     assert merge_subject == "merge: swarm 001-T2 green"
     assert (repo / "app" / "new.py").is_file()
     assert run("status", "--porcelain").stdout.strip() == ""
+
+
+def test_commit_emits_done_ledger_trailers(monkeypatch):
+    calls = []
+    monkeypatch.setenv("SWARM_MERGE_MODE", "direct")
+    _fake_git(monkeypatch, ["app/x.py"], calls)
+    rec = _commit_changes(
+        "001-example-app",
+        "T3",
+        "do things",
+        task_hash_value="a" * 64,
+        spec_hash_value="b" * 64,
+        run_id="run-1",
+    )
+    msg = calls[1][3]
+    assert "Swarm-Task: 001-example-app/T3" in msg
+    assert f"Swarm-Task-Hash: {'a' * 64}" in msg
+    assert f"Swarm-Spec-Hash: {'b' * 64}" in msg
+    assert "Swarm-Run: run-1" in msg
+    assert rec["ok"] == "1"
+
+
+def test_save_run_records_done_ledger(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(tmp_path, monkeypatch)
+    assert status == "green"
+    assert payload["done"]["recorded"] is True
+    assert payload["done"]["task_hash"]
+
+
+def test_save_run_hold_records_delta_hashes(tmp_path, monkeypatch):
+    status, payload = _save_run_stub(tmp_path, monkeypatch, require=True)
+    assert status == "awaiting_approval"
+    assert payload["delta_hashes"] == {"app/x.py": "<missing>"}
+    assert "head" in payload
+
+
+def test_commit_trailers_feed_the_done_ledger(tmp_path, monkeypatch):
+    import swarm.tools_guarded as tg
+    from swarm import flow
+    from swarm.done import done_entries
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _, _run = _git_init_repo(repo)
+    (repo / "app" / "new.py").write_text("y = 2\n")
+    monkeypatch.setattr(flow, "REPO_ROOT", repo)
+    monkeypatch.setattr(tg, "REPO_ROOT", repo)
+    monkeypatch.delenv("SWARM_MERGE_MODE", raising=False)
+    monkeypatch.setenv("SWARM_BASE_BRANCH", "main")
+
+    task_hash = "a" * 64
+    spec_hash = "b" * 64
+    rec = _commit_changes(
+        "001-x",
+        "T1",
+        "add new.py",
+        paths=["app/new.py"],
+        task_hash_value=task_hash,
+        spec_hash_value=spec_hash,
+        run_id="run-1",
+    )
+    assert rec["ok"] == "1", rec
+    entries = done_entries(repo)
+    entry = entries["001-x/T1"]
+    assert entry.task_hash == task_hash
+    assert entry.spec_hash == spec_hash
+    assert entry.source == "git"

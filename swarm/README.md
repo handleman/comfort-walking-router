@@ -264,6 +264,31 @@ Merge conflicts abort the merge, leave the branch intact, and stop with
 `SWARM_MERGE_MODE=direct` restores the old commit-straight-to-base path;
 `SWARM_DELETE_MERGED_BRANCH=1` deletes a merged branch locally and remotely.
 
+## Done ledger, approval resume, crash checkpoints (013)
+- **Done ledger (commit trailers).** Every green commit carries
+  `Swarm-Task: <spec>/<T n>`, `Swarm-Task-Hash` (id+brief+ACs) and
+  `Swarm-Spec-Hash` (`spec.md`+`plan.md`). Resume/auto-advance skip a task whose
+  hashes still match even when its line is still `- [ ]`; the swarm still never
+  edits `specs/`. Editing the brief/ACs *or* `spec.md`/`plan.md` reopens the task.
+  Marking `[x]` alone changes neither hash. A gitignored
+  `swarm/runs/done.json` cache covers shallow/rewritten history. An explicit
+  `./swarm/run.sh SPEC TASK` still runs that task even if done.
+- **Approval resume.** An `awaiting_approval` run records `delta_hashes` and the
+  current `head`. `make swarm-approve` / `--approve` / TUI `a` commits exactly
+  that verified delta through the branch/merge queue, rewrites the run to `green`,
+  and the next resume advances — no crew rerun. It refuses (run stays held) if the
+  recorded files changed, HEAD no longer descends from the hold, or new in-scope
+  edits appeared. Only out-of-scope human edits are ignored. With no held run, the
+  command falls back to the next-run approval ledger.
+- **Crash checkpoints.** After every micro-step the flow atomically writes
+  `progress.json` (plan hash, steps, completed index, per-step outputs, run-delta
+  hashes). A killed/interrupted run resumes at the next step only when plan, steps,
+  and file hashes still match and the checkpoint is younger than
+  `SWARM_RESUME_MAX_AGE_SECONDS` (default 86400). Gates and the reviewer always
+  rerun. Otherwise the task restarts from step 1 and `run.json` records
+  `recovery="restart"` + `recovery_note`; a checkpoint resume records
+  `resumed_from_step` and `recovery="checkpoint"`.
+
 ## Container sandbox (012 T17)
 ```bash
 make swarm-sandbox                       # build + run the pilot in Docker
@@ -375,10 +400,12 @@ swarm/.venv/bin/python -m pytest swarm/tests -v
 ```
 
 ## Traces & logs (all inside the project, never `/tmp`)
-- Pilot runs: `swarm/runs/<ts>-<pid>-<rand>/{run.json,events.jsonl,usage.json}` (+ `latest` pointer).
+- Pilot runs: `swarm/runs/<ts>-<pid>-<rand>/{run.json,events.jsonl,progress.json}` (+ `latest` pointer).
   `run.json` records brief, `ac_refs`, changed files, gates, reviewer verdict, approval,
-  commit/push result, and a compact `evidence` block.
-- Approvals: `swarm/runs/approvals/<spec>-<task>.json` (task-keyed, survives retries).
+  commit/push result, usage, done-ledger hashes, checkpoint recovery, and a compact `evidence` block.
+- Approvals: `swarm/runs/approvals/<spec>-<task>.json` (task-keyed, survives retries);
+  held-run deltas are committed by `make swarm-approve` (013).
+- Done ledger: `swarm/runs/done.json` cache (git commit trailers remain the source of truth).
 - Coordination: `swarm/runs/.lock` (flock), `swarm/runs/swarm.pid` (stop target).
 - Ad-hoc probes/debug: `swarm/runs/probes/<name>-<date>.log`. `swarm/runs/` is gitignored.
 
