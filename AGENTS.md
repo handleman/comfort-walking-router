@@ -1,21 +1,32 @@
 # AGENTS.md
 
-Greenfield repo for learning spec-driven development + swarming agents / agentic autonomous loops with CrewAI. No app or swarm code yet; specs come first.
+Learning repo for spec-driven development + swarming agents / agentic autonomous loops with CrewAI.
 
 ## State
-- Stack (proposed, unverified): Python + FastAPI + Svelte + TypeScript + Leaflet, OSM/Overpass, SQLite cache first. See `docs/tech-stack.md`.
-- No manifests yet (`pyproject.toml` / `requirements.txt` / `app/` / `frontend/package.json`), no CI. Do not assume commands work — proposed test/lint/typecheck: `pytest`, `ruff check .`, `mypy .`, `npm run check` (frontend).
-- `opencode.json`: project-local `context7` MCP (remote `https://mcp.context7.com/mcp`).
-- SDD layout (Option 2, Spec-Kit style): constitution in `.specify/memory/constitution.md`, durable docs in `docs/` (`mission.md`, `tech-stack.md`, `roadmap.md`, `architecture/` ADRs), transient work in `specs/NNN-name/` (`spec.md` → `plan.md` → `tasks.md`, `contracts/` when needed). Templates in `.specify/templates/`.
-- Swarm (learning goal 2, `specs/009-swarm-harness/`): pure CrewAI coders + parallel Textual dashboard, free-first prefix routing (Ollama local → OpenRouter `:free` → Zen free). Commands: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test`. Usage: `swarm/README.md`.
+- App MVP is runnable: FastAPI backend (`app/main.py`, `POST /route`), Svelte + Vite + Leaflet frontend (`frontend/`), SQLite cache (`cache.db`, gitignored). OSRM demo supplies interim geometry (car profile; Mapbox walking in 008). Comfort scoring is still neutral — `001-T3` / AC-2 open.
+- Specs are the source of truth: work goes `spec.md` → `plan.md` → `tasks.md` under `specs/NNN-name/`; decisions in `docs/architecture/`; durable docs in `docs/`.
+- SDD layout (Option 2, Spec-Kit style): constitution in `.specify/memory/constitution.md`, transient work in `specs/NNN-name/` (`contracts/` when needed). Templates in `.specify/templates/`.
+- Swarm (learning goal 2, `specs/009-swarm-harness/`): pure CrewAI coders + parallel Textual dashboard, free-first prefix routing (Ollama local → OpenRouter `:free` → Zen free). Usage: `swarm/README.md`.
+
+## Commands (verified 2026-11-08)
+- One command dev: `make dev` — bootstraps `.venv` + `frontend/node_modules` on first run, then backend `:8000` + frontend `:5173`; Ctrl-C stops both.
+- Install only: `make dev-setup` (Python 3.12 `.venv` from `requirements.txt` + `requirements-dev.txt`, then `npm install` in `frontend/`).
+- Run one side: `make dev-backend` (`http://localhost:8000/docs`), `make dev-frontend` (`http://localhost:5173`).
+- App tests: `make test` (`pytest`, scoped to `tests/`). Single test: `.venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v`.
+- Harness tests: `make swarm-test` (uses `swarm/.venv`).
+- Lint: `make lint` (`ruff check .`). Types: `make typecheck` (`mypy app tests`).
+- Frontend: `cd frontend && npm run check` (svelte-check), `npm run build`, `npm run dev`.
+- Swarm: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test`.
+
+## Boundaries / entrypoints
+- `app/` + `tests/` → root `.venv` (app deps only). `swarm/` → `swarm/.venv` (CrewAI). `frontend/` → npm. Do not mix them.
+- Backend entrypoint: `app/main.py` (`app = FastAPI(...)`). `app/router.py` was removed; do not reintroduce a second app/route mount.
+- API contract: `contracts/route.json` is the source of truth (ADR-005): `POST /route`, preference enum `hot`/`cloudy`, GeoJSON `geometry`, `{ code, message }` errors.
 - Do not invent commands or config. Verify via manifests/scripts before claiming a workflow exists.
 
-## When stack is chosen
-- Update this file in the same change: exact install, dev, test, lint, typecheck commands + how to run a single test.
-- Record monorepo/package boundaries and real entrypoints once they exist.
-
-## Spec-driven workflow (learning goal 1) + swarm loop (learning goal 2)
-- Spec before code: define requirements, acceptance criteria, and scope in `specs/` (or agreed location) before implementing.
-- Clarify first: when requirements are ambiguous, ask the user targeted questions (via `question` tool, 1–2 at a time) and refine the spec docs until the picture is clear. Do not guess or implement on ambiguity.
+## Spec-driven workflow
+- Spec before code: define requirements, acceptance criteria, and scope in `specs/` before implementing.
+- Clarify first: when requirements are ambiguous, ask the user targeted questions (via `question` tool, 1–2 at a time) and refine the spec docs until clear. Do not guess or implement on ambiguity.
+- Update tasks/ACs in the same change as the implementation. Record completed work and remaining blockers explicitly (see `specs/001-example-app/tasks.md` T3/T6 and `specs/011-dev-run/`).
 - Keep specs small and verifiable; link implementation back to spec items.
 - Prefer editing existing files over creating new ones; keep changes minimal per spec.

@@ -5,7 +5,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "description": "Unique identifier for the route"
+      "description": "Stable identifier derived from the query"
     },
     "name": {
       "type": "string",
@@ -22,7 +22,8 @@
         "properties": {
           "lat": {"type": "number"},
           "lng": {"type": "number"}
-        }
+        },
+        "required": ["lat", "lng"]
       }
     },
     "status": {
@@ -41,7 +42,63 @@
       "items": {
         "type": "string"
       }
+    },
+    "geometry": {
+      "$ref": "#/$defs/LineString",
+      "description": "Route geometry per ADR-005 (GeoJSON, Leaflet-native)"
+    },
+    "distance_m": {
+      "type": "number",
+      "minimum": 0
+    },
+    "duration_s": {
+      "type": "number",
+      "minimum": 0
     }
   },
-  "required": ["id", "name", "waypoints", "status", "timestamp"]
+  "required": [
+    "id",
+    "name",
+    "waypoints",
+    "status",
+    "timestamp",
+    "geometry",
+    "distance_m",
+    "duration_s"
+  ],
+  "$defs": {
+    "RouteRequest": {
+      "type": "object",
+      "properties": {
+        "start": {"type": "string", "minLength": 1},
+        "end": {"type": "string", "minLength": 1},
+        "preference": {"enum": ["hot", "cloudy", null], "default": null}
+      },
+      "required": ["start", "end"]
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "code": {"type": "string"},
+        "message": {"type": "string"}
+      },
+      "required": ["code", "message"]
+    },
+    "LineString": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "LineString"},
+        "coordinates": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      },
+      "required": ["type", "coordinates"]
+    }
+  }
 }

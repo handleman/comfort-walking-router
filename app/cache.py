@@ -1,6 +1,10 @@
 import json
 import sqlite3
 
+# Bump when the cached response shape changes; old rows stay in SQLite but are
+# never read again (the 2026-11-08 contract change made old geometries invalid).
+CACHE_VERSION = "v2"
+
 
 class Cache:
     def __init__(self, db_path: str = "cache.db"):
@@ -19,7 +23,7 @@ class Cache:
             conn.commit()
 
     def _make_key(self, start: str, end: str, preference: str | None) -> str:
-        return f"{start}|{end}|{preference or ''}"
+        return f"{CACHE_VERSION}|{start}|{end}|{preference or ''}"
 
     def get(self, key: tuple[str, str, str | None]) -> dict | None:
         start, end, preference = key

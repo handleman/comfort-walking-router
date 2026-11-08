@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-08
+- app: one-command dev startup — `make dev` bootstraps `.venv` (Python 3.12, `requirements.txt`) + `frontend/node_modules`, runs uvicorn reload `:8000` and Vite `:5173`, and stops both on Ctrl-C; added `dev-setup`, `dev-backend`, `dev-frontend`, `test`, `lint`, `typecheck`
+- app: align `POST /route` with `contracts/route.json` (request `$defs.RouteRequest`, GeoJSON `geometry`, `distance_m`, `duration_s`, `{ code, message }` errors); removed broken swarm `app/router.py`; response now wraps the existing geocode → OSRM → cache flow
+- fix: OSRM `geometries=geojson` geometry was double-wrapped into an invalid LineString; `preference` was sent as an invalid `annotations` param (all preference requests 504'd). Added OSRM/Nominatim timeouts + User-Agent, regression tests; cache keys versioned (`v2`) so pre-contract rows are ignored
+- frontend: working map search — Leaflet CSS, real map height, submit handler, loading/error states, start/end markers, `fitBounds`, explanation panel; fixed Vite plugin import (named `svelte` export), added `svelte-check`/tsconfig
+- tests: app suite `tests/` (contract shape, cache hit, 422 enum, OSRM geometry pass-through); root `pytest` scoped to app tests, harness stays `make swarm-test`
+- specs: 011 done (T1 already green in `f0b17aa`, T2–T4 completed); 001 T1/T2/T4/T5 marked done, T3 comfort scoring (Overpass + shade/sun/quiet) and T6 remain open
+- docs: `AGENTS.md`, `README.md`, `docs/tech-stack.md`, `docs/roadmap.md` record the verified commands, app/harness venv split, and neutral-score caveat
+
 ## 2026-10-11 (swarm harness)
 - fix: vacancy check runs before autocommit (committing first wiped the worktree evidence, false-flagging real green runs — caught on 001-T5)
 - specs: add 010-e2e-playwright (MVP final gate — chromium-only E2E for all user scenarios, fixtures/sim determinism, no live internet in CI); coder scope extended with `.gitignore` (008-T2 and 010-T1 both need it)

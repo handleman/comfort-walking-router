@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
     "svelte": "^4.0.0",
@@ -13,6 +14,10 @@
     "leaflet": "^1.9.0"
   },
   "devDependencies": {
+    "@tsconfig/svelte": "^5.0.0",
+    "@types/leaflet": "^1.9.0",
+    "svelte-check": "^3.8.0",
+    "typescript": "^5.4.0",
     "vite": "^5.0.0"
   }
 }

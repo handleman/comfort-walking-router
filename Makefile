@@ -1,7 +1,50 @@
 # Comfort walking router — top-level shortcuts.
-# App targets land with 001-T1 (pytest/ruff/mypy/npm). Swarm targets work now.
+# App: make dev (bootstraps deps on first run). Swarm: make swarm-*.
 
-.PHONY: swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local swarm-coder-image swarm-qa-image swarm-stop
+.PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck \
+	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
+	swarm-coder-image swarm-qa-image swarm-stop
+
+PYTHON ?= $(shell command -v python3.12 || command -v python3)
+VENV ?= .venv
+PY := $(VENV)/bin/python
+
+dev: ## Start backend :8000 + frontend :5173; Ctrl-C stops both
+	@test -x "$(PY)" || $(MAKE) --no-print-directory dev-setup-python
+	@test -d frontend/node_modules || { echo "Installing frontend dependencies..."; cd frontend && npm install; }
+	@echo "Backend:  http://localhost:8000/docs"
+	@echo "Frontend: http://localhost:5173"
+	@set -e; \
+		$(PY) -m uvicorn app.main:app --reload --port 8000 & backend=$$!; \
+		(cd frontend && ./node_modules/.bin/vite --port 5173 --strictPort) & frontend=$$!; \
+		trap 'kill $$backend $$frontend 2>/dev/null || true' INT TERM EXIT; \
+		wait
+
+dev-setup: dev-setup-python ## Install Python + frontend dependencies
+	cd frontend && npm install
+
+dev-setup-python: ## Create .venv and install Python dependencies
+	@echo "Creating $(VENV) and installing Python dependencies..."
+	$(PYTHON) -m venv $(VENV)
+	$(PY) -m pip install --upgrade pip
+	$(PY) -m pip install -r requirements.txt -r requirements-dev.txt
+
+dev-backend: ## Backend only (http://localhost:8000/docs)
+	@test -x "$(PY)" || { echo "Missing $(VENV); run: make dev-setup"; exit 1; }
+	$(PY) -m uvicorn app.main:app --reload --port 8000
+
+dev-frontend: ## Frontend only (http://localhost:5173; proxies /route to :8000)
+	@test -d frontend/node_modules || { echo "Missing frontend deps; run: make dev-setup"; exit 1; }
+	cd frontend && npm run dev -- --port 5173 --strictPort
+
+test: ## App tests (pytest)
+	$(PY) -m pytest -q
+
+lint: ## Ruff lint (app + swarm)
+	$(PY) -m ruff check .
+
+typecheck: ## Mypy typecheck (app + tests)
+	$(PY) -m mypy app tests
 
 swarm-run: ## Pilot run: make swarm-run [SPEC=001] [TASK=T1]
 	./swarm/run.sh $(SPEC) $(TASK)

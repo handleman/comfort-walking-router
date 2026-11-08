@@ -2,6 +2,11 @@
 # below are scoped to harness files where broad-except resilience is deliberate:
 # event listeners and the TUI must never crash the pilot on transient LLM/tool
 # errors, and gate/flow fallbacks map failures to codes, not tracebacks.
+[tool.pytest.ini_options]
+# `pytest` at the root runs the app suite; the harness suite has its own venv
+# (CrewAI) and runs explicitly: make swarm-test.
+testpaths = ["tests"]
+
 [tool.ruff.lint.per-file-ignores]
 "swarm/events.py" = ["BLE001", "S110"]
 "swarm/tui.py" = ["BLE001", "S110"]
