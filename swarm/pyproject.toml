@@ -20,3 +20,10 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# This is a dependency-only install (`swarm[dev]`); the harness is imported as
+# `swarm.*` from the repo root. Stop setuptools flat-layout discovery from
+# treating source dirs (docker/, ollama/) as packages.
+[tool.setuptools]
+packages = []
+py-modules = []
