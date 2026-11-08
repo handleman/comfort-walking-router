@@ -31,8 +31,13 @@ class WeatherCache:
         """Build a cache key from coordinates rounded to 2 decimals."""
         return f"weather|{round(lat, 2):.2f}|{round(lng, 2):.2f}"
 
-    def get(self, lat: float, lng: float) -> dict | None:
-        """Return the cached weather payload for coordinates, or None if missing/expired."""
+    def get(self, lat, lng=None) -> dict | None:
+        """Return the cached weather payload for coordinates, or None if missing/expired.
+
+        Accepts either ``get(midpoint)`` or the legacy ``get(lat, lng)``.
+        """
+        if isinstance(lat, tuple):
+            lat, lng = lat
         key = self._make_key(lat, lng)
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -57,8 +62,22 @@ class WeatherCache:
         except json.JSONDecodeError:
             return None
 
-    def set(self, lat: float, lng: float, data: dict) -> None:
-        """Store a weather payload for coordinates, replacing any existing entry."""
+    def set(
+        self,
+        lat: float | tuple[float, float],
+        lng: float | dict | None = None,
+        data: dict | None = None,
+    ) -> None:
+        """Store a weather payload for coordinates, replacing any existing entry.
+
+        Accepts either ``set(midpoint, data)`` or the legacy ``set(lat, lng, data)``.
+        """
+        if isinstance(lat, tuple):
+            if data is None and isinstance(lng, dict):
+                data = lng
+            lat, lng = lat
+        if data is None or not isinstance(lng, (int, float)):
+            return
         key = self._make_key(lat, lng)
         try:
             with sqlite3.connect(self.db_path) as conn:

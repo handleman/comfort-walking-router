@@ -36,3 +36,8 @@ class OpenMeteoProvider:
             "temperature": data["current"]["temperature_2m"],
             "cloud_cover": data["current"]["cloud_cover"],
         }
+
+    def fetch(self, midpoint: tuple[float, float]) -> dict[str, float] | None:
+        """Fetch current weather for a ``(lat, lng)`` midpoint tuple."""
+        lat, lng = midpoint
+        return self.fetch_current(lat, lng)

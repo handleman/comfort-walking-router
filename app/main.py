@@ -10,12 +10,29 @@ from pydantic import BaseModel, Field
 
 from .cache import Cache
 from .geocoder import geocode_place
+from .preferences import auto_preference
+from .providers.open_meteo import OpenMeteoProvider
 from .providers.osrm import OSRMProvider
 from .scoring import score_comfort
+from .weather_cache import WeatherCache
 
 app = FastAPI(title="Comfort Walking Router")
 cache = Cache()
 osrm = OSRMProvider()
+open_meteo = OpenMeteoProvider()
+weather_cache = WeatherCache()
+
+
+def _get_weather(midpoint: tuple[float, float]) -> dict[str, Any] | None:
+    """Return cached weather for the midpoint, fetching from Open-Meteo on miss."""
+    weather_cache = WeatherCache()
+    cached = weather_cache.get(midpoint)
+    if cached is not None:
+        return cached
+    fetched = OpenMeteoProvider().fetch(midpoint)
+    if fetched is not None:
+        weather_cache.set(midpoint, fetched)
+    return fetched
 
 
 
@@ -57,6 +74,9 @@ class RouteResponse(BaseModel):
     geometry: dict[str, Any]
     distance_m: float
     duration_s: float
+    applied_preference: str | None = None
+    preference_source: Literal["auto", "manual"] | None = None
+    weather: dict[str, Any] | None = None
 
 
 @app.exception_handler(HTTPException)
@@ -92,6 +112,9 @@ def _build_response(
     start: tuple[float, float],
     end: tuple[float, float],
     route: dict[str, Any],
+    applied_preference: str | None = None,
+    preference_source: Literal["auto", "manual"] | None = None,
+    weather: dict[str, Any] | None = None,
 ) -> RouteResponse:
     feature = route["features"][0]
     geometry = feature["geometry"]
@@ -139,7 +162,10 @@ def _build_response(
         explanation=explanation,
         geometry=geometry,
         distance_m=distance_m,
-        duration_s=duration_s
+        duration_s=duration_s,
+        applied_preference=applied_preference,
+        preference_source=preference_source,
+        weather=weather,
     )
 
 
@@ -162,6 +188,33 @@ def route(body: RouteRequest) -> RouteResponse:
         raise HTTPException(
             status_code=502, detail=f"Upstream response missing {exc}"
         ) from exc
-    response = _build_response(body, start, end, raw_route)
+    midpoint = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+    weather: dict[str, Any] | None = None
+    try:
+        weather = _get_weather(midpoint)
+    except Exception:  # noqa: BLE001 - weather is best-effort; fall back to caller
+        weather = None
+    applied_preference: str | None = None
+    preference_source: Literal["auto", "manual"] | None = None
+    if body.preference is not None:
+        applied_preference = body.preference
+        preference_source = "manual"
+    elif weather is not None:
+        auto = auto_preference(weather, body.preference)
+        if auto is not None:
+            applied_preference = auto
+            preference_source = "auto"
+    else:
+        # Total failure (no caller preference, no weather): fall back to balanced.
+        applied_preference = "balanced"
+    response = _build_response(
+        body,
+        start,
+        end,
+        raw_route,
+        applied_preference=applied_preference,
+        preference_source=preference_source,
+        weather=weather,
+    )
     cache.set((body.start, body.end, body.preference), response.model_dump())
     return response
