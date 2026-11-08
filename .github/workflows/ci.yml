@@ -42,7 +42,7 @@ jobs:
           cache-dependency-path: swarm/pyproject.toml
       - run: pip install -e "swarm[dev]"
       - run: python -m pytest swarm/tests -q
-      - name: preflight (informational: no keys/Ollama in CI)
+      - name: "preflight (informational, no keys/Ollama in CI)"
         run: python -m swarm.preflight --offline || true
 
   frontend:
