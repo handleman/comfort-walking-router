@@ -62,7 +62,11 @@ def test_route_matches_contract(client: TestClient) -> None:
         {"lat": 48.14, "lng": 11.58},
     ]
     assert body["status"] == "active"
-    assert body["explanation"]
+    assert body["comfort_score"] is not None
+    assert isinstance(body["comfort_score"], float)
+    assert body["comfort_score"] != 50.0
+    explanation_str = "\n".join(body["explanation"])
+    assert "comfort factor" in explanation_str.lower()
 
 
 def test_identical_query_hits_cache(client: TestClient) -> None:
@@ -79,3 +83,36 @@ def test_unknown_preference_is_rejected(client: TestClient) -> None:
     body = response.json()
     assert body["code"] == "validation_error"
     assert "message" in body
+
+
+def test_comfort_score_differs_by_preference(client: TestClient) -> None:
+    hot_response = _post(client, preference="hot")
+    cloudy_response = _post(client, preference="cloudy")
+
+    assert hot_response.status_code == 200
+    assert cloudy_response.status_code == 200
+
+    hot_body = hot_response.json()
+    cloudy_body = cloudy_response.json()
+
+    assert hot_body["comfort_score"] != cloudy_body["comfort_score"]
+
+
+def test_explanation_lists_applied_factors(client: TestClient) -> None:
+    hot_response = _post(client, preference="hot")
+    cloudy_response = _post(client, preference="cloudy")
+
+    assert hot_response.status_code == 200
+    assert cloudy_response.status_code == 200
+
+    hot_body = hot_response.json()
+    cloudy_body = cloudy_response.json()
+
+    hot_explanation = "\n".join(hot_body["explanation"])
+    cloudy_explanation = "\n".join(cloudy_body["explanation"])
+
+    assert "shade factor" in hot_explanation.lower()
+    assert "sun factor" in hot_explanation.lower()
+    assert "sun factor" in cloudy_explanation.lower()
+    assert "shade factor" in cloudy_explanation.lower()
+

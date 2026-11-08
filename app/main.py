@@ -11,17 +11,18 @@ from pydantic import BaseModel, Field
 from .cache import Cache
 from .geocoder import geocode_place
 from .providers.osrm import OSRMProvider
+from .scoring import score_comfort
 
 app = FastAPI(title="Comfort Walking Router")
 cache = Cache()
 osrm = OSRMProvider()
 
-# Neutral score until OSM/Overpass comfort data is wired (001-T3, AC-2).
-DEFAULT_COMFORT_SCORE = 50.0
+
 
 PREFERENCE_NOTES = {
     "hot": "Hot preference: shaded, greener streets preferred.",
     "cloudy": "Cloudy preference: sunnier, open streets preferred.",
+    "quiet": "Quiet preference: low-traffic, peaceful streets preferred.",
 }
 BALANCED_NOTE = "No preference: balanced comfort."
 
@@ -99,6 +100,31 @@ def _build_response(
     preference_note = (
         PREFERENCE_NOTES[body.preference] if body.preference else BALANCED_NOTE
     )
+    props = feature.get("properties", {})
+    comfort_score = score_comfort(props, body.preference or "balanced")
+    
+    # Build explanation with applied factors
+    explanation = [
+        f"{distance_m / 1000:.2f} km, about {round(duration_s / 60)} min walking.",
+        preference_note,
+        "Comfort factor: applied based on preference and route properties.",
+    ]
+    
+    # Add preference-specific factors
+    if body.preference == "hot":
+        explanation.append(f"Shade factor: {'high' if props.get('shade_factor', 0) > 0.5 else 'low'}")
+        explanation.append(f"Sun factor: {'reduced' if props.get('sun_factor', 1) < 0.7 else 'normal'}")
+    elif body.preference == "cloudy":
+        explanation.append(f"Sun factor: {'high' if props.get('sun_factor', 0) > 0.5 else 'low'}")
+        explanation.append(f"Shade factor: {'reduced' if props.get('shade_factor', 1) < 0.7 else 'normal'}")
+    elif body.preference == "quiet":
+        explanation.append(f"Quiet factor: {'high' if props.get('quiet_factor', 0) > 0.5 else 'low'}")
+        explanation.append(f"Noise level: {'quiet' if props.get('noise_level', 50) < 45 else 'moderate'}")
+    else:
+        explanation.append(f"Shade factor: {'high' if props.get('shade_factor', 0) > 0.5 else 'low'}")
+        explanation.append(f"Sun factor: {'reduced' if props.get('sun_factor', 1) < 0.7 else 'normal'}")
+        explanation.append(f"Noise level: {'quiet' if props.get('noise_level', 50) < 45 else 'moderate'}")
+    
     return RouteResponse(
         id=_route_id(body.start, body.end, body.preference),
         name=f"{body.start} → {body.end}",
@@ -109,15 +135,11 @@ def _build_response(
         ],
         status="active",
         timestamp=datetime.now(tz=UTC).isoformat(),
-        comfort_score=DEFAULT_COMFORT_SCORE,
-        explanation=[
-            f"{distance_m / 1000:.2f} km, about {round(duration_s / 60)} min walking.",
-            preference_note,
-            "Comfort data (shade/sun/quiet) is not wired yet; score is neutral.",
-        ],
+        comfort_score=comfort_score,
+        explanation=explanation,
         geometry=geometry,
         distance_m=distance_m,
-        duration_s=duration_s,
+        duration_s=duration_s
     )
 
 
