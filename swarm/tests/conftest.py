@@ -1,4 +1,4 @@
-"""Test defaults: CI has no `.env`, so provide non-secret placeholder models.
+"""Test defaults: clean checkouts have no `.env`, so provide non-secret placeholder models.
 
 Real `.env` values (when present) always win; this only fills the gaps so tests
 that build CrewAI LLM objects do not depend on a developer machine's keys.

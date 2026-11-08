@@ -96,9 +96,6 @@ Per-run budgets (`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECO
 runaway loop with `budget_exhausted`; rate limits retry with backoff and fallback models.
 Use `./swarm/run.sh 001 T3 --no-commit` to opt out of committing.
 
-CI (`.github/workflows/ci.yml`) runs the app gates, the harness tests, and the frontend
-check/build on every push and PR, plus a post-merge smoke job on `main`.
-
 ### Adding a spec so the swarm picks it up
 
 1. Create `specs/NNN-name/` with the usual `spec.md` (why, scope, acceptance criteria),

@@ -6,7 +6,7 @@ from swarm.preflight import check, is_free_model, model_id, provider
 
 @pytest.fixture(autouse=True)
 def _fake_repo(tmp_path, monkeypatch):
-    """CI has no project venvs; point the venv checks at a temp repo."""
+    """Clean checkouts have no project venvs; point the venv checks at a temp repo."""
     for rel in (".venv/bin/python", "swarm/.venv/bin/python"):
         p = tmp_path / rel
         p.parent.mkdir(parents=True, exist_ok=True)

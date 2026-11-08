@@ -43,7 +43,7 @@ Keep the 009 shape (`Flow` → planner → micro-step coders → reviewer → ga
 - **Resilience (T13).** `_kickoff` takes a crew *builder* so a step can be rebuilt. Transient 429/timeout/5xx retry with 1s→8s backoff (3 attempts). A daily-quota error calls `activate_fallbacks()` and retries once with `SWARM_<ROLE>_FALLBACK_MODEL` (local Qwen default; senior prefers cheap Zen when paid is allowed), then `quota_exhausted`.
 - **Lifecycle (T15).** `SwarmListener` records `(event, handler)` pairs; `teardown()` calls `crewai_event_bus.off` per flow (the queue object stays for the TUI). Tail mode seeks a byte offset and buffers partial lines.
 - **Preflight (T12).** `swarm/preflight.py` validates roles/keys/Ollama/cloud ids/venvs/gates before the first LLM call; `preflight_failed` stops the run.
-- **CI (T16).** `.github/workflows/ci.yml`: app gates, harness tests, frontend check/build, and a post-merge smoke job on `main`.
+- **CI (T16, withdrawn).** The GitHub Actions workflow was removed by request; local gates (`make test`, `make swarm-test`, `make lint`, `make typecheck`, frontend `npm run check/build`) are the contract.
 
 Phase 1 is complete (T11–T18). **T17** sandbox verified with Colima: image build, in-container tests,
 OpenRouter/Ollama reachability, repo-only mount with `.env` masked. **T18**: each green task commits on
