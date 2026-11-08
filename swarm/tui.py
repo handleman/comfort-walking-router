@@ -34,6 +34,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, ListItem, ListView, Log, Static
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -244,6 +245,124 @@ def format_recent(runs: list[dict[str, Any]], spec: str, limit: int = 5) -> Text
     return out
 
 
+def _read_events(run_dir: Path, limit: int = 120) -> list[dict[str, Any]]:
+    fp = run_dir / "events.jsonl"
+    try:
+        lines = fp.read_text(errors="replace").splitlines()[-limit:]
+    except OSError:
+        return []
+    events: list[dict[str, Any]] = []
+    for line in lines:
+        ev: Any = None
+        try:
+            ev = json.loads(line)
+        except Exception:
+            ev = None
+        if isinstance(ev, dict):
+            events.append(ev)
+    return events
+
+
+def format_human_report(
+    payload: dict[str, Any],
+    events: list[dict[str, Any]],
+    *,
+    run_name: str = "",
+    event_limit: int = 80,
+) -> str:
+    """Plain-text 'why did this run stop?' report for the human-log screen."""
+    p = payload or {}
+    spec, task = p.get("spec", "?"), p.get("task", "?")
+    status = p.get("status", "?")
+    lines = [f"{spec} {task} — {status}" + (f"  ({run_name})" if run_name else "")]
+    usage = p.get("usage") or {}
+    bits: list[str] = []
+    if usage.get("total_tokens"):
+        bits.append(f"tok {fmt_tokens(usage.get('total_tokens'))}")
+    if usage.get("cost_usd") is not None:
+        bits.append(f"cost {fmt_cost(usage.get('cost_usd'))}")
+    if usage.get("duration_seconds") is not None:
+        bits.append(f"time {fmt_duration(usage.get('duration_seconds'))}")
+    if bits:
+        lines.append("  ".join(bits))
+
+    lines += ["", "why"]
+    reasons: list[str] = []
+    verdict = str(p.get("review_verdict") or "")
+    if verdict and verdict != "pass":
+        reasons.append(f"reviewer verdict: {verdict} (PASS required)")
+    for key, label in (
+        ("review_note", "reviewer"),
+        ("vacancy_note", "vacancy"),
+        ("budget_note", "budget"),
+        ("quota_note", "quota"),
+        ("recovery_note", "recovery"),
+        ("approval_error", "approval"),
+    ):
+        value = p.get(key)
+        if value:
+            reasons.append(f"{label}: {value}")
+    if not reasons:
+        if status == "needs_human":
+            reasons.append("no explicit note — inspect gates/reviewer below")
+        elif status == "green":
+            reasons.append("all gates 0 + reviewer PASS + committed")
+    lines += [f"  - {reason}" for reason in reasons]
+
+    gates = p.get("gates") or {}
+    if gates:
+        lines += ["", "gates"]
+        lines += [f"  {'✓' if code == 0 else '✗'} {name} {code}" for name, code in gates.items()]
+
+    changed = p.get("changed_files") or []
+    if changed:
+        lines += ["", "changed"] + [f"  {path}" for path in changed[:20]]
+
+    review = str(p.get("review_tail") or "").strip()
+    if review:
+        lines += ["", "reviewer output", review[-2500:]]
+    transcript = str(p.get("gate_transcript_tail") or "").strip()
+    if transcript:
+        lines += ["", "gate transcript", transcript[-2500:]]
+    result = str(p.get("result_tail") or "").strip()
+    if result and not review:
+        lines += ["", "last output", result[-1500:]]
+
+    if events:
+        lines += ["", f"events (last {min(len(events), event_limit)})"]
+        for ev in events[-event_limit:]:
+            etype = str(ev.get("type", "?"))
+            if etype == "chunk":
+                continue
+            agent = str(ev.get("agent", ""))
+            text = " ".join(str(ev.get("text", "")).split())[:240]
+            lines.append(f"  {etype:<14} {agent:<16} {text}".rstrip())
+    return "\n".join(lines)
+
+
+class HumanLogScreen(ModalScreen[None]):
+    """Scrollable 'why did it stop?' view; never owns state."""
+
+    BINDINGS: ClassVar[list[Binding]] = [
+        Binding("escape", "close", "close"),
+        Binding("h", "close", "close"),
+        Binding("H", "close", "close"),
+        Binding("q", "close", "close"),
+    ]
+    CSS = "#human-scroll { padding: 1 2; }"
+
+    def __init__(self, body: str) -> None:
+        super().__init__()
+        self._body = body
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="human-scroll"):
+            yield Static(Text(self._body))
+
+    def action_close(self) -> None:
+        self.dismiss()
+
+
 def _same_spec(run_spec: str, spec: str) -> bool:
     if not spec or not run_spec:
         return False
@@ -341,7 +460,8 @@ class SwarmTUI(App[None]):
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("a", "approve", "approve"),
         Binding("r", "retry", "retry"),
-        Binding("h", "history", "history"),
+        Binding("h", "human_log", "human log"),
+        Binding("H", "history", "history"),
         Binding("p", "prev_run", "prev run"),
         Binding("n", "next_run", "next run"),
         Binding("t", "tail_latest", "tail latest"),
@@ -809,6 +929,30 @@ class SwarmTUI(App[None]):
             self._pane_log("crew", "history hidden — live events only")
             return
         self._replay_history(self._run_dir)
+
+    def _human_report(self) -> str | None:
+        run_dir = self._run_dir
+        if run_dir is None:
+            try:
+                run_dir = REPO_ROOT / "swarm" / "runs" / (
+                    REPO_ROOT / "swarm" / "runs" / "latest"
+                ).read_text().strip()
+            except OSError:
+                return None
+        if not run_dir.is_dir():
+            return None
+        try:
+            payload = json.loads((run_dir / "run.json").read_text())
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        return format_human_report(payload, _read_events(run_dir), run_name=run_dir.name)
+
+    def action_human_log(self) -> None:
+        report = self._human_report()
+        if not report:
+            self._set_status("no run to inspect yet")
+            return
+        self.push_screen(HumanLogScreen(report))
 
     def action_prev_run(self) -> None:
         self._step_run(-1)

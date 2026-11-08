@@ -153,3 +153,36 @@ def test_event_error_prefers_message_over_repr():
             return "timestamp=datetime.datetime(...) other=1"
 
     assert _event_error(Noisy()) == "Noisy"
+
+
+def test_human_report_explains_needs_human():
+    from swarm.tui import format_human_report
+
+    payload = {
+        "spec": "001-example-app",
+        "task": "T10",
+        "status": "needs_human",
+        "review_verdict": "blocked",
+        "gates": {"pytest -q": 0, "npm --prefix frontend run check": 1},
+        "review_tail": "svelte-check found 15 errors: Property 'duration_s' does not exist",
+        "gate_transcript_tail": "$ npm --prefix frontend run check\nexit=1",
+        "changed_files": ["frontend/src/App.svelte"],
+    }
+    events = [{"type": "task_done", "text": "verdict BLOCKED: TypeScript errors"}]
+    text = format_human_report(payload, events, run_name="run-1")
+    assert "001-example-app T10 — needs_human" in text
+    assert "reviewer verdict: blocked" in text
+    assert "svelte-check found 15 errors" in text
+    assert "✗ npm --prefix frontend run check 1" in text
+    assert "frontend/src/App.svelte" in text
+    assert "BLOCKED: TypeScript errors" in text
+
+
+def test_human_report_for_green_is_short_and_clear():
+    from swarm.tui import format_human_report
+
+    text = format_human_report(
+        {"spec": "001", "task": "T1", "status": "green", "review_verdict": "pass"},
+        [],
+    )
+    assert "all gates 0 + reviewer PASS + committed" in text

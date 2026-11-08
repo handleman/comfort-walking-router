@@ -877,3 +877,19 @@ def test_commit_trailers_feed_the_done_ledger(tmp_path, monkeypatch):
     assert entry.task_hash == task_hash
     assert entry.spec_hash == spec_hash
     assert entry.source == "git"
+
+
+def test_frontend_check_gate_detection(tmp_path, monkeypatch):
+    from swarm.flow import _frontend_check_command
+
+    repo = tmp_path
+    frontend = repo / "frontend"
+    (frontend / "node_modules").mkdir(parents=True)
+    (frontend / "package.json").write_text('{"scripts": {"check": "svelte-check"}}')
+    monkeypatch.setattr("swarm.flow.REPO_ROOT", repo)
+    assert _frontend_check_command() == "npm --prefix frontend run check"
+
+    (frontend / "node_modules").rmdir()
+    (frontend / "node_modules").mkdir()  # still present but empty = installed
+    (frontend / "package.json").write_text('{"scripts": {}}')
+    assert _frontend_check_command() is None

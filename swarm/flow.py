@@ -69,6 +69,7 @@ class SwarmState(BaseModel):
     resumed_from_step: int = 0
     recovery: str = ""
     recovery_note: str = ""
+    review_text: str = ""
 
 
 class _QuotaExhausted(SystemExit):
@@ -340,6 +341,18 @@ def _frontend_test_command() -> str | None:
     except (OSError, json.JSONDecodeError):
         return None
     return "npm --prefix frontend test -- --run" if "test" in scripts else None
+
+
+def _frontend_check_command() -> str | None:
+    """`npm run check` when the frontend is installed (svelte-check gate)."""
+    pkg = REPO_ROOT / "frontend" / "package.json"
+    if not pkg.is_file() or not (REPO_ROOT / "frontend" / "node_modules").is_dir():
+        return None
+    try:
+        scripts = json.loads(pkg.read_text()).get("scripts", {})
+    except (OSError, json.JSONDecodeError):
+        return None
+    return "npm --prefix frontend run check" if "check" in scripts else None
 
 
 class RunLock:
@@ -775,6 +788,8 @@ class SwarmFlow(Flow[SwarmState]):
         gates: dict[str, int] = {}
         tails: list[str] = []
         commands = ["pytest -q", "ruff check .", "mypy app tests"]
+        if frontend_check := _frontend_check_command():
+            commands.append(frontend_check)
         if frontend_test := _frontend_test_command():
             commands.append(frontend_test)
         for cmd in commands:
@@ -1019,6 +1034,7 @@ class SwarmFlow(Flow[SwarmState]):
                 work_summary = "\n".join(step_outs)
                 _, review_out = _kickoff(lambda work_summary=work_summary: build_review_crew(self._spec_dir, task, work_summary))
                 self.state.review_verdict = reviewer_verdict(review_out)
+                self.state.review_text = review_out
                 self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
                 # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
                 base_rounds = self.state.fix_rounds
@@ -1030,6 +1046,7 @@ class SwarmFlow(Flow[SwarmState]):
                     try:
                         _, fix_out = _kickoff(lambda transcript=transcript: build_fix_crew(self._spec_dir, task, transcript))
                         self.state.review_verdict = reviewer_verdict(fix_out)
+                        self.state.review_text = fix_out
                         self.state.result = str(fix_out)[:8000]
                     except SystemExit as e:
                         self.state.result = str(e)[:4000]
@@ -1054,6 +1071,7 @@ class SwarmFlow(Flow[SwarmState]):
                         raise
                     _, review_out = _kickoff(lambda: build_review_crew(self._spec_dir, task, self.state.result))
                     self.state.review_verdict = reviewer_verdict(review_out)
+                    self.state.review_text = review_out
                     self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
                     changed = run_delta(self._baseline)
                     gates, transcript = self._run_gates(changed)
@@ -1160,6 +1178,7 @@ class SwarmFlow(Flow[SwarmState]):
             "approval_required": self._require_approval,
             "approved": approved,
             "result_tail": self.state.result[-2000:],
+            "review_tail": self.state.review_text[-3000:],
             "gate_transcript_tail": self.state.transcript[-2000:],
             "cost": cost,
             "cost_note": (

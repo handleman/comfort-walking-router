@@ -93,14 +93,18 @@ Verified 2026-10-10: builds offline from local blobs, native tool calls work
 - **Recent runs**: last tasks for this spec with status, tokens, and cost.
 - **Panes**: planner/coder/reviewer logs; status line has elapsed, tokens, cost,
   calls, attempts, plan=cached, senior, and approval state.
+- **Human log** (`h`): scrollable "why did it stop?" view — status, notes,
+  reviewer output, gate transcript (including `npm run check`), changed files,
+  and the last events. `H` replays this run's event history into the panes.
 
 Tail mode (`--tail swarm/runs/<id>`) follows `run.json` + `events.jsonl` of another
 process and jumps to the newest run automatically. It opens **fresh**: events logged
 before you attached are skipped, panes start empty, and each new task clears the
 previous task's log.
 
-Keys: `a`=approve (run dir + ledger), `r`=retry (live mode), `h`=history for the
-current run (toggle), `p`/`n`=older/newer run, `t`=back to the newest run, `q`=quit.
+Keys: `a`=approve (run dir + ledger), `r`=retry (live mode), `h`=human log
+(why the run stopped: reviewer output, gate transcript, notes, events), `H`=history
+for the current run, `p`/`n`=older/newer run, `t`=back to the newest run, `q`=quit.
 History is opt-in, so long runs never flood a newly opened dashboard.
 
 The dashboard is a read-only view; `run.json`/`events.jsonl` stay the contract
@@ -148,7 +152,8 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
    Keep `T<n>` and the `(AC-…)` refs on the same line as the brief. The brief must be
    self-contained: one behavior change, exact paths, and what "done" means.
 3. Make each task coder-sized: one file/behavior, ~4–8 planner micro-steps, verifiable by the
-   flow gates (`pytest`, `ruff check .`, `mypy app tests`, plus `npm test` once `frontend/package.json`
+   flow gates (`pytest`, `ruff check .`, `mypy app tests`, `npm --prefix frontend run check`
+   when `frontend/node_modules` exists, plus `npm test` once `frontend/package.json`
    has a `test` script and vitest is installed). Split larger work into more tasks.
 4. Respect the coder scope. Default: `app/`, `frontend/`, `tests/`, `contracts/`,
    `requirements*.txt`, `pyproject.toml`, `.gitignore`. Anything else needs an explicit override,
@@ -183,7 +188,8 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
 
    Without it the cached `STEP` list is reused even if the spec changed.
 
-Each run still has to pass the flow's own gates and scope check (`pytest`, `ruff`, `mypy`, plus
+Each run still has to pass the flow's own gates and scope check (`pytest`, `ruff`, `mypy`,
+`npm --prefix frontend run check` when the frontend is installed, plus an optional frontend test).
 `npm test` when the frontend test script exists); green runs autocommit in-scope changes and push
 (`swarm: <spec>-<task> green …`) before continuing.
 
@@ -204,7 +210,8 @@ the run instead of executing garbage; a fresh plan producing no in-scope changes
 ## Gates (sequence)
 Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
 context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-runs
-`pytest` + `ruff check .` + `mypy app tests` itself (never trusts agent claims). Red gates → fix
+`pytest` + `ruff check .` + `mypy app tests` + `npm --prefix frontend run check`
+(when the frontend is installed) itself (never trusts agent claims). Red gates → fix
 round: Coder (+ Reviewer re-verify) with the gate transcript, max 2 rounds
 (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
 `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
@@ -374,7 +381,7 @@ flowchart TB
     P["Spec Planner<br/>(fresh plan or cached)"] --> STEPS["Dev phase, ≤3 attempts:<br/>fresh Coder per STEP, ≤3 tries each"]
     STEPS -.->|step fails 3×| SENIOR
     STEPS --> REV["QA Reviewer<br/>(gate evidence)"]
-    REV --> GATES["Flow gates<br/>pytest + ruff + mypy + scope"]
+    REV --> GATES["Flow gates<br/>pytest + ruff + mypy + npm check + scope"]
     REV -.->|BLOCKED / no verdict| HUMAN
     GATES -->|green + PASS| COMMIT["Autocommit + push<br/>next task / next spec"]
     COMMIT -.->|commit/push/merge failed| CF["commit_failed / push_failed / merge_failed"]
