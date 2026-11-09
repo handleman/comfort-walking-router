@@ -64,3 +64,27 @@ def test_configured_gate_commands_are_allowed(monkeypatch):
     monkeypatch.setenv("SWARM_GATE_COMMANDS", "make --version")
     assert ShellTool()._run("make --version").startswith("exit=0")
     assert ShellTool()._run("make evil").startswith("BLOCKED")
+
+
+def test_gate_commands_are_qa_only_by_default():
+    coder_shell = ShellTool(allow_gates=False)
+    for command in ("pytest -q", "ruff check .", "npm --prefix frontend run lint"):
+        assert coder_shell._run(command).startswith("BLOCKED: gates are QA-only")
+    # Inspection and plain compilation stay available to the coder.
+    assert coder_shell._run("git status").startswith("exit=")
+    assert coder_shell._run("ls app").startswith("exit=")
+
+
+def test_gate_classifier_scope():
+    from swarm.tools_guarded import is_gate_command
+
+    assert is_gate_command(["pytest", "-q"])
+    assert is_gate_command(["npm", "--prefix", "frontend", "run", "lint"])
+    assert is_gate_command(["npm", "--prefix", "frontend", "test", "--", "--run"])
+    assert not is_gate_command(["npm", "--prefix", "frontend", "run", "build"])
+    assert not is_gate_command(["git", "status"])
+    assert not is_gate_command([])
+
+
+def test_qa_shell_can_run_gates():
+    assert ShellTool()._run("pytest -q").startswith("exit=")

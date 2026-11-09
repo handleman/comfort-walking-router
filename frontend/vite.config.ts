@@ -9,8 +9,8 @@ export default defineConfig({
     proxy: {
       '/route': {
         target: 'http://localhost:8000',
-        changeOrigin: true
-      }
-    }
-  }
+        changeOrigin: true,
+      },
+    },
+  },
 })

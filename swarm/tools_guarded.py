@@ -247,6 +247,10 @@ class ShellArgs(BaseModel):
 
 SHELL_META = set(";&|<>`$()\n\r")
 ALLOWED_COMMANDS = {"pytest", "ruff", "mypy", "git", "ls", "cat", "grep", "npm"}
+GATE_BINARIES = frozenset({"pytest", "ruff", "mypy"})
+# npm scripts that are gates (QA-only). `build` stays available to coders as a
+# compile check; `check`/`lint`/`test` are verification, not development.
+NPM_GATE_SCRIPTS = frozenset({"check", "lint", "test"})
 
 
 def _configured_gate(argv: list[str]) -> bool:
@@ -265,6 +269,25 @@ def _configured_gate(argv: list[str]) -> bool:
         except ValueError:
             continue
     return False
+
+
+def is_gate_command(argv: list[str]) -> bool:
+    """True when argv is one of the project's gates (QA-only by policy).
+
+    Covers the classic checkers, the configured `SWARM_GATE_COMMANDS`, and the
+    repo's npm verification scripts. Read-only inspection (`git`, `ls`, `cat`,
+    `grep`) and `npm --prefix frontend run build` stay available to coders.
+    """
+    if not argv:
+        return False
+    if argv[0] in GATE_BINARIES or _configured_gate(argv):
+        return True
+    if argv[0] != "npm" or not _valid_npm(argv):
+        return False
+    script = argv[4] if argv[3:4] == ["run"] and len(argv) > 4 else argv[3] if len(argv) > 3 else ""
+    return script in NPM_GATE_SCRIPTS
+
+
 CAT_FLAGS = {"-n", "-b", "-s", "-E", "-T", "-v"}
 GREP_FLAGS = {"-n", "-i", "-w", "-E", "-F", "-c", "-l", "-h", "-s"}
 DENY_FLAGS = {"-p", "--rootdir", "--override-ini", "--pyargs", "--no-index", "--output", "--config-file"}
@@ -386,7 +409,8 @@ def _valid_npm(argv: list[str]) -> bool:
     script = argv[4]
     if script == "test":
         return argv[5:] == ["--", "--run"]
-    return script in {"check", "build"} and argv[5:] == []
+    # Read-only checks only; `format`/`install` mutate the tree and stay blocked.
+    return script in {"check", "build", "lint"} and argv[5:] == []
 
 
 VALIDATORS = {
@@ -405,13 +429,16 @@ class ShellTool(BaseTool):
     name: str = "Guarded Shell"
     description: str = (
         "Run allowlisted argv-only commands: the project gate commands from "
-        "`SWARM_GATE_COMMANDS`; `git status|diff|log` (read-only); ls, cat, grep "
-        "(read-only inspection); `npm --prefix frontend run check|build|test` for "
+        "`SWARM_GATE_COMMANDS` (QA only); `git status|diff|log` (read-only); ls, cat, grep "
+        "(read-only inspection); `npm --prefix frontend run check|build|lint|test` for "
         "this repo. 120s timeout, repo cwd. No shell metacharacters, absolute paths, "
         "'..', .env/key files, network, or npm install."
     )
     args_schema: type[BaseModel] = ShellArgs
     timeout: int = 120
+    # Coder-side agents get allow_gates=False: QA is the only role that runs the
+    # gates, so development tokens are not spent re-running the same commands.
+    allow_gates: bool = True
 
     def _run(self, command: str, **kwargs: Any) -> str:
         raw = command.strip()
@@ -431,6 +458,11 @@ class ShellTool(BaseTool):
         ) or _configured_gate(argv)
         if not _no_meta(argv) or not allowed:
             return f"BLOCKED: unsafe arguments: {command!r}"
+        if not self.allow_gates and is_gate_command(argv):
+            return (
+                "BLOCKED: gates are QA-only. Do not re-run them; read the gate "
+                "transcript in your task and fix its reported failures."
+            )
         try:
             env = dict(os.environ)
             # App gates must use the root .venv; fall back to the harness venv.

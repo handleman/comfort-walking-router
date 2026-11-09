@@ -165,15 +165,36 @@ def test_build_senior_step_crew_structure():
 
 
 def test_fix_rules_shared_by_fix_and_senior_crews():
-    from swarm.crew import FIX_RULES, build_fix_crew, build_senior_crew
+    from swarm.crew import FIX_RULES, VERIFY_RULE, build_fix_crew, build_senior_crew
     from swarm.spec_loader import SpecTask
 
     task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
     fix_desc = build_fix_crew("001", task, "ruff exit=1").tasks[0].description
     senior_desc = build_senior_crew("001", task, "ruff exit=1").tasks[0].description
-    assert "autofix" in FIX_RULES
-    assert FIX_RULES in fix_desc
-    assert FIX_RULES in senior_desc
+    assert "autofix" in VERIFY_RULE
+    for text in (fix_desc, senior_desc):
+        assert FIX_RULES in text
+        assert VERIFY_RULE in text
+
+
+def test_only_qa_runs_gates_until_it_blocks():
+    from swarm.crew import build_fix_crew, build_step_crew
+    from swarm.spec_loader import SpecTask
+    from swarm.tools_guarded import ShellTool
+
+    task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
+
+    def shells(crew: object) -> list[ShellTool]:
+        tools = crew.agents[0].tools  # type: ignore[attr-defined]
+        return [tool for tool in tools if isinstance(tool, ShellTool)]
+
+    step = build_step_crew("001", task, "STEP 1: do it", 1, 1)
+    assert [shell.allow_gates for shell in shells(step)] == [False]
+
+    fix = build_fix_crew("001", task, "pytest exit=1", "VERDICT: BLOCKED — no test added")
+    assert [shell.allow_gates for shell in shells(fix)] == [True]
+    assert "Investigate the real cause" in fix.tasks[0].description
+    assert "VERDICT: BLOCKED" in fix.tasks[0].description
 
 
 def _resume_tree(root, runs, specs):

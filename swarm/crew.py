@@ -42,7 +42,6 @@ FIX_RULES = (
     "(relative imports within the package, never bare top-level names for package "
     "modules); sync/async must match (never await a sync function — make the caller "
     "match its callees); implementations must match their ABC signatures. "
-    "Run the project's lint/format autofix gate first if it has one, then hand-fix the rest. "
     "If the transcript contains type-checker errors, diagnose the real "
     "mismatch first: read the failing expression, infer the type from the API "
     "response/contract or an existing interface, reuse/extend that type, and narrow "
@@ -51,6 +50,15 @@ FIX_RULES = (
     "suppression is allowed — say why in your final answer. Never delete or disable "
     "the feature, and never blanket-suppress a file. "
     "Delete stray files you created at wrong paths instead of leaving them."
+)
+# Only post-QA agents verify: the reviewer runs the gates first, so a coder that
+# has a QA BLOCKED verdict may re-run them to confirm its fix. Fresh development
+# runs never pay for gate calls.
+VERIFY_RULE = (
+    "QA returned BLOCKED, so you may run the project gates "
+    "(`SWARM_GATE_COMMANDS`, and any autofix form such as `ruff check --fix .`) "
+    "to confirm your fix before answering. Never remove or disable a feature to "
+    "make a gate pass."
 )
 MAX_STEPS = 8
 
@@ -107,8 +115,9 @@ def _stack_hint(task: SpecTask) -> str:
     role = coder_role(task)
     if role == "Frontend Coder":
         return (
-            "This is UI/frontend work. Keep the project's frontend/type-check gates green "
-            "(the commands are in `SWARM_GATE_COMMANDS`). Treat type-checker errors as design "
+            "This is UI/frontend work. QA type-checks the frontend with the project gates "
+            "(`SWARM_GATE_COMMANDS`); write code that passes them, but do not run them "
+            "unless QA returned BLOCKED. Treat type-checker errors as design "
             "feedback: read the failing expression, infer the type from the API response/contract "
             "or an existing interface, reuse or extend that type, and narrow unions properly. "
             "Try that first. If no correct typing is possible in the task, a narrow last-resort "
@@ -120,17 +129,34 @@ def _stack_hint(task: SpecTask) -> str:
     return "This is service/backend work: keep imports, types, and public contracts coherent."
 
 
-def _tools() -> list[object]:
-    return [TrimmedFileReadTool(), CreateTool(), EditTool(), ShellTool()]
+def _tools(*, allow_gates: bool = False) -> list[object]:
+    """Coder tools; gates are unlocked only for post-QA fix work."""
+    return [
+        TrimmedFileReadTool(),
+        CreateTool(),
+        EditTool(),
+        ShellTool(allow_gates=allow_gates),
+    ]
 
 
-def _coder(task: SpecTask, *, goal: str, backstory: str, max_iter: int = 6) -> Agent:
+def _coder(
+    task: SpecTask,
+    *,
+    goal: str,
+    backstory: str,
+    max_iter: int = 6,
+    allow_gates: bool = False,
+) -> Agent:
     return Agent(
         role=coder_role(task),
         goal=goal,
-        backstory=backstory + " " + _stack_hint(task),
+        backstory=(
+            backstory
+            + " QA is the only role that runs the gates; do not run them yourself "
+            "unless QA returned BLOCKED. " + _stack_hint(task)
+        ),
         llm=coder_llm(),
-        tools=_tools(),
+        tools=_tools(allow_gates=allow_gates),
         verbose=False,
         max_iter=max_iter,
     )
@@ -141,6 +167,8 @@ def _reviewer() -> Agent:
         role="QA Gatekeeper",
         goal="Block done unless every configured gate is attached and green.",
         backstory=(
+            "You are the only role that runs the project gates; the coder never re-runs them "
+            "unless your verdict is BLOCKED. "
             "You verify with Guarded Shell and report exit codes honestly. "
             "Never paste source code or repeat the work summary. "
             "Prefer real type fixes. A fix that removes/disables the feature or "
@@ -263,22 +291,38 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
     return Crew(agents=[planner], tasks=[t_plan], process=Process.sequential, verbose=False)
 
 
-def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
-    """Coder + Reviewer only: fix what the gates rejected. Bounded by MAX_FIX_ROUNDS in flow."""
+def build_fix_crew(
+    spec_dir: str, task: SpecTask, transcript: str, qa_review: str = ""
+) -> Crew:
+    """Coder + Reviewer: fix what QA rejected. Bounded by MAX_FIX_ROUNDS in flow."""
     coder = _coder(
         task,
-        goal="Fix exactly what the gate transcript rejects. Smallest diff.",
-        backstory="You fix scaffold files precisely. You run no network commands.",
+        goal="Investigate why QA did not pass, then fix the real cause. Smallest coherent diff.",
+        backstory=(
+            "You fix scaffold files precisely. QA has already run the gates and rejected "
+            "this attempt, so you investigate and may re-run them to confirm. "
+            "You run no network commands."
+        ),
         max_iter=10,
+        allow_gates=True,
     )
     reviewer = _reviewer()
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
+    qa_block = (
+        f"QA returned BLOCKED and reported:\n{qa_review[-1500:]}\n"
+        "Investigate the real cause before editing: read the files named in the "
+        "report, reproduce the failure with the gate commands, and fix the cause — "
+        "not just the symptom line. "
+        if qa_review.strip()
+        else ""
+    )
     t_fix = Task(
         description=(
             f"Fix round for {ctx}. The previous attempt FAILED gates:\n{transcript[:3000]}\n"
-            "Change only what the transcript rejects. Use Repo Create for new files, Repo Edit for existing files. "
-            + FIX_RULES + " "
-            "Loop rules (hard): at most 6 tool calls, then write the final answer; "
+            + qa_block
+            + "Change only what the transcript/report rejects. Use Repo Create for new files, "
+            "Repo Edit for existing files. " + FIX_RULES + " " + VERIFY_RULE + " "
+            "Loop rules (hard): at most 8 tool calls, then write the final answer; "
             "never read the same file twice. " + SCOPE_RULE
         ),
         expected_output="Diff summary of the fix + what gate line each change addresses.",
@@ -293,34 +337,37 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
     return Crew(agents=[coder, reviewer], tasks=[t_fix, t_verify], process=Process.sequential, verbose=False)
 
 
-def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
+def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str, qa_review: str = "") -> Crew:
     """Senior Developer (strong free-tier brain) + QA Reviewer: one-shot escalation.
 
-    Used after DEV_ATTEMPTS dev phases all failed gates. The senior fixes ALL
-    gate failures in one pass then hands back to QA for re-verification.
+    Used after DEV_ATTEMPTS dev phases all failed gates. The senior investigates
+    WHY QA keeps blocking, fixes every failure in one pass, then QA re-verifies.
     """
     from swarm.llms import senior_llm
 
     senior = Agent(
         role="Senior Developer",
-        goal="Fix every gate failure in one pass. Largest diff necessary, no thrash.",
+        goal="Investigate why QA keeps blocking, fix every failure in one pass. No thrash.",
         backstory=(
-            "You are the senior escalation: the junior coder failed repeatedly. "
+            "You are the senior escalation: the junior coder failed repeatedly and QA "
+            "returned BLOCKED, so you may run the gates to reproduce and confirm. "
             "Read the gate transcript, fix every failure completely and coherently "
             "(imports must resolve, sync/async must match, types must check). "
             "You run no network commands. " + _stack_hint(task)
         ),
         llm=senior_llm(),
-        tools=_tools(),
+        tools=_tools(allow_gates=True),
         verbose=False,
         max_iter=12,
     )
     reviewer = _reviewer()
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
+    qa_block = f"QA's latest BLOCKED report:\n{qa_review[-1500:]}\n" if qa_review.strip() else ""
     t_fix = Task(
         description=(
             f"Senior fix for {ctx}. The junior dev FAILED gates repeatedly, latest transcript:\n{transcript[:4000]}\n"
-            "Fix EVERY failure in one pass. " + FIX_RULES + " "
+            + qa_block
+            + "Find the root cause, fix EVERY failure in one pass. " + FIX_RULES + " " + VERIFY_RULE + " "
             "Use Repo Create for new files, Repo Edit for existing files. "
             "Loop rules (hard): at most 10 tool calls, then write the final answer; "
             "never read the same file twice. " + SCOPE_RULE

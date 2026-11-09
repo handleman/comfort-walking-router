@@ -160,9 +160,9 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
    Keep `T<n>` and the `(AC-…)` refs on the same line as the brief. The brief must be
    self-contained: one behavior change, exact paths, and what "done" means.
 3. Make each task coder-sized: one file/behavior, ~4–8 planner micro-steps, verifiable by the
-   flow gates (`pytest`, `ruff check .`, `mypy app tests`, `npm --prefix frontend run check`
-   when `frontend/node_modules` exists, plus `npm test` once `frontend/package.json`
-   has a `test` script and vitest is installed). Split larger work into more tasks.
+   project gates in `SWARM_GATE_COMMANDS` (this repo: `pytest -q`, `ruff check .`,
+   `mypy app tests`, `npm --prefix frontend run check`, `npm --prefix frontend run lint`).
+   Split larger work into more tasks.
 4. Respect the coder scope. Default: `app/`, `frontend/`, `tests/`, `contracts/`,
    `requirements*.txt`, `pyproject.toml`, `.gitignore`. Anything else needs an explicit override,
    e.g. adding a `scripts/` prefix:
@@ -197,7 +197,7 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
    Without it the cached `STEP` list is reused even if the spec changed.
 
 Each run still has to pass the flow's own gates and scope check (`pytest`, `ruff`, `mypy`,
-`npm --prefix frontend run check` when the frontend is installed, plus an optional frontend test).
+`npm --prefix frontend run check` / `run lint` when the frontend is installed, plus an optional frontend test).
 `npm test` when the frontend test script exists); green runs autocommit in-scope changes and push
 (`swarm: <spec>-<task> green …`) before continuing.
 
@@ -214,17 +214,33 @@ stops as `needs_human`.
 ## Agent tools (guarded, `swarm/tools_guarded.py`)
 - `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail, **coder-scope check**, secret-path refusal.
 - `Repo Create` — new files only (makes parent dirs, refuses existing/escapes), **coder-scope check**, secret-path refusal. Scaffold needs it: without it the coder cannot create `app/__init__.py` et al.
-- `Guarded Shell` — argv-only (`shlex.split` + `shell=False`, never `shell=True`): `pytest`, `ruff check` (including `--fix`), `mypy` (gates); `git status|diff|log` (read-only); `ls`, `cat`, `grep` (read-only inspection, no recursive grep); `npm --prefix frontend run check|build|test`. Rejects shell metacharacters, absolute paths, `..`, `.env*`/key files, `npm install`/`npx`, `pip`/`uv`, and `python -c`. 120s timeout, repo cwd.
+- `Guarded Shell` — argv-only (`shlex.split` + `shell=False`, never `shell=True`): `pytest`, `ruff check` (including `--fix`), `mypy` (gates); `git status|diff|log` (read-only); `ls`, `cat`, `grep` (read-only inspection, no recursive grep); `npm --prefix frontend run check|build|lint|test`. Rejects shell metacharacters, absolute paths, `..`, `.env*`/key files, `npm install`/`npx`, `pip`/`uv`, and `python -c`. 120s timeout, repo cwd. Coder crews construct it with `allow_gates=False` (QA-only gates); fix crews and the Reviewer get `allow_gates=True`.
 - Read-only: trimmed file reads (3000 chars max) with the same secret/path guard; `ls` via Guarded Shell (no directory-search tool).
 
 ## Gates (sequence)
 Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
 context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-runs
 every command from `SWARM_GATE_COMMANDS` (this repo: `pytest -q`, `ruff check .`,
-`mypy app tests`, `npm --prefix frontend run check`) itself (never trusts agent claims). Red gates → fix
-round: Coder (+ Reviewer re-verify) with the gate transcript, max 2 rounds
+`mypy app tests`, `npm --prefix frontend run check`, `npm --prefix frontend run lint`)
+itself (never trusts agent claims). Red gates or a reviewer `BLOCKED` → fix
+round: Coder investigates with the QA report (+ Reviewer re-verify), max 2 rounds
 (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
 `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
+
+### Gate ownership (who runs what)
+
+- **QA (Reviewer) is the only agent that runs gates.** It executes
+  `SWARM_GATE_COMMANDS`, pastes exit codes + tails, and ends with
+  `VERDICT: PASS`/`BLOCKED`.
+- **Coders never run gates during development.** Their `Guarded Shell` is built
+  with `allow_gates=False` and answers `BLOCKED: gates are QA-only`. A fix round
+  starts only after QA `BLOCKED` (or red flow gates); then the coder gets
+  `allow_gates=True` plus the QA report and may reproduce/confirm the fix
+  (`VERIFY_RULE` in `swarm/crew.py`). This keeps QA the single verification owner
+  without spending coder tokens on duplicate gate calls.
+- **The flow re-runs the gates itself** on every verification step (truthful green,
+  012 AC-4). That is harness code, not an agent turn, so it cannot be skipped or
+  faked by a model.
 
 Green is deliberately strict (012 AC-4/AC-6):
 1. every gate exits `0` (including the run-delta scope gate);

@@ -179,6 +179,11 @@ def reviewer_verdict(text: str) -> str:
     return hits[-1].lower() if hits else "unknown"
 
 
+def _gates_green(gates: dict[str, int]) -> bool:
+    """All deterministic gate exit codes are 0 (empty gate map is not green)."""
+    return bool(gates) and all(code == 0 for code in gates.values())
+
+
 def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
     """Machine-readable why: green, reviewer_*, gates_failed, vacancy, …"""
     if status == "green":
@@ -1173,16 +1178,25 @@ class SwarmFlow(Flow[SwarmState]):
                 self.state.review_text = review_out
                 self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
                 # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
+                # Fix loop: gates red or QA BLOCKED → coder investigates with the QA
+                # report (gates allowed only here), then gates re-run (bounded).
                 base_rounds = self.state.fix_rounds
                 changed = run_delta(self._baseline)
                 gates, transcript = self._run_gates(changed)
-                if all(v == 0 for v in gates.values()):
+                if _gates_green(gates) and self.state.review_verdict != "blocked":
                     self._repair_verdict(task, transcript)
-                while not all(v == 0 for v in gates.values()) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
+                while (
+                    not _gates_green(gates) or self.state.review_verdict == "blocked"
+                ) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
                     self.state.fix_rounds += 1
                     self.state.transcript = transcript
+                    qa_review = self.state.review_text
                     try:
-                        _, fix_out = _kickoff(lambda transcript=transcript: build_fix_crew(self._spec_dir, task, transcript))
+                        _, fix_out = _kickoff(
+                            lambda transcript=transcript, qa_review=qa_review: build_fix_crew(
+                                self._spec_dir, task, transcript, qa_review
+                            )
+                        )
                         self.state.review_verdict = reviewer_verdict(fix_out)
                         self.state.review_text = fix_out
                         self.state.result = str(fix_out)[:8000]
@@ -1202,8 +1216,13 @@ class SwarmFlow(Flow[SwarmState]):
                     self.state.senior_used = True
                     self.state.senior_rounds += 1
                     self.state.transcript = transcript
+                    senior_qa = self.state.review_text
                     try:
-                        _, senior_out = _kickoff(lambda transcript=transcript: build_senior_crew(self._spec_dir, task, transcript))
+                        _, senior_out = _kickoff(
+                            lambda transcript=transcript, senior_qa=senior_qa: build_senior_crew(
+                                self._spec_dir, task, transcript, senior_qa
+                            )
+                        )
                         self.state.review_verdict = reviewer_verdict(senior_out)
                         self.state.result = str(senior_out)[:8000]
                     except SystemExit as e:

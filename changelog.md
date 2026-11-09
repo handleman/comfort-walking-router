@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-09
+- swarm: gate ownership — QA is the only agent that runs gates; coder/fix crews get `ShellTool(allow_gates=False)` and a `BLOCKED: gates are QA-only` reply, the fix round unlocks gates only after a QA `BLOCKED` verdict, and the coder's fix prompt now carries the QA report so it investigates the root cause instead of re-running gates blindly; the flow still re-runs gates itself for truthful green
+
 ## 2026-11-08
 - swarm: harness generalization + resilience — `SWARM_GATE_COMMANDS` drives gates, preflight binaries, and the shell allowlist (no Svelte/npm assumptions in the core); local QA image now 64k context with a free-model verdict fallback; task-owned dirty paths are recovered on any run, checkpoints ignore unrelated paths, `run.json` gains `reason_code`, and JSON verdicts are parsed
 - swarm: vacancy recovery now commits only the interrupted task's own paths even when unrelated in-scope files are dirty; leftovers stay for their task/human

@@ -1,62 +1,63 @@
 <script lang="ts">
   interface Waypoint {
-    lat: number;
-    lng: number;
+    lat: number
+    lng: number
   }
 
   interface LineStringGeometry {
-    type: 'LineString';
-    coordinates: [number, number][];
+    type: 'LineString'
+    coordinates: [number, number][]
   }
 
   interface Weather {
-    temperature: number;
-    cloudCover: number;
+    temperature: number
+    cloudCover: number
   }
 
   interface Route {
-    id: string;
-    name: string;
-    description?: string;
-    waypoints: Waypoint[];
-    status: 'active' | 'inactive' | 'archived';
-    timestamp: string;
-    comfort_score: number;
-    explanation: string[];
-    geometry: LineStringGeometry;
-    distance_m: number;
-    duration_s: number;
-    applied_preference: string;
-    preference_source: 'auto' | 'manual';
-    weather: Weather;
+    id: string
+    name: string
+    description?: string
+    waypoints: Waypoint[]
+    status: 'active' | 'inactive' | 'archived'
+    timestamp: string
+    comfort_score: number
+    explanation: string[]
+    geometry: LineStringGeometry
+    distance_m: number
+    duration_s: number
+    applied_preference: string
+    preference_source: 'auto' | 'manual'
+    weather: Weather
   }
 
-  import { onMount } from 'svelte';
-  import L from 'leaflet';
+  import { onMount } from 'svelte'
+  import L from 'leaflet'
 
-  let mapElement: HTMLDivElement;
-  let map: L.Map | null = null;
-  let routeLayer: L.LayerGroup | null = null;
+  let mapElement: HTMLDivElement
+  let map: L.Map | null = null
+  let routeLayer: L.LayerGroup | null = null
 
-  let start = '';
-  let end = '';
-  let preference = '';
-  let route: Route | null = null;
-  let error = '';
-  let loading = false;
-  let manualOverride = false;
+  let start = ''
+  let end = ''
+  let preference = ''
+  let route: Route | null = null
+  let error = ''
+  let loading = false
+  let manualOverride = false
 
   onMount(() => {
-    map = L.map(mapElement).setView([48.137, 11.575], 12);
+    map = L.map(mapElement).setView([48.137, 11.575], 12)
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-  });
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map)
+  })
 
   async function submitRoute() {
-    error = '';
-    loading = true;
+    error = ''
+    loading = true
     try {
       const response = await fetch('/route', {
         method: 'POST',
@@ -64,37 +65,37 @@
         body: JSON.stringify({
           start,
           end,
-          preference: manualOverride ? (preference || null) : null
-        })
-      });
-      const data = await response.json();
+          preference: manualOverride ? preference || null : null,
+        }),
+      })
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.message || data.detail || `Route request failed (${response.status})`);
+        throw new Error(data.message || data.detail || `Route request failed (${response.status})`)
       }
-      route = data;
-      drawRoute();
+      route = data
+      drawRoute()
     } catch (err) {
-      route = null;
-      error = err instanceof Error ? err.message : String(err);
+      route = null
+      error = err instanceof Error ? err.message : String(err)
     } finally {
-      loading = false;
+      loading = false
     }
   }
 
   function drawRoute() {
-    if (!map || !route || !route.geometry) return;
+    if (!map || !route || !route.geometry) return
     if (routeLayer) {
-      routeLayer.remove();
+      routeLayer.remove()
     }
-    const layer = L.layerGroup().addTo(map);
-    routeLayer = layer;
-    const line = L.geoJSON(route.geometry).addTo(layer);
+    const layer = L.layerGroup().addTo(map)
+    routeLayer = layer
+    const line = L.geoJSON(route.geometry).addTo(layer)
     route.waypoints.forEach((point, index) => {
       L.circleMarker([point.lat, point.lng], { radius: 6 })
         .bindTooltip(index === 0 ? 'Start' : 'End')
-        .addTo(layer);
-    });
-    map.fitBounds(line.getBounds(), { padding: [24, 24] });
+        .addTo(layer)
+    })
+    map.fitBounds(line.getBounds(), { padding: [24, 24] })
   }
 </script>
 
@@ -134,7 +135,11 @@
 
     {#if route}
       <section class="result">
-        <div class="chip">{route.preference_source === 'manual' ? 'Manual' : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}</div>
+        <div class="chip">
+          {route.preference_source === 'manual'
+            ? 'Manual'
+            : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
+        </div>
         <h2>{route.name}</h2>
         <p class="stats">
           {(route.distance_m / 1000).toFixed(2)} km ·
@@ -142,7 +147,7 @@
         </p>
         <p class="score">comfort {route.comfort_score}/100</p>
         <ul class="factors">
-          {#each route.explanation as line}
+          {#each route.explanation as line, index (index)}
             <li>{line}</li>
           {/each}
         </ul>
@@ -156,7 +161,10 @@
 <style>
   :global(body) {
     margin: 0;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
 
   main {

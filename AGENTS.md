@@ -7,6 +7,7 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - Specs are the source of truth: work goes `spec.md` → `plan.md` → `tasks.md` under `specs/NNN-name/`; decisions in `docs/architecture/`; durable docs in `docs/`.
 - SDD layout (Option 2, Spec-Kit style): constitution in `.specify/memory/constitution.md`, transient work in `specs/NNN-name/` (`contracts/` when needed). Templates in `.specify/templates/`.
 - Swarm (learning goal 2, `specs/009-swarm-harness/`): pure CrewAI coders + parallel Textual dashboard, free-first prefix routing (Ollama local → OpenRouter `:free` → Zen free). Usage: `swarm/README.md`.
+- Gate ownership: QA (reviewer) is the only agent that runs gate commands; coder/fix crews get `ShellTool(allow_gates=False)`-style lockout and only the post-`BLOCKED` fix round may reproduce gates; the flow still re-runs gates for truthful green.
 - Dark-factory hardening (`specs/012-dark-factory-harness/`, Phase 1 T11–T18 done): run-delta attribution (only this run's changes are gated/committed), tool-level scope + secret guards, argv-only shell, reviewer `PASS` required, vacancy guard on cached plans, content-hashed plan cache, commit/push coupled to green, single-run lock/PID/signals, approval holds, role-aware prompts, AC evidence + token/cost/timestamps in `run.json`, preflight, retry/backoff + model fallbacks, per-run budgets (`budget_exhausted`), listener teardown, incremental TUI tail, branch-per-task + `--no-ff` merge queue with rollback (`merge_failed`), a container sandbox (repo-only mount, `.env` masked), and an operator dashboard (ADR-011: queue outcomes, models/fallback, budget gauges, gates, recent runs). Gates run locally via `make` targets; there is no CI workflow.
 
 ## Commands (verified 2026-11-08)
@@ -16,7 +17,7 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - App tests: `make test` (`pytest`, scoped to `tests/`). Single test: `.venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v`.
 - Harness tests: `make swarm-test` (uses `swarm/.venv`).
 - Lint: `make lint` (`ruff check .`). Types: `make typecheck` (`mypy app tests`).
-- Frontend: `cd frontend && npm run check` (svelte-check), `npm run build`, `npm run dev`.
+- Frontend: `cd frontend && npm run check` (svelte-check), `npm run lint` (ESLint + Prettier check), `npm run format`, `npm run build`, `npm run dev`.
 - Swarm: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test|swarm-stop|swarm-approve|swarm-preflight|swarm-sandbox`.
 - Approval hold: `./swarm/run.sh 001 T3 --require-approval` (or `SWARM_REQUIRE_APPROVAL=1`); release with `make swarm-approve` (defaults to the last checkpoint task; `SPEC=001 TASK=T3` to be explicit) or the dashboard `a` key.
 
