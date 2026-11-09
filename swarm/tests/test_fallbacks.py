@@ -28,8 +28,8 @@ def test_activated_fallback_uses_env_override(monkeypatch):
 def test_paid_fallback_skipped_without_allow_paid(monkeypatch):
     monkeypatch.setenv("SWARM_ALLOW_PAID", "0")
     monkeypatch.setenv("SWARM_SENIOR_MODEL", "openrouter/nvidia/x:free")
-    # First fallback is paid Zen; local Qwen is the safe default behind it.
-    assert llms.fallback_model("SWARM_SENIOR_MODEL", allow_paid=False) == "ollama/qwen3.5:9b"
+    # First fallback is paid Zen; the local fallback is the safe default behind it.
+    assert llms.fallback_model("SWARM_SENIOR_MODEL", allow_paid=False) == "ollama/swarm-coder:latest"
 
 
 def test_zen_fallback_used_when_paid_allowed(monkeypatch):
@@ -62,10 +62,21 @@ def test_coder_fallback_prefers_the_local_coder(monkeypatch):
     )
 
 
-def test_reviewer_has_no_fallback_chain(monkeypatch):
-    # QA must never be silently downgraded; a missing verdict is a separate path.
-    monkeypatch.setenv("SWARM_REVIEWER_FALLBACK_MODEL", "")
-    assert llms.fallback_model("SWARM_REVIEWER_MODEL", allow_paid=False) == ""
+def test_local_fallback_is_configurable_and_shared(monkeypatch):
+    """One knob: every role falls back to the configured local model."""
+    monkeypatch.setenv("SWARM_LOCAL_FALLBACK_MODEL", "ollama/qwen3.5:9b")
+    for env_var in (
+        "SWARM_PLANNER_MODEL",
+        "SWARM_CODER_MODEL",
+        "SWARM_REVIEWER_MODEL",
+    ):
+        assert llms.fallback_model(env_var, allow_paid=False) == "ollama/qwen3.5:9b"
+    assert llms.default_fallback_chain("SWARM_SENIOR_MODEL")[1] == "ollama/qwen3.5:9b"
+
+
+def test_local_fallback_defaults_to_the_coder_model(monkeypatch):
+    monkeypatch.delenv("SWARM_LOCAL_FALLBACK_MODEL", raising=False)
+    assert llms.local_fallback_model() == "ollama/swarm-coder:latest"
 
 
 def test_global_activation_covers_every_role(monkeypatch):

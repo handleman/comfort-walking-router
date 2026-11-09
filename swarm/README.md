@@ -41,7 +41,7 @@ Verified 2026-11-08 (tool calls + latency): free unless noted.
 
 All-local variant (no keys, slowest): `make swarm-local` sets every role to Ollama.
 On a quota/429 the flow switches every subsequent crew to `SWARM_<ROLE>_FALLBACK_MODEL`
-(default local `qwen3.5:9b`; senior prefers cheap Zen when `SWARM_ALLOW_PAID=1`), then retries.
+(default `SWARM_LOCAL_FALLBACK_MODEL=ollama/swarm-coder:latest`, one knob for every role; senior prefers cheap Zen when `SWARM_ALLOW_PAID=1`), then retries.
 
 Free/cheap menu (re-checked live with a tool-call probe; ids churn, so run
 `make swarm-preflight` before trusting them):
@@ -322,6 +322,7 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | `SWARM_MAX_RUNTIME_SECONDS` | 14400 | 4h wall clock on a slow machine. |
 | QA report tails | 4k/gate, 9k prompt | Failure output is enough to investigate; the coder is paid per token. |
 | Supervisor | 30s base, 600s cap, 3 attempts, 20 rounds | A 5-minute task retries at most ~10 minutes apart; parked tasks let the queue move on. |
+| `SWARM_LOCAL_FALLBACK_MODEL` | `ollama/swarm-coder:latest` | One local model every role falls back to when the cloud is unreachable; per-role `SWARM_<ROLE>_FALLBACK_MODEL` still overrides. |
 | `SWARM_OLLAMA_TIMEOUT_SECONDS` | 300 | Local generation at 64k context can take minutes; a stuck call is bounded and retried once. |
 | `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 180 / 0 | Small calls return in 1–7 s, but a fix generation on a big prompt legitimately runs past 60 s (007-T5 saw 6 failures at exactly 2×60 s). SDK retries off: the harness retries once, visibly, then falls back per role. |
 
@@ -346,8 +347,8 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
   looped over the report and never declared a verdict (`reviewer_no_verdict`).
   The reviewer has no fallback chain — a missing verdict uses
   `SWARM_VERDICT_FALLBACK_MODEL` instead. The coder chain is
-  `ollama/swarm-coder` (purpose-built) before generic `qwen3.5:9b`; only a
-  provider-wide quota wall switches every role.
+  `SWARM_LOCAL_FALLBACK_MODEL` (default `ollama/swarm-coder:latest`) for every
+  role; only a provider-wide quota wall switches every role at once.
 - Verification honesty: DB-backed tests that skip are recorded in
   `run.json.skipped_ac` + `verification_note` (set `DATABASE_URL` to run them).
 - Retries resume at the failing step; a drifted checkpoint redoes only its last
@@ -485,7 +486,7 @@ gates re-run. Still red → `needs_human`. Attempts + `senior_used` recorded in 
 
 Quota: a daily `free-models-per-day` / 429 error is provider-wide, so it switches every
 role to its fallback (`SWARM_<ROLE>_FALLBACK_MODEL`; coder → `ollama/swarm-coder`,
-planner → local `qwen3.5:9b`, senior → `zen/glm-5.3-flash` when paid is allowed;
+planner/coder/reviewer → `SWARM_LOCAL_FALLBACK_MODEL` (default `ollama/swarm-coder:latest`), senior → `zen/glm-5.3-flash` when paid is allowed;
 the reviewer keeps `swarm-qa` by design) and retries. If the fallback is also out,
 the pilot stops with `quota_exhausted`, a `quota_note` in `run.json`, and a
 `QUOTA EXHAUSTED` line in `up.log`. Transient 429/timeout/5xx errors get exponential

@@ -37,20 +37,29 @@ DEFAULT_VERDICT_FALLBACK = "openrouter/nvidia/nemotron-3.5-super-vl:free"
 # review, so it never declared a verdict (needs_human, 30 minutes).
 _fallback_roles: set[str] = set()
 
-# First model whose paid-guard passes wins. Env `SWARM_<ROLE>_FALLBACK_MODEL`
-# is prepended; the rest are safe defaults.
-FALLBACK_CHAINS: dict[str, tuple[str, ...]] = {
-    "SWARM_PLANNER_MODEL": ("ollama/qwen3.5:9b",),
-    # Purpose-built local coder first; the generic 9B model only as a last resort.
-    "SWARM_CODER_MODEL": ("ollama/swarm-coder:latest", "ollama/qwen3.5:9b"),
-    # The reviewer is *already* local; a weaker general model cannot run gates or
-    # emit a verdict. No chain: a missing verdict is handled by
-    # `verdict_fallback_llm`, never by silently downgrading QA.
-    "SWARM_REVIEWER_MODEL": (),
-    # Zen's free tier is client-only, so the cloud fallback is cheap paid Zen;
-    # without SWARM_ALLOW_PAID it falls through to local Qwen.
-    "SWARM_SENIOR_MODEL": ("zen/glm-5.3-flash", "ollama/qwen3.5:9b"),
-}
+# One local model every role falls back to when its cloud provider is not
+# reachable. Configurable like the role models: `SWARM_LOCAL_FALLBACK_MODEL`.
+DEFAULT_LOCAL_FALLBACK = "ollama/swarm-coder:latest"
+
+
+def local_fallback_model() -> str:
+    """The shared local fallback; empty env falls back to the default."""
+    return (
+        os.getenv("SWARM_LOCAL_FALLBACK_MODEL", DEFAULT_LOCAL_FALLBACK).strip()
+        or DEFAULT_LOCAL_FALLBACK
+    )
+
+
+def default_fallback_chain(env_var: str) -> tuple[str, ...]:
+    """Default chain per role; a cloud outage lands on the configured local model.
+
+    Senior keeps cheap paid Zen first (it is the escalation brain, and Zen's free
+    tier is client-only). Every other role goes straight to the local fallback.
+    """
+    local = local_fallback_model()
+    if env_var == "SWARM_SENIOR_MODEL":
+        return ("zen/glm-5.3-flash", local)
+    return (local,)
 
 
 def _allow_paid() -> bool:
@@ -142,7 +151,7 @@ def fallback_roles() -> list[str]:
 def fallback_model(env_var: str, *, allow_paid: bool) -> str:
     """First usable fallback for a role; '' when none passes the paid guard."""
     name = env_var.removesuffix("_MODEL") + "_FALLBACK_MODEL"
-    chain = tuple(x for x in (os.getenv(name, "").strip(),) if x) + FALLBACK_CHAINS.get(env_var, ())
+    chain = tuple(x for x in (os.getenv(name, "").strip(),) if x) + default_fallback_chain(env_var)
     for model in chain:
         try:
             _guard(model, allow_paid=allow_paid)
