@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -23,6 +24,14 @@ cache = Cache()
 osrm = OSRMProvider()
 open_meteo = OpenMeteoProvider()
 weather_cache = WeatherCache()
+
+# Calls-vs-cache-hits counters for /route cache logging (AC-3).
+cache_hits = 0
+provider_calls = 0
+
+# Calls-vs-cache-hits counters for /route cache logging (AC-3).
+cache_hits = 0
+provider_calls = 0
 
 
 def _get_weather(midpoint: tuple[float, float]) -> dict[str, Any] | None:
@@ -200,9 +209,21 @@ def _build_response(
 
 @app.post("/route", response_model=RouteResponse)
 def route(body: RouteRequest) -> RouteResponse:
+    global cache_hits, provider_calls
+
     cached = cache.get((body.start, body.end, body.preference))
     if cached is not None:
+        cache_hits += 1
+        logging.getLogger(__name__).info(
+            "route cache hit, skipping provider: "
+            f"{body.start}|{body.end}|{body.preference}"
+        )
         return RouteResponse.model_validate(cached)
+    provider_calls += 1
+    logging.getLogger(__name__).info(
+        "route cache miss, calling provider: "
+        f"{body.start}|{body.end}|{body.preference}"
+    )
     try:
         start = geocode_place(body.start)
         end = geocode_place(body.end)
