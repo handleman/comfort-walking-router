@@ -54,6 +54,19 @@
     "duration_s": {
       "type": "number",
       "minimum": 0
+    },
+    "applied_preference": {
+      "type": "string",
+      "description": "Preference actually applied to this route"
+    },
+    "preference_source": {
+      "type": "string",
+      "enum": ["auto", "manual"],
+      "description": "Whether the applied preference was auto-selected or manually requested"
+    },
+    "weather": {
+      "type": "object",
+      "description": "Weather conditions used for scoring"
     }
   },
   "required": [
@@ -64,7 +77,10 @@
     "timestamp",
     "geometry",
     "distance_m",
-    "duration_s"
+    "duration_s",
+    "applied_preference",
+    "preference_source",
+    "weather"
   ],
   "$defs": {
     "RouteRequest": {
