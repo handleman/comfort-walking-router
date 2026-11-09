@@ -199,8 +199,8 @@ Each run writes:
 Tail mode follows the loop: when a newer run becomes `latest`, the dashboard jumps to it
 (task list + plan note re-sync). Plan validation: planner output without `STEP` lines fails
 the run instead of executing garbage. A run with no new in-scope changes recovers the same
-task's interrupted work when the dirty set matches exactly; otherwise it records an empty
-green commit (`Swarm-Vacancy: 1`) and advances. Only unrelated dirty in-scope work still
+task's interrupted paths whenever they are still dirty (unrelated dirty files are left
+alone); otherwise it records an empty green commit (`Swarm-Vacancy: 1`) and advances. Only unrelated dirty in-scope work still
 stops as `needs_human`.
 
 ## Agent tools (guarded, `swarm/tools_guarded.py`)

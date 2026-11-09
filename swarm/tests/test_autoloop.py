@@ -935,6 +935,9 @@ def test_recover_prior_delta_requires_exact_match(tmp_path, monkeypatch):
     assert source == prev.name
 
     monkeypatch.setattr(tg, "_git_changed", lambda: ["app/x.py", "app/y.py"])
+    paths, source = SwarmFlow._recover_prior_delta(stub, task)
+    assert paths == ["app/x.py"] and source == prev.name  # extras stay untouched
+    monkeypatch.setattr(tg, "_git_changed", lambda: ["app/y.py"])
     assert SwarmFlow._recover_prior_delta(stub, task) == ([], "")
 
 

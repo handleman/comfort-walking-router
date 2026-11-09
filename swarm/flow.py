@@ -868,8 +868,20 @@ class SwarmFlow(Flow[SwarmState]):
             pass
         if not candidates:
             return [], ""
+        from swarm.tools_guarded import is_secret_path, scope_violations
+
+        scope = _resolve_scope()
+        candidates = {
+            path
+            for path in candidates
+            if not is_secret_path(path) and path not in scope_violations([path], scope)
+        }
+        if not candidates:
+            return [], ""
         dirty = set(self._in_scope_dirty())
-        if dirty != candidates:
+        # Require every prior path to still be dirty; unrelated dirty files are
+        # left alone (they belong to another task/human).
+        if not candidates <= dirty:
             return [], ""
         return sorted(candidates), prev.name
 
