@@ -272,8 +272,12 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
   a trivial step that fails is retried paid (`swarm/routing.py`).
 - `SWARM_LOCAL_FIRST=0` or `SWARM_PAID_ALWAYS=1` forces paid everywhere.
 - `usage.by_role` / `usage.by_step` record model, tokens, and cost per call;
-  `SWARM_MAX_COST_PER_TASK` (default $0.05) and `SWARM_MAX_SECONDS_PER_TASK`
-  (default 900s) bound a single task without touching the run budget.
+  `SWARM_MAX_COST_PER_TASK` (0.15) and `SWARM_MAX_SECONDS_PER_TASK`
+  (1800s) bound a single task without touching the run budget.
+- **Budgets stop spending, never verification.** A tripped budget re-raises as
+  `_BudgetExhausted` and is reported as `budget_exhausted` (007-T5 reported
+  `reviewer_no_verdict` instead, because QA was skipped by the cap). The QA
+  review is not budget-gated: it is local/free and decides work already paid for.
 - `make swarm-report` prints cost per green task, tokens per role, fix-round
   rate, stop reasons, and p50/p90 duration.
 
@@ -306,7 +310,7 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | `STEP_ATTEMPTS` | 2 | Attempt 2 already switches a trivial step to the paid coder; provider retries live inside `_kickoff` (3 with backoff). |
 | `SENIOR_ATTEMPTS` | 2 | Free model, but two passes are the empirical limit. |
 | QA `max_iter` | 9 | 5 gates + `git status` + verdict + margin; the old 5 made QA skip a gate and triggered the harness fallback. |
-| `SWARM_MAX_COST_PER_TASK` | 0.05 | Covers p95 (p90 $0.0295); only the pathological $0.115 task is parked. |
+| `SWARM_MAX_COST_PER_TASK` | 0.15 | 007-T5 spent $0.0624 on five paid steps, then the $0.06 cap blocked its QA review. A task with one fix round now fits. |
 | `SWARM_MAX_SECONDS_PER_TASK` | 1800 | p75 is 454s; three QA rounds on a slow local model still fit. |
 | `SWARM_MAX_COST_USD` | 3 | ~100 green tasks at the current median. |
 | `SWARM_MAX_TOKENS` | 2,000,000 | 2.6× the p90 green task (768k). |
@@ -314,7 +318,7 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | QA report tails | 4k/gate, 9k prompt | Failure output is enough to investigate; the coder is paid per token. |
 | Supervisor | 30s base, 600s cap, 3 attempts, 20 rounds | A 5-minute task retries at most ~10 minutes apart; parked tasks let the queue move on. |
 | `SWARM_OLLAMA_TIMEOUT_SECONDS` | 300 | Local generation at 64k context can take minutes; a stuck call is bounded and retried once. |
-| `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 60 / 1 | Normal cloud calls return in 1–7 s; a 60 s stall is a dead connection, not work. One same-model retry, then the fallback models. |
+| `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 180 / 0 | Small calls return in 1–7 s, but a fix generation on a big prompt legitimately runs past 60 s (007-T5 saw 6 failures at exactly 2×60 s). SDK retries off: the harness retries once, visibly, then falls back per role. |
 
 ### Unattended operation (015)
 - `make swarm-supervise` drives `./swarm/run.sh --resume`: retryable outcomes
@@ -497,8 +501,11 @@ Local Ollama and `:free` models are exactly `$0`. A paid model with a known rate
 `cost_usd: null` / `cost=unknown` in the TUI instead of inventing a number.
 
 Budgets are env-driven and stop the pilot with `budget_exhausted`:
-`SWARM_MAX_TOKENS` (2M), `SWARM_MAX_COST_USD` ($0.05), `SWARM_MAX_RUNTIME_SECONDS`
-(14400, per task). Set any to `0` to disable it. `budget_note` records which limit tripped.
+`SWARM_MAX_TOKENS` (2M), `SWARM_MAX_COST_USD` ($3), `SWARM_MAX_RUNTIME_SECONDS`
+(14400), plus per task `SWARM_MAX_COST_PER_TASK`/`SWARM_MAX_SECONDS_PER_TASK`.
+Set any to `0` to disable it. `budget_note` records which limit tripped. The QA
+review bypasses the cost cap — gates and the local reviewer are free, and a cap
+must never turn into an unverified `needs_human`.
 
 ## Event listener & dashboard (012 T15)
 Each flow unregisters its CrewAI event handlers on `save_run` (`SwarmListener.teardown`),

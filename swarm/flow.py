@@ -1396,7 +1396,9 @@ class SwarmFlow(Flow[SwarmState]):
         cache = plan_cache_path(self._spec_dir, task.id)
         source_hash = plan_source_hash(self._spec_dir)
 
-        def _kickoff(build: Any, *, role: str = "", step: Any = None) -> tuple[Any, str]:
+        def _kickoff(
+            build: Any, *, role: str = "", step: Any = None, guard_budget: bool = True
+        ) -> tuple[Any, str]:
             """Run a fresh crew with quota fallback, backoff, and typed failures.
 
             015 AC-6: usage is attributed to `role`/`step`. 015 AC-8: identical
@@ -1416,9 +1418,15 @@ class SwarmFlow(Flow[SwarmState]):
                 try:
                     # 015 AC-6: never abort between a green verdict and its commit —
                     # budgets are checked before spending, not after a result.
-                    self._check_budget()
+                    if guard_budget:
+                        self._check_budget()
                     crew = build()
                     out = crew.kickoff()
+                except _BudgetExhausted:
+                    # A budget stop is terminal: retrying it cannot help, and
+                    # swallowing it here turned "out of money" into
+                    # `reviewer_no_verdict` (007-T5, 40 minutes of paid work).
+                    raise
                 except Exception as e:
                     last_err = e
                     if _is_quota_error(e):
@@ -1482,6 +1490,9 @@ class SwarmFlow(Flow[SwarmState]):
                         self._spec_dir, task, work_summary
                     ),
                     role=role,
+                    # QA is local/free and the work is already paid for: a spent
+                    # task budget must not block the verification that decides it.
+                    guard_budget=False,
                 )
             except SystemExit as e:
                 self.state.result = f"QA crew failed: {e}"[:4000]

@@ -1122,7 +1122,7 @@ def test_llm_timeout_and_sdk_retries_are_configurable(monkeypatch):
     assert model.timeout == 45
     assert model.max_retries == 1
     monkeypatch.setenv("SWARM_LLM_TIMEOUT_SECONDS", "not-a-number")
-    assert llms._timeout_seconds() == 60
+    assert llms._timeout_seconds() == 180
 
 
 def test_connection_timeout_is_retryable():
