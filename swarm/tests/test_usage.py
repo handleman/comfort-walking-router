@@ -17,13 +17,14 @@ def test_free_models_cost_zero():
 
 
 def test_known_paid_price_is_estimated():
+    """Prices are the gateway's own `usage.cost`, re-measured 2026-11-09."""
     cost = estimate_cost({"zen/glm-5.3-flash": (1_000_000, 1_000_000)})
-    assert cost == 0.4  # (0.10 + 0.30)
+    assert cost == 0.65  # $0.15/M in + $0.50/M out (reasoning billed as output)
 
 
 def test_price_lookup_survives_stripped_prefix():
     # CrewAI's LLM.model drops the `zen/` routing prefix.
-    assert estimate_cost({"glm-5.3-flash": (1_000_000, 0)}) == 0.1
+    assert estimate_cost({"glm-5.3-flash": (1_000_000, 0)}) == 0.15
 
 
 def test_unknown_paid_price_is_none_not_fake_zero():

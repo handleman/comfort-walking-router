@@ -1423,17 +1423,23 @@ class SwarmFlow(Flow[SwarmState]):
                         ) from e
                     if kind == "retryable" and attempt < 3:
                         key = (role or "crew", signature(str(step or role or "crew"), str(e)))
+                        text = f"{type(e).__name__}: {e}".lower()
+                        flaky = "connect" in text or "timed out" in text
                         if key in self._failure_sigs:
-                            # Same step, same error, same model: escalate instead.
+                            # Second identical failure: stop retrying this model.
+                            if flaky and not switched:
+                                switched = True
+                                activate_fallbacks()
+                                print(
+                                    "llm connection failure ×2 → retrying on fallback models",
+                                    flush=True,
+                                )
+                                time.sleep(backoff_delay(attempt))
+                                continue
                             break
                         self._failure_sigs.add(key)
-                        text = f"{type(e).__name__}: {e}".lower()
-                        if not switched and ("connect" in text or "timed out" in text):
-                            # 015: a flaky/dead endpoint should not cost 5 SDK
-                            # retries; move to the configured fallback models.
-                            switched = True
-                            activate_fallbacks()
-                            print("llm connection failure → retrying on fallback models", flush=True)
+                        # A single transport blip is worth one retry on the same
+                        # model (calls normally take 1-7s); only then fall back.
                         time.sleep(backoff_delay(attempt))
                         continue
                     break

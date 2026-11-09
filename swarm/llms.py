@@ -99,9 +99,9 @@ def fallback_model(env_var: str, *, allow_paid: bool) -> str:
 def _timeout_seconds() -> int:
     """Per-request HTTP timeout. Lower it when the network is flaky; raise for slow local models."""
     try:
-        return max(30, int(os.getenv("SWARM_LLM_TIMEOUT_SECONDS", "120") or 120))
+        return max(15, int(os.getenv("SWARM_LLM_TIMEOUT_SECONDS", "60") or 60))
     except ValueError:
-        return 120
+        return 60
 
 
 def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:

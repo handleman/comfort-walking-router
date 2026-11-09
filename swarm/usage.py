@@ -12,8 +12,10 @@ import os
 # USD per 1M tokens: (input, output). Only models we have actually measured or
 # seen priced belong here; everything else is "unknown" rather than guessed.
 PRICES_USD_PER_M: dict[str, tuple[float, float]] = {
-    # Zen balance billing, measured 2026-11-08 (small calls, rounded up).
-    "zen/glm-5.3-flash": (0.10, 0.30),
+    # Zen balance billing, re-measured 2026-11-09 against `usage.cost` from the
+    # gateway (reasoning tokens are billed as output): 169 in / 35 out = $4.285e-05
+    # → $0.15/M in, $0.50/M out. The earlier (0.10, 0.30) under-reported by ~50%.
+    "zen/glm-5.3-flash": (0.15, 0.50),
     "zen/deepseek-v4.1-flash": (0.25, 1.00),
 }
 

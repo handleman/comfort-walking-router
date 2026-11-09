@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-09
+- swarm: correct Zen pricing from the gateway's own `usage.cost` (`glm-5.3-flash` $0.15/M in, $0.50/M out; reasoning billed as output — the old table under-reported ~50%) and treat LLM timeouts as transport faults: 60s request timeout, one same-model retry, then fallback models. Measured calls: 1–7s at 40k prompt tokens, so a timeout is a dead connection rather than a slow generation
 - swarm: self-heal installs newly added frontend devDependencies (`npm ls` failure → `npm install`), and cloud calls fail over to the fallback models on connection timeouts instead of spending 5 SDK retries; documented in `swarm/README.md`
 - swarm: stop LLM connection timeouts from hanging a run — cloud calls use one SDK retry with a configurable 120s timeout (`SWARM_LLM_TIMEOUT_SECONDS`/`SWARM_LLM_MAX_RETRIES`), a connection/timeout failure immediately switches to the fallback models, and identical failures are never retried twice on the same model
 - docs: add `docs/runbooks/overnight-runs.md` (sleep vs lock screen, `make swarm-night`, AC/lid/tmux checklist, supervisor recovery, knobs) and link it from `swarm/README.md`, `AGENTS.md`, and the roadmap
