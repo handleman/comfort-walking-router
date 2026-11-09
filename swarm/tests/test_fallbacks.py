@@ -74,3 +74,17 @@ def test_global_activation_covers_every_role(monkeypatch):
     llms.activate_fallbacks()
     assert llms.fallbacks_active("SWARM_CODER_MODEL") is True
     assert llms.fallbacks_active("SWARM_REVIEWER_MODEL") is True
+
+
+def test_role_models_reflect_the_active_fallback(monkeypatch):
+    """The dashboard must show the model actually called, per role."""
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "1")
+    monkeypatch.setenv("SWARM_CODER_MODEL", "zen/glm-5.3-flash")
+    monkeypatch.setenv("SWARM_REVIEWER_MODEL", "ollama/swarm-qa:latest")
+    llms.activate_fallbacks("SWARM_CODER_MODEL")
+    rows = {m["role"]: m for m in llms.role_models()}
+    assert rows["coder"]["model"] == "ollama/swarm-coder:latest"
+    assert rows["coder"]["fallback"] is True
+    assert rows["reviewer"]["model"] == "ollama/swarm-qa:latest"
+    assert rows["reviewer"]["fallback"] is False
+    assert llms.fallback_roles() == ["SWARM_CODER_MODEL"]

@@ -95,6 +95,11 @@ Verified 2026-10-10: builds offline from local blobs, native tool calls work
 
 - **Queue** (left): tasks in order, newest outcome per task from run history
   (`✓` green, `✗` needs_human, `⏸` approval, `⛔` quota/budget, `▶` current).
+- **The model list is live, per role.** It shows the model each role *actually
+  calls*: live mode reads `llms.role_models()`, `--tail` reads `progress.json`
+  (in flight) then `run.json usage.by_role` (finished). A role on a fallback is
+  marked `fallback` and an Ollama model is marked `local`, so a paid → local
+  switch is visible instead of hiding behind the static env list.
 - **Models**: planner/coder/reviewer/senior, `local` for Ollama, `fallback ON`
   once a quota/429 switched the run; in tail mode it shows the models the run used.
 - **Budget**: tokens / cost / wall-clock against `SWARM_MAX_*` with percentages.

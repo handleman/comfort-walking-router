@@ -46,6 +46,63 @@ ROLE_VARS = (
     ("senior", "SWARM_SENIOR_MODEL"),
 )
 
+ROLE_ENV = dict(ROLE_VARS)
+
+
+def _base_role(key: str) -> str | None:
+    """`coder:fix2` → coder, `qa` → reviewer: bucket keys are per call, not per role."""
+    if key.startswith("coder"):
+        return "coder"
+    if key.startswith(("qa", "reviewer")):
+        return "reviewer"
+    if key.startswith("planner"):
+        return "planner"
+    if key.startswith("senior"):
+        return "senior"
+    return None
+
+
+def models_from_progress(run_dir: Path | Any | None) -> list[tuple[str, str, bool]] | None:
+    """Per-role models from a run still in flight (`progress.json`)."""
+    if run_dir is None:
+        return None
+    try:
+        prog = json.loads((Path(run_dir) / "progress.json").read_text())
+    except Exception:
+        return None
+    rows = prog.get("models") or []
+    out = [
+        (str(r.get("role")), str(r.get("model")), bool(r.get("fallback")))
+        for r in rows
+        if isinstance(r, dict) and r.get("role") and r.get("model")
+    ]
+    return out or None
+
+
+def models_from_payload(payload: dict[str, Any] | None) -> list[tuple[str, str, bool]] | None:
+    """Effective role → model from a finished run (tail mode has no live state).
+
+    `usage.by_role` records the model each role actually called, so a run that
+    fell back to local Ollama shows that here instead of the static env list.
+    """
+    usage = (payload or {}).get("usage") or {}
+    by_role = usage.get("by_role") or {}
+    fallen = set(usage.get("fallback_roles") or [])
+    seen: dict[str, str] = {}
+    for key, bucket in by_role.items():
+        role = _base_role(str(key))
+        model = str((bucket or {}).get("model") or "")
+        if role and model:
+            seen[role] = model
+    if not seen:
+        return None
+    return [
+        (role, seen[role], ROLE_ENV[role] in fallen)
+        for role in ("planner", "coder", "reviewer", "senior")
+        if role in seen
+    ]
+
+
 STATUS_STYLE = {
     "green": "bold green",
     "crew_done": "green",
@@ -176,7 +233,7 @@ def format_gates(gates: dict[str, int] | None) -> Text:
 def format_metrics(
     payload: dict[str, Any] | None,
     *,
-    models: list[tuple[str, str]] | None = None,
+    models: list[tuple[str, str] | tuple[str, str, bool]] | None = None,
     fallback: bool = False,
     elapsed: float | None = None,
 ) -> Text:
@@ -184,25 +241,32 @@ def format_metrics(
     usage = payload.get("usage") or {}
     limits = {
         "tokens": _env_int("SWARM_MAX_TOKENS", 2_000_000),
-        "cost": _env_float("SWARM_MAX_COST_USD", 0.05),
+        "cost": _env_float("SWARM_MAX_COST_USD", 3.0),
         "seconds": _env_int("SWARM_MAX_RUNTIME_SECONDS", 7200),
     }
+    rows: list[tuple[str, str, bool]] = []
+    for item in models or []:
+        role, model = item[0], item[1]
+        is_fb = bool(item[2]) if len(item) > 2 else False
+        rows.append((role, model, is_fb))
+
     out = Text()
     out.append("models\n", style="bold")
-    if models:
-        for role, model in models:
+    if rows:
+        for role, model, is_fb in rows:
             out.append(f"  {role:<8} ", style="dim")
-            label = short_model(model)
-            out.append(label, style="cyan" if model.startswith("ollama/") else "")
+            out.append(short_model(model), style="cyan" if model.startswith("ollama/") else "")
             if model.startswith("ollama/"):
                 out.append(" local", style="dim")
+            if is_fb:
+                out.append(" fallback", style="bold yellow")
             out.append("\n")
     else:
         out.append("  (waiting for a run)\n", style="dim")
 
-    if fallback:
+    if fallback and not any(is_fb for _, _, is_fb in rows):
         out.append("fallback  ", style="dim")
-        out.append("ON — quota/429 switched models\n", style="bold yellow")
+        out.append("ON — some roles on fallback models\n", style="bold yellow")
 
     out.append("\nbudget\n", style="bold")
     out.append(f"  tokens  {fmt_tokens(usage.get('total_tokens'))} / {fmt_tokens(limits['tokens'])}", style="")
@@ -867,13 +931,6 @@ class SwarmTUI(App[None]):
         status = str(payload.get("status", "running"))
         style = status_style(status)
         fallback = False
-        if not self._tail:
-            try:
-                from swarm.llms import fallbacks_active
-
-                fallback = fallbacks_active()
-            except Exception:
-                pass
 
         line = Text()
         line.append(f"{self._spec} {self._task_id}", style="bold")
@@ -901,11 +958,19 @@ class SwarmTUI(App[None]):
             line.append(f"  {payload['quota_note']}", style="bold red")
         self._set_markup("status", line)
 
-        models: list[tuple[str, str]] | None = None
+        models: list[tuple[str, str, bool]] | None = None
         if self._tail:
-            models = [(str(m), str(m)) for m in usage.get("models") or []]
+            models = models_from_progress(self._run_dir) or models_from_payload(payload)
         if not models:
-            models = [(role, os.getenv(var, "?")) for role, var in ROLE_VARS]
+            try:
+                from swarm.llms import role_models as _role_models
+
+                models = [
+                    (m["role"], str(m["model"]), bool(m["fallback"])) for m in _role_models()
+                ]
+            except Exception:
+                models = [(role, os.getenv(var, "?"), False) for role, var in ROLE_VARS]
+        fallback = any(flag for _, _, flag in models)
         self._set_markup("metrics", format_metrics(payload, models=models, fallback=fallback, elapsed=elapsed))
         self._set_markup("gates", format_gates(self._payload.get("gates")))
         self._set_markup("recent", format_recent(self._history or scan_runs(REPO_ROOT), self._spec))

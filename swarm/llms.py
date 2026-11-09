@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from crewai import LLM
 
@@ -96,6 +97,46 @@ def fallbacks_active(role: str | None = None) -> bool:
     if role is None:
         return bool(_fallback_roles)
     return "*" in _fallback_roles or role in _fallback_roles
+
+
+# Roles shown by the dashboard, in display order.
+ROLE_MODEL_VARS: tuple[tuple[str, str], ...] = (
+    ("planner", "SWARM_PLANNER_MODEL"),
+    ("coder", "SWARM_CODER_MODEL"),
+    ("reviewer", "SWARM_REVIEWER_MODEL"),
+    ("senior", "SWARM_SENIOR_MODEL"),
+)
+
+
+def role_models() -> list[dict[str, Any]]:
+    """Effective model per role, so the dashboard stops showing a static list.
+
+    A paid role that fell back to local Ollama must *look* local: same source of
+    truth as `_for_role`, so the display cannot drift from what is actually called.
+    """
+    out: list[dict[str, Any]] = []
+    for role, var in ROLE_MODEL_VARS:
+        primary = os.getenv(var, "").strip()
+        fallback = ""
+        if fallbacks_active(var):
+            fallback = fallback_model(var, allow_paid=_allow_paid())
+        model = fallback or primary or "?"
+        out.append(
+            {
+                "role": role,
+                "primary": primary,
+                "model": model,
+                "fallback": bool(fallback and fallback != primary),
+            }
+        )
+    return out
+
+
+def fallback_roles() -> list[str]:
+    """Role env vars currently running a fallback model ("*" means all of them)."""
+    if "*" in _fallback_roles:
+        return [var for _, var in ROLE_MODEL_VARS]
+    return sorted(r for r in _fallback_roles if r != "*")
 
 
 def fallback_model(env_var: str, *, allow_paid: bool) -> str:

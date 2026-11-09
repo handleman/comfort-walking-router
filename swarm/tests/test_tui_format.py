@@ -186,3 +186,62 @@ def test_human_report_for_green_is_short_and_clear():
         [],
     )
     assert "all gates 0 + reviewer PASS + committed" in text
+
+
+def test_format_metrics_marks_a_fallback_role_inline():
+    # A paid role on local Ollama must look local, not keep the paid label.
+    text = format_metrics(
+        {"usage": {"cost_usd": 0.0}},
+        models=[
+            ("planner", "nvidia/x:free", False),
+            ("coder", "ollama/swarm-coder:latest", True),
+        ],
+    ).plain
+    assert "swarm-coder" in text  # `short_model` strips the ollama/ prefix
+    assert "local" in text
+    assert "fallback" in text
+    assert "fallback  ON" not in text  # per-row is enough when roles are known
+
+
+def test_models_from_payload_uses_the_roles_that_actually_ran():
+    from swarm.tui import models_from_payload
+
+    payload = {
+        "usage": {
+            "fallback_roles": ["SWARM_CODER_MODEL"],
+            "by_role": {
+                "planner": {"model": "nvidia/x:free"},
+                "coder:fix1": {"model": "ollama/swarm-coder:latest"},
+                "qa": {"model": "ollama/swarm-qa:latest"},
+            },
+        }
+    }
+    rows = models_from_payload(payload)
+    assert rows is not None
+    by_role = {role: (model, fb) for role, model, fb in rows}
+    assert by_role["coder"] == ("ollama/swarm-coder:latest", True)
+    assert by_role["reviewer"] == ("ollama/swarm-qa:latest", False)
+    assert by_role["planner"] == ("nvidia/x:free", False)
+
+
+def test_models_from_progress_shows_a_live_fallback(tmp_path):
+    import json
+
+    from swarm.tui import models_from_progress
+
+    (tmp_path / "progress.json").write_text(
+        json.dumps(
+            {
+                "models": [
+                    {"role": "coder", "model": "ollama/swarm-coder:latest", "fallback": True},
+                    {"role": "reviewer", "model": "ollama/swarm-qa:latest", "fallback": False},
+                ]
+            }
+        )
+    )
+    rows = models_from_progress(tmp_path)
+    assert rows == [
+        ("coder", "ollama/swarm-coder:latest", True),
+        ("reviewer", "ollama/swarm-qa:latest", False),
+    ]
+    assert models_from_progress(tmp_path / "missing") is None

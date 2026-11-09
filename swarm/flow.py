@@ -97,6 +97,26 @@ class _ConfigError(SystemExit):
     """Terminal misconfiguration (bad base URL/key/HTML body): never retried."""
 
 
+def _role_model_rows() -> list[dict[str, Any]]:
+    """Effective per-role models for progress.json / the dashboard."""
+    try:
+        from swarm.llms import role_models
+
+        return role_models()
+    except Exception:
+        return []
+
+
+def _fallback_role_names() -> list[str]:
+    """Roles currently on a fallback model; empty when every role is primary."""
+    try:
+        from swarm.llms import fallback_roles
+
+        return fallback_roles()
+    except Exception:
+        return []
+
+
 def _fallback_key(role: str) -> str:
     """Map a crew role to the `*_MODEL` env var whose fallback it may use."""
     if role.startswith(("qa", "reviewer")):
@@ -890,6 +910,9 @@ class SwarmFlow(Flow[SwarmState]):
                 role or "unknown",
                 {"prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0, "cost_known": True, "calls": 0},
             )
+            # The model a role actually ran, not the env var: a fallback to local
+            # Ollama must be visible per role in run.json (and in the dashboard).
+            bucket["model"] = model or bucket.get("model", "")
             bucket["prompt_tokens"] += prompt
             bucket["completion_tokens"] += completion
             bucket["calls"] += 1
@@ -1301,6 +1324,11 @@ class SwarmFlow(Flow[SwarmState]):
             "completed": completed,
             "step_outputs": list(step_outputs),
             "delta_hashes": hash_paths(delta),
+            # Live view for a tailed dashboard: the run.json is only written at
+            # the end, so without this the model list stays the static env list
+            # even after a role fell back to local Ollama.
+            "models": _role_model_rows(),
+            "fallback_roles": _fallback_role_names(),
             "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
         }
         path = self.run_dir / "progress.json"
@@ -1817,6 +1845,7 @@ class SwarmFlow(Flow[SwarmState]):
             "total_tokens": self.state.total_tokens,
             "llm_calls": self.state.llm_calls,
             "models": list(self.state.models_used),
+            "fallback_roles": _fallback_role_names(),
             "cost_usd": cost,
             "started_at": self.state.started_at,
             "finished_at": self.state.finished_at,
