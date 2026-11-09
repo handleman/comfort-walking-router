@@ -275,6 +275,42 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
 - `make swarm-report` prints cost per green task, tokens per role, fix-round
   rate, stop reasons, and p50/p90 duration.
 
+### Running unattended: sleep, lock screen, closed lid (macOS)
+
+A locked screen does **not** stop the swarm; **system sleep** does. A sleeping Mac
+freezes the process mid-call (and the 120s model timeout expires), which shows up
+as `interrupted`/`crew_error` and is retried by the supervisor.
+
+Recommended, one command:
+
+```bash
+make swarm-night      # caffeinate -is + swarm.supervise (auto-resume + retries)
+```
+
+`caffeinate -is` holds an idle/system-sleep assertion for as long as the child
+runs (`-i` idle sleep, `-s` system sleep on AC). Keep the machine **on AC power**;
+on battery, macOS can still force sleep. Verify from another terminal:
+
+```bash
+pmset -g assertions | grep -iE "caffeinate|PreventUserIdleSystemSleep"
+```
+
+Other rules:
+
+- **Closing the lid sleeps the Mac** even under `caffeinate`, unless you are in
+  proper clamshell mode (external display + power). Leave the lid open, or, if you
+  must close it, disable sleep for the night and restore it afterwards:
+  `sudo pmset -a sleep 0` → `sudo pmset -a sleep 1`.
+- Display sleep is fine; only *system* sleep matters. `displaysleep 30` in
+  `pmset -g` is harmless.
+- Run it in `tmux` so closing a terminal window or an editor session cannot take
+  the TUI with it:
+  `tmux new -s swarm 'make swarm-night'` (re-attach with `tmux attach -t swarm`).
+- The supervisor (not `nohup`) is what makes an interruption survivable: it
+  retries `interrupted`/`crew_error`/quota with backoff and parks exhausted tasks.
+- After a wake, confirm where it is: `make swarm-report` and
+  `swarm/runs/latest` (or `make swarm-dash`).
+
 ### Tuning (015)
 
 Thresholds are derived from the recorded runs, not guessed. Re-derive them any

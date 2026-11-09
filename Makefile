@@ -4,7 +4,7 @@
 .PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck \
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
-	swarm-supervise swarm-report
+	swarm-supervise swarm-report swarm-night
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -67,6 +67,10 @@ swarm-supervise: ## Unattended queue: auto-resume retryable stops, park exhauste
 
 swarm-report: ## Cost/autonomy report from swarm/runs (cost per green task, roles, stops)
 	swarm/.venv/bin/python -m swarm.report
+
+swarm-night: ## Overnight run: keep the Mac awake (caffeinate) + auto-resume the queue
+	@echo "overnight: caffeinate -is + supervisor; keep the machine on AC power"
+	caffeinate -is swarm/.venv/bin/python -m swarm.supervise
 
 swarm-test: ## Harness unit tests (no LLM, no network)
 	swarm/.venv/bin/python -m pytest swarm/tests -q
