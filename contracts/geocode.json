@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "contracts/geocode.json",
+  "title": "Geocode contract",
+  "description": "Response shapes for forward geocoding (GeocodeResponse) and reverse geocoding (ReverseGeocodeResponse).",
+  "definitions": {
+    "coordinates": {
+      "type": "object",
+      "title": "Coordinates",
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      },
+      "required": ["lat", "lng"],
+      "additionalProperties": false
+    },
+    "suggestion": {
+      "type": "object",
+      "title": "Suggestion",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coordinates": {
+          "$ref": "#/definitions/coordinates"
+        },
+        "attribution": {
+          "type": "string"
+        },
+        "feature_type": {
+          "type": "string"
+        }
+      },
+      "required": ["label", "coordinates", "attribution", "feature_type"],
+      "additionalProperties": false
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/suggestion"
+      }
+    }
+  },
+  "GeocodeResponse": {
+    "type": "object",
+    "title": "GeocodeResponse",
+    "description": "Forward geocode response: query text to ranked suggestions.",
+    "properties": {
+      "suggestions": {
+        "$ref": "#/definitions/suggestions"
+      }
+    },
+    "required": ["suggestions"],
+    "additionalProperties": false
+  },
+  "ReverseGeocodeResponse": {
+    "type": "object",
+    "title": "ReverseGeocodeResponse",
+    "description": "Reverse geocode response: coordinates to ranked suggestions.",
+    "properties": {
+      "suggestions": {
+        "$ref": "#/definitions/suggestions"
+      }
+    },
+    "required": ["suggestions"],
+    "additionalProperties": false
+  }
+}
