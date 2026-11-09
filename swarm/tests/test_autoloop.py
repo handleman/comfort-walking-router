@@ -947,3 +947,61 @@ def test_commit_empty_vacancy_direct_mode(monkeypatch):
     commit = next(c for c in calls if c[:2] == ["git", "commit"])
     assert "--allow-empty" in commit
     assert "Swarm-Vacancy: 1" in commit[commit.index("-m") + 1]
+
+
+def test_repair_verdict_accepts_clean_pass(monkeypatch):
+    import types
+
+    from swarm import flow
+    from swarm.spec_loader import SpecTask
+
+    class LLM:
+        def call(self, prompt):
+            return "VERDICT: PASS"
+
+    monkeypatch.setattr("swarm.llms.reviewer_llm", lambda: LLM())
+    stub = types.SimpleNamespace(
+        state=flow.SwarmState(review_verdict="unknown"),
+        _verdict_retried=False,
+    )
+    flow.SwarmFlow._repair_verdict(stub, SpecTask(id="T1", ac_refs=("AC-1",), brief="do x"), "exit=0")
+    assert stub.state.review_verdict == "pass"
+    assert "verdict repair" in stub.state.review_text
+
+
+def test_repair_verdict_falls_back_to_senior(monkeypatch):
+    import types
+
+    from swarm import flow
+    from swarm.spec_loader import SpecTask
+
+    class Bad:
+        def call(self, prompt):
+            raise RuntimeError("offline")
+
+    class Good:
+        def call(self, prompt):
+            return "VERDICT: PASS"
+
+    monkeypatch.setattr("swarm.llms.reviewer_llm", lambda: Bad())
+    monkeypatch.setattr("swarm.llms.senior_llm", lambda: Good())
+    stub = types.SimpleNamespace(
+        state=flow.SwarmState(review_verdict="unknown"),
+        _verdict_retried=False,
+    )
+    flow.SwarmFlow._repair_verdict(stub, SpecTask(id="T1", ac_refs=("AC-1",), brief="do x"), "")
+    assert stub.state.review_verdict == "pass"
+
+
+def test_repair_verdict_does_not_override_blocked(monkeypatch):
+    import types
+
+    from swarm import flow
+    from swarm.spec_loader import SpecTask
+
+    stub = types.SimpleNamespace(
+        state=flow.SwarmState(review_verdict="blocked"),
+        _verdict_retried=False,
+    )
+    flow.SwarmFlow._repair_verdict(stub, SpecTask(id="T1", ac_refs=(), brief="x"), "")
+    assert stub.state.review_verdict == "blocked"

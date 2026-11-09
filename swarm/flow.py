@@ -667,6 +667,7 @@ class SwarmFlow(Flow[SwarmState]):
         self._replan = replan
         self._commit = commit
         self._interrupted = False
+        self._verdict_retried = False
         self._started_monotonic = time.monotonic()
         self.state.started_at = dt.datetime.now().isoformat(timespec="seconds")
         from swarm.usage import env_float, env_int
@@ -878,6 +879,42 @@ class SwarmFlow(Flow[SwarmState]):
         except OSError:
             pass
 
+    def _repair_verdict(self, task: Any, transcript: str) -> None:
+        """One clean verdict-only retry when the reviewer omitted PASS/BLOCKED.
+
+        Tries the reviewer first, then the senior model. Only overrides an
+        explicit PASS/BLOCKED with a parsed PASS/BLOCKED; otherwise leaves
+        `unknown` so the run still stops as needs_human.
+        """
+        if self.state.review_verdict != "unknown" or self._verdict_retried:
+            return
+        self._verdict_retried = True
+        from swarm.llms import reviewer_llm, senior_llm
+
+        prompt = (
+            f"Task: {task.id} — {task.brief}\n"
+            f"Gate transcript (tail):\n{transcript[-1500:]}\n\n"
+            "The deterministic gates are shown above. Reply with exactly one line:\n"
+            "VERDICT: PASS\n"
+            "or\n"
+            "VERDICT: BLOCKED\n"
+            "No code, no explanation, no repeating the work summary."
+        )
+        for factory in (reviewer_llm, senior_llm):
+            out: str | None = None
+            try:
+                out = str(factory().call(prompt))
+            except Exception:
+                out = None
+            if out is None:
+                continue
+            verdict = reviewer_verdict(out)
+            if verdict != "unknown":
+                self.state.review_verdict = verdict
+                self.state.review_text = f"{self.state.review_text}\n--- verdict repair ---\n{out}"
+                print(f"reviewer verdict repaired: {verdict}", flush=True)
+                return
+
     def _write_progress(
         self,
         plan_hash: str,
@@ -1088,6 +1125,8 @@ class SwarmFlow(Flow[SwarmState]):
                 base_rounds = self.state.fix_rounds
                 changed = run_delta(self._baseline)
                 gates, transcript = self._run_gates(changed)
+                if all(v == 0 for v in gates.values()):
+                    self._repair_verdict(task, transcript)
                 while not all(v == 0 for v in gates.values()) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
                     self.state.fix_rounds += 1
                     self.state.transcript = transcript
@@ -1101,6 +1140,8 @@ class SwarmFlow(Flow[SwarmState]):
                         break
                     changed = run_delta(self._baseline)
                     gates, transcript = self._run_gates(changed)
+                    if all(v == 0 for v in gates.values()):
+                        self._repair_verdict(task, transcript)
                 if all(v == 0 for v in gates.values()) or self.state.dev_attempts >= DEV_ATTEMPTS:
                     break
             if not all(v == 0 for v in gates.values()):
@@ -1123,6 +1164,8 @@ class SwarmFlow(Flow[SwarmState]):
                     self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
                     changed = run_delta(self._baseline)
                     gates, transcript = self._run_gates(changed)
+                    if all(v == 0 for v in gates.values()):
+                        self._repair_verdict(task, transcript)
             self.state.changed_files = run_delta(self._baseline)
         except _QuotaExhausted as e:
             self.state.result = str(e)[:4000]

@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-08
+- swarm: reviewer verdict repair — if the reviewer returns no PASS/BLOCKED (e.g. echoes code), one clean verdict-only retry runs against the reviewer then the senior model before needs_human
 - swarm: vacancy no longer stops the pilot — when a run has no new in-scope delta, it recovers the same task's interrupted work if the dirty set matches exactly, else records an empty green commit (`Swarm-Vacancy: 1`) and advances; unrelated dirty in-scope work still stops as `needs_human`
 - swarm: T10 feedback loop — `npm --prefix frontend run check` is now a flow gate when `frontend/node_modules` exists, so TypeScript/svelte-check errors reach the coder fix loop instead of stopping at reviewer BLOCKED; fix/senior/reviewer prompts require diagnosing the type mismatch first (infer/reuse types), allow a narrow explained `any`/`@ts-ignore` only as a last resort, and still block feature removal or blanket suppression
 - swarm: dashboard `h` opens a scrollable human log (status, notes, reviewer output, gate transcript, changed files, last events); `H` replays history; `run.json` now stores `review_tail` so reviewer output survives `result_tail` truncation
