@@ -102,6 +102,8 @@
           start,
           end,
           preference: manualOverride ? preference || null : null,
+          prefer_lit: prefs?.prefer_lit ?? false,
+          avoid_traffic: prefs?.avoid_traffic ?? false,
         }),
       })
       const data = await response.json()
@@ -240,6 +242,8 @@
             <option value="cloudy">Cloudy — prefer sun</option>
           </select>
         </label>
+        <label><input type="checkbox" bind:checked={prefs.prefer_lit} /> Prefer lit streets</label>
+        <label><input type="checkbox" bind:checked={prefs.avoid_traffic} /> Avoid busy roads</label>
         <button type="button" on:click={() => handlePrefsSave()}>Save preferences</button>
       {/if}
       {#if prefsError}
@@ -309,6 +313,7 @@
           {Math.round(route.duration_s / 60)} min
         </p>
         <p class="score">comfort {route.comfort_score}/100</p>
+        <h3>Comfort factors</h3>
         <ul class="factors">
           {#each route.explanation as line, index (index)}
             <li>{line}</li>

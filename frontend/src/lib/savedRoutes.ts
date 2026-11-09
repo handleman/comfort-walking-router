@@ -17,6 +17,8 @@ export interface Prefs {
   shade: number
   quiet: number
   greenery: number
+  prefer_lit: boolean
+  avoid_traffic: boolean
 }
 
 /** The route payload captured when a route is saved. */
