@@ -1,36 +1,70 @@
 /**
- * Walk-mode UI state stores (spec 007, T6).
+ * Walk-mode UI state stores (spec 007, T6/T7).
  *
- * `walkMode` tracks whether walk mode is active, the route being walked, and
- * the live marker position; `autoCenter` and `followPaused` control camera
- * follow behavior (AC-1, AC-6).
+ * `walkMode` tracks whether walk mode is active, the route being walked, the
+ * live marker position, and the off-route reroute warning (AC-4/AC-5);
+ * `autoCenter` and `followPaused` control camera follow behavior (AC-1, AC-6).
  */
 
 import { get, writable } from 'svelte/store'
 import type { LatLng } from './navigation/interpolate'
 
+/** Milliseconds a dismissed reroute warning stays snoozed (AC-5). */
+export const REROUTE_SNOOZE_MS = 60_000
+
 export interface WalkModeState {
   active: boolean
   route: LatLng[] | null
   markerPos: LatLng | null
+  /** Final coordinate of the current route; the reroute target (AC-5). */
+  destination: LatLng | null
+  /** True while the sustained-drift "Off route — reroute?" banner shows (AC-4). */
+  rerouteWarning: boolean
+  /** Latest off-route distance in meters, shown in the banner (AC-4). */
+  offRouteMeters: number
 }
 
 export const walkMode = writable<WalkModeState>({
   active: false,
   route: null,
   markerPos: null,
+  destination: null,
+  rerouteWarning: false,
+  offRouteMeters: 0,
 })
 
 export const autoCenter = writable<boolean>(true)
 
 export const followPaused = writable<boolean>(false)
 
+/** Error message shown when a reroute attempt fails (AC-5). */
+export const rerouteError = writable<string | null>(null)
+
+/** Timestamp until which reroute warnings are snoozed (AC-5). */
+export const snoozedUntil = writable<number | null>(null)
+
 export function start(route: LatLng[]): void {
-  walkMode.set({ active: true, route, markerPos: route[0] })
+  walkMode.set({
+    active: true,
+    route,
+    markerPos: route[0] ?? null,
+    destination: route.length > 0 ? route[route.length - 1] : null,
+    rerouteWarning: false,
+    offRouteMeters: 0,
+  })
 }
 
 export function stop(): void {
-  walkMode.set({ active: false, route: null, markerPos: null })
+  walkMode.set({
+    active: false,
+    route: null,
+    markerPos: null,
+    destination: null,
+    rerouteWarning: false,
+    offRouteMeters: 0,
+  })
+  snoozedUntil.set(null)
+  rerouteError.set(null)
 }
 
 export function onFix(lat: number, lng: number): void {
@@ -40,22 +74,47 @@ export function onFix(lat: number, lng: number): void {
   }
 }
 
-/** Toggle auto-centering; switching it back on clears any follow pause (AC-1). */
-export function toggleAutoCenter(): void {
-  autoCenter.update((v) => !v)
-  if (get(autoCenter)) {
-    followPaused.set(false)
-  }
+/** Raise the off-route warning once drift is sustained (AC-4). */
+export function flagOffRoute(meters: number): void {
+  walkMode.update((s) => ({ ...s, rerouteWarning: true, offRouteMeters: meters }))
 }
 
-/** Pause camera follow (e.g. after a manual pan) while auto-center stays on (AC-6). */
-export function pauseFollow(): void {
-  if (get(autoCenter)) {
-    followPaused.set(true)
-  }
+/** Clear the off-route warning once the device is back on route (AC-5). */
+export function clearRerouteWarning(): void {
+  walkMode.update((s) => ({ ...s, rerouteWarning: false, offRouteMeters: 0 }))
 }
 
-/** Resume camera follow (AC-6). */
-export function resumeFollow(): void {
-  followPaused.set(false)
+/** Snooze the warning until back-on-route or 60 s (AC-5). */
+export function dismissRerouteWarning(): void {
+  snoozedUntil.set(Date.now() + REROUTE_SNOOZE_MS)
+  walkMode.update((s) => ({ ...s, rerouteWarning: false }))
+}
+
+/**
+ * Requery `POST /route` from the current position to the same destination and
+ * replace the displayed route on success (AC-5).
+ */
+export async function reroute(pos: LatLng | null, dest: LatLng | null): Promise<void> {
+  if (!pos || !dest) return
+  try {
+    const response = await fetch('/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start: `${pos[0]},${pos[1]}`, end: `${dest[0]},${dest[1]}` }),
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.message || data.detail || `Route request failed (${response.status})`)
+    }
+    const coords: [number, number][] = data.geometry?.coordinates ?? []
+    const next: LatLng[] = coords.map(([lat, lng]) => [lat, lng])
+    if (next.length === 0) {
+      throw new Error('Reroute returned an empty route')
+    }
+    rerouteError.set(null)
+    snoozedUntil.set(null)
+    walkMode.update((s) => ({ ...s, route: next, rerouteWarning: false, offRouteMeters: 0 }))
+  } catch (err) {
+    rerouteError.set(err instanceof Error ? err.message : String(err))
+  }
 }
