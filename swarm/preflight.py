@@ -279,7 +279,6 @@ def main() -> int:
     for var in ROLE_VARS:
         model = os.getenv(var, "")
         print(f"{var:<24} {model or '<missing>':<58} {provider(model) if model else '-'}")
-    print(f"{'SWARM_ZEN_FALLBACK_MODEL':<24} {os.getenv('SWARM_ZEN_FALLBACK_MODEL', '<missing>')}")
 
     # Reuse the factory so a broken factory (not just a broken id) is caught.
     for name, factory in (

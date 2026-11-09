@@ -241,11 +241,6 @@ def senior_llm(*, allow_paid: bool = False) -> LLM:
     return _for_role("SWARM_SENIOR_MODEL", temperature=0, allow_paid=allow_paid)
 
 
-def zen_fallback_llm() -> LLM:
-    """Explicit Zen gateway client (paid cheap model; needs SWARM_ALLOW_PAID=1)."""
-    return _build(_model("SWARM_ZEN_FALLBACK_MODEL"), temperature=0, allow_paid=True)
-
-
 def verdict_fallback_llm() -> LLM:
     """Free cloud model used only when the local QA model returns no verdict."""
     model = os.getenv("SWARM_VERDICT_FALLBACK_MODEL", DEFAULT_VERDICT_FALLBACK).strip()
