@@ -267,6 +267,27 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
 - `make swarm-report` prints cost per green task, tokens per role, fix-round
   rate, stop reasons, and p50/p90 duration.
 
+### Tuning (015)
+
+Thresholds are derived from the recorded runs, not guessed. Re-derive them any
+time with `make swarm-report` (24 green tasks at tuning time: cost p50 $0.0097 /
+p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
+
+| Knob | Value | Rationale |
+| --- | --- | --- |
+| `MAX_FIX_ROUNDS` | 3 | 19/24 green tasks converge in ≤2 QA rounds; 3 covers the tail without paying for a 4th. |
+| `DEV_ATTEMPTS` | 2 | Retries resume finished steps, so a third full phase only re-reviews. |
+| `STEP_ATTEMPTS` | 2 | Attempt 2 already switches a trivial step to the paid coder; provider retries live inside `_kickoff` (3 with backoff). |
+| `SENIOR_ATTEMPTS` | 2 | Free model, but two passes are the empirical limit. |
+| QA `max_iter` | 9 | 5 gates + `git status` + verdict + margin; the old 5 made QA skip a gate and triggered the harness fallback. |
+| `SWARM_MAX_COST_PER_TASK` | 0.05 | Covers p95 (p90 $0.0295); only the pathological $0.115 task is parked. |
+| `SWARM_MAX_SECONDS_PER_TASK` | 1800 | p75 is 454s; three QA rounds on a slow local model still fit. |
+| `SWARM_MAX_COST_USD` | 3 | ~100 green tasks at the current median. |
+| `SWARM_MAX_TOKENS` | 2,000,000 | 2.6× the p90 green task (768k). |
+| `SWARM_MAX_RUNTIME_SECONDS` | 14400 | 4h wall clock on a slow machine. |
+| QA report tails | 4k/gate, 9k prompt | Failure output is enough to investigate; the coder is paid per token. |
+| Supervisor | 30s base, 600s cap, 3 attempts, 20 rounds | A 5-minute task retries at most ~10 minutes apart; parked tasks let the queue move on. |
+
 ### Unattended operation (015)
 - `make swarm-supervise` drives `./swarm/run.sh --resume`: retryable outcomes
   (`interrupted`, transient `crew_error`, `quota_exhausted`, `budget_exhausted`,

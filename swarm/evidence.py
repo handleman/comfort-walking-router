@@ -17,7 +17,7 @@ from typing import Any
 SHELL_LOG = "shell_log.jsonl"
 DEFAULT_AGENT = "QA Gatekeeper"
 TAIL_CHARS = 4000
-REPORT_TAIL_CHARS = 6000
+REPORT_TAIL_CHARS = 4000
 
 
 def append_execution(
@@ -159,7 +159,7 @@ def report_text(report: dict[str, Any]) -> str:
         body = str(entry.get("tail") or "")
         if body:
             lines.append(body[-REPORT_TAIL_CHARS:])
-    return "\n".join(lines)[:12000]
+    return "\n".join(lines)[:9000]
 
 
 def split_tails(transcript: str) -> list[str]:

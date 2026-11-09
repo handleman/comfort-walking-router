@@ -99,8 +99,8 @@ def save_attempts(attempts: dict[str, int], path: Path = RETRY_LATER) -> None:
 def supervise(
     *,
     max_attempts: int = 3,
-    base_delay: float = 10.0,
-    cap_delay: float = 300.0,
+    base_delay: float = 30.0,
+    cap_delay: float = 600.0,
     max_rounds: int = 20,
     runner: Callable[[], int] | None = None,
     runs: Path = RUNS,

@@ -105,9 +105,11 @@ def test_spec_after_order_and_skips(tmp_path):
 
 
 def test_escalation_budgets():
-    from swarm.crew import DEV_ATTEMPTS, SENIOR_ATTEMPTS
+    from swarm.crew import DEV_ATTEMPTS, MAX_FIX_ROUNDS, SENIOR_ATTEMPTS
 
-    assert DEV_ATTEMPTS == 3
+    # 015 tuning, derived from run history (see swarm/README.md "Tuning").
+    assert DEV_ATTEMPTS == 2
+    assert MAX_FIX_ROUNDS == 3
     assert SENIOR_ATTEMPTS == 2
 
 
@@ -150,7 +152,8 @@ def test_gate_preserves_terminal_status():
 def test_step_attempts_budget():
     from swarm.crew import STEP_ATTEMPTS
 
-    assert STEP_ATTEMPTS == 3
+    # one local/paid try, then the paid retry (routing escalates on attempt 2)
+    assert STEP_ATTEMPTS == 2
 
 
 def test_build_senior_step_crew_structure():
@@ -1067,3 +1070,14 @@ def test_fix_rounds_are_bounded():
     ):
         assert len(crew.tasks) == 1  # coder only; QA runs in the flow
         assert "QA" in crew.tasks[0].description
+
+
+def test_qa_budget_covers_every_gate():
+    """015 tuning: QA must be able to run all gates + git status + answer."""
+    from swarm.crew import build_review_crew
+    from swarm.flow import gate_commands
+    from swarm.spec_loader import SpecTask
+
+    crew = build_review_crew("001", SpecTask(id="T1", ac_refs=("AC-1",), brief="x"), "did it")
+    required = len(gate_commands()) + 1  # + `git status`
+    assert crew.agents[0].max_iter >= required + 2

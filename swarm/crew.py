@@ -177,7 +177,9 @@ def _reviewer() -> Agent:
         llm=reviewer_llm(),
         tools=[TrimmedFileReadTool(), ShellTool(agent_role="QA Gatekeeper")],
         verbose=False,
-        max_iter=5,
+        # 015 tuning: 5 gates + `git status` + the verdict need ~7 calls; the old
+        # budget of 5 made the model skip a gate and forced the harness fallback.
+        max_iter=9,
     )
 
 
@@ -271,10 +273,13 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     return Crew(agents=[reviewer], tasks=[t_verify], process=Process.sequential, verbose=False)
 
 
-MAX_FIX_ROUNDS = 3  # gate fail → coder fix→verify cycles (3), then senior escalation/human
-DEV_ATTEMPTS = 3  # dev phase (steps + review + fix round) retries before senior escalation
-SENIOR_ATTEMPTS = 2  # senior one-shot fix passes before giving up to human
-STEP_ATTEMPTS = 3  # micro-step kickoff retries before senior step rescue
+# 015 tuning, derived from 24 green runs (cost p50 $0.0097 / p90 $0.0295,
+# duration p50 237s / p75 454s): three QA→coder rounds converge for 19/24 tasks,
+# retries now resume finished steps, so extra dev attempts only burn money.
+MAX_FIX_ROUNDS = 3  # QA→coder→QA rounds before senior escalation/human
+DEV_ATTEMPTS = 2  # full dev phases (steps + review + fix rounds) before senior
+SENIOR_ATTEMPTS = 2  # senior passes (free model) before giving up to human
+STEP_ATTEMPTS = 2  # step kickoff tries; the second already runs on the paid model
 PLAN_ATTEMPTS = 2  # planner retries on unparseable output before giving up
 
 
