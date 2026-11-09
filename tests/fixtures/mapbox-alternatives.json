@@ -1,0 +1,335 @@
+{
+  "code": "Ok",
+  "uuid": "ckp0z9f4h00examplemapboxaltroute",
+  "routes": [
+    {
+      "weight_name": "pedestrian",
+      "weight": 812.4,
+      "duration": 942.0,
+      "distance": 1310.5,
+      "legs": [
+        {
+          "from": {
+            "name": "Torstraße",
+            "location": [13.4050, 52.5200]
+          },
+          "to": {
+            "name": "Rosenthaler Platz",
+            "location": [13.4126, 52.5301]
+          },
+          "duration": 942.0,
+          "distance": 1310.5,
+          "steps": [
+            {
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [13.4050, 52.5200],
+                  [13.4072, 52.5235],
+                  [13.4098, 52.5268]
+                ]
+              },
+              "maneuver": {
+                "bearing_after": 24,
+                "bearing_before": 0,
+                "location": [13.4050, 52.5200],
+                "modifier": "depart",
+                "type": "depart",
+                "instruction": "Walk north on Torstraße"
+              },
+              "mode": "walking",
+              "driving_side": "right",
+              "name": "Torstraße",
+              "intersections": [
+                {
+                  "location": [13.4050, 52.5200],
+                  "bearings": [24, 204],
+                  "entry": [true, false],
+                  "out": 0
+                }
+              ],
+              "duration": 612.0,
+              "distance": 852.3,
+              "ref": "B 2",
+              "voiceInstructions": [
+                {
+                  "distanceAlongGeometry": 852.3,
+                  "announcement": "Walk north on Torstraße for 850 meters",
+                  "ssmlAnnouncement": "<speak>Walk north on Torstraße for 850 meters</speak>"
+                }
+              ],
+              "bannerInstructions": [
+                {
+                  "distanceAlongGeometry": 852.3,
+                  "primary": {
+                    "type": "depart",
+                    "modifier": "straight",
+                    "text": "Torstraße",
+                    "components": [
+                      {
+                        "text": "Torstraße",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [13.4098, 52.5268],
+                  [13.4112, 52.5287],
+                  [13.4126, 52.5301]
+                ]
+              },
+              "maneuver": {
+                "bearing_after": 38,
+                "bearing_before": 24,
+                "location": [13.4098, 52.5268],
+                "modifier": "right",
+                "type": "turn",
+                "instruction": "Turn right onto Rosenthaler Straße"
+              },
+              "mode": "walking",
+              "driving_side": "right",
+              "name": "Rosenthaler Straße",
+              "intersections": [
+                {
+                  "location": [13.4098, 52.5268],
+                  "bearings": [24, 204, 114],
+                  "entry": [true, false, true],
+                  "out": 2
+                }
+              ],
+              "duration": 330.0,
+              "distance": 458.2,
+              "ref": null,
+              "voiceInstructions": [
+                {
+                  "distanceAlongGeometry": 458.2,
+                  "announcement": "Turn right onto Rosenthaler Straße, then you will arrive at your destination",
+                  "ssmlAnnouncement": "<speak>Turn right onto Rosenthaler Stra\u00dfe, then you will arrive at your destination</speak>"
+                }
+              ],
+              "bannerInstructions": [
+                {
+                  "distanceAlongGeometry": 458.2,
+                  "primary": {
+                    "type": "turn",
+                    "modifier": "right",
+                    "text": "Rosenthaler Stra\u00dfe",
+                    "components": [
+                      {
+                        "text": "Rosenthaler Stra\u00dfe",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "weight_name": "pedestrian",
+      "weight": 874.9,
+      "duration": 1015.0,
+      "distance": 1428.7,
+      "legs": [
+        {
+          "from": {
+            "name": "Torstraße",
+            "location": [13.4050, 52.5200]
+          },
+          "to": {
+            "name": "Rosenthaler Platz",
+            "location": [13.4126, 52.5301]
+          },
+          "duration": 1015.0,
+          "distance": 1428.7,
+          "steps": [
+            {
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [13.4050, 52.5200],
+                  [13.4061, 52.5218],
+                  [13.4075, 52.5231]
+                ]
+              },
+              "maneuver": {
+                "bearing_after": 31,
+                "bearing_before": 0,
+                "location": [13.4050, 52.5200],
+                "modifier": "depart",
+                "type": "depart",
+                "instruction": "Walk northeast on Torstraße"
+              },
+              "mode": "walking",
+              "driving_side": "right",
+              "name": "Torstraße",
+              "intersections": [
+                {
+                  "location": [13.4050, 52.5200],
+                  "bearings": [31, 211],
+                  "entry": [true, false],
+                  "out": 0
+                }
+              ],
+              "duration": 402.0,
+              "distance": 556.4,
+              "ref": "B 2",
+              "voiceInstructions": [
+                {
+                  "distanceAlongGeometry": 556.4,
+                  "announcement": "Walk northeast on Torstraße for 550 meters",
+                  "ssmlAnnouncement": "<speak>Walk northeast on Torstra\u00dfe for 550 meters</speak>"
+                }
+              ],
+              "bannerInstructions": [
+                {
+                  "distanceAlongGeometry": 556.4,
+                  "primary": {
+                    "type": "depart",
+                    "modifier": "straight",
+                    "text": "Torstra\u00dfe",
+                    "components": [
+                      {
+                        "text": "Torstra\u00dfe",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [13.4075, 52.5231],
+                  [13.4090, 52.5250],
+                  [13.4101, 52.5272]
+                ]
+              },
+              "maneuver": {
+                "bearing_after": 55,
+                "bearing_before": 31,
+                "location": [13.4075, 52.5231],
+                "modifier": "left",
+                "type": "turn",
+                "instruction": "Turn left onto Linienstraße"
+              },
+              "mode": "walking",
+              "driving_side": "right",
+              "name": "Linienstraße",
+              "intersections": [
+                {
+                  "location": [13.4075, 52.5231],
+                  "bearings": [31, 211, 145],
+                  "entry": [true, false, true],
+                  "out": 2
+                }
+              ],
+              "duration": 348.0,
+              "distance": 489.6,
+              "ref": null,
+              "voiceInstructions": [
+                {
+                  "distanceAlongGeometry": 489.6,
+                  "announcement": "Turn left onto Linienstraße",
+                  "ssmlAnnouncement": "<speak>Turn left onto Linienstra\u00dfe</speak>"
+                }
+              ],
+              "bannerInstructions": [
+                {
+                  "distanceAlongGeometry": 489.6,
+                  "primary": {
+                    "type": "turn",
+                    "modifier": "left",
+                    "text": "Linienstra\u00dfe",
+                    "components": [
+                      {
+                        "text": "Linienstra\u00dfe",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [13.4101, 52.5272],
+                  [13.4115, 52.5289],
+                  [13.4126, 52.5301]
+                ]
+              },
+              "maneuver": {
+                "bearing_after": 38,
+                "bearing_before": 55,
+                "location": [13.4101, 52.5272],
+                "modifier": "right",
+                "type": "turn",
+                "instruction": "Turn right onto Rosenthaler Straße"
+              },
+              "mode": "walking",
+              "driving_side": "right",
+              "name": "Rosenthaler Straße",
+              "intersections": [
+                {
+                  "location": [13.4101, 52.5272],
+                  "bearings": [55, 235, 308],
+                  "entry": [true, false, true],
+                  "out": 2
+                }
+              ],
+              "duration": 265.0,
+              "distance": 382.7,
+              "ref": null,
+              "voiceInstructions": [
+                {
+                  "distanceAlongGeometry": 382.7,
+                  "announcement": "Turn right onto Rosenthaler Straße, then you will arrive at your destination",
+                  "ssmlAnnouncement": "<speak>Turn right onto Rosenthaler Stra\u00dfe, then you will arrive at your destination</speak>"
+                }
+              ],
+              "bannerInstructions": [
+                {
+                  "distanceAlongGeometry": 382.7,
+                  "primary": {
+                    "type": "turn",
+                    "modifier": "right",
+                    "text": "Rosenthaler Stra\u00dfe",
+                    "components": [
+                      {
+                        "text": "Rosenthaler Stra\u00dfe",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "waypoints": [
+    {
+      "name": "Torstraße",
+      "location": [13.4050, 52.5200]
+    },
+    {
+      "name": "Rosenthaler Platz",
+      "location": [13.4126, 52.5301]
+    }
+  ]
+}
