@@ -47,7 +47,7 @@ def client_and_calls(
         calls.append(start)
         return FAKE_ROUTE
 
-    monkeypatch.setattr(main.osrm, "route", fake_route)
+    monkeypatch.setattr(main.mapbox, "route", fake_route)
     monkeypatch.setattr(main, "cache_hits", 0)
     monkeypatch.setattr(main, "provider_calls", 0)
     with TestClient(main.app) as test_client:

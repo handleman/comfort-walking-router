@@ -99,7 +99,7 @@ def client(
         lambda place: (48.13, 11.57) if place == "Start" else (48.14, 11.58),
     )
     monkeypatch.setattr(
-        main.osrm,
+        main.mapbox,
         "route",
         lambda start, end, preference=None: FAKE_ROUTE,
     )
