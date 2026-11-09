@@ -33,6 +33,16 @@
 
   import { onMount } from 'svelte'
   import L from 'leaflet'
+  import {
+    deleteRoute,
+    ensureToken,
+    getPrefs,
+    listRoutes,
+    recallRoute,
+    saveRoute,
+    updatePrefs,
+  } from './lib/savedRoutes'
+  import type { Prefs, SavedRoute } from './lib/savedRoutes'
 
   let mapElement: HTMLDivElement
   let map: L.Map | null = null
@@ -45,6 +55,11 @@
   let error = ''
   let loading = false
   let manualOverride = false
+  let savedRoutes: SavedRoute[] = []
+  let prefs: Prefs | null = null
+  let showPrefs = false
+  let savedError = ''
+  let prefsError = ''
 
   onMount(() => {
     map = L.map(mapElement).setView([48.137, 11.575], 12)
@@ -53,7 +68,28 @@
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map)
+    ensureToken()
+    loadSaved()
+    loadPrefs()
   })
+
+  async function loadSaved() {
+    savedError = ''
+    try {
+      savedRoutes = await listRoutes()
+    } catch (err) {
+      savedError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  async function loadPrefs() {
+    prefsError = ''
+    try {
+      prefs = await getPrefs()
+    } catch (err) {
+      prefsError = err instanceof Error ? err.message : String(err)
+    }
+  }
 
   async function submitRoute() {
     error = ''
@@ -97,6 +133,90 @@
     })
     map.fitBounds(line.getBounds(), { padding: [24, 24] })
   }
+
+  async function handleSaveRoute() {
+    if (!route) return
+    savedError = ''
+    try {
+      const saved = await saveRoute(route.name, {
+        name: route.name,
+        waypoints: route.waypoints,
+        geometry: route.geometry,
+        distance_m: route.distance_m,
+        duration_s: route.duration_s,
+        comfort_score: route.comfort_score,
+        explanation: route.explanation,
+        applied_preference: route.applied_preference,
+        preference_source: route.preference_source,
+        weather: route.weather,
+        timestamp: route.timestamp,
+      })
+      savedRoutes = [saved, ...savedRoutes.filter((r) => r.id !== saved.id)]
+    } catch (err) {
+      savedError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  async function handleRecall(id: string) {
+    savedError = ''
+    try {
+      const saved = await recallRoute(id)
+      const snap = saved.snapshot
+      route = {
+        id: saved.id,
+        name: saved.name,
+        description: saved.description,
+        waypoints: snap.waypoints,
+        status: 'active',
+        timestamp: snap.timestamp,
+        comfort_score: snap.comfort_score,
+        explanation: snap.explanation,
+        geometry: snap.geometry,
+        distance_m: snap.distance_m,
+        duration_s: snap.duration_s,
+        applied_preference: snap.applied_preference,
+        preference_source: snap.preference_source,
+        weather: snap.weather,
+      }
+      start = ''
+      end = ''
+      drawRoute()
+    } catch (err) {
+      savedError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    savedError = ''
+    try {
+      await deleteRoute(id)
+      savedRoutes = savedRoutes.filter((r) => r.id !== id)
+    } catch (err) {
+      savedError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  async function togglePrefs() {
+    showPrefs = !showPrefs
+    if (showPrefs && !prefs) {
+      prefsError = ''
+      try {
+        prefs = await getPrefs()
+      } catch (err) {
+        prefsError = err instanceof Error ? err.message : String(err)
+      }
+    }
+  }
+
+  async function handlePrefsSave() {
+    if (!prefs) return
+    prefsError = ''
+    try {
+      prefs = await updatePrefs(prefs)
+    } catch (err) {
+      prefsError = err instanceof Error ? err.message : String(err)
+    }
+  }
 </script>
 
 <svelte:head>
@@ -106,6 +226,26 @@
 <main>
   <aside>
     <h1>Comfort Walking Router</h1>
+
+    <section class="prefs">
+      <h2>Preferences</h2>
+      <button type="button" on:click={togglePrefs}>
+        {showPrefs ? 'Hide preferences' : 'Edit preferences'}
+      </button>
+      {#if showPrefs && prefs}
+        <label>
+          Default preference
+          <select bind:value={prefs.default_preference}>
+            <option value="hot">Hot — prefer shade</option>
+            <option value="cloudy">Cloudy — prefer sun</option>
+          </select>
+        </label>
+        <button type="button" on:click={() => handlePrefsSave()}>Save preferences</button>
+      {/if}
+      {#if prefsError}
+        <p class="error">{prefsError}</p>
+      {/if}
+    </section>
     <form on:submit|preventDefault={submitRoute}>
       <label>
         Start
@@ -133,6 +273,28 @@
       <p class="error">{error}</p>
     {/if}
 
+    <section class="saved-routes">
+      <h2>Saved routes</h2>
+      {#if savedError}
+        <p class="error">{savedError}</p>
+      {/if}
+      {#if savedRoutes.length === 0}
+        <p class="empty">No saved routes yet.</p>
+      {:else}
+        <ul class="saved-list">
+          {#each savedRoutes as saved (saved.id)}
+            <li>
+              <span class="saved-name">{saved.name}</span>
+              <span class="saved-actions">
+                <button type="button" on:click={() => handleRecall(saved.id)}>Recall</button>
+                <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
+              </span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+
     {#if route}
       <section class="result">
         <div class="chip">
@@ -140,6 +302,7 @@
             ? 'Manual'
             : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
         </div>
+        <button type="button" on:click={handleSaveRoute}>Save route</button>
         <h2>{route.name}</h2>
         <p class="stats">
           {(route.distance_m / 1000).toFixed(2)} km ·
@@ -216,6 +379,44 @@
 
   .error {
     color: #b00020;
+  }
+
+  .saved-routes {
+    margin-top: 1.5rem;
+  }
+
+  .saved-list {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .saved-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .saved-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .saved-actions {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .empty {
+    font-size: 0.85rem;
+    color: #666;
   }
 
   .chip {
