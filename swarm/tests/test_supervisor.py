@@ -170,3 +170,24 @@ def test_retry_later_skips_parked_tasks(tmp_path, monkeypatch):
     assert flow._without_retry_later("005", ["T8", "T9"]) == ["T9"]
     # Never deadlock: a fully parked spec still runs.
     assert flow._without_retry_later("005", ["T8"]) == ["T8"]
+
+
+def test_stash_uses_untracked_flag(monkeypatch):
+    """015 AC-10: untracked coder files must be stashable by path."""
+    from swarm import flow
+
+    calls: list[list[str]] = []
+
+    def fake_git(args, timeout=120):
+        calls.append(list(args))
+        return 0, ""
+
+    stub = type("S", (), {})()
+    stub.run_dir = flow.REPO_ROOT / "swarm" / "runs" / "20260101-000000-1-a"
+    stub.state = type("St", (), {"stashed": []})()
+    stub._task_owned_dirty = lambda task: {}
+    stub._in_scope_dirty = lambda: ["tests/new_file.py"]
+    monkeypatch.setattr(flow, "_git", fake_git)
+    flow.SwarmFlow._stash_unrelated(stub, object())
+    assert calls and calls[0][:4] == ["stash", "push", "-u", "-m"]
+    assert "tests/new_file.py" in calls[0]

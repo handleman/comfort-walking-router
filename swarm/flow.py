@@ -1039,7 +1039,9 @@ class SwarmFlow(Flow[SwarmState]):
         candidates = [p for p in self._in_scope_dirty() if p not in owned]
         if not candidates:
             return
-        rc, out = _git(["stash", "push", "-m", f"swarm-{self.run_dir.name}", "--", *candidates])
+        rc, out = _git(
+            ["stash", "push", "-u", "-m", f"swarm-{self.run_dir.name}", "--", *candidates]
+        )
         if rc != 0:
             print(f"stash skipped: {out.strip()[:200]}", flush=True)
             return
@@ -1051,7 +1053,7 @@ class SwarmFlow(Flow[SwarmState]):
         if not self._stash_ref:
             return
         ref, self._stash_ref = self._stash_ref, ""
-        rc, out = _git(["stash", "pop", "--index"])
+        rc, out = _git(["stash", "pop"])
         if rc != 0:
             print(f"STASH RESTORE FAILED ({ref}): {out.strip()[:300]}", flush=True)
 
