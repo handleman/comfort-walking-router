@@ -1,0 +1,70 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.1",
+  "osm3s": {
+    "timestamp_osm_base": "2024-01-15T00:00:00Z",
+    "copyright": "OpenStreetMap contributors"
+  },
+  "elements": [
+    {
+      "type": "way",
+      "id": 1001,
+      "bounds": {"minlat": 47.6062, "minlon": -122.3321, "maxlat": 47.607, "maxlon": -122.331},
+      "nodes": [11, 12, 13],
+      "geometry": [
+        {"lat": 47.6062, "lon": -122.3321},
+        {"lat": 47.6066, "lon": -122.3315},
+        {"lat": 47.607, "lon": -122.331}
+      ],
+      "tags": {"highway": "primary", "name": "Primary Avenue", "lanes": "4", "maxspeed": "40 mph"}
+    },
+    {
+      "type": "way",
+      "id": 1002,
+      "bounds": {"minlat": 47.6071, "minlon": -122.332, "maxlat": 47.6079, "maxlon": -122.3311},
+      "nodes": [21, 22, 23],
+      "geometry": [
+        {"lat": 47.6071, "lon": -122.332},
+        {"lat": 47.6075, "lon": -122.3315},
+        {"lat": 47.6079, "lon": -122.3311}
+      ],
+      "tags": {"highway": "secondary", "name": "Secondary Street", "lanes": "2"}
+    },
+    {
+      "type": "way",
+      "id": 1003,
+      "bounds": {"minlat": 47.608, "minlon": -122.333, "maxlat": 47.6088, "maxlon": -122.332},
+      "nodes": [31, 32, 33],
+      "geometry": [
+        {"lat": 47.608, "lon": -122.333},
+        {"lat": 47.6084, "lon": -122.3325},
+        {"lat": 47.6088, "lon": -122.332}
+      ],
+      "tags": {"highway": "trunk", "name": "Trunk Boulevard", "ref": "WA 99"}
+    },
+    {
+      "type": "way",
+      "id": 1004,
+      "bounds": {"minlat": 47.609, "minlon": -122.334, "maxlat": 47.6098, "maxlon": -122.333},
+      "nodes": [41, 42, 43],
+      "geometry": [
+        {"lat": 47.609, "lon": -122.334},
+        {"lat": 47.6094, "lon": -122.3335},
+        {"lat": 47.6098, "lon": -122.333}
+      ],
+      "tags": {"highway": "residential", "name": "Residential Lane", "maxspeed": "25 mph"}
+    },
+    {
+      "type": "way",
+      "id": 1005,
+      "bounds": {"minlat": 47.61, "minlon": -122.335, "maxlat": 47.6108, "maxlon": -122.334},
+      "nodes": [51, 52, 53],
+      "geometry": [
+        {"lat": 47.61, "lon": -122.335},
+        {"lat": 47.6104, "lon": -122.3345},
+        {"lat": 47.6108, "lon": -122.334}
+      ],
+      "tags": {"highway": "footway", "name": "Footway Path", "foot": "yes"}
+    }
+  ]
+}

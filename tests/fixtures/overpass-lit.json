@@ -1,0 +1,65 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.1",
+  "osm3s": {
+    "timestamp_osm_base": "2024-01-01T00:00:00Z",
+    "copyright": "OpenStreetMap contributors"
+  },
+  "elements": [
+    {
+      "type": "node",
+      "id": 1001,
+      "lat": 52.5200,
+      "lon": 13.4050,
+      "tags": {
+        "highway": "street_lamp",
+        "lit": "yes"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1002,
+      "lat": 52.5201,
+      "lon": 13.4051,
+      "tags": {
+        "highway": "street_lamp",
+        "lit": "no"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1003,
+      "lat": 52.5202,
+      "lon": 13.4052,
+      "tags": {
+        "highway": "street_lamp"
+      }
+    },
+    {
+      "type": "way",
+      "id": 2001,
+      "nodes": [1001, 1002, 1003],
+      "tags": {
+        "highway": "residential",
+        "lit": "yes"
+      }
+    },
+    {
+      "type": "way",
+      "id": 2002,
+      "nodes": [1001, 1002, 1003],
+      "tags": {
+        "highway": "residential",
+        "lit": "no"
+      }
+    },
+    {
+      "type": "way",
+      "id": 2003,
+      "nodes": [1001, 1002, 1003],
+      "tags": {
+        "highway": "residential"
+      }
+    }
+  ]
+}

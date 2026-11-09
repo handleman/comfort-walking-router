@@ -56,7 +56,7 @@ def fetch_overpass_features(
         
         features.append({
             "geometry": geometry,
-            "properties": element.get("tags", {}),
+            "properties": {"id": element.get("id"), **element.get("tags", {})},
         })
     
     return features
@@ -70,11 +70,14 @@ def count_features(elements: list) -> dict:
         elements: List of element dicts from Overpass API response
     
     Returns:
-        A dictionary with counts: {"trees": n, "grass": n, "quiet_highways": n}
+        A dictionary with counts: {"trees": n, "grass": n, "quiet_highways": n,
+        "lit_ways": n, "highway_breakdown": {class: n}}
     """
     trees = 0
     grass = 0
     quiet_highways = 0
+    lit_ways = 0
+    highway_breakdown: dict[str, int] = {}
     
     for element in elements:
         tags = element.get('tags', {})
@@ -84,5 +87,16 @@ def count_features(elements: list) -> dict:
             grass += 1
         elif tags.get('highway') and tags.get('foot') == 'yes':
             quiet_highways += 1
+        if tags.get('highway'):
+            if element.get('type') == 'way' and tags.get('lit') == 'yes':
+                lit_ways += 1
+            hwy_class = tags['highway']
+            highway_breakdown[hwy_class] = highway_breakdown.get(hwy_class, 0) + 1
     
-    return {'trees': trees, 'grass': grass, 'quiet_highways': quiet_highways}
+    return {
+        'trees': trees,
+        'grass': grass,
+        'quiet_highways': quiet_highways,
+        'lit_ways': lit_ways,
+        'highway_breakdown': highway_breakdown,
+    }
