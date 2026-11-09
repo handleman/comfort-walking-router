@@ -16,5 +16,7 @@ def test_events_still_append_after_listener_creation(tmp_path):
     listener = SwarmListener(tmp_path)
     listener._append({"type": "crew_done"})
     lines = (tmp_path / "events.jsonl").read_text().splitlines()
-    assert json.loads(lines[0]) == {"type": "crew_done"}
+    row = json.loads(lines[0])
+    assert row["type"] == "crew_done"
+    assert row["at"]  # wall-clock stamp: a stalled call must be visible later
     listener.teardown()

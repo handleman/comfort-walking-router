@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-09
+- swarm: scope model fallbacks per role. 007-T4 spent 30 minutes and ended `needs_human` (`reviewer_no_verdict`) because two coder transport timeouts flipped a process-wide switch that moved **QA** to `qwen3.5:9b`; that model looped over the report and never declared a verdict. QA now keeps `ollama/swarm-qa:latest` (a missing verdict already has its own free-model path), the coder falls back to `ollama/swarm-coder` before generic Qwen, and only a provider-wide quota wall switches every role. Also stamped `events.jsonl` rows with `at`, so a stalled call is attributable after the fact
 - swarm: correct Zen pricing from the gateway's own `usage.cost` (`glm-5.3-flash` $0.15/M in, $0.50/M out; reasoning billed as output — the old table under-reported ~50%) and treat LLM timeouts as transport faults: 60s request timeout, one same-model retry, then fallback models. Measured calls: 1–7s at 40k prompt tokens, so a timeout is a dead connection rather than a slow generation
 - swarm: self-heal installs newly added frontend devDependencies (`npm ls` failure → `npm install`), and cloud calls fail over to the fallback models on connection timeouts instead of spending 5 SDK retries; documented in `swarm/README.md`
 - swarm: stop LLM connection timeouts from hanging a run — cloud calls use one SDK retry with a configurable 120s timeout (`SWARM_LLM_TIMEOUT_SECONDS`/`SWARM_LLM_MAX_RETRIES`), a connection/timeout failure immediately switches to the fallback models, and identical failures are never retried twice on the same model

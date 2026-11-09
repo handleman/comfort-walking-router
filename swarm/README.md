@@ -328,9 +328,17 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
   (`SWARM_STASH_UNRELATED=0` disables), and preflight self-heals a missing venv,
   `frontend/node_modules`, or Ollama image — and runs `npm install` when a task
   added a devDependency the coder cannot install itself (`SWARM_SELF_HEAL=0`).
-- Transport: cloud calls use one SDK retry with `SWARM_LLM_TIMEOUT_SECONDS` (120);
-  a connection/timeout switches to the fallback models instead of retrying a dead
-  endpoint (006/007 runs showed five SDK retries × 120s before the flow saw it).
+- Transport: cloud calls use one SDK retry with `SWARM_LLM_TIMEOUT_SECONDS` (60);
+  a transport failure gets one same-model retry, and a second identical failure
+  moves only that role to its fallback chain (006/007 runs showed five SDK
+  retries × 120s before the flow saw it).
+- **Fallbacks are per role.** A coder timeout must not degrade QA: 007-T4 lost
+  30 minutes because one global switch moved the reviewer to `qwen3.5:9b`, which
+  looped over the report and never declared a verdict (`reviewer_no_verdict`).
+  The reviewer has no fallback chain — a missing verdict uses
+  `SWARM_VERDICT_FALLBACK_MODEL` instead. The coder chain is
+  `ollama/swarm-coder` (purpose-built) before generic `qwen3.5:9b`; only a
+  provider-wide quota wall switches every role.
 - Verification honesty: DB-backed tests that skip are recorded in
   `run.json.skipped_ac` + `verification_note` (set `DATABASE_URL` to run them).
 - Retries resume at the failing step; a drifted checkpoint redoes only its last
@@ -466,9 +474,10 @@ up to `SENIOR_ATTEMPTS` (2) senior passes: `SWARM_SENIOR_MODEL`
 clients) fixes everything in one go via `build_senior_crew`, then QA re-verifies and
 gates re-run. Still red → `needs_human`. Attempts + `senior_used` recorded in `run.json`.
 
-Quota: a daily `free-models-per-day` / 429 error first switches the run to fallback
-models (`SWARM_<ROLE>_FALLBACK_MODEL`, default local `qwen3.5:9b`; senior tries
-`zen/glm-5.3-flash` when paid is allowed) and retries. If the fallback is also out,
+Quota: a daily `free-models-per-day` / 429 error is provider-wide, so it switches every
+role to its fallback (`SWARM_<ROLE>_FALLBACK_MODEL`; coder → `ollama/swarm-coder`,
+planner → local `qwen3.5:9b`, senior → `zen/glm-5.3-flash` when paid is allowed;
+the reviewer keeps `swarm-qa` by design) and retries. If the fallback is also out,
 the pilot stops with `quota_exhausted`, a `quota_note` in `run.json`, and a
 `QUOTA EXHAUSTED` line in `up.log`. Transient 429/timeout/5xx errors get exponential
 backoff (1s→8s, 3 attempts) before giving up.

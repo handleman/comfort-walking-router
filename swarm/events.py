@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import queue
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -164,6 +165,9 @@ class SwarmListener:
         self._handlers.clear()
 
     def _append(self, payload: dict[str, Any]) -> None:
+        # Wall-clock stamps make a stalled call visible after the fact; without
+        # them a 30-minute run cannot be attributed to one slow request.
+        payload.setdefault("at", datetime.now().isoformat(timespec="milliseconds"))
         self.events.put(payload)
         try:
             with (self.run_dir / "events.jsonl").open("a") as f:

@@ -43,9 +43,34 @@ def test_env_fallback_has_precedence(monkeypatch):
     assert llms.fallback_model("SWARM_SENIOR_MODEL", allow_paid=True) == "zen/deepseek-v4.1-flash"
 
 
-def test_fallback_activation_is_process_wide(monkeypatch):
+def test_role_fallback_moves_only_that_role(monkeypatch):
+    """007-T4: a coder timeout degraded QA to a 9B model that could not review."""
+    monkeypatch.setenv("SWARM_CODER_MODEL", "ollama/swarm-coder:latest")
+    monkeypatch.setenv("SWARM_REVIEWER_MODEL", "ollama/swarm-qa:latest")
+    llms.activate_fallbacks("SWARM_CODER_MODEL")
+    assert llms.fallbacks_active("SWARM_CODER_MODEL") is True
+    assert llms.fallbacks_active("SWARM_REVIEWER_MODEL") is False
+    assert llms.coder_llm().model == "ollama/swarm-coder:latest"  # no-op: same model
+    assert llms.reviewer_llm().model == "ollama/swarm-qa:latest"
+
+
+def test_coder_fallback_prefers_the_local_coder(monkeypatch):
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "1")
+    assert (
+        llms.fallback_model("SWARM_CODER_MODEL", allow_paid=True)
+        == "ollama/swarm-coder:latest"
+    )
+
+
+def test_reviewer_has_no_fallback_chain(monkeypatch):
+    # QA must never be silently downgraded; a missing verdict is a separate path.
+    monkeypatch.setenv("SWARM_REVIEWER_FALLBACK_MODEL", "")
+    assert llms.fallback_model("SWARM_REVIEWER_MODEL", allow_paid=False) == ""
+
+
+def test_global_activation_covers_every_role(monkeypatch):
     monkeypatch.setenv("SWARM_CODER_MODEL", "ollama/swarm-coder:latest")
     assert llms.fallbacks_active() is False
     llms.activate_fallbacks()
-    assert llms.fallbacks_active() is True
-    assert llms.coder_llm().model == "ollama/qwen3.5:9b"
+    assert llms.fallbacks_active("SWARM_CODER_MODEL") is True
+    assert llms.fallbacks_active("SWARM_REVIEWER_MODEL") is True

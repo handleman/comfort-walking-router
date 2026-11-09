@@ -30,14 +30,22 @@ DEFAULT_ZEN = "https://opencode.ai/zen/v1"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 DEFAULT_VERDICT_FALLBACK = "openrouter/nvidia/nemotron-3.5-super-vl:free"
 
-_fallback_active = False
+# Roles (identified by their `*_MODEL` env var) that have fallen back. A
+# transport blip in one role must not degrade the others: 007-T4 lost a run
+# because a coder timeout switched QA to a 9B general model that could not
+# review, so it never declared a verdict (needs_human, 30 minutes).
+_fallback_roles: set[str] = set()
 
 # First model whose paid-guard passes wins. Env `SWARM_<ROLE>_FALLBACK_MODEL`
 # is prepended; the rest are safe defaults.
 FALLBACK_CHAINS: dict[str, tuple[str, ...]] = {
     "SWARM_PLANNER_MODEL": ("ollama/qwen3.5:9b",),
-    "SWARM_CODER_MODEL": ("ollama/qwen3.5:9b",),
-    "SWARM_REVIEWER_MODEL": ("ollama/qwen3.5:9b",),
+    # Purpose-built local coder first; the generic 9B model only as a last resort.
+    "SWARM_CODER_MODEL": ("ollama/swarm-coder:latest", "ollama/qwen3.5:9b"),
+    # The reviewer is *already* local; a weaker general model cannot run gates or
+    # emit a verdict. No chain: a missing verdict is handled by
+    # `verdict_fallback_llm`, never by silently downgrading QA.
+    "SWARM_REVIEWER_MODEL": (),
     # Zen's free tier is client-only, so the cloud fallback is cheap paid Zen;
     # without SWARM_ALLOW_PAID it falls through to local Qwen.
     "SWARM_SENIOR_MODEL": ("zen/glm-5.3-flash", "ollama/qwen3.5:9b"),
@@ -68,19 +76,26 @@ def _guard(model: str, *, allow_paid: bool) -> None:
     )
 
 
-def activate_fallbacks() -> None:
-    """Switch factory output to fallback models (called after a quota/429)."""
-    global _fallback_active
-    _fallback_active = True
+def activate_fallbacks(role: str | None = None) -> None:
+    """Switch one role to its fallback chain; no argument switches every role.
+
+    A provider-wide quota wall justifies activating all roles; a single
+    role's transport failure must only move that role.
+    """
+    if role is None:
+        _fallback_roles.add("*")
+    else:
+        _fallback_roles.add(role)
 
 
 def reset_fallbacks() -> None:
-    global _fallback_active
-    _fallback_active = False
+    _fallback_roles.clear()
 
 
-def fallbacks_active() -> bool:
-    return _fallback_active
+def fallbacks_active(role: str | None = None) -> bool:
+    if role is None:
+        return bool(_fallback_roles)
+    return "*" in _fallback_roles or role in _fallback_roles
 
 
 def fallback_model(env_var: str, *, allow_paid: bool) -> str:
@@ -148,7 +163,7 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
 
 def _for_role(env_var: str, *, temperature: float, allow_paid: bool) -> LLM:
     model = _model(env_var)
-    if _fallback_active:
+    if fallbacks_active(env_var):
         model = fallback_model(env_var, allow_paid=allow_paid) or model
     return _build(model, temperature=temperature, allow_paid=allow_paid)
 

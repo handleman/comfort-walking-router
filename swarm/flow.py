@@ -97,6 +97,17 @@ class _ConfigError(SystemExit):
     """Terminal misconfiguration (bad base URL/key/HTML body): never retried."""
 
 
+def _fallback_key(role: str) -> str:
+    """Map a crew role to the `*_MODEL` env var whose fallback it may use."""
+    if role.startswith(("qa", "reviewer")):
+        return "SWARM_REVIEWER_MODEL"
+    if role.startswith("planner"):
+        return "SWARM_PLANNER_MODEL"
+    if role.startswith("senior"):
+        return "SWARM_SENIOR_MODEL"
+    return "SWARM_CODER_MODEL"
+
+
 def _is_quota_error(e: BaseException) -> bool:
     from swarm.retry import is_quota_error
 
@@ -1397,7 +1408,8 @@ class SwarmFlow(Flow[SwarmState]):
             from swarm.retry import backoff_delay, classify_provider_error
 
             last_err: Exception | None = None
-            switched = fallbacks_active()
+            switch_key = _fallback_key(role)
+            switched = fallbacks_active(switch_key)
             prompt_before = self.state.prompt_tokens
             completion_before = self.state.completion_tokens
             for attempt in (1, 2, 3):
@@ -1412,6 +1424,7 @@ class SwarmFlow(Flow[SwarmState]):
                     if _is_quota_error(e):
                         if not switched:
                             switched = True
+                            # A quota wall is provider-wide: move every role.
                             activate_fallbacks()
                             print("quota hit → retrying with fallback models", flush=True)
                             continue
@@ -1429,7 +1442,8 @@ class SwarmFlow(Flow[SwarmState]):
                             # Second identical failure: stop retrying this model.
                             if flaky and not switched:
                                 switched = True
-                                activate_fallbacks()
+                                # Only this role: QA must keep its local reviewer.
+                                activate_fallbacks(switch_key)
                                 print(
                                     "llm connection failure ×2 → retrying on fallback models",
                                     flush=True,
