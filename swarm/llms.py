@@ -96,8 +96,19 @@ def fallback_model(env_var: str, *, allow_paid: bool) -> str:
     return ""
 
 
+def _timeout_seconds() -> int:
+    """Per-request HTTP timeout. Lower it when the network is flaky; raise for slow local models."""
+    try:
+        return max(30, int(os.getenv("SWARM_LLM_TIMEOUT_SECONDS", "120") or 120))
+    except ValueError:
+        return 120
+
+
 def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
     _guard(model, allow_paid=allow_paid)
+    # The harness owns retries (backoff + fallback models); SDK-level retries of a
+    # dead endpoint just multiply the wait (5 × timeout before the flow sees it).
+    sdk_retries = int(os.getenv("SWARM_LLM_MAX_RETRIES", "1") or 1)
     if model.startswith("ollama/"):
         return LLM(
             model=model,
@@ -116,16 +127,16 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
             base_url=os.getenv("SWARM_ZEN_BASE_URL", DEFAULT_ZEN),
             api_key=os.environ.get("OPENCODE_API_KEY", ""),
             temperature=temperature,
-            timeout=120,
-            max_retries=5,
+            timeout=_timeout_seconds(),
+            max_retries=sdk_retries,
         )
     return LLM(
         model=model,
         base_url=OPENROUTER_BASE,
         api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         temperature=temperature,
-        timeout=120,
-        max_retries=5,
+        timeout=_timeout_seconds(),
+        max_retries=sdk_retries,
     )
 
 

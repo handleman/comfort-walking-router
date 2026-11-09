@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-09
+- swarm: stop LLM connection timeouts from hanging a run — cloud calls use one SDK retry with a configurable 120s timeout (`SWARM_LLM_TIMEOUT_SECONDS`/`SWARM_LLM_MAX_RETRIES`), a connection/timeout failure immediately switches to the fallback models, and identical failures are never retried twice on the same model
 - docs: add `docs/runbooks/overnight-runs.md` (sleep vs lock screen, `make swarm-night`, AC/lid/tmux checklist, supervisor recovery, knobs) and link it from `swarm/README.md`, `AGENTS.md`, and the roadmap
 - swarm: add `make swarm-night` (`caffeinate -is` + supervisor) and document sleep/lock-screen rules — a locked screen is harmless, system sleep is not; keep the Mac on AC and the lid open
 - swarm: stop the `needs_human` repeat loop — the verdict parser only accepts a declared `VERDICT:` line/JSON/standalone word (006-T5's reasoning text said "the verdict should be BLOCKED" and a truncated review became a hard block), step outputs now survive dev retries (the second attempt was re-running all 8 steps), and a green-gates round that changes nothing or blocks without citing test/file:line/AC/exit evidence ends as `no_progress`/`reviewer_blocked_ungrounded` instead of burning six paid rounds

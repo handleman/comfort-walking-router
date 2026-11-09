@@ -1427,6 +1427,13 @@ class SwarmFlow(Flow[SwarmState]):
                             # Same step, same error, same model: escalate instead.
                             break
                         self._failure_sigs.add(key)
+                        text = f"{type(e).__name__}: {e}".lower()
+                        if not switched and ("connect" in text or "timed out" in text):
+                            # 015: a flaky/dead endpoint should not cost 5 SDK
+                            # retries; move to the configured fallback models.
+                            switched = True
+                            activate_fallbacks()
+                            print("llm connection failure → retrying on fallback models", flush=True)
                         time.sleep(backoff_delay(attempt))
                         continue
                     break

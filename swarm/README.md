@@ -258,6 +258,7 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
   files (`no_progress`) or a block that cites nothing checkable
   (`reviewer_blocked_ungrounded`) ends the loop instead of paying for more coder
   rounds; a grounded block (test id, file:line, failing command, AC) keeps looping.
+- **A dead endpoint fails over, not over and over.** Cloud calls use a 120s request timeout and one SDK retry; on a connection/timeout failure `_kickoff` switches to the configured fallback models on the next attempt (the same failure signature is never retried twice on one model).
 - **The coder gets QA's evidence.** `run.json.qa_report` (and the fix prompt)
   contains per gate: argv, exit code, and the failure output — failing test ids,
   lint rules, type errors — plus the changed-file list. Rounds are QA→coder→QA,
@@ -311,6 +312,7 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | `SWARM_MAX_RUNTIME_SECONDS` | 14400 | 4h wall clock on a slow machine. |
 | QA report tails | 4k/gate, 9k prompt | Failure output is enough to investigate; the coder is paid per token. |
 | Supervisor | 30s base, 600s cap, 3 attempts, 20 rounds | A 5-minute task retries at most ~10 minutes apart; parked tasks let the queue move on. |
+| `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 120 / 1 | The harness retries with backoff and fallback models; five SDK retries of a dead endpoint just multiply the wait. |
 
 ### Unattended operation (015)
 - `make swarm-supervise` drives `./swarm/run.sh --resume`: retryable outcomes

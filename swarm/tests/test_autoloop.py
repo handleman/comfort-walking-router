@@ -1111,3 +1111,23 @@ def test_reason_codes_for_stalled_rounds():
     assert _reason_code("needs_human", {}, state) == "reviewer_blocked_ungrounded"
     state.ungrounded_block = False
     assert _reason_code("needs_human", {}, state) == "reviewer_blocked"
+
+
+def test_llm_timeout_and_sdk_retries_are_configurable(monkeypatch):
+    from swarm import llms
+
+    monkeypatch.setenv("SWARM_LLM_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("SWARM_LLM_MAX_RETRIES", "1")
+    model = llms._build("openrouter/nvidia/nemotron-3.5-super-vl:free", temperature=0, allow_paid=False)
+    assert model.timeout == 45
+    assert model.max_retries == 1
+    monkeypatch.setenv("SWARM_LLM_TIMEOUT_SECONDS", "not-a-number")
+    assert llms._timeout_seconds() == 120
+
+
+def test_connection_timeout_is_retryable():
+    from swarm.retry import classify_provider_error, is_retryable
+
+    err = RuntimeError("Failed to connect to OpenAI API: Request timed out.")
+    assert is_retryable(err) is True
+    assert classify_provider_error(err) == "retryable"
