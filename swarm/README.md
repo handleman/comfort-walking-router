@@ -223,8 +223,10 @@ context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-r
 every command from `SWARM_GATE_COMMANDS` (this repo: `pytest -q`, `ruff check .`,
 `mypy app tests`, `npm --prefix frontend run check`, `npm --prefix frontend run lint`)
 itself (never trusts agent claims). Red gates or a reviewer `BLOCKED` → fix
-round: Coder investigates with the QA report (+ Reviewer re-verify), max 2 rounds
-(`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
+round: Coder investigates with the QA report (+ Reviewer re-verify), max 3 rounds
+(`MAX_FIX_ROUNDS` in `swarm/crew.py`). Inside a round the coder self-verifies:
+fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify cycles
+(`MAX_FIX_VERIFY_CYCLES`), then reports the last exit per gate. Still red → `needs_human`, TUI pauses,
 `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
 
 ### Gate ownership (who runs what)
@@ -236,7 +238,8 @@ round: Coder investigates with the QA report (+ Reviewer re-verify), max 2 round
   with `allow_gates=False` and answers `BLOCKED: gates are QA-only`. A fix round
   starts only after QA `BLOCKED` (or red flow gates); then the coder gets
   `allow_gates=True` plus the QA report and may reproduce/confirm the fix
-  (`VERIFY_RULE` in `swarm/crew.py`). This keeps QA the single verification owner
+  (`VERIFY_RULE`/`MAX_FIX_VERIFY_CYCLES` in `swarm/crew.py`) and keeps fixing until
+  every gate it ran is green (3 cycles max). This keeps QA the single verification owner
   without spending coder tokens on duplicate gate calls.
 - **The flow re-runs the gates itself** on every verification step (truthful green,
   012 AC-4). That is harness code, not an agent turn, so it cannot be skipped or

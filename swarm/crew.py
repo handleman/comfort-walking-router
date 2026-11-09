@@ -53,12 +53,16 @@ FIX_RULES = (
 )
 # Only post-QA agents verify: the reviewer runs the gates first, so a coder that
 # has a QA BLOCKED verdict may re-run them to confirm its fix. Fresh development
-# runs never pay for gate calls.
+# runs never pay for gate calls. The fix round self-verifies in a bounded loop so
+# the coder hands back a state where every gate problem it introduced is fixed.
+MAX_FIX_VERIFY_CYCLES = 3
 VERIFY_RULE = (
-    "QA returned BLOCKED, so you may run the project gates "
-    "(`SWARM_GATE_COMMANDS`, and any autofix form such as `ruff check --fix .`) "
-    "to confirm your fix before answering. Never remove or disable a feature to "
-    "make a gate pass."
+    "QA returned BLOCKED, so verify your own fix: run the project gates "
+    "(`SWARM_GATE_COMMANDS`; autofix forms such as `ruff check --fix .` are allowed). "
+    "If any gate still fails, fix those findings and run the gates again — repeat "
+    f"for at most {MAX_FIX_VERIFY_CYCLES} fix→verify cycles, and stop early once every "
+    "gate exits 0. End your answer with the last exit code you saw for each gate. "
+    "Never remove or disable a feature to make a gate pass."
 )
 MAX_STEPS = 8
 
@@ -257,7 +261,7 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     return Crew(agents=[reviewer], tasks=[t_verify], process=Process.sequential, verbose=False)
 
 
-MAX_FIX_ROUNDS = 2  # gate fail → coder retry with transcript (twice), then escalate/human
+MAX_FIX_ROUNDS = 3  # gate fail → coder fix→verify cycles (3), then senior escalation/human
 DEV_ATTEMPTS = 3  # dev phase (steps + review + fix round) retries before senior escalation
 SENIOR_ATTEMPTS = 2  # senior one-shot fix passes before giving up to human
 STEP_ATTEMPTS = 3  # micro-step kickoff retries before senior step rescue
@@ -303,7 +307,7 @@ def build_fix_crew(
             "this attempt, so you investigate and may re-run them to confirm. "
             "You run no network commands."
         ),
-        max_iter=10,
+        max_iter=14,
         allow_gates=True,
     )
     reviewer = _reviewer()
@@ -322,10 +326,15 @@ def build_fix_crew(
             + qa_block
             + "Change only what the transcript/report rejects. Use Repo Create for new files, "
             "Repo Edit for existing files. " + FIX_RULES + " " + VERIFY_RULE + " "
-            "Loop rules (hard): at most 8 tool calls, then write the final answer; "
+            "Work in fix→verify cycles: fix the findings, run the gates, and keep going "
+            "while any gate is red — never hand back a fix that you left unverified. "
+            "Loop rules (hard): at most 14 tool calls, then write the final answer; "
             "never read the same file twice. " + SCOPE_RULE
         ),
-        expected_output="Diff summary of the fix + what gate line each change addresses.",
+        expected_output=(
+            "Diff summary of the fix + the last exit code seen per gate "
+            "(and what was still red, if anything)."
+        ),
         agent=coder,
     )
     t_verify = Task(
@@ -358,7 +367,7 @@ def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str, qa_review:
         llm=senior_llm(),
         tools=_tools(allow_gates=True),
         verbose=False,
-        max_iter=12,
+        max_iter=16,
     )
     reviewer = _reviewer()
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
@@ -369,10 +378,13 @@ def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str, qa_review:
             + qa_block
             + "Find the root cause, fix EVERY failure in one pass. " + FIX_RULES + " " + VERIFY_RULE + " "
             "Use Repo Create for new files, Repo Edit for existing files. "
-            "Loop rules (hard): at most 10 tool calls, then write the final answer; "
+            "Loop rules (hard): at most 16 tool calls, then write the final answer; "
             "never read the same file twice. " + SCOPE_RULE
         ),
-        expected_output="Diff summary of the fix + what gate line each change addresses.",
+        expected_output=(
+            "Diff summary of the fix + the last exit code seen per gate "
+            "(and what was still red, if anything)."
+        ),
         agent=senior,
     )
     t_verify = Task(

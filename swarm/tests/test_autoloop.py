@@ -1037,3 +1037,25 @@ def test_reason_codes_are_specific():
     assert _reason_code("needs_human", {"vacancy_note": "x"}, state) == "vacancy"
     assert _reason_code("needs_human", {"gates": {"pytest -q": 1}}, state) == "gates_failed"
     assert _reason_code("green", {}, state) == "green"
+
+
+def test_fix_round_self_verifies_up_to_three_cycles():
+    from swarm.crew import (
+        MAX_FIX_ROUNDS,
+        MAX_FIX_VERIFY_CYCLES,
+        build_fix_crew,
+        build_senior_crew,
+    )
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
+    assert MAX_FIX_VERIFY_CYCLES == 3
+    assert MAX_FIX_ROUNDS == MAX_FIX_VERIFY_CYCLES
+    for crew in (
+        build_fix_crew("001", task, "pytest exit=1"),
+        build_senior_crew("001", task, "pytest exit=1"),
+    ):
+        description = crew.tasks[0].description
+        assert "3 fix→verify cycles" in description
+        assert "If any gate still fails" in description
+        assert "last exit code seen per gate" in crew.tasks[0].expected_output
