@@ -155,3 +155,18 @@ def test_outcome_actions():
     assert supervise.Outcome("config_error").action == "stop"
     assert supervise.Outcome("needs_human").action == "stop"
     assert isinstance(types.SimpleNamespace(), object)
+
+
+def test_retry_later_skips_parked_tasks(tmp_path, monkeypatch):
+    from swarm import flow
+
+    runs = tmp_path / "swarm" / "runs"
+    runs.mkdir(parents=True)
+    (runs / "retry_later.json").write_text(
+        json.dumps({"attempts": {}, "retry_later": ["005/T8"]})
+    )
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    assert flow._retry_later_keys() == {"005/T8"}
+    assert flow._without_retry_later("005", ["T8", "T9"]) == ["T9"]
+    # Never deadlock: a fully parked spec still runs.
+    assert flow._without_retry_later("005", ["T8"]) == ["T8"]

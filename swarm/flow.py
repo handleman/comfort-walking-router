@@ -1003,6 +1003,8 @@ class SwarmFlow(Flow[SwarmState]):
         if missing:
             self.state.evidence_note = "QA did not run: " + ", ".join(missing)
             print(f"qa_gate_missing: {missing}", flush=True)
+        else:
+            self.state.evidence_note = ""
         return gates, transcript, missing
 
     def _commit_green(
@@ -2048,8 +2050,18 @@ def run_tasks(
             )
             status = flow.kickoff()
             yield flow, status
-            if single or status != "green":
+            if single:
                 return
+            task_cap = status == "budget_exhausted" and str(
+                getattr(flow.state, "budget_note", "")
+            ).startswith("task ")
+            if status != "green" and not task_cap:
+                return
+            if task_cap:
+                # 015 AC-6: a per-task cap must not block the rest of the queue.
+                from swarm.supervise import mark_retry_later
+
+                mark_retry_later(f"{spec_dir}/{task_id}")
             todo_ids = _without_retry_later(spec_dir, todo_ids)
             task_id = _next_todo(all_ids, todo_ids, task_id)
         # Spec done and green: advance to the next spec with tasks.
