@@ -162,7 +162,7 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
    self-contained: one behavior change, exact paths, and what "done" means.
 3. Make each task coder-sized: one file/behavior, ~4–8 planner micro-steps, verifiable by the
    project gates in `SWARM_GATE_COMMANDS` (this repo: `pytest -q`, `ruff check .`,
-   `mypy app tests`, `npm --prefix frontend run check`, `npm --prefix frontend run lint`).
+   `mypy app tests`, `npm --prefix frontend run check`, `npm --prefix frontend run lint`, `npm --prefix frontend test -- --run`).
    Split larger work into more tasks.
 4. Respect the coder scope. Default: `app/`, `frontend/`, `tests/`, `contracts/`,
    `requirements*.txt`, `pyproject.toml`, `.gitignore`. Anything else needs an explicit override,
