@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import saved_routes
+from . import fixtures, saved_routes
 from .cache import Cache
 from .config import get_mapbox_token
 from .geocoder import geocode_place
@@ -226,9 +226,16 @@ def route(body: RouteRequest) -> RouteResponse:
         f"{body.start}|{body.end}|{body.preference}"
     )
     try:
-        start = geocode_place(body.start)
-        end = geocode_place(body.end)
-        raw_route = mapbox.route(start, end, preference=body.preference)
+        if fixtures.route_fixtures_enabled():
+            start = fixtures.recorded_geocode(body.start)
+            end = fixtures.recorded_geocode(body.end)
+            raw_route = fixtures.recorded_route(
+                start, end, preference=body.preference
+            )
+        else:
+            start = geocode_place(body.start)
+            end = geocode_place(body.end)
+            raw_route = mapbox.route(start, end, preference=body.preference)
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=504, detail="Upstream routing request failed"
