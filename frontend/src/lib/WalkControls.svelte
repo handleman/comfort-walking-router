@@ -6,29 +6,34 @@
    */
   import { autoCenter, dismissRerouteWarning, reroute, start, stop, walkMode } from './walkMode'
   import WalkRerouteWarning from './WalkRerouteWarning.svelte'
+  import WalkArrivedBanner from './WalkArrivedBanner.svelte'
   import type { LatLng } from './navigation/interpolate'
 
   /** Route to walk; Start is disabled until a route is provided. */
   export let route: LatLng[] = []
 </script>
 
-<div class="walk-controls">
-  <button
-    type="button"
-    class="walk-start"
-    on:click={() => start(route)}
-    disabled={$walkMode.active || route.length === 0}
-  >
-    Start
-  </button>
-  <button type="button" class="walk-stop" on:click={() => stop()} disabled={!$walkMode.active}>
-    Stop
-  </button>
-  <label class="walk-auto-center">
-    <input type="checkbox" bind:checked={$autoCenter} />
-    Auto-center
-  </label>
-</div>
+{#if $walkMode.arrived}
+  <WalkArrivedBanner />
+{:else}
+  <div class="walk-controls">
+    <button
+      type="button"
+      class="walk-start"
+      on:click={() => start(route)}
+      disabled={$walkMode.active || route.length === 0}
+    >
+      Start
+    </button>
+    <button type="button" class="walk-stop" on:click={() => stop()} disabled={!$walkMode.active}>
+      Stop
+    </button>
+    <label class="walk-auto-center">
+      <input type="checkbox" bind:checked={$autoCenter} />
+      Auto-center
+    </label>
+  </div>
+{/if}
 
 {#if $walkMode.rerouteWarning}
   <WalkRerouteWarning
