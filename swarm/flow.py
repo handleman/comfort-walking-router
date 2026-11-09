@@ -1567,13 +1567,18 @@ class SwarmFlow(Flow[SwarmState]):
                     if last_err is not None:
                         self.state.senior_used = True
                         self.state.senior_rounds += 1
-                        _, step_out = _kickoff(
-                            lambda step=step, i=i, last_err=last_err: build_senior_step_crew(
-                                self._spec_dir, task, step, i, len(steps), str(last_err)
-                            ),
-                            role=f"senior:step{i}",
-                            step=i,
-                        )
+                        try:
+                            _, step_out = _kickoff(
+                                lambda step=step, i=i, last_err=last_err: build_senior_step_crew(
+                                    self._spec_dir, task, step, i, len(steps), str(last_err)
+                                ),
+                                role=f"senior:step{i}",
+                                step=i,
+                            )
+                        except SystemExit as e:
+                            # Keep the task alive: gates + QA decide, not one failed call.
+                            self.state.result = f"senior rescue failed: {e}"[:4000]
+                            step_out = f"(senior rescue failed: {e})"[:1000]
                         model_kind = "senior"
                     self.state.steps_meta.append(
                         {
@@ -1673,7 +1678,7 @@ class SwarmFlow(Flow[SwarmState]):
                         )
                     except SystemExit as e:
                         self.state.result = str(e)[:4000]
-                        raise
+                        break
                     changed = run_delta(self._baseline)
                     reviewed = _review(task, work_summary)
                     gates, transcript, missing = self._gates_or_evidence(changed)
