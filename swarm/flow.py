@@ -1271,7 +1271,8 @@ class SwarmFlow(Flow[SwarmState]):
         prev = _previous_run(REPO_ROOT, self.state.spec_dir, str(task.id), self.run_dir)
         if prev is None:
             return None, ""
-        if _run_status(prev) not in ("killed", "interrupted", ""):
+        # 015 AC-7: any non-green attempt can be resumed; green is committed already.
+        if _run_status(prev) == "green":
             return None, ""
         try:
             max_age = int(os.getenv("SWARM_RESUME_MAX_AGE_SECONDS", "86400") or 86400)
