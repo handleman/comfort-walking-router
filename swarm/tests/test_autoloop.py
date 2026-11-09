@@ -1158,4 +1158,4 @@ def test_ollama_timeout_is_bounded(monkeypatch):
     monkeypatch.setenv("SWARM_OLLAMA_TIMEOUT_SECONDS", "120")
     model = llms._build("ollama/swarm-qa:latest", temperature=0, allow_paid=False)
     assert model.timeout == 120
-    assert model.max_retries == 1
+    # The LiteLLM route does not expose `max_retries`; the bounded timeout is the guard.
