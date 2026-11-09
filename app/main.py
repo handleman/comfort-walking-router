@@ -11,17 +11,18 @@ from pydantic import BaseModel, Field
 
 from . import saved_routes
 from .cache import Cache
+from .config import get_mapbox_token
 from .geocoder import geocode_place
 from .preferences import auto_preference
+from .providers.mapbox import MapboxProvider
 from .providers.open_meteo import OpenMeteoProvider
-from .providers.osrm import OSRMProvider
 from .scoring import score_comfort
 from .weather_cache import WeatherCache
 
 app = FastAPI(title="Comfort Walking Router")
 app.include_router(saved_routes.router)
 cache = Cache()
-osrm = OSRMProvider()
+mapbox = MapboxProvider(access_token=get_mapbox_token())
 open_meteo = OpenMeteoProvider()
 weather_cache = WeatherCache()
 
@@ -227,7 +228,7 @@ def route(body: RouteRequest) -> RouteResponse:
     try:
         start = geocode_place(body.start)
         end = geocode_place(body.end)
-        raw_route = osrm.route(start, end, preference=body.preference)
+        raw_route = mapbox.route(start, end, preference=body.preference)
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=504, detail="Upstream routing request failed"

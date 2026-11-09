@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,8 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.cache import Cache
+
+os.environ.setdefault("MAPBOX_TOKEN", "test-dummy-mapbox-token")
 
 FAKE_ROUTE: dict[str, Any] = {
     "type": "FeatureCollection",
@@ -34,7 +37,7 @@ def client(
         lambda place: (48.13, 11.57) if place == "Start" else (48.14, 11.58),
     )
     monkeypatch.setattr(
-        main.osrm,
+        main.mapbox,
         "route",
         lambda start, end, preference=None: FAKE_ROUTE,
     )
