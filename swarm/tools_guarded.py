@@ -420,8 +420,9 @@ def _valid_npm(argv: list[str]) -> bool:
     script = argv[4]
     if script == "test":
         return argv[5:] == ["--", "--run"]
-    # Read-only checks only; `format`/`install` mutate the tree and stay blocked.
-    return script in {"check", "build", "lint"} and argv[5:] == []
+    # `format` is a deterministic, in-scope autofix (Prettier); `install` stays
+    # blocked. Gates themselves remain QA-only (see is_gate_command).
+    return script in {"check", "build", "lint", "format"} and argv[5:] == []
 
 
 VALIDATORS = {

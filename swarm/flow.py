@@ -1454,6 +1454,29 @@ class SwarmFlow(Flow[SwarmState]):
                     return crew, str(out)[:8000]
             raise SystemExit(f"crew failed after retries, trace in {self.run_dir}/run.json") from last_err
 
+        def _review(task: Any, work_summary: str, *, role: str = "qa") -> bool:
+            """Run QA; never let its transport failure become a run-level crew_error.
+
+            If QA cannot answer, the harness still records gate evidence (with its
+            fallback runner) and one free-model verdict attempt, so a flaky local
+            reviewer parks the task as needs_human with real evidence instead of
+            throwing away the run (007-T1 ended `crew_error` with empty gates).
+            """
+            try:
+                _, review_out = _kickoff(
+                    lambda work_summary=work_summary: build_review_crew(
+                        self._spec_dir, task, work_summary
+                    ),
+                    role=role,
+                )
+            except SystemExit as e:
+                self.state.result = f"QA crew failed: {e}"[:4000]
+                self.state.evidence_note = "QA crew failed; gates will be recorded by the harness"
+                print("qa crew failed → harness gate evidence + free verdict", flush=True)
+                return False
+            self._set_review(review_out)
+            return True
+
         def _plan_text(crew: Any) -> str:
             try:
                 plan_out = getattr(crew.tasks[0], "output", None)
@@ -1565,27 +1588,17 @@ class SwarmFlow(Flow[SwarmState]):
                 work_summary = "\n".join(step_outs)
                 # 015 AC-2/AC-3: QA runs the gates; its recorded executions are
                 # the evidence green is built from.
-                _, review_out = _kickoff(
-                    lambda work_summary=work_summary: build_review_crew(
-                        self._spec_dir, task, work_summary
-                    ),
-                    role="qa",
-                )
-                self._set_review(review_out)
-                self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
+                reviewed = _review(task, work_summary)
+                self.state.result = f"{work_summary}\n--- review ---\n{self.state.review_text}"[:8000]
                 changed = run_delta(self._baseline)
                 gates, transcript, missing = self._gates_or_evidence(changed)
                 self._maybe_repair_verdict(task, gates, transcript)
+                if not reviewed and self.state.review_verdict == "unknown":
+                    break
                 if missing and self.state.review_verdict == "pass":
                     # QA said PASS without running a gate: ask once more. Never
                     # accept a verdict that its own evidence does not support.
-                    _, review_out = _kickoff(
-                        lambda work_summary=work_summary: build_review_crew(
-                            self._spec_dir, task, work_summary
-                        ),
-                        role="qa:missing-gates",
-                    )
-                    self._set_review(review_out)
+                    _review(task, work_summary, role="qa:missing-gates")
                     changed = run_delta(self._baseline)
                     gates, transcript, missing = self._gates_or_evidence(changed)
                 base_rounds = self.state.fix_rounds
@@ -1612,15 +1625,11 @@ class SwarmFlow(Flow[SwarmState]):
                         break
                     changed = run_delta(self._baseline)
                     # Same round continues with QA re-verification (it runs the gates).
-                    _, review_out = _kickoff(
-                        lambda work_summary=work_summary: build_review_crew(
-                            self._spec_dir, task, work_summary
-                        ),
-                        role="qa",
-                    )
-                    self._set_review(review_out)
+                    reviewed = _review(task, work_summary)
                     gates, transcript, missing = self._gates_or_evidence(changed)
                     self._maybe_repair_verdict(task, gates, transcript)
+                    if not reviewed and self.state.review_verdict == "unknown":
+                        break
                     if _gates_green(gates) and self.state.review_verdict == "pass":
                         break
                     if _gates_green(gates) and self.state.review_verdict == "blocked":
@@ -1666,15 +1675,11 @@ class SwarmFlow(Flow[SwarmState]):
                         self.state.result = str(e)[:4000]
                         raise
                     changed = run_delta(self._baseline)
-                    _, review_out = _kickoff(
-                        lambda work_summary=work_summary: build_review_crew(
-                            self._spec_dir, task, work_summary
-                        ),
-                        role="qa",
-                    )
-                    self._set_review(review_out)
+                    reviewed = _review(task, work_summary)
                     gates, transcript, missing = self._gates_or_evidence(changed)
                     self._maybe_repair_verdict(task, gates, transcript)
+                    if not reviewed and self.state.review_verdict == "unknown":
+                        break
             self.state.changed_files = run_delta(self._baseline)
         except _QuotaExhausted as e:
             self.state.result = str(e)[:4000]

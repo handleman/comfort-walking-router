@@ -340,7 +340,9 @@ def build_fix_crew(
             + qa_block
             + "Investigate the real cause before editing: read the files named in the "
             "report and follow the failing test/lint/type lines. Fix the cause, not the "
-            "symptom. Change only what the report proves is wrong. "
+            "symptom. If the report is a Prettier/code-style failure, run "
+            "`npm --prefix frontend run format` first (allowed in fix rounds). "
+            "Change only what the report proves is wrong. "
             "Use Repo Create for new files, Repo Edit for existing files. "
             + FIX_RULES
             + " Loop rules (hard): at most 12 tool calls, then write the final answer; "

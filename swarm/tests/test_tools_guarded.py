@@ -88,3 +88,9 @@ def test_gate_classifier_scope():
 
 def test_qa_shell_can_run_gates():
     assert ShellTool()._run("pytest -q").startswith("exit=")
+
+
+def test_format_is_allowed_but_install_is_not():
+    shell = ShellTool(allow_gates=False)
+    assert shell._run("npm --prefix frontend run format").startswith(("exit=", "BLOCKED: timeout"))
+    assert shell._run("npm --prefix frontend install").startswith("BLOCKED")
