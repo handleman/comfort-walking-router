@@ -27,3 +27,6 @@
 
 ## 4 — Non-goals (no spec yet)
 - Turn-by-turn, mobile native, offline maps.
+
+## 5 — Operations
+- Overnight/unattended pilot runs: `docs/runbooks/overnight-runs.md` (sleep/caffeinate, tmux, supervisor recovery, cost/time knobs).

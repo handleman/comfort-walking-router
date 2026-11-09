@@ -20,6 +20,7 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - Frontend: `cd frontend && npm run check` (svelte-check), `npm run lint` (ESLint + Prettier check), `npm run format`, `npm run build`, `npm run dev`.
 - Swarm: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test|swarm-stop|swarm-approve|swarm-preflight|swarm-sandbox`.
 - Swarm economics/autonomy (015): `make swarm-supervise` (unattended queue, retry/backoff, `retry_later`) and `make swarm-report` (cost per green task, tokens per role, fix rate, stops). Per-task caps: `SWARM_MAX_COST_PER_TASK`/`SWARM_MAX_SECONDS_PER_TASK`; routing: `SWARM_LOCAL_FIRST`, `SWARM_PAID_ALWAYS`; hygiene: `SWARM_SELF_HEAL`, `SWARM_STASH_UNRELATED`, `SWARM_REVERT_OUT_OF_SCOPE`.
+- Unattended/overnight: `make swarm-night` (`caffeinate -is` + supervisor). A locked screen is fine; system sleep is not — runbook: `docs/runbooks/overnight-runs.md`.
 - Approval hold: `./swarm/run.sh 001 T3 --require-approval` (or `SWARM_REQUIRE_APPROVAL=1`); release with `make swarm-approve` (defaults to the last checkpoint task; `SPEC=001 TASK=T3` to be explicit) or the dashboard `a` key.
 
 ## Boundaries / entrypoints
