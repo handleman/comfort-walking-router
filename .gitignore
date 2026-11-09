@@ -27,6 +27,8 @@ frontend/build/
 .svelte-kit/
 frontend/.svelte-kit/
 vite.config.*.timestamp-*.mjs
+frontend/test-results/
+frontend/playwright-report/
 
 # Data — SQLite/OSM cache (ADR-004), swarm run traces
 *.db
