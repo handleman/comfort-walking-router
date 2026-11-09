@@ -32,3 +32,19 @@ export function freshContextOptions(): {
 } {
   return { storageState: { cookies: [], origins: [] } }
 }
+
+/**
+ * Count requests whose URL matches the given pattern (substring or RegExp)
+ * as they fire on the page. Returns a getter for the running total so a spec
+ * can assert on the count after the interaction under test.
+ */
+export function countRequestsMatching(page: Page, urlPattern: string | RegExp): () => number {
+  let count = 0
+  page.on('request', (request) => {
+    const url = request.url()
+    if (typeof urlPattern === 'string' ? url.includes(urlPattern) : urlPattern.test(url)) {
+      count += 1
+    }
+  })
+  return () => count
+}
