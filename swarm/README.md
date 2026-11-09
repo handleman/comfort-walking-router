@@ -19,6 +19,13 @@ cp .env.example .env   # optional overrides (keys stay empty until you fill them
 swarm/.venv/bin/python -c "from crewai import LLM,Agent,Task,Crew; print('ok')"
 ```
 
+## Project-agnostic core
+The harness does not hardcode a language or framework. Gate commands come from
+`SWARM_GATE_COMMANDS` (semicolon/newline separated), scope from `SWARM_SCOPE`, and
+the coder prompt is stack-inferred. Point those at another project and the same
+flow works; only the guard *implementation* (`swarm/tools_guarded.py` path/secret
+rules) is repo-specific.
+
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
 Verified 2026-11-08 (tool calls + latency): free unless noted.
 
@@ -26,7 +33,8 @@ Verified 2026-11-08 (tool calls + latency): free unless noted.
 | --- | --- | --- |
 | Coder | `SWARM_CODER_MODEL=ollama/swarm-coder:latest` (Qwen3.5 9B, `make swarm-coder-image`) | $0 local, ~6–13 s |
 | Planner | `SWARM_PLANNER_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` | $0, 1M ctx, ~1 s |
-| Reviewer | `SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest` (same base, QA prompt) | $0 local |
+| Reviewer | `SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest` (Qwen3.5 9B, 64k ctx, QA prompt) | $0 local |
+| Verdict fallback | `SWARM_VERDICT_FALLBACK_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` (only when local QA gives no verdict) | $0 |
 | Senior | `SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0, 550B, tools OK |
 | Zen fallback | `SWARM_ZEN_FALLBACK_MODEL=zen/glm-5.3-flash` (paid, ~$0.006/1k calls) | opt-in, T13 |
 
@@ -212,15 +220,15 @@ stops as `needs_human`.
 ## Gates (sequence)
 Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
 context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-runs
-`pytest` + `ruff check .` + `mypy app tests` + `npm --prefix frontend run check`
-(when the frontend is installed) itself (never trusts agent claims). Red gates → fix
+every command from `SWARM_GATE_COMMANDS` (this repo: `pytest -q`, `ruff check .`,
+`mypy app tests`, `npm --prefix frontend run check`) itself (never trusts agent claims). Red gates → fix
 round: Coder (+ Reviewer re-verify) with the gate transcript, max 2 rounds
 (`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
 `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
 
 Green is deliberately strict (012 AC-4/AC-6):
 1. every gate exits `0` (including the run-delta scope gate);
-2. the Reviewer's final word is `PASS` (missing/`BLOCKED` → `needs_human`);
+2. the Reviewer's final word is `PASS` (`BLOCKED` → `needs_human`; a missing verdict gets one free-model repair);
 3. a non-empty in-scope run delta, or the same task's recovered interrupted delta, or an
    empty green commit when the tree is already clean/satisfied (never a blind commit of
    unrelated dirty work);

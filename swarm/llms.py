@@ -28,6 +28,7 @@ except Exception:
 DEFAULT_OLLAMA = "http://localhost:11434"
 DEFAULT_ZEN = "https://opencode.ai/zen/v1"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+DEFAULT_VERDICT_FALLBACK = "openrouter/nvidia/nemotron-3.5-super-vl:free"
 
 _fallback_active = False
 
@@ -155,3 +156,9 @@ def senior_llm(*, allow_paid: bool = False) -> LLM:
 def zen_fallback_llm() -> LLM:
     """Explicit Zen gateway client (paid cheap model; needs SWARM_ALLOW_PAID=1)."""
     return _build(_model("SWARM_ZEN_FALLBACK_MODEL"), temperature=0, allow_paid=True)
+
+
+def verdict_fallback_llm() -> LLM:
+    """Free cloud model used only when the local QA model returns no verdict."""
+    model = os.getenv("SWARM_VERDICT_FALLBACK_MODEL", DEFAULT_VERDICT_FALLBACK).strip()
+    return _build(model, temperature=0, allow_paid=False)

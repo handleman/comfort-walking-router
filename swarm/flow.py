@@ -16,6 +16,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -159,12 +160,42 @@ def _resolve_scope() -> tuple[str, ...]:
 
 
 _VERDICT_RE = re.compile(r"\b(PASS|BLOCKED)\b", re.IGNORECASE)
+_JSON_BLOCK_RE = re.compile(r"\{.*?\}", re.DOTALL)
 
 
 def reviewer_verdict(text: str) -> str:
-    """Last PASS/BLOCKED word in reviewer output; 'unknown' when absent."""
-    hits = _VERDICT_RE.findall(text or "")
+    """Last PASS/BLOCKED verdict; parses a JSON verdict object first."""
+    body = text or ""
+    for block in _JSON_BLOCK_RE.findall(body):
+        try:
+            data = json.loads(block)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(data, dict):
+            verdict = str(data.get("verdict", "")).strip().lower()
+            if verdict in ("pass", "blocked"):
+                return verdict
+    hits = _VERDICT_RE.findall(body)
     return hits[-1].lower() if hits else "unknown"
+
+
+def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
+    """Machine-readable why: green, reviewer_*, gates_failed, vacancy, …"""
+    if status == "green":
+        return "green"
+    if status != "needs_human":
+        return status
+    verdict = str(getattr(state, "review_verdict", "") or "")
+    if verdict == "unknown":
+        return "reviewer_no_verdict"
+    if verdict and verdict != "pass":
+        return "reviewer_blocked"
+    if payload.get("vacancy_note"):
+        return "vacancy"
+    gates = payload.get("gates") or {}
+    if not gates or any(code != 0 for code in gates.values()):
+        return "gates_failed"
+    return "needs_human"
 
 
 def _git(args: list[str], timeout: int = 120) -> tuple[int, str]:
@@ -335,33 +366,30 @@ def _commit_changes(
     return rec
 
 
-def _frontend_test_command() -> str | None:
-    """Optional frontend gate: `npm test` when the script + vitest binary exist.
+DEFAULT_GATE_COMMANDS = ("pytest -q", "ruff check .", "mypy app tests")
 
-    Frontend work (007/010) adds vitest under `frontend/`; backend-only checkouts
-    have no `test` script, so the gate stays dormant instead of failing every run.
+
+def gate_commands(env: dict[str, str] | None = None) -> list[str]:
+    """Project gate commands: `SWARM_GATE_COMMANDS` (semicolon/newline separated).
+
+    The harness core is project-agnostic; this repo sets pytest/ruff/mypy/npm
+    check in `.env`. Defaults keep older checkouts working.
     """
-    pkg = REPO_ROOT / "frontend" / "package.json"
-    vitest = REPO_ROOT / "frontend" / "node_modules" / ".bin" / "vitest"
-    if not pkg.is_file() or not vitest.exists():
-        return None
-    try:
-        scripts = json.loads(pkg.read_text()).get("scripts", {})
-    except (OSError, json.JSONDecodeError):
-        return None
-    return "npm --prefix frontend test -- --run" if "test" in scripts else None
+    env = os.environ if env is None else env
+    raw = env.get("SWARM_GATE_COMMANDS", "").strip()
+    if raw:
+        return [cmd.strip() for cmd in re.split(r"[;\n]", raw) if cmd.strip()]
+    return list(DEFAULT_GATE_COMMANDS)
+
+
+def _frontend_test_command() -> str | None:
+    """Deprecated shim retained for callers; use `gate_commands()` instead."""
+    return None
 
 
 def _frontend_check_command() -> str | None:
-    """`npm run check` when the frontend is installed (svelte-check gate)."""
-    pkg = REPO_ROOT / "frontend" / "package.json"
-    if not pkg.is_file() or not (REPO_ROOT / "frontend" / "node_modules").is_dir():
-        return None
-    try:
-        scripts = json.loads(pkg.read_text()).get("scripts", {})
-    except (OSError, json.JSONDecodeError):
-        return None
-    return "npm --prefix frontend run check" if "check" in scripts else None
+    """Deprecated shim retained for callers; use `gate_commands()` instead."""
+    return None
 
 
 class RunLock:
@@ -489,6 +517,7 @@ def load_checkpoint(
     steps: list[str],
     max_age: int = 86400,
     now: float | None = None,
+    path_filter: Callable[[str], bool] | None = None,
 ) -> tuple[dict[str, Any] | None, str]:
     """Validate `progress.json`; returns (payload, '') or (None, reason)."""
     from swarm.tools_guarded import hash_paths
@@ -508,6 +537,8 @@ def load_checkpoint(
     if completed < 0 or completed > len(steps) or len(outputs) != completed:
         return None, "malformed progress"
     delta = prog.get("delta_hashes") or {}
+    if path_filter is not None and isinstance(delta, dict):
+        delta = {path: digest for path, digest in delta.items() if path_filter(path)}
     if not isinstance(delta, dict) or hash_paths(list(delta)) != delta:
         return None, "worktree changed"
     try:
@@ -797,11 +828,7 @@ class SwarmFlow(Flow[SwarmState]):
         shell = ShellTool()
         gates: dict[str, int] = {}
         tails: list[str] = []
-        commands = ["pytest -q", "ruff check .", "mypy app tests"]
-        if frontend_check := _frontend_check_command():
-            commands.append(frontend_check)
-        if frontend_test := _frontend_test_command():
-            commands.append(frontend_test)
+        commands = gate_commands()
         for cmd in commands:
             out = shell._run(cmd)
             try:
@@ -837,53 +864,63 @@ class SwarmFlow(Flow[SwarmState]):
         )
 
     def _in_scope_dirty(self) -> list[str]:
-        from swarm.tools_guarded import _git_changed, is_secret_path, scope_violations
+        from swarm.tools_guarded import _git_changed
 
-        scope = _resolve_scope()
-        return sorted(
-            path
-            for path in _git_changed()
-            if not is_secret_path(path) and path not in scope_violations([path], scope)
-        )
+        return self._in_scope_paths(_git_changed())
 
-    def _recover_prior_delta(self, task: Any) -> tuple[list[str], str]:
-        """Adopt work left dirty by this task's interrupted run.
-
-        Only when the current in-scope dirty set exactly matches the prior
-        checkpoint/run delta, so unrelated human work is never committed.
-        """
-        prev = _previous_run(REPO_ROOT, self.state.spec_dir, str(task.id), self.run_dir)
-        if prev is None or _run_status(prev) not in ("killed", "interrupted", ""):
-            return [], ""
-        candidates: set[str] = set()
-        try:
-            prog = json.loads((prev / "progress.json").read_text())
-            candidates.update((prog.get("delta_hashes") or {}).keys())
-        except (OSError, json.JSONDecodeError):
-            pass
-        try:
-            rec = json.loads((prev / "run.json").read_text())
-            candidates.update(rec.get("changed_files") or [])
-        except (OSError, json.JSONDecodeError):
-            pass
-        if not candidates:
-            return [], ""
+    def _in_scope_paths(self, paths: list[str]) -> list[str]:
         from swarm.tools_guarded import is_secret_path, scope_violations
 
         scope = _resolve_scope()
-        candidates = {
+        return [
             path
-            for path in candidates
+            for path in paths
             if not is_secret_path(path) and path not in scope_violations([path], scope)
-        }
-        if not candidates:
-            return [], ""
+        ]
+
+    def _task_owned_dirty(self, task: Any) -> dict[str, str]:
+        """Dirty in-scope paths owned by prior attempts of this same task.
+
+        Returns `{path: prior_run_name}`. Only paths from non-green attempts are
+        considered, so already-committed work is never re-staged.
+        """
         dirty = set(self._in_scope_dirty())
-        # Require every prior path to still be dirty; unrelated dirty files are
-        # left alone (they belong to another task/human).
-        if not candidates <= dirty:
-            return [], ""
-        return sorted(candidates), prev.name
+        if not dirty:
+            return {}
+        owned: dict[str, str] = {}
+        runs = REPO_ROOT / "swarm" / "runs"
+        if not runs.is_dir():
+            return {}
+        dirs = sorted(
+            (p for p in runs.iterdir() if p.is_dir() and p.name[:1].isdigit()),
+            reverse=True,
+        )[:10]
+        for d in dirs:
+            if d.resolve() == self.run_dir.resolve():
+                continue
+            rec: dict[str, Any] = {}
+            for fname in ("run.json", "meta.json"):
+                try:
+                    rec = json.loads((d / fname).read_text())
+                    break
+                except (OSError, json.JSONDecodeError):
+                    rec = {}
+            if str(rec.get("spec")) != self.state.spec_dir or str(rec.get("task")) != str(task.id):
+                continue
+            if _run_status(d) == "green":
+                continue
+            candidates: set[str] = set(rec.get("changed_files") or [])
+            try:
+                prog = json.loads((d / "progress.json").read_text())
+                candidates.update((prog.get("delta_hashes") or {}).keys())
+            except (OSError, json.JSONDecodeError):
+                pass
+            for path in candidates:
+                if path in dirty and path not in owned:
+                    owned[path] = d.name
+            if set(owned) == dirty:
+                break
+        return owned
 
     def _delete_progress(self) -> None:
         try:
@@ -901,7 +938,7 @@ class SwarmFlow(Flow[SwarmState]):
         if self.state.review_verdict != "unknown" or self._verdict_retried:
             return
         self._verdict_retried = True
-        from swarm.llms import reviewer_llm, senior_llm
+        from swarm.llms import reviewer_llm, verdict_fallback_llm
 
         prompt = (
             f"Task: {task.id} — {task.brief}\n"
@@ -912,7 +949,7 @@ class SwarmFlow(Flow[SwarmState]):
             "VERDICT: BLOCKED\n"
             "No code, no explanation, no repeating the work summary."
         )
-        for factory in (reviewer_llm, senior_llm):
+        for factory in (reviewer_llm, verdict_fallback_llm):
             out: str | None = None
             try:
                 out = str(factory().call(prompt))
@@ -937,6 +974,7 @@ class SwarmFlow(Flow[SwarmState]):
         """Atomically persist step progress so a kill can resume (013 T6)."""
         from swarm.tools_guarded import hash_paths, run_delta
 
+        delta = self._in_scope_paths(run_delta(self._baseline))
         payload = {
             "run_id": self.run_dir.name,
             "spec": self.state.spec_dir,
@@ -945,7 +983,7 @@ class SwarmFlow(Flow[SwarmState]):
             "steps": list(steps),
             "completed": completed,
             "step_outputs": list(step_outputs),
-            "delta_hashes": hash_paths(run_delta(self._baseline)),
+            "delta_hashes": hash_paths(delta),
             "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
         }
         path = self.run_dir / "progress.json"
@@ -980,6 +1018,7 @@ class SwarmFlow(Flow[SwarmState]):
             plan_hash=plan_hash,
             steps=steps,
             max_age=max_age,
+            path_filter=lambda path: bool(self._in_scope_paths([path])),
         )
         if prog is None:
             return None, f"checkpoint in {prev.name} rejected: {note}"
@@ -1240,6 +1279,9 @@ class SwarmFlow(Flow[SwarmState]):
         ac_refs = list(task.ac_refs) if task else []
         scope = _resolve_scope()
         changed = run_delta(self._baseline)
+        owned = self._task_owned_dirty(task) if task else {}
+        if owned:
+            changed = sorted(set(changed) | set(owned))
         in_scope = in_scope_changes(changed, scope)
         approved = approval_granted(self.state.spec_dir, self.state.task_id, self.run_dir)
         self.state.changed_files = changed
@@ -1278,6 +1320,7 @@ class SwarmFlow(Flow[SwarmState]):
             "review_verdict": self.state.review_verdict,
             "changed_files": changed,
             "in_scope_changes": in_scope,
+            "recovered_paths": dict(owned),
             "approval_required": self._require_approval,
             "approved": approved,
             "result_tail": self.state.result[-2000:],
@@ -1304,21 +1347,8 @@ class SwarmFlow(Flow[SwarmState]):
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate
             if not in_scope:
-                # Nothing new from this run. Recover work left by the same task's
-                # interrupted run, else record an empty green commit (already done).
-                recovered, prev_name = self._recover_prior_delta(task) if task else ([], "")
                 dirty_in_scope = self._in_scope_dirty()
-                if recovered:
-                    changed = recovered
-                    in_scope = recovered
-                    in_scope_hashes = hash_paths(in_scope)
-                    payload["changed_files"] = changed
-                    payload["in_scope_changes"] = in_scope
-                    payload["recovered_from"] = prev_name
-                    payload["vacancy_note"] = (
-                        f"recovered pre-existing in-scope work from {prev_name}"
-                    )
-                elif not dirty_in_scope:
+                if not dirty_in_scope:
                     allow_empty = True
                     payload["vacancy_note"] = (
                         "no in-scope changes; recording an empty green commit (already satisfied)"
@@ -1326,7 +1356,7 @@ class SwarmFlow(Flow[SwarmState]):
                 else:
                     status = "needs_human"
                     payload["vacancy_note"] = (
-                        "green gates but in-scope work is pre-existing/unrelated: "
+                        "green gates but in-scope work is unrelated to this task: "
                         f"{dirty_in_scope}"
                     )
         if status == "green":
@@ -1370,6 +1400,7 @@ class SwarmFlow(Flow[SwarmState]):
                         status = "commit_failed"
                     payload["status"] = status
         payload["status"] = status
+        payload["reason_code"] = _reason_code(status, payload, self.state)
         if status == "green":
             self._delete_progress()
         payload["evidence"] = {

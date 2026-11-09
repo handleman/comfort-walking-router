@@ -109,6 +109,7 @@ def test_resume_checkpoint_uses_killed_run_only(tmp_path, monkeypatch):
     stub = types.SimpleNamespace(
         run_dir=current,
         state=types.SimpleNamespace(spec_dir="001-x", task_id="T1"),
+        _in_scope_paths=lambda paths: list(paths),
     )
     task = SpecTask(id="T1", ac_refs=("AC-1",), brief="do x")
     prog, note = SwarmFlow._resume_checkpoint(stub, task, plan, ["a", "b"])
@@ -128,6 +129,7 @@ def test_write_progress_is_atomic_and_hashes_delta(tmp_path, monkeypatch):
         run_dir=run,
         state=types.SimpleNamespace(spec_dir="001-x", task_id="T1"),
         _baseline={},
+        _in_scope_paths=lambda paths: list(paths),
     )
     SwarmFlow._write_progress(stub, "p" * 64, ["a", "b"], 1, ["out-1"])
     prog = json.loads((run / "progress.json").read_text())

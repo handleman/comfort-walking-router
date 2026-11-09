@@ -171,7 +171,7 @@ def test_fix_rules_shared_by_fix_and_senior_crews():
     task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
     fix_desc = build_fix_crew("001", task, "ruff exit=1").tasks[0].description
     senior_desc = build_senior_crew("001", task, "ruff exit=1").tasks[0].description
-    assert "ruff check --fix" in FIX_RULES
+    assert "autofix" in FIX_RULES
     assert FIX_RULES in fix_desc
     assert FIX_RULES in senior_desc
 
@@ -264,22 +264,13 @@ def test_resume_green_wraps_to_earlier_open_spec(tmp_path):
     assert _resume_point(tmp_path) == ("001-x", "T3")
 
 
-def test_frontend_test_gate_is_dormant_without_script_or_vitest(tmp_path, monkeypatch):
-    import json
+def test_gate_commands_support_newlines_and_deduping():
+    from swarm.flow import gate_commands
 
-    from swarm import flow
-
-    frontend = tmp_path / "frontend"
-    (frontend / "node_modules" / ".bin").mkdir(parents=True)
-    (frontend / "package.json").write_text(json.dumps({"scripts": {"dev": "vite"}}))
-    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
-    assert flow._frontend_test_command() is None
-
-    (frontend / "node_modules" / ".bin" / "vitest").write_text("")
-    assert flow._frontend_test_command() is None
-
-    (frontend / "package.json").write_text(json.dumps({"scripts": {"test": "vitest"}}))
-    assert flow._frontend_test_command() == "npm --prefix frontend test -- --run"
+    assert gate_commands({"SWARM_GATE_COMMANDS": "make check\nmake test"}) == [
+        "make check",
+        "make test",
+    ]
 
 
 def test_resolve_steps_rejects_garbage():
@@ -512,8 +503,8 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         def _delete_progress(self):
             return None
 
-        def _recover_prior_delta(self, task):
-            return [], ""
+        def _task_owned_dirty(self, task):
+            return {}
 
         def _in_scope_dirty(self):
             return []
@@ -887,20 +878,14 @@ def test_commit_trailers_feed_the_done_ledger(tmp_path, monkeypatch):
     assert entry.source == "git"
 
 
-def test_frontend_check_gate_detection(tmp_path, monkeypatch):
-    from swarm.flow import _frontend_check_command
+def test_gate_commands_are_config_driven():
+    from swarm.flow import DEFAULT_GATE_COMMANDS, gate_commands
 
-    repo = tmp_path
-    frontend = repo / "frontend"
-    (frontend / "node_modules").mkdir(parents=True)
-    (frontend / "package.json").write_text('{"scripts": {"check": "svelte-check"}}')
-    monkeypatch.setattr("swarm.flow.REPO_ROOT", repo)
-    assert _frontend_check_command() == "npm --prefix frontend run check"
-
-    (frontend / "node_modules").rmdir()
-    (frontend / "node_modules").mkdir()  # still present but empty = installed
-    (frontend / "package.json").write_text('{"scripts": {}}')
-    assert _frontend_check_command() is None
+    assert gate_commands({"SWARM_GATE_COMMANDS": "pytest -q;npm run check"}) == [
+        "pytest -q",
+        "npm run check",
+    ]
+    assert gate_commands({}) == list(DEFAULT_GATE_COMMANDS)
 
 
 def test_recover_prior_delta_requires_exact_match(tmp_path, monkeypatch):
@@ -928,17 +913,17 @@ def test_recover_prior_delta_requires_exact_match(tmp_path, monkeypatch):
         run_dir=cur,
         state=SwarmState(spec_dir="001-x", task_id="T1"),
         _in_scope_dirty=lambda: list(tg._git_changed()),
+        _in_scope_paths=lambda paths: list(paths),
     )
     task = SpecTask(id="T1", ac_refs=("AC-1",), brief="do x")
-    paths, source = SwarmFlow._recover_prior_delta(stub, task)
-    assert paths == ["app/x.py"]
-    assert source == prev.name
+    owned = SwarmFlow._task_owned_dirty(stub, task)
+    assert owned == {"app/x.py": prev.name}
 
     monkeypatch.setattr(tg, "_git_changed", lambda: ["app/x.py", "app/y.py"])
-    paths, source = SwarmFlow._recover_prior_delta(stub, task)
-    assert paths == ["app/x.py"] and source == prev.name  # extras stay untouched
+    owned = SwarmFlow._task_owned_dirty(stub, task)
+    assert owned == {"app/x.py": prev.name}  # extras stay untouched
     monkeypatch.setattr(tg, "_git_changed", lambda: ["app/y.py"])
-    assert SwarmFlow._recover_prior_delta(stub, task) == ([], "")
+    assert SwarmFlow._task_owned_dirty(stub, task) == {}
 
 
 def test_commit_empty_vacancy_direct_mode(monkeypatch):
@@ -972,7 +957,7 @@ def test_repair_verdict_accepts_clean_pass(monkeypatch):
     assert "verdict repair" in stub.state.review_text
 
 
-def test_repair_verdict_falls_back_to_senior(monkeypatch):
+def test_repair_verdict_falls_back_to_free_model(monkeypatch):
     import types
 
     from swarm import flow
@@ -987,7 +972,7 @@ def test_repair_verdict_falls_back_to_senior(monkeypatch):
             return "VERDICT: PASS"
 
     monkeypatch.setattr("swarm.llms.reviewer_llm", lambda: Bad())
-    monkeypatch.setattr("swarm.llms.senior_llm", lambda: Good())
+    monkeypatch.setattr("swarm.llms.verdict_fallback_llm", lambda: Good())
     stub = types.SimpleNamespace(
         state=flow.SwarmState(review_verdict="unknown"),
         _verdict_retried=False,
@@ -1008,3 +993,26 @@ def test_repair_verdict_does_not_override_blocked(monkeypatch):
     )
     flow.SwarmFlow._repair_verdict(stub, SpecTask(id="T1", ac_refs=(), brief="x"), "")
     assert stub.state.review_verdict == "blocked"
+
+
+def test_reviewer_verdict_parses_json():
+    from swarm.flow import reviewer_verdict
+
+    assert reviewer_verdict('{"verdict": "PASS", "reason": "gates green"}') == "pass"
+    assert reviewer_verdict('{"verdict": "BLOCKED"}') == "blocked"
+    assert reviewer_verdict("VERDICT: PASS") == "pass"
+
+
+def test_reason_codes_are_specific():
+    import types
+
+    from swarm.flow import _reason_code
+
+    state = types.SimpleNamespace(review_verdict="unknown")
+    assert _reason_code("needs_human", {}, state) == "reviewer_no_verdict"
+    state.review_verdict = "blocked"
+    assert _reason_code("needs_human", {}, state) == "reviewer_blocked"
+    state.review_verdict = "pass"
+    assert _reason_code("needs_human", {"vacancy_note": "x"}, state) == "vacancy"
+    assert _reason_code("needs_human", {"gates": {"pytest -q": 1}}, state) == "gates_failed"
+    assert _reason_code("green", {}, state) == "green"

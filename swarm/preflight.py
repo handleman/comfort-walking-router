@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 import shutil
 import urllib.request
 from collections.abc import Callable
@@ -29,6 +31,22 @@ ROLE_VARS = (
     "SWARM_SENIOR_MODEL",
 )
 GATE_BINARIES = ("pytest", "ruff", "mypy")
+
+
+def _gate_binaries(env: dict[str, str]) -> tuple[str, ...]:
+    """First executable of each `SWARM_GATE_COMMANDS` entry (or Python defaults)."""
+    raw = env.get("SWARM_GATE_COMMANDS", "").strip()
+    if not raw:
+        return GATE_BINARIES
+    binaries: list[str] = []
+    for command in re.split(r"[;\n]", raw):
+        try:
+            argv = shlex.split(command)
+        except ValueError:
+            continue
+        if argv:
+            binaries.append(argv[0])
+    return tuple(dict.fromkeys(binaries)) or GATE_BINARIES
 OPTIONAL_BINARIES = ("npm",)  # frontend gate only when vitest is installed
 
 DEFAULT_OLLAMA = "http://localhost:11434"
@@ -179,7 +197,7 @@ def check(
             problems.append(Problem(label, f"missing {path} (run `{hint}`)"))
     bins = [REPO_ROOT / ".venv" / "bin", REPO_ROOT / "swarm" / ".venv" / "bin"]
     path_env = os.pathsep.join([str(b) for b in bins if b.exists()] + [env.get("PATH", "")])
-    for binary in GATE_BINARIES:
+    for binary in _gate_binaries(env):
         if not which(binary, path=path_env):
             problems.append(Problem("gates", f"`{binary}` not found in the project venvs"))
     return problems

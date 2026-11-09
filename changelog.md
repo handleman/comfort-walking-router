@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-08
+- swarm: harness generalization + resilience — `SWARM_GATE_COMMANDS` drives gates, preflight binaries, and the shell allowlist (no Svelte/npm assumptions in the core); local QA image now 64k context with a free-model verdict fallback; task-owned dirty paths are recovered on any run, checkpoints ignore unrelated paths, `run.json` gains `reason_code`, and JSON verdicts are parsed
 - swarm: vacancy recovery now commits only the interrupted task's own paths even when unrelated in-scope files are dirty; leftovers stay for their task/human
 - swarm: reviewer verdict repair — if the reviewer returns no PASS/BLOCKED (e.g. echoes code), one clean verdict-only retry runs against the reviewer then the senior model before needs_human
 - swarm: vacancy no longer stops the pilot — when a run has no new in-scope delta, it recovers the same task's interrupted work if the dirty set matches exactly, else records an empty green commit (`Swarm-Vacancy: 1`) and advances; unrelated dirty in-scope work still stops as `needs_human`

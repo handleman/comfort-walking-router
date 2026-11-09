@@ -58,3 +58,9 @@ def test_edit_requires_exact_single_match(tmp_path, monkeypatch):
     out3 = EditTool()._run(path="README.md", oldString="a", newString="b")
     assert out3.startswith("BLOCKED")
     assert "outside coder scope" in out3
+
+
+def test_configured_gate_commands_are_allowed(monkeypatch):
+    monkeypatch.setenv("SWARM_GATE_COMMANDS", "make --version")
+    assert ShellTool()._run("make --version").startswith("exit=0")
+    assert ShellTool()._run("make evil").startswith("BLOCKED")

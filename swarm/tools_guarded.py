@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import posixpath
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -246,6 +247,24 @@ class ShellArgs(BaseModel):
 
 SHELL_META = set(";&|<>`$()\n\r")
 ALLOWED_COMMANDS = {"pytest", "ruff", "mypy", "git", "ls", "cat", "grep", "npm"}
+
+
+def _configured_gate(argv: list[str]) -> bool:
+    """Exact match against the project's `SWARM_GATE_COMMANDS` entries.
+
+    Lets another project define its own gates (e.g. `make check`) without
+    editing this harness, while still refusing arbitrary commands.
+    """
+    raw = os.getenv("SWARM_GATE_COMMANDS", "").strip()
+    if not raw:
+        return False
+    for command in re.split(r"[;\n]", raw):
+        try:
+            if shlex.split(command) == argv:
+                return True
+        except ValueError:
+            continue
+    return False
 CAT_FLAGS = {"-n", "-b", "-s", "-E", "-T", "-v"}
 GREP_FLAGS = {"-n", "-i", "-w", "-E", "-F", "-c", "-l", "-h", "-s"}
 DENY_FLAGS = {"-p", "--rootdir", "--override-ini", "--pyargs", "--no-index", "--output", "--config-file"}
@@ -385,10 +404,11 @@ VALIDATORS = {
 class ShellTool(BaseTool):
     name: str = "Guarded Shell"
     description: str = (
-        "Run allowlisted argv-only commands: pytest, `ruff check`, mypy (gates); "
-        "`git status|diff|log` (read-only); ls, cat, grep (read-only inspection); "
-        "`npm --prefix frontend run check|build|test`. 120s timeout, repo cwd. "
-        "No shell metacharacters, absolute paths, '..', .env/key files, network, or npm install."
+        "Run allowlisted argv-only commands: the project gate commands from "
+        "`SWARM_GATE_COMMANDS`; `git status|diff|log` (read-only); ls, cat, grep "
+        "(read-only inspection); `npm --prefix frontend run check|build|test` for "
+        "this repo. 120s timeout, repo cwd. No shell metacharacters, absolute paths, "
+        "'..', .env/key files, network, or npm install."
     )
     args_schema: type[BaseModel] = ShellArgs
     timeout: int = 120
@@ -403,9 +423,13 @@ class ShellTool(BaseTool):
             argv = shlex.split(raw)
         except ValueError as e:
             return f"BLOCKED: cannot parse command: {e}"
-        if not argv or argv[0] not in ALLOWED_COMMANDS:
+        if not argv:
             return f"BLOCKED: not allowlisted: {command!r}"
-        if not _no_meta(argv) or not VALIDATORS[argv[0]](argv):
+        allowed = (
+            argv[0] in ALLOWED_COMMANDS
+            and VALIDATORS[argv[0]](argv)
+        ) or _configured_gate(argv)
+        if not _no_meta(argv) or not allowed:
             return f"BLOCKED: unsafe arguments: {command!r}"
         try:
             env = dict(os.environ)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -40,18 +41,29 @@ FIX_RULES = (
     "Fix COMPLETELY and coherently, not one line at a time: imports must resolve "
     "(relative imports within the package, never bare top-level names for package "
     "modules); sync/async must match (never await a sync function — make the caller "
-    "match its callees); implementations must match their ABC signatures. Run "
-    "`ruff check --fix .` first for mechanical nits, then hand-fix the rest. "
-    "If the transcript contains svelte-check/TypeScript errors, diagnose the real "
+    "match its callees); implementations must match their ABC signatures. "
+    "Run the project's lint/format autofix gate first if it has one, then hand-fix the rest. "
+    "If the transcript contains type-checker errors, diagnose the real "
     "mismatch first: read the failing expression, infer the type from the API "
     "response/contract or an existing interface, reuse/extend that type, and narrow "
     "unions with real guards. Try that before any escape. If a correct typing is "
-    "genuinely impossible within this task, a narrow last-resort escape (`any` on one "
-    "value or `@ts-ignore` on one line) is allowed — say why in your final answer. "
-    "Never delete or disable the feature, and never blanket-suppress a file. "
+    "genuinely impossible within this task, the language's narrow last-resort "
+    "suppression is allowed — say why in your final answer. Never delete or disable "
+    "the feature, and never blanket-suppress a file. "
     "Delete stray files you created at wrong paths instead of leaving them."
 )
 MAX_STEPS = 8
+
+
+def gate_commands_hint() -> str:
+    """The project's gate commands (config-driven; no stack assumptions)."""
+    raw = os.getenv("SWARM_GATE_COMMANDS", "").strip()
+    commands = [c.strip() for c in re.split(r"[;\n]", raw) if c.strip()] or [
+        "pytest -q",
+        "ruff check .",
+        "mypy app tests",
+    ]
+    return ", ".join(f"`{command}`" for command in commands)
 
 
 def parse_steps(plan_text: str) -> list[str]:
@@ -65,29 +77,47 @@ def steps_usable(steps: list[str]) -> bool:
 
 
 def coder_role(task: SpecTask) -> str:
-    """Pick a role that matches the task's stack, not just Python scaffold work."""
+    """Pick a role from the task text; stack names are examples, not assumptions."""
     text = task.brief.lower()
-    if any(k in text for k in ("frontend/", ".svelte", "svelte", "typescript", "vite", "npm ", "leaflet")):
+    if any(
+        k in text
+        for k in (
+            "frontend/",
+            "ui/",
+            "component",
+            "react",
+            "vue",
+            "angular",
+            "svelte",
+            "typescript",
+            "javascript",
+            "css",
+            "tailwind",
+            "vite",
+            "npm ",
+        )
+    ):
         return "Frontend Coder"
     if any(k in text for k in ("tests/", "test_", "pytest", "test")):
         return "Test Coder"
-    return "Python Scaffold Coder"
+    return "Service Coder"
 
 
 def _stack_hint(task: SpecTask) -> str:
     role = coder_role(task)
     if role == "Frontend Coder":
         return (
-            "This is frontend work: Svelte/TypeScript/npm; keep `npm run check`/`build` green. "
-            "Treat TypeScript errors as design feedback: read the failing expression, infer the "
-            "type from the API response/contract or the existing interface, reuse or extend that "
-            "type, and narrow unions properly. Try that first. If no correct typing is possible "
-            "in the task, a narrow last-resort `any`/`@ts-ignore` is acceptable with an "
-            "explanation; deleting/disabling the feature or blanket-suppressing the file is not."
+            "This is UI/frontend work. Keep the project's frontend/type-check gates green "
+            "(the commands are in `SWARM_GATE_COMMANDS`). Treat type-checker errors as design "
+            "feedback: read the failing expression, infer the type from the API response/contract "
+            "or an existing interface, reuse or extend that type, and narrow unions properly. "
+            "Try that first. If no correct typing is possible in the task, a narrow last-resort "
+            "type suppression is acceptable with an explanation; deleting/disabling the feature "
+            "or blanket-suppressing the file is not."
         )
     if role == "Test Coder":
-        return "This is test work: add focused pytest coverage; do not change behavior beyond the brief."
-    return "This is Python backend work: keep imports, types, and FastAPI contracts coherent."
+        return "This is test work: add focused coverage; do not change behavior beyond the brief."
+    return "This is service/backend work: keep imports, types, and public contracts coherent."
 
 
 def _tools() -> list[object]:
@@ -109,13 +139,13 @@ def _coder(task: SpecTask, *, goal: str, backstory: str, max_iter: int = 6) -> A
 def _reviewer() -> Agent:
     return Agent(
         role="QA Gatekeeper",
-        goal="Block done unless pytest+ruff+mypy (+npm check) evidence is attached and green.",
+        goal="Block done unless every configured gate is attached and green.",
         backstory=(
             "You verify with Guarded Shell and report exit codes honestly. "
             "Never paste source code or repeat the work summary. "
             "Prefer real type fixes. A fix that removes/disables the feature or "
             "blanket-suppresses types is BLOCKED; a narrow, explained last-resort "
-            "`any`/`@ts-ignore` may PASS when gates are green and the feature is intact."
+            "suppression may PASS when gates are green and the feature is intact."
         ),
         llm=reviewer_llm(),
         tools=[TrimmedFileReadTool(), ShellTool()],
@@ -182,11 +212,11 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     t_verify = Task(
         description=(
             f"Final verification for {ctx}. The coder reports:\n{work_summary[:3000]}\n"
-            "Run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails. "
-            "If frontend files changed, also run `npm --prefix frontend run check` and include its exit code. "
+            f"Run the project gate commands via Guarded Shell: {gate_commands_hint()}. "
+            "Paste exit codes + tails for each. "
             "Also list changed files via `git status --short`: if the coder changed nothing "
             "relevant to the brief, verdict BLOCKED (no-op), never PASS on an empty diff. "
-            "If frontend/TS errors were suppressed with a blanket `any`/`@ts-ignore` or by "
+            "If type-checker errors were suppressed with a blanket suppression or by "
             "removing/disabling the feature, verdict BLOCKED; a narrow, explained last-resort "
             "escape is acceptable when the feature is intact. "
             "Your final answer must be at most 8 short lines: one gate line per check and a "
@@ -255,7 +285,7 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         agent=coder,
     )
     t_verify = Task(
-        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
+        description=f"Re-verify {ctx}: run the project gates {gate_commands_hint()} via Guarded Shell and paste exit codes + tails; block feature removal or blanket type suppression, accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
         agent=reviewer,
         context=[t_fix],
@@ -299,7 +329,7 @@ def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         agent=senior,
     )
     t_verify = Task(
-        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
+        description=f"Re-verify {ctx}: run the project gates {gate_commands_hint()} via Guarded Shell and paste exit codes + tails; block feature removal or blanket type suppression, accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
         agent=reviewer,
         context=[t_fix],
