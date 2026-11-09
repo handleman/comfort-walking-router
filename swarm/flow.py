@@ -1447,7 +1447,12 @@ def _next_after(ids: list[str], current: str) -> str | None:
 
 
 # The harness never implements itself: pilots stay out of harness specs.
-HARNESS_SPECS = ("009-swarm-harness", "012-dark-factory-harness", "013-dark-factory-phase-2")
+HARNESS_SPECS = (
+    "009-swarm-harness",
+    "012-dark-factory-harness",
+    "013-dark-factory-phase-2",
+    "015-dark-factory-economics",
+)
 
 
 def _spec_after(repo_root: Path, current_dir: str) -> str | None:

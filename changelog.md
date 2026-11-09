@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-09
+- specs: add `015-dark-factory-economics` (QA is the only gate executor with a comprehensive report back to the coder; paid coder for non-trivial work; per-task budgets, no step re-execution, failure classification, unattended supervisor, hygiene/DB verification); spec is control-plane so the queue skips it
 - swarm: the coder's fix round self-verifies — after fixing QA's findings it re-runs the gates, fixes anything still red, and repeats for up to 3 fix→verify cycles (`MAX_FIX_VERIFY_CYCLES`), reporting the last exit per gate; `MAX_FIX_ROUNDS` is now 3 and the senior fix gets the same protocol
 - swarm: gate ownership — QA is the only agent that runs gates; coder/fix crews get `ShellTool(allow_gates=False)` and a `BLOCKED: gates are QA-only` reply, the fix round unlocks gates only after a QA `BLOCKED` verdict, and the coder's fix prompt now carries the QA report so it investigates the root cause instead of re-running gates blindly; the flow still re-runs gates itself for truthful green
 
