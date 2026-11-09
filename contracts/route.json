@@ -88,7 +88,9 @@
       "properties": {
         "start": {"type": "string", "minLength": 1},
         "end": {"type": "string", "minLength": 1},
-        "preference": {"enum": ["hot", "cloudy", null], "default": null}
+        "preference": {"enum": ["hot", "cloudy", null], "default": null},
+        "prefer_lit": {"type": "boolean", "default": false},
+        "avoid_traffic": {"type": "boolean", "default": false}
       },
       "required": ["start", "end"]
     },

@@ -57,6 +57,8 @@ class RouteRequest(BaseModel):
     start: str = Field(min_length=1)
     end: str = Field(min_length=1)
     preference: Literal["hot", "cloudy"] | None = None
+    prefer_lit: bool = Field(default=False)
+    avoid_traffic: bool = Field(default=False)
 
 
 class Waypoint(BaseModel):
@@ -104,8 +106,14 @@ def validation_error(request: Request, exc: RequestValidationError) -> JSONRespo
     )
 
 
-def _route_id(start: str, end: str, preference: str | None) -> str:
-    key = f"{start}|{end}|{preference or ''}"
+def _route_id(
+    start: str,
+    end: str,
+    preference: str | None,
+    prefer_lit: bool = False,
+    avoid_traffic: bool = False,
+) -> str:
+    key = f"{start}|{end}|{preference or ''}|{prefer_lit}|{avoid_traffic}"
     return hashlib.sha1(key.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
@@ -126,7 +134,12 @@ def _build_response(
         PREFERENCE_NOTES[body.preference] if body.preference else BALANCED_NOTE
     )
     props = feature.get("properties", {})
-    comfort_score = score_comfort(props, body.preference or "balanced")
+    comfort_score = score_comfort(
+        props,
+        body.preference or "balanced",
+        prefer_lit=body.prefer_lit,
+        avoid_traffic=body.avoid_traffic,
+    )
     
     # Build explanation with applied factors
     explanation = [
@@ -149,6 +162,20 @@ def _build_response(
         explanation.append(f"Shade factor: {'high' if props.get('shade_factor', 0) > 0.5 else 'low'}")
         explanation.append(f"Sun factor: {'reduced' if props.get('sun_factor', 1) < 0.7 else 'normal'}")
         explanation.append(f"Noise level: {'quiet' if props.get('noise_level', 50) < 45 else 'moderate'}")
+
+    # Lit/traffic explanation entries (AC-1)
+    if body.prefer_lit:
+        explanation.append(
+            f"Lighting: {'well lit' if props.get('lit') == 'yes' else 'not lit'}"
+        )
+    if body.avoid_traffic:
+        highway = props.get("highway")
+        if highway in ("primary", "secondary", "trunk"):
+            explanation.append("Traffic: busy road, penalized")
+        elif highway in ("residential", "footway", "path"):
+            explanation.append("Traffic: quiet way, bonus applied")
+        else:
+            explanation.append("Traffic: no road class data")
     
     return RouteResponse(
         id=_route_id(body.start, body.end, body.preference),
