@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import posixpath
 import re
 import shlex
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -98,7 +100,9 @@ def scope_violations(changed: list[str], scope: tuple[str, ...] | None = None) -
 def _git_changed() -> list[str]:
     try:
         p = subprocess.run(
-            ["git", "status", "--short"],
+            # `-uall`: untracked directories expand to files, so their content is
+            # hashed (015 AC-2 evidence freshness depends on this).
+            ["git", "status", "--short", "--untracked-files=all"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
@@ -112,6 +116,13 @@ def _git_changed() -> list[str]:
 
 def _digest(path: Path) -> str | None:
     try:
+        if path.is_dir():
+            # Defensive: a directory digest covers its files, sorted by path.
+            h = hashlib.sha1()
+            for child in sorted(p for p in path.rglob("*") if p.is_file()):
+                h.update(str(child).encode())
+                h.update(child.read_bytes())
+            return h.hexdigest()
         return hashlib.sha1(path.read_bytes()).hexdigest()
     except OSError:
         return None
@@ -439,6 +450,37 @@ class ShellTool(BaseTool):
     # Coder-side agents get allow_gates=False: QA is the only role that runs the
     # gates, so development tokens are not spent re-running the same commands.
     allow_gates: bool = True
+    # Evidence sink (015): every execution is recorded here with the agent role,
+    # argv, exit code, and the in-scope hash at execution time.
+    run_dir: str = ""
+    agent_role: str = ""
+
+    def _evidence(self) -> tuple[Path | None, str]:
+        run_dir = self.run_dir or os.getenv("SWARM_RUN_DIR", "")
+        if not run_dir:
+            return None, self.agent_role
+        from swarm.evidence import SHELL_LOG
+
+        return Path(run_dir) / SHELL_LOG, self.agent_role or "coder"
+
+    def _log_execution(self, argv: list[str], exit_code: int, tail: str, started: float) -> None:
+        path, role = self._evidence()
+        if path is None:
+            return
+        import time as _time
+
+        from swarm.evidence import append_execution
+
+        changed = hash_paths(in_scope_changes(_git_changed()))
+        append_execution(
+            path,
+            agent=role,
+            argv=argv,
+            exit_code=exit_code,
+            duration_ms=int((_time.monotonic() - started) * 1000),
+            changed_after=hashlib.sha256(json.dumps(changed, sort_keys=True).encode()).hexdigest(),
+            tail=tail,
+        )
 
     def _run(self, command: str, **kwargs: Any) -> str:
         raw = command.strip()
@@ -475,6 +517,7 @@ class ShellTool(BaseTool):
             env["PYTHONPATH"] = os.pathsep.join(
                 [str(REPO_ROOT), env.get("PYTHONPATH", "")]
             )
+            started = time.monotonic()
             p = subprocess.run(
                 argv,
                 shell=False,
@@ -486,8 +529,10 @@ class ShellTool(BaseTool):
                 check=False,
             )
         except subprocess.TimeoutExpired:
+            self._log_execution(argv, 124, "timeout after 120s", time.monotonic())
             return "BLOCKED: timeout after 120s"
         tail = (p.stdout + p.stderr)[-4000:]
+        self._log_execution(argv, p.returncode, tail, started)
         return f"exit={p.returncode}\n{tail}"
 
     async def _arun(self, *args: Any, **kwargs: Any) -> str:

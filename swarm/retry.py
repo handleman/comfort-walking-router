@@ -36,6 +36,36 @@ def is_retryable(exc: BaseException) -> bool:
     return any(h in s for h in RETRY_HINTS)
 
 
+CONFIG_HINTS = (
+    "<!doctype",
+    "<html",
+    "404",
+    "401",
+    "403",
+    "invalid api key",
+    "unauthorized",
+    "no auth",
+    "not found",
+    "invalid response from llm call - none or empty",
+    "model not found",
+    "does not exist",
+)
+
+
+def classify_provider_error(exc: BaseException) -> str:
+    """`config` (terminal), `retryable` (backoff), or `unknown` (give up)."""
+    text = f"{type(exc).__name__}: {exc}".lower()
+    if any(h in text for h in ("<!doctype", "<html")):
+        return "config"
+    if is_quota_error(exc):
+        return "quota"
+    if is_retryable(exc):
+        return "retryable"
+    if any(h in text for h in CONFIG_HINTS):
+        return "config"
+    return "unknown"
+
+
 def is_quota_error(exc: BaseException) -> bool:
     """Daily free-tier quota: retrying the same model is pointless."""
     s = f"{type(exc).__name__}: {exc}".lower()

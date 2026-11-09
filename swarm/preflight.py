@@ -15,6 +15,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -128,6 +129,60 @@ def _available_ollama(base: str, fetch: Callable[..., Any]) -> set[str]:
     return names
 
 
+def _run(cmd: list[str], timeout: int) -> bool:
+    try:
+        proc = subprocess.run(
+            cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=timeout, check=False
+        )
+        return proc.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def self_heal(
+    env: dict[str, str] | None = None,
+    *,
+    log: Callable[[str], None] = print,
+) -> list[str]:
+    """Best-effort environment repair before checks (015 AC-10).
+
+    Only missing local artefacts are rebuilt; auth/base-URL failures stay
+    terminal because nothing local can fix them.
+    """
+    env = dict(os.environ if env is None else env)
+    if env.get("SWARM_SELF_HEAL", "1") != "1":
+        return []
+    actions: list[str] = []
+    root = REPO_ROOT
+    needs_venv = not (root / ".venv" / "bin" / "python").exists()
+    if needs_venv and _run(["make", "dev-setup-python"], timeout=900):
+        actions.append("bootstrapped .venv")
+    needs_frontend = (root / "frontend" / "package.json").is_file() and not (
+        root / "frontend" / "node_modules"
+    ).is_dir()
+    if needs_frontend and _run(["npm", "--prefix", "frontend", "ci"], timeout=900):
+        actions.append("installed frontend deps")
+    modelfiles = {
+        "swarm-qa": root / "swarm" / "ollama" / "Modelfile.qa",
+        "swarm-coder": root / "swarm" / "ollama" / "Modelfile",
+    }
+    for var in ROLE_VARS:
+        model = env.get(var, "").strip()
+        if provider(model) != "ollama":
+            continue
+        name = model_id(model).removesuffix(":latest")
+        modelfile = modelfiles.get(name)
+        if modelfile is None or not modelfile.is_file():
+            continue
+        if _run(["ollama", "show", name], timeout=30):
+            continue
+        if _run(["ollama", "create", name, "-f", str(modelfile)], timeout=600):
+            actions.append(f"built ollama image {name}")
+    for action in actions:
+        log(f"self-heal: {action}")
+    return actions
+
+
 def check(
     env: dict[str, str] | None = None,
     *,
@@ -137,6 +192,7 @@ def check(
 ) -> list[Problem]:
     """Return every blocking problem; empty list means safe to start."""
     env = dict(os.environ if env is None else env)
+    self_heal(env)
     problems: list[Problem] = []
     allow_paid = env.get("SWARM_ALLOW_PAID", "0") == "1"
 

@@ -3,7 +3,8 @@
 
 .PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck \
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
-	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox
+	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
+	swarm-supervise swarm-report
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -60,6 +61,12 @@ swarm-dash: ## Dashboard attached to current pilot
 
 swarm-up: ## Pilot in background + dashboard attached: make swarm-up [SPEC=001] [TASK=T1]
 	./swarm/up.sh $(SPEC) $(TASK)
+
+swarm-supervise: ## Unattended queue: auto-resume retryable stops, park exhausted tasks
+	swarm/.venv/bin/python -m swarm.supervise
+
+swarm-report: ## Cost/autonomy report from swarm/runs (cost per green task, roles, stops)
+	swarm/.venv/bin/python -m swarm.report
 
 swarm-test: ## Harness unit tests (no LLM, no network)
 	swarm/.venv/bin/python -m pytest swarm/tests -q

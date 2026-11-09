@@ -35,6 +35,7 @@ Verified 2026-11-08 (tool calls + latency): free unless noted.
 | Planner | `SWARM_PLANNER_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` | $0, 1M ctx, ~1 s |
 | Reviewer | `SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest` (Qwen3.5 9B, 64k ctx, QA prompt) | $0 local |
 | Verdict fallback | `SWARM_VERDICT_FALLBACK_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` (only when local QA gives no verdict) | $0 |
+| Trivial-step coder | `SWARM_LOCAL_CODER_MODEL=ollama/swarm-coder:latest` (mechanical steps only; 015 D2) | $0 local |
 | Senior | `SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0, 550B, tools OK |
 | Zen fallback | `SWARM_ZEN_FALLBACK_MODEL=zen/glm-5.3-flash` (paid, ~$0.006/1k calls) | opt-in, T13 |
 
@@ -241,9 +242,46 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
   (`VERIFY_RULE`/`MAX_FIX_VERIFY_CYCLES` in `swarm/crew.py`) and keeps fixing until
   every gate it ran is green (3 cycles max). This keeps QA the single verification owner
   without spending coder tokens on duplicate gate calls.
-- **The flow re-runs the gates itself** on every verification step (truthful green,
-  012 AC-4). That is harness code, not an agent turn, so it cannot be skipped or
-  faked by a model.
+- **The harness records what QA actually ran** (015 AC-2). Every `Guarded Shell`
+  execution appends `{agent, argv, exit, duration_ms, changed_after, tail}` to
+  `<run>/shell_log.jsonl`. The flow computes green from those records: each
+  command in `SWARM_GATE_COMMANDS` needs a QA execution at the *current* in-scope
+  hash. Model prose is never the source of an exit code, so dropping the flow's
+  own gate run does not weaken truthful green. A missing or stale record is
+  `reason_code=qa_gate_missing`, never green. `SWARM_TRUST_QA_EVIDENCE=0` restores
+  the 012 behaviour (flow re-runs gates) for debugging.
+- **The coder gets QA's evidence.** `run.json.qa_report` (and the fix prompt)
+  contains per gate: argv, exit code, and the failure output — failing test ids,
+  lint rules, type errors — plus the changed-file list. Rounds are QA→coder→QA,
+  max 3 (`MAX_FIX_ROUNDS`); the coder never re-runs a gate.
+
+### Cost routing (015 D2)
+- Non-trivial steps (existing file, >1 file, frontend/type-checked path, logic/
+  tests/API/DB wording, or any retry) use the paid coder.
+- Trivial steps (one new small file, mechanical wording) use the local coder;
+  a trivial step that fails is retried paid (`swarm/routing.py`).
+- `SWARM_LOCAL_FIRST=0` or `SWARM_PAID_ALWAYS=1` forces paid everywhere.
+- `usage.by_role` / `usage.by_step` record model, tokens, and cost per call;
+  `SWARM_MAX_COST_PER_TASK` (default $0.05) and `SWARM_MAX_SECONDS_PER_TASK`
+  (default 900s) bound a single task without touching the run budget.
+- `make swarm-report` prints cost per green task, tokens per role, fix-round
+  rate, stop reasons, and p50/p90 duration.
+
+### Unattended operation (015)
+- `make swarm-supervise` drives `./swarm/run.sh --resume`: retryable outcomes
+  (`interrupted`, transient `crew_error`, `quota_exhausted`, `budget_exhausted`,
+  commit/push/merge failures) restart with exponential backoff; a task that
+  exhausts `SWARM_SUPERVISE_ATTEMPTS` (default 3) is parked in
+  `swarm/runs/retry_later.json` and the queue skips it. `config_error` (HTML
+  body, 404/401/403, bad base URL, bad key) stops immediately.
+- Hygiene: out-of-scope writes are reverted (`out_of_scope_reverted`), unrelated
+  dirty in-scope files are stashed before the run and restored after
+  (`SWARM_STASH_UNRELATED=0` disables), and preflight self-heals a missing venv,
+  `frontend/node_modules`, or Ollama image (`SWARM_SELF_HEAL=0` disables).
+- Verification honesty: DB-backed tests that skip are recorded in
+  `run.json.skipped_ac` + `verification_note` (set `DATABASE_URL` to run them).
+- Retries resume at the failing step; a drifted checkpoint redoes only its last
+  step. Identical failures are not retried on the same model.
 
 Green is deliberately strict (012 AC-4/AC-6):
 1. every gate exits `0` (including the run-delta scope gate);

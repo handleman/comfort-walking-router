@@ -137,3 +137,39 @@ def test_write_progress_is_atomic_and_hashes_delta(tmp_path, monkeypatch):
     assert prog["step_outputs"] == ["out-1"]
     assert prog["delta_hashes"] == hash_paths(["app/x.py"])
     assert not (run / "progress.tmp").exists()
+
+
+def test_lenient_checkpoint_keeps_prefix_on_drift(tmp_path):
+    """015 AC-7: a drifted worktree redoes only the last step."""
+    from swarm import flow
+
+    root = tmp_path
+    prev = root / "swarm" / "runs" / "20260101-000000-1-a"
+    prev.mkdir(parents=True)
+    (prev / "meta.json").write_text('{"spec": "001-x", "task": "T1"}')
+    target = root / "app" / "x.py"
+    target.parent.mkdir()
+    target.write_text("changed\n")
+    steps = ["STEP 1: a", "STEP 2: b", "STEP 3: c"]
+    payload = {
+        "spec": "001-x",
+        "task": "T1",
+        "plan_hash": "h",
+        "steps": steps,
+        "completed": 3,
+        "step_outputs": ["a", "b", "c"],
+        "delta_hashes": {"app/x.py": "stale"},
+        "updated_at": flow.dt.datetime.now().isoformat(timespec="seconds"),
+    }
+    (prev / "progress.json").write_text(__import__("json").dumps(payload))
+
+    strict, note = flow.load_checkpoint(
+        prev, spec_dir="001-x", task_id="T1", plan_hash="h", steps=steps
+    )
+    assert strict is None and "worktree" in note
+
+    lenient, _ = flow.load_checkpoint(
+        prev, spec_dir="001-x", task_id="T1", plan_hash="h", steps=steps, lenient=True
+    )
+    assert lenient is not None and lenient["drift"] is True
+    assert lenient["completed"] == 3

@@ -37,6 +37,9 @@ TERMINAL_STATUSES = (
     "interrupted",
     "preflight_failed",
     "merge_failed",
+    "config_error",
+    "commit_failed",
+    "push_failed",
 )
 
 
@@ -71,6 +74,13 @@ class SwarmState(BaseModel):
     recovery: str = ""
     recovery_note: str = ""
     review_text: str = ""
+    # 015: QA-owned evidence, cost attribution, routing, verification honesty.
+    qa_report: dict[str, Any] = {}
+    steps_meta: list[dict[str, Any]] = []
+    skipped_ac: list[str] = []
+    out_of_scope_reverted: list[str] = []
+    stashed: list[str] = []
+    evidence_note: str = ""
 
 
 class _QuotaExhausted(SystemExit):
@@ -78,7 +88,11 @@ class _QuotaExhausted(SystemExit):
 
 
 class _BudgetExhausted(Exception):
-    """Per-run token/cost/time budget hit (012 T14)."""
+    """Per-run token/cost/time budget hit (012 T14, 015 AC-6)."""
+
+
+class _ConfigError(SystemExit):
+    """Terminal misconfiguration (bad base URL/key/HTML body): never retried."""
 
 
 def _is_quota_error(e: BaseException) -> bool:
@@ -523,6 +537,7 @@ def load_checkpoint(
     max_age: int = 86400,
     now: float | None = None,
     path_filter: Callable[[str], bool] | None = None,
+    lenient: bool = False,
 ) -> tuple[dict[str, Any] | None, str]:
     """Validate `progress.json`; returns (payload, '') or (None, reason)."""
     from swarm.tools_guarded import hash_paths
@@ -545,7 +560,10 @@ def load_checkpoint(
     if path_filter is not None and isinstance(delta, dict):
         delta = {path: digest for path, digest in delta.items() if path_filter(path)}
     if not isinstance(delta, dict) or hash_paths(list(delta)) != delta:
-        return None, "worktree changed"
+        if not lenient:
+            return None, "worktree changed"
+        # 015 AC-7: keep the verified prefix and redo only the last step.
+        prog = {**prog, "drift": True}
     try:
         updated = dt.datetime.fromisoformat(str(prog.get("updated_at", ""))).timestamp()
     except (TypeError, ValueError):
@@ -711,6 +729,16 @@ class SwarmFlow(Flow[SwarmState]):
         self._max_tokens = env_int("SWARM_MAX_TOKENS", 2_000_000)
         self._max_cost = env_float("SWARM_MAX_COST_USD", 0.05)
         self._max_seconds = env_int("SWARM_MAX_RUNTIME_SECONDS", 14400)
+        # 015 AC-6: a single task cannot eat the whole run.
+        self._max_cost_task = env_float("SWARM_MAX_COST_PER_TASK", 0.05)
+        self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 900)
+        self._task_started = time.monotonic()
+        self._task_tokens_start = 0
+        self._task_cost_start = 0.0
+        self._usage_by_role: dict[str, dict[str, Any]] = {}
+        self._usage_by_step: dict[str, dict[str, Any]] = {}
+        self._failure_sigs: set[tuple[str, str]] = set()
+        self._stash_ref = ""
         self._lock = RunLock(_runs_dir() / ".lock")
         if not self._lock.acquire():
             raise SystemExit("another swarm run is active (lock: swarm/runs/.lock)")
@@ -752,6 +780,7 @@ class SwarmFlow(Flow[SwarmState]):
                 pass
 
     def _cleanup(self) -> None:
+        self._restore_stash()
         with contextlib.suppress(Exception):
             self._lock.release()
         pid = _runs_dir() / "swarm.pid"
@@ -765,8 +794,16 @@ class SwarmFlow(Flow[SwarmState]):
         with contextlib.suppress(Exception):
             self._cleanup()
 
-    # ---- usage & budgets (012 T11/T14) ----
-    def _record_usage(self, crew: Any, out: Any) -> None:
+    # ---- usage & budgets (012 T11/T14, 015 AC-6) ----
+    def _record_usage(
+        self,
+        crew: Any,
+        out: Any,
+        *,
+        role: str = "",
+        step: Any = None,
+        before: tuple[int, int] = (0, 0),
+    ) -> None:
         tu = getattr(out, "token_usage", None) or getattr(crew, "usage_metrics", None)
         if tu is None:
             return
@@ -782,10 +819,44 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.cached_prompt_tokens += _n("cached_prompt_tokens")
         self.state.total_tokens += _n("total_tokens")
         self.state.llm_calls += _n("successful_requests")
+        models: list[str] = []
         for agent in getattr(crew, "agents", None) or []:
             model = getattr(getattr(agent, "llm", None), "model", "")
-            if model and model not in self.state.models_used:
-                self.state.models_used.append(model)
+            if model:
+                models.append(str(model))
+                if model not in self.state.models_used:
+                    self.state.models_used.append(model)
+        # 015 AC-6: attribute this call to its role/step (deltas, not totals).
+        prompt = self.state.prompt_tokens - int(before[0])
+        completion = self.state.completion_tokens - int(before[1])
+        if role or step is not None:
+            from swarm.usage import estimate_cost
+
+            model = models[0] if models else ""
+            cost = estimate_cost({model: (prompt, completion)}) if model else None
+            bucket = self._usage_by_role.setdefault(
+                role or "unknown",
+                {"prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0, "cost_known": True, "calls": 0},
+            )
+            bucket["prompt_tokens"] += prompt
+            bucket["completion_tokens"] += completion
+            bucket["calls"] += 1
+            if cost is None:
+                bucket["cost_known"] = False
+            else:
+                bucket["cost_usd"] += cost
+            if step is not None:
+                key = str(step)
+                entry = self._usage_by_step.setdefault(
+                    key, {"prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0, "cost_known": True, "model": model}
+                )
+                entry["prompt_tokens"] += prompt
+                entry["completion_tokens"] += completion
+                entry["model"] = model or entry.get("model", "")
+                if cost is None:
+                    entry["cost_known"] = False
+                else:
+                    entry["cost_usd"] += cost
 
     def _run_cost(self) -> float | None:
         from swarm.usage import estimate_run_cost
@@ -807,6 +878,26 @@ class SwarmFlow(Flow[SwarmState]):
         )
         if note:
             raise _BudgetExhausted(note)
+        task_note = self._task_budget_note()
+        if task_note:
+            raise _BudgetExhausted(
+                f"task {self.state.spec_dir}/{self.state.task_id}: {task_note}"
+            )
+
+    def _task_budget_note(self) -> str:
+        """015 AC-6: per-task ceiling, independent of the run budget."""
+        from swarm.usage import budget_note
+
+        cost = self._run_cost()
+        cost_delta = None if cost is None else max(0.0, cost - self._task_cost_start)
+        return budget_note(
+            total_tokens=self.state.total_tokens - self._task_tokens_start,
+            cost_usd=cost_delta,
+            elapsed_seconds=time.monotonic() - self._task_started,
+            max_tokens=0,
+            max_cost_usd=self._max_cost_task,
+            max_seconds=self._max_seconds_task,
+        )
 
     def _teardown_listener(self) -> None:
         """Unregister bus handlers but keep the object so the TUI can drain its queue."""
@@ -847,6 +938,73 @@ class SwarmFlow(Flow[SwarmState]):
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
 
+    def _qa_report(
+        self,
+        gates: dict[str, int],
+        transcript: str,
+        changed: list[str],
+        missing: list[str],
+    ) -> dict[str, Any]:
+        """015 AC-3: the bounded report the coder investigates from."""
+        from swarm.evidence import qa_report, split_tails
+
+        return qa_report(
+            gates=gates,
+            tails=split_tails(transcript),
+            changed=self._in_scope_paths(changed),
+            verdict=self.state.review_verdict,
+            reason=self.state.review_text,
+            missing=missing,
+        )
+
+    def _maybe_repair_verdict(self, task: Any, gates: dict[str, int], transcript: str) -> None:
+        """One verdict-only retry when gates are green but QA returned no verdict."""
+        if _gates_green(gates) and self.state.review_verdict == "unknown":
+            self._repair_verdict(task, transcript)
+
+    def _set_review(self, review_out: str) -> None:
+        self.state.review_verdict = reviewer_verdict(review_out)
+        self.state.review_text = review_out
+        self.state.result = review_out[:8000]
+
+    def _evidence_hash(self) -> str:
+        """Same computation ShellTool logs, so evidence can be matched to edits."""
+        from swarm.tools_guarded import _git_changed, hash_paths, in_scope_changes
+
+        return hashlib.sha256(
+            json.dumps(hash_paths(in_scope_changes(_git_changed())), sort_keys=True).encode()
+        ).hexdigest()
+
+    def _gate_evidence(self, changed: list[str]) -> tuple[dict[str, int], str, list[str]]:
+        """015 AC-2: green comes from QA's recorded executions, not model prose."""
+        from swarm.evidence import SHELL_LOG, gate_evidence, read_executions
+        from swarm.tools_guarded import scope_violations
+
+        commands = gate_commands()
+        executions = read_executions(self.run_dir / SHELL_LOG)
+        gates, tails, missing = gate_evidence(
+            executions=executions,
+            commands=commands,
+            current_hash=self._evidence_hash(),
+        )
+        bad = scope_violations(changed, _resolve_scope())
+        gates["scope"] = 0 if not bad else 1
+        tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
+        if missing:
+            tails.append("$ missing-gates\n" + ", ".join(missing))
+        return gates, "\n".join(tails), missing
+
+    def _gates_or_evidence(self, changed: list[str]) -> tuple[dict[str, int], str, list[str]]:
+        """Evidence is authoritative; `SWARM_TRUST_QA_EVIDENCE=0` restores 012 behaviour."""
+        if os.getenv("SWARM_TRUST_QA_EVIDENCE", "1") == "0":
+            gates, transcript = self._run_gates(changed)
+            return gates, transcript, []
+        gates, transcript, missing = self._gate_evidence(changed)
+        if missing:
+            self.state.evidence_note = "QA did not run: " + ", ".join(missing)
+            print(f"qa_gate_missing: {missing}", flush=True)
+        return gates, transcript, missing
+
     def _commit_green(
         self,
         brief: str,
@@ -867,6 +1025,58 @@ class SwarmFlow(Flow[SwarmState]):
             run_id=self.run_dir.name,
             allow_empty=allow_empty,
         )
+
+    def _stash_unrelated(self, task: Any) -> None:
+        """015 AC-10: park unrelated dirty in-scope files so they never block a run."""
+        if os.getenv("SWARM_STASH_UNRELATED", "1") != "1":
+            return
+        try:
+            owned = set(self._task_owned_dirty(task))
+        except Exception:
+            owned = set()
+        candidates = [p for p in self._in_scope_dirty() if p not in owned]
+        if not candidates:
+            return
+        rc, out = _git(["stash", "push", "-m", f"swarm-{self.run_dir.name}", "--", *candidates])
+        if rc != 0:
+            print(f"stash skipped: {out.strip()[:200]}", flush=True)
+            return
+        self._stash_ref = f"swarm-{self.run_dir.name}"
+        self.state.stashed = candidates
+        print(f"stashed {len(candidates)} unrelated path(s): {candidates}", flush=True)
+
+    def _restore_stash(self) -> None:
+        if not self._stash_ref:
+            return
+        ref, self._stash_ref = self._stash_ref, ""
+        rc, out = _git(["stash", "pop", "--index"])
+        if rc != 0:
+            print(f"STASH RESTORE FAILED ({ref}): {out.strip()[:300]}", flush=True)
+
+    def _revert_out_of_scope(self, changed: list[str]) -> list[str]:
+        """015 AC-10: undo out-of-scope writes instead of stopping the queue."""
+        if os.getenv("SWARM_REVERT_OUT_OF_SCOPE", "1") != "1":
+            return []
+        from swarm.tools_guarded import scope_violations
+
+        bad = scope_violations(changed, _resolve_scope())
+        reverted: list[str] = []
+        for path in bad:
+            target = REPO_ROOT / path
+            listed = _git(["ls-files", "--error-unmatch", path])[0] == 0
+            if listed:
+                rc, _ = _git(["checkout", "--", path])
+            else:
+                try:
+                    target.unlink()
+                    rc = 0
+                except OSError:
+                    rc = 1
+            if rc == 0:
+                reverted.append(path)
+        if reverted:
+            print(f"reverted out-of-scope writes: {reverted}", flush=True)
+        return reverted
 
     def _in_scope_dirty(self) -> list[str]:
         from swarm.tools_guarded import _git_changed
@@ -923,8 +1133,22 @@ class SwarmFlow(Flow[SwarmState]):
             for path in candidates:
                 if path in dirty and path not in owned:
                     owned[path] = d.name
+                elif path.endswith("/") or not (REPO_ROOT / path).exists():
+                    # Older checkpoints stored an untracked directory; expand it.
+                    for child in dirty:
+                        if child.startswith(path) and child not in owned:
+                            owned[child] = d.name
             if set(owned) == dirty:
                 break
+            # A killed run whose steps all completed owns whatever it left dirty:
+            # that is its own QA-pending work, not unrelated human edits.
+            try:
+                prog = json.loads((d / "progress.json").read_text())
+            except (OSError, json.JSONDecodeError):
+                prog = {}
+            steps = prog.get("steps") or []
+            if steps and int(prog.get("completed") or 0) >= len(steps):
+                return {path: d.name for path in sorted(dirty)}
         return owned
 
     def _delete_progress(self) -> None:
@@ -1016,17 +1240,25 @@ class SwarmFlow(Flow[SwarmState]):
         except ValueError:
             max_age = 86400
         plan_hash = hashlib.sha256(plan_text.encode()).hexdigest()
-        prog, note = load_checkpoint(
-            prev,
-            spec_dir=self.state.spec_dir,
-            task_id=str(task.id),
-            plan_hash=plan_hash,
-            steps=steps,
-            max_age=max_age,
-            path_filter=lambda path: bool(self._in_scope_paths([path])),
-        )
+        kwargs = {
+            "spec_dir": self.state.spec_dir,
+            "task_id": str(task.id),
+            "plan_hash": plan_hash,
+            "steps": steps,
+            "max_age": max_age,
+            "path_filter": lambda path: bool(self._in_scope_paths([path])),
+        }
+        prog, note = load_checkpoint(prev, **kwargs)  # type: ignore[arg-type]
         if prog is None:
-            return None, f"checkpoint in {prev.name} rejected: {note}"
+            # 015 AC-7: a worktree drift no longer throws away every finished step.
+            lenient, lenient_note = load_checkpoint(prev, lenient=True, **kwargs)  # type: ignore[arg-type]
+            if lenient is None or not lenient.get("drift"):
+                return None, f"checkpoint in {prev.name} rejected: {note or lenient_note}"
+            completed = int(lenient.get("completed") or 0)
+            resume_at = max(0, completed - 1)
+            lenient["completed"] = resume_at
+            lenient["step_outputs"] = list(lenient.get("step_outputs") or [])[:resume_at]
+            return lenient, f"worktree drift; redoing step {resume_at + 1} only"
         return prog, ""
 
     @listen(load_spec)
@@ -1063,16 +1295,29 @@ class SwarmFlow(Flow[SwarmState]):
 
         task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
+        # 015: ShellTool evidence sink + step routing.
+        os.environ["SWARM_RUN_DIR"] = str(self.run_dir)
+        self._stash_unrelated(task)
+        from swarm.evidence import report_text
+        from swarm.routing import classify_step, routing_enabled
         cache = plan_cache_path(self._spec_dir, task.id)
         source_hash = plan_source_hash(self._spec_dir)
 
-        def _kickoff(build: Any) -> tuple[Any, str]:
-            """Run a fresh crew, with quota fallback + rate-limit backoff (012 T13)."""
+        def _kickoff(build: Any, *, role: str = "", step: Any = None) -> tuple[Any, str]:
+            """Run a fresh crew with quota fallback, backoff, and typed failures.
+
+            015 AC-6: usage is attributed to `role`/`step`. 015 AC-8: identical
+            failures are not retried on the same model, and config errors are
+            terminal instead of looping.
+            """
+            from swarm.evidence import signature
             from swarm.llms import activate_fallbacks, fallbacks_active
-            from swarm.retry import backoff_delay, is_retryable
+            from swarm.retry import backoff_delay, classify_provider_error
 
             last_err: Exception | None = None
             switched = fallbacks_active()
+            prompt_before = self.state.prompt_tokens
+            completion_before = self.state.completion_tokens
             for attempt in (1, 2, 3):
                 try:
                     crew = build()
@@ -1086,12 +1331,28 @@ class SwarmFlow(Flow[SwarmState]):
                             print("quota hit → retrying with fallback models", flush=True)
                             continue
                         raise _QuotaExhausted(f"free-models-per-day quota hit: {e}"[:500]) from e
-                    if is_retryable(e) and attempt < 3:
+                    kind = classify_provider_error(e)
+                    if kind == "config":
+                        raise _ConfigError(
+                            f"config error in {role or 'crew'}: {type(e).__name__}: {e}"[:800]
+                        ) from e
+                    if kind == "retryable" and attempt < 3:
+                        key = (role or "crew", signature(str(step or role or "crew"), str(e)))
+                        if key in self._failure_sigs:
+                            # Same step, same error, same model: escalate instead.
+                            break
+                        self._failure_sigs.add(key)
                         time.sleep(backoff_delay(attempt))
                         continue
                     break
                 else:
-                    self._record_usage(crew, out)
+                    self._record_usage(
+                        crew,
+                        out,
+                        role=role,
+                        step=step,
+                        before=(prompt_before, completion_before),
+                    )
                     self._check_budget()
                     return crew, str(out)[:8000]
             raise SystemExit(f"crew failed after retries, trace in {self.run_dir}/run.json") from last_err
@@ -1127,34 +1388,54 @@ class SwarmFlow(Flow[SwarmState]):
             checkpoint_outputs = list(checkpoint.get("step_outputs") or []) if checkpoint else []
             if checkpoint:
                 self.state.resumed_from_step = resume_from
-                self.state.recovery = "checkpoint"
-                print(f"resuming {task.id} after step {resume_from}/{len(steps)}", flush=True)
+                self.state.recovery = "checkpoint-last-step" if recovery_note else "checkpoint"
+                self.state.recovery_note = recovery_note
+                print(
+                    f"resuming {task.id} after step {resume_from}/{len(steps)}"
+                    + (f" ({recovery_note})" if recovery_note else ""),
+                    flush=True,
+                )
             elif recovery_note:
                 self.state.recovery = "restart"
                 self.state.recovery_note = recovery_note
                 print(f"restarting {task.id}: {recovery_note}", flush=True)
             gates: dict[str, int] = {}
             transcript = ""
-            # Dev phase (micro-steps + review + gates + fix round), up to
-            # DEV_ATTEMPTS; then senior escalation, then human.
+            missing: list[str] = []
+            self._task_tokens_start = self.state.total_tokens
+            cost_at_task_start = self._run_cost()
+            self._task_cost_start = cost_at_task_start if cost_at_task_start is not None else 0.0
+            self._task_started = time.monotonic()
+            # Dev phase: micro-steps → QA review → QA-driven fix rounds (015 AC-4),
+            # up to DEV_ATTEMPTS; then senior escalation, then human.
             while True:
                 self.state.dev_attempts += 1
-                if self.state.dev_attempts > 1:
-                    resume_from = 0
-                    checkpoint_outputs = []
-                # Micro-execution: fresh coder (fresh context) per step; reviewer only at the end.
-                # A step failing STEP_ATTEMPTS times is rescued by the senior, then we continue.
+                # 015 AC-7: completed steps are never re-executed on a retry.
                 step_outs: list[str] = list(checkpoint_outputs)
                 self._write_progress(plan_hash, steps, len(step_outs), step_outs)
                 for i, step in enumerate(steps, 1):
-                    if i <= resume_from:
+                    if i <= len(step_outs):
                         continue
+                    route = classify_step(
+                        step,
+                        repo_root=REPO_ROOT,
+                        attempt=1,
+                        task_brief=task.brief,
+                        enabled=routing_enabled(),
+                    )
                     step_out = ""
                     last_err: BaseException | None = None
-                    for _ in range(STEP_ATTEMPTS):
+                    model_kind = route.kind
+                    for attempt in range(1, STEP_ATTEMPTS + 1):
+                        # 015 AC-5: a trivial step that fails is retried paid.
+                        model_kind = route.kind if attempt == 1 else "paid"
                         try:
                             _, step_out = _kickoff(
-                                lambda step=step, i=i: build_step_crew(self._spec_dir, task, step, i, len(steps))
+                                lambda step=step, i=i, model_kind=model_kind: build_step_crew(
+                                    self._spec_dir, task, step, i, len(steps), model_kind=model_kind
+                                ),
+                                role=f"coder:step{i}",
+                                step=i,
                             )
                             last_err = None
                             break
@@ -1168,74 +1449,118 @@ class SwarmFlow(Flow[SwarmState]):
                         _, step_out = _kickoff(
                             lambda step=step, i=i, last_err=last_err: build_senior_step_crew(
                                 self._spec_dir, task, step, i, len(steps), str(last_err)
-                            )
+                            ),
+                            role=f"senior:step{i}",
+                            step=i,
                         )
+                        model_kind = "senior"
+                    self.state.steps_meta.append(
+                        {
+                            "index": i,
+                            "model": model_kind,
+                            "kind": route.kind,
+                            "routing_reason": route.reason,
+                        }
+                    )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
                     self._write_progress(plan_hash, steps, i, step_outs)
                 work_summary = "\n".join(step_outs)
-                _, review_out = _kickoff(lambda work_summary=work_summary: build_review_crew(self._spec_dir, task, work_summary))
-                self.state.review_verdict = reviewer_verdict(review_out)
-                self.state.review_text = review_out
+                # 015 AC-2/AC-3: QA runs the gates; its recorded executions are
+                # the evidence green is built from.
+                _, review_out = _kickoff(
+                    lambda work_summary=work_summary: build_review_crew(
+                        self._spec_dir, task, work_summary
+                    ),
+                    role="qa",
+                )
+                self._set_review(review_out)
                 self.state.result = f"{work_summary}\n--- review ---\n{review_out}"[:8000]
-                # Fix loop: gate fail → coder retry with transcript (bounded) → re-gate.
-                # Fix loop: gates red or QA BLOCKED → coder investigates with the QA
-                # report (gates allowed only here), then gates re-run (bounded).
-                base_rounds = self.state.fix_rounds
                 changed = run_delta(self._baseline)
-                gates, transcript = self._run_gates(changed)
-                if _gates_green(gates) and self.state.review_verdict != "blocked":
-                    self._repair_verdict(task, transcript)
+                gates, transcript, missing = self._gates_or_evidence(changed)
+                self._maybe_repair_verdict(task, gates, transcript)
+                if missing and self.state.review_verdict == "pass":
+                    # QA said PASS without running a gate: ask once more. Never
+                    # accept a verdict that its own evidence does not support.
+                    _, review_out = _kickoff(
+                        lambda work_summary=work_summary: build_review_crew(
+                            self._spec_dir, task, work_summary
+                        ),
+                        role="qa:missing-gates",
+                    )
+                    self._set_review(review_out)
+                    changed = run_delta(self._baseline)
+                    gates, transcript, missing = self._gates_or_evidence(changed)
+                base_rounds = self.state.fix_rounds
                 while (
                     not _gates_green(gates) or self.state.review_verdict == "blocked"
                 ) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
                     self.state.fix_rounds += 1
                     self.state.transcript = transcript
-                    qa_review = self.state.review_text
+                    report = self._qa_report(gates, transcript, changed, missing)
+                    self.state.qa_report = report
+                    report_block = report_text(report)
+                    qa_note = self.state.review_text
                     try:
-                        _, fix_out = _kickoff(
-                            lambda transcript=transcript, qa_review=qa_review: build_fix_crew(
-                                self._spec_dir, task, transcript, qa_review
-                            )
+                        _kickoff(
+                            lambda report_block=report_block, qa_note=qa_note: build_fix_crew(
+                                self._spec_dir, task, report_block, qa_note
+                            ),
+                            role=f"coder:fix{self.state.fix_rounds}",
+                            step=f"fix{self.state.fix_rounds}",
                         )
-                        self.state.review_verdict = reviewer_verdict(fix_out)
-                        self.state.review_text = fix_out
-                        self.state.result = str(fix_out)[:8000]
                     except SystemExit as e:
                         self.state.result = str(e)[:4000]
                         break
                     changed = run_delta(self._baseline)
-                    gates, transcript = self._run_gates(changed)
-                    if all(v == 0 for v in gates.values()):
-                        self._repair_verdict(task, transcript)
-                if all(v == 0 for v in gates.values()) or self.state.dev_attempts >= DEV_ATTEMPTS:
+                    # Same round continues with QA re-verification (it runs the gates).
+                    _, review_out = _kickoff(
+                        lambda work_summary=work_summary: build_review_crew(
+                            self._spec_dir, task, work_summary
+                        ),
+                        role="qa",
+                    )
+                    self._set_review(review_out)
+                    gates, transcript, missing = self._gates_or_evidence(changed)
+                    self._maybe_repair_verdict(task, gates, transcript)
+                    if _gates_green(gates) and self.state.review_verdict == "pass":
+                        break
+                if _gates_green(gates) or self.state.dev_attempts >= DEV_ATTEMPTS:
                     break
-            if not all(v == 0 for v in gates.values()):
-                # Senior escalation: up to SENIOR_ATTEMPTS full fix passes by the
-                # strong free-tier brain, QA re-verifies each round via review + gates.
-                while not all(v == 0 for v in gates.values()) and self.state.senior_rounds < SENIOR_ATTEMPTS:
+            if not _gates_green(gates):
+                # Senior escalation: up to SENIOR_ATTEMPTS passes, QA re-verifies
+                # each round exactly like a normal fix round.
+                while (
+                    not _gates_green(gates)
+                    and self.state.senior_rounds < SENIOR_ATTEMPTS
+                ):
                     self.state.senior_used = True
                     self.state.senior_rounds += 1
                     self.state.transcript = transcript
-                    senior_qa = self.state.review_text
+                    report = self._qa_report(gates, transcript, changed, missing)
+                    self.state.qa_report = report
+                    report_block = report_text(report)
+                    qa_note = self.state.review_text
                     try:
-                        _, senior_out = _kickoff(
-                            lambda transcript=transcript, senior_qa=senior_qa: build_senior_crew(
-                                self._spec_dir, task, transcript, senior_qa
-                            )
+                        _kickoff(
+                            lambda report_block=report_block, qa_note=qa_note: build_senior_crew(
+                                self._spec_dir, task, report_block, qa_note
+                            ),
+                            role=f"senior:fix{self.state.senior_rounds}",
+                            step=f"senior{self.state.senior_rounds}",
                         )
-                        self.state.review_verdict = reviewer_verdict(senior_out)
-                        self.state.result = str(senior_out)[:8000]
                     except SystemExit as e:
                         self.state.result = str(e)[:4000]
                         raise
-                    _, review_out = _kickoff(lambda: build_review_crew(self._spec_dir, task, self.state.result))
-                    self.state.review_verdict = reviewer_verdict(review_out)
-                    self.state.review_text = review_out
-                    self.state.result = f"{self.state.result}\n--- senior review ---\n{review_out}"[:8000]
                     changed = run_delta(self._baseline)
-                    gates, transcript = self._run_gates(changed)
-                    if all(v == 0 for v in gates.values()):
-                        self._repair_verdict(task, transcript)
+                    _, review_out = _kickoff(
+                        lambda work_summary=work_summary: build_review_crew(
+                            self._spec_dir, task, work_summary
+                        ),
+                        role="qa",
+                    )
+                    self._set_review(review_out)
+                    gates, transcript, missing = self._gates_or_evidence(changed)
+                    self._maybe_repair_verdict(task, gates, transcript)
             self.state.changed_files = run_delta(self._baseline)
         except _QuotaExhausted as e:
             self.state.result = str(e)[:4000]
@@ -1250,6 +1575,13 @@ class SwarmFlow(Flow[SwarmState]):
             self.state.status = "budget_exhausted"
             print(f"BUDGET EXHAUSTED: {e} — pilot stopped", flush=True)
             self.save_run("budget_exhausted")
+            return self.state.result
+        except _ConfigError as e:
+            # 015 AC-8: misconfiguration is terminal, never retried.
+            self.state.result = str(e)[:4000]
+            self.state.status = "config_error"
+            print(f"CONFIG ERROR: {e}"[:1500], flush=True)
+            self.save_run("config_error")
             return self.state.result
         except SystemExit as e:
             self.state.result = str(e)[:4000]
@@ -1301,7 +1633,24 @@ class SwarmFlow(Flow[SwarmState]):
         owned = self._task_owned_dirty(task) if task else {}
         if owned:
             changed = sorted(set(changed) | set(owned))
+        reverted = self._revert_out_of_scope(changed)
+        if reverted:
+            changed = [p for p in changed if p not in reverted]
+            self.state.out_of_scope_reverted = reverted
         in_scope = in_scope_changes(changed, scope)
+        # 015 AC-2: re-verify QA evidence at save time. A file edited after QA's
+        # last gate run (or a gate QA skipped) is never green.
+        evidence_missing: list[str] = []
+        if status == "green" and os.getenv("SWARM_TRUST_QA_EVIDENCE", "1") != "0":
+            gates_now, transcript_now, evidence_missing = self._gate_evidence(changed)
+            self.state.gates = gates_now
+            self.state.transcript = transcript_now
+            if evidence_missing or not _gates_green(gates_now):
+                status = "needs_human"
+                self.state.evidence_note = (
+                    "QA evidence is stale or incomplete: "
+                    + (", ".join(evidence_missing) if evidence_missing else "gates not green at save")
+                )
         approved = approval_granted(self.state.spec_dir, self.state.task_id, self.run_dir)
         self.state.changed_files = changed
         self.state.approved = approved
@@ -1321,6 +1670,8 @@ class SwarmFlow(Flow[SwarmState]):
             "started_at": self.state.started_at,
             "finished_at": self.state.finished_at,
             "duration_seconds": round(time.monotonic() - self._started_monotonic, 1),
+            "by_role": self._usage_by_role,
+            "by_step": self._usage_by_step,
         }
 
         payload: dict[str, Any] = {
@@ -1356,12 +1707,21 @@ class SwarmFlow(Flow[SwarmState]):
                 "max_tokens": self._max_tokens,
                 "max_cost_usd": self._max_cost,
                 "max_runtime_seconds": self._max_seconds,
+                "max_cost_per_task": self._max_cost_task,
+                "max_seconds_per_task": self._max_seconds_task,
             },
             "budget_note": self.state.budget_note,
             "done": {"task_hash": task_hash_value, "spec_hash": spec_hash_value, "recorded": False},
             "resumed_from_step": self.state.resumed_from_step,
             "recovery": self.state.recovery,
             "recovery_note": self.state.recovery_note,
+            "qa_report": self.state.qa_report,
+            "steps": self.state.steps_meta,
+            "skipped_ac": self.state.skipped_ac,
+            "stashed": self.state.stashed,
+            "out_of_scope_reverted": self.state.out_of_scope_reverted,
+            "evidence_note": self.state.evidence_note
+            or ("QA did not run: " + ", ".join(evidence_missing) if evidence_missing else ""),
         }
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate
@@ -1419,6 +1779,21 @@ class SwarmFlow(Flow[SwarmState]):
                         status = "commit_failed"
                     payload["status"] = status
         payload["status"] = status
+        # 015 AC-11: never report green over silently skipped coverage.
+        from swarm.evidence import count_skipped
+
+        skipped = count_skipped(self.state.transcript)
+        db_related = any(
+            token in f"{brief} {' '.join(changed)}".lower()
+            for token in ("db", "database", "repositor", "persist", "saved_routes", "migration")
+        )
+        if skipped and db_related:
+            self.state.skipped_ac = list(ac_refs)
+            payload["skipped_ac"] = list(ac_refs)
+            payload["verification_note"] = (
+                f"{skipped} test(s) skipped and this task touches persistence; "
+                "the AC is not fully exercised (set DATABASE_URL to run them)"
+            )
         payload["reason_code"] = _reason_code(status, payload, self.state)
         if status == "green":
             self._delete_progress()
@@ -1564,6 +1939,25 @@ def _last_checkpoint_task(repo_root: Path) -> tuple[str, str] | None:
     return None
 
 
+def _retry_later_keys(repo_root: Path | None = None) -> set[str]:
+    """015 AC-9: tasks the supervisor parked after exhausting their attempts."""
+    runs = (repo_root or REPO_ROOT) / "swarm" / "runs"
+    try:
+        data = json.loads((runs / "retry_later.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    return {str(v) for v in data.get("retry_later", [])}
+
+
+def _without_retry_later(spec_dir: str, ids: list[str], repo_root: Path | None = None) -> list[str]:
+    parked = _retry_later_keys(repo_root)
+    kept = [task for task in ids if f"{spec_dir}/{task}" not in parked]
+    # Never deadlock: if everything is parked, run them anyway.
+    return kept or list(ids)
+
+
 def _resume_point(repo_root: Path) -> tuple[str, str] | None:
     """Where the sequence last stopped: (spec, task) to run next.
 
@@ -1604,7 +1998,9 @@ def _resume_point(repo_root: Path) -> tuple[str, str] | None:
     ids = [t.id for t in all_tasks]
     todo_ids = _open_task_ids(repo_root, spec_path, all_tasks)
     if status != "green" and task in ids:
-        return spec_path.name, task
+        if f"{spec_path.name}/{task}" not in _retry_later_keys(repo_root):
+            return spec_path.name, task
+        todo_ids = _without_retry_later(spec_path.name, todo_ids, repo_root)
     nxt = _next_todo(ids, todo_ids, task)
     if nxt is not None:
         return spec_path.name, nxt
@@ -1654,6 +2050,7 @@ def run_tasks(
             yield flow, status
             if single or status != "green":
                 return
+            todo_ids = _without_retry_later(spec_dir, todo_ids)
             task_id = _next_todo(all_ids, todo_ids, task_id)
         # Spec done and green: advance to the next spec with tasks.
         spec_dir = _spec_after(REPO_ROOT, spec_dir) or ""
@@ -1663,6 +2060,7 @@ def run_tasks(
         spec_path, all_tasks = load_spec_tasks(REPO_ROOT, spec_dir, None)
         all_ids = [t.id for t in all_tasks]
         todo_ids = _open_task_ids(REPO_ROOT, spec_path, all_tasks)
+        todo_ids = _without_retry_later(spec_dir, todo_ids)
         task_id = todo_ids[0] if todo_ids else None
 
 

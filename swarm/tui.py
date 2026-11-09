@@ -298,6 +298,8 @@ def format_human_report(
         ("quota_note", "quota"),
         ("recovery_note", "recovery"),
         ("approval_error", "approval"),
+        ("evidence_note", "QA evidence"),
+        ("verification_note", "verification"),
     ):
         value = p.get(key)
         if value:
@@ -313,6 +315,31 @@ def format_human_report(
     if gates:
         lines += ["", "gates"]
         lines += [f"  {'✓' if code == 0 else '✗'} {name} {code}" for name, code in gates.items()]
+
+    qa = p.get("qa_report") or {}
+    if qa.get("gates"):
+        lines += ["", f"QA report ({qa.get('verdict') or '?'})"]
+        for gate in qa["gates"][:8]:
+            lines.append(f"  {'✓' if gate.get('exit') == 0 else '✗'} {gate.get('command')} {gate.get('exit')}")
+
+    steps = p.get("steps") or []
+    if steps:
+        lines += ["", "steps"] + [
+            f"  {step.get('index')}. {step.get('model')} ({step.get('routing_reason')})"
+            for step in steps[:12]
+        ]
+
+    for key, label in (("skipped_ac", "unverified ACs"), ("stashed", "stashed"), ("out_of_scope_reverted", "reverted")):
+        if p.get(key):
+            lines.append(f"  {label}: {', '.join(str(v) for v in p[key])}")
+
+    by_role = (p.get("usage") or {}).get("by_role") or {}
+    if by_role:
+        lines += ["", "cost by role"] + [
+            f"  {role:<16} {fmt_tokens(usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)):>8}"
+            f" {fmt_cost(usage.get('cost_usd'))}"
+            for role, usage in sorted(by_role.items())
+        ]
 
     changed = p.get("changed_files") or []
     if changed:

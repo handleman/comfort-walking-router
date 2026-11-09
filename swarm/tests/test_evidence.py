@@ -1,0 +1,129 @@
+"""Evidence + routing tests (015 AC-1..AC-5, AC-8)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from swarm import evidence
+
+
+def _rec(argv: list[str], *, exit_code: int = 0, agent: str = "QA Gatekeeper", digest: str = "h", tail: str = "ok"):
+    return {
+        "agent": agent,
+        "argv": argv,
+        "exit": exit_code,
+        "duration_ms": 5,
+        "changed_after": digest,
+        "tail": tail,
+        "at": "2026-11-09T00:00:00",
+    }
+
+
+def test_gate_evidence_requires_fresh_qa_run():
+    commands = ["pytest -q", "ruff check ."]
+    executions = [_rec(["pytest", "-q"]), _rec(["ruff", "check", "."], exit_code=1, tail="E1")]
+    gates, tails, missing = evidence.gate_evidence(
+        executions=executions, commands=commands, current_hash="h"
+    )
+    assert gates == {"pytest -q": 0, "ruff check .": 1}
+    assert missing == []
+    assert "E1" in "\n".join(tails)
+
+
+def test_gate_evidence_rejects_stale_hash_and_coder_runs():
+    commands = ["pytest -q"]
+    stale = [_rec(["pytest", "-q"], digest="old")]
+    _, _, missing = evidence.gate_evidence(executions=stale, commands=commands, current_hash="new")
+    assert missing == ["pytest -q"]
+
+    coder = [_rec(["pytest", "-q"], agent="Frontend Coder")]
+    _, _, missing = evidence.gate_evidence(executions=coder, commands=commands, current_hash="h")
+    assert missing == ["pytest -q"]
+
+
+def test_gate_evidence_last_run_wins():
+    commands = ["pytest -q"]
+    executions = [_rec(["pytest", "-q"], exit_code=1), _rec(["pytest", "-q"], exit_code=0)]
+    gates, _, missing = evidence.gate_evidence(
+        executions=executions, commands=commands, current_hash="h"
+    )
+    assert gates == {"pytest -q": 0} and missing == []
+
+
+def test_qa_report_is_bounded_and_carries_failure_output():
+    transcript = "$ pytest -q\nexit=1\nFAILED tests/test_x.py::test_y - assert 1 == 2\n"
+    report = evidence.qa_report(
+        gates={"pytest -q": 1},
+        tails=evidence.split_tails(transcript),
+        changed=["app/x.py"],
+        verdict="blocked",
+        reason="test_y fails",
+        missing=[],
+    )
+    assert report["verdict"] == "blocked"
+    assert report["gates"][0]["command"] == "pytest -q"
+    assert "test_y" in report["gates"][0]["tail"]
+    text = evidence.report_text(report)
+    assert "exit=1" in text and "test_y" in text and "app/x.py" in text
+
+
+def test_shell_log_append_and_read(tmp_path: Path):
+    log = tmp_path / evidence.SHELL_LOG
+    evidence.append_execution(
+        log,
+        agent="QA Gatekeeper",
+        argv=["pytest", "-q"],
+        exit_code=0,
+        duration_ms=3,
+        changed_after="h",
+        tail="ok",
+    )
+    evidence.append_execution(
+        log, agent="QA Gatekeeper", argv=["ruff", "check", "."], exit_code=1,
+        duration_ms=4, changed_after="h", tail="bad",
+    )
+    rows = evidence.read_executions(log)
+    assert [r["argv"][0] for r in rows] == ["pytest", "ruff"]
+    assert json.loads(json.dumps(rows[0]))["exit"] == 0
+
+
+def test_signature_normalizes_volatile_parts():
+    a = evidence.signature("STEP 2", "FAILED tests/test_x.py::test_y at line 12: assert 1 == 2")
+    b = evidence.signature("STEP 2", "FAILED tests/test_x.py::test_y at line 99: assert 1 == 2")
+    assert a == b
+    assert a != evidence.signature("STEP 3", "FAILED tests/test_x.py::test_y at line 12")
+
+
+def test_count_skipped():
+    assert evidence.count_skipped("69 passed, 21 skipped in 0.2s") == 21
+    assert evidence.count_skipped("5 passed") == 0
+
+
+def test_routing_keeps_paid_for_non_trivial(tmp_path: Path):
+    from swarm.routing import classify_step
+
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "existing.py").write_text("x = 1\n")
+    cases = {
+        "Edit `app/existing.py` — add error handling": "paid",
+        "Create `app/new.py` with the constant": "local",
+        "Edit `frontend/src/App.svelte` — render the list": "paid",
+        "Edit `app/a.py` and `app/b.py`": "paid",
+        "Create `app/parse.py` — implement the parser": "paid",
+        "Edit `app/existing.py` — rename": "paid",
+    }
+    for step, expected in cases.items():
+        assert classify_step(step, repo_root=tmp_path).kind == expected, step
+    assert classify_step("Create `app/new.py`", repo_root=tmp_path, attempt=2).kind == "paid"
+    assert classify_step("Create `app/new.py`", repo_root=tmp_path, enabled=False).kind == "paid"
+
+
+def test_provider_error_classification():
+    from swarm.retry import classify_provider_error
+
+    assert classify_provider_error(RuntimeError("429 rate limit")) == "retryable"
+    assert classify_provider_error(RuntimeError("<!DOCTYPE html><html>404</html>")) == "config"
+    assert classify_provider_error(RuntimeError("Invalid API key")) == "config"
+    assert classify_provider_error(RuntimeError("weird")) == "unknown"
+    assert classify_provider_error(RuntimeError("free-models-per-day quota")) == "quota"

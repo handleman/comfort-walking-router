@@ -84,8 +84,9 @@ def test_build_senior_crew_structure():
 
     task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
     crew = build_senior_crew("001", task, "pytest exit=1")
-    assert [a.role for a in crew.agents] == ["Senior Developer", "QA Gatekeeper"]
-    assert len(crew.tasks) == 2
+    # 015: QA re-verification is driven by the flow, not embedded in the crew.
+    assert [a.role for a in crew.agents] == ["Senior Developer"]
+    assert len(crew.tasks) == 1
     assert len(crew.agents[0].tools) >= 4
 
 
@@ -165,19 +166,18 @@ def test_build_senior_step_crew_structure():
 
 
 def test_fix_rules_shared_by_fix_and_senior_crews():
-    from swarm.crew import FIX_RULES, VERIFY_RULE, build_fix_crew, build_senior_crew
+    from swarm.crew import FIX_RULES, build_fix_crew, build_senior_crew
     from swarm.spec_loader import SpecTask
 
     task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
     fix_desc = build_fix_crew("001", task, "ruff exit=1").tasks[0].description
     senior_desc = build_senior_crew("001", task, "ruff exit=1").tasks[0].description
-    assert "autofix" in VERIFY_RULE
     for text in (fix_desc, senior_desc):
         assert FIX_RULES in text
-        assert VERIFY_RULE in text
+        assert "QA report" in text or "QA ran the gates" in text
 
 
-def test_only_qa_runs_gates_until_it_blocks():
+def test_only_qa_runs_gates_in_every_phase():
     from swarm.crew import build_fix_crew, build_step_crew
     from swarm.spec_loader import SpecTask
     from swarm.tools_guarded import ShellTool
@@ -189,12 +189,12 @@ def test_only_qa_runs_gates_until_it_blocks():
         return [tool for tool in tools if isinstance(tool, ShellTool)]
 
     step = build_step_crew("001", task, "STEP 1: do it", 1, 1)
-    assert [shell.allow_gates for shell in shells(step)] == [False]
-
     fix = build_fix_crew("001", task, "pytest exit=1", "VERDICT: BLOCKED — no test added")
-    assert [shell.allow_gates for shell in shells(fix)] == [True]
-    assert "Investigate the real cause" in fix.tasks[0].description
+    for crew in (step, fix):
+        assert [shell.allow_gates for shell in shells(crew)] == [False]
+    assert "QA ran the gates" in fix.tasks[0].description
     assert "VERDICT: BLOCKED" in fix.tasks[0].description
+    assert not any("run the gates" in p.lower() for p in [fix.tasks[0].description])
 
 
 def _resume_tree(root, runs, specs):
@@ -511,6 +511,10 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         _max_tokens = 2_000_000
         _max_cost = 0.05
         _max_seconds = 14400
+        _max_cost_task = 0.05
+        _max_seconds_task = 900
+        _usage_by_role: ClassVar[dict] = {}
+        _usage_by_step: ClassVar[dict] = {}
 
         def _commit_green(self, brief, changed, **_kwargs):
             return commit_rec or {"commit": "ok", "push": "ok", "ok": "1"}
@@ -530,8 +534,20 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         def _in_scope_dirty(self):
             return []
 
+        def _revert_out_of_scope(self, changed):
+            return []
+
+        def _gate_evidence(self, changed):
+            return dict(self.state.gates), "", []
+
+        def _restore_stash(self):
+            return None
+
         def _cleanup(self):
             return None
+
+    # 015: state fields the new save path writes.
+    _cleanup_state = ("qa_report", "steps_meta", "skipped_ac", "out_of_scope_reverted", "stashed", "evidence_note")
 
     stub = Stub()
     stub.run_dir = run_dir
@@ -1039,23 +1055,15 @@ def test_reason_codes_are_specific():
     assert _reason_code("green", {}, state) == "green"
 
 
-def test_fix_round_self_verifies_up_to_three_cycles():
-    from swarm.crew import (
-        MAX_FIX_ROUNDS,
-        MAX_FIX_VERIFY_CYCLES,
-        build_fix_crew,
-        build_senior_crew,
-    )
+def test_fix_rounds_are_bounded():
+    from swarm.crew import MAX_FIX_ROUNDS, build_fix_crew, build_senior_crew
     from swarm.spec_loader import SpecTask
 
     task = SpecTask(id="T2", ac_refs=("AC-1",), brief="do things")
-    assert MAX_FIX_VERIFY_CYCLES == 3
-    assert MAX_FIX_ROUNDS == MAX_FIX_VERIFY_CYCLES
+    assert MAX_FIX_ROUNDS == 3
     for crew in (
         build_fix_crew("001", task, "pytest exit=1"),
         build_senior_crew("001", task, "pytest exit=1"),
     ):
-        description = crew.tasks[0].description
-        assert "3 fix→verify cycles" in description
-        assert "If any gate still fails" in description
-        assert "last exit code seen per gate" in crew.tasks[0].expected_output
+        assert len(crew.tasks) == 1  # coder only; QA runs in the flow
+        assert "QA" in crew.tasks[0].description

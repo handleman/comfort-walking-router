@@ -140,6 +140,12 @@ def coder_llm() -> LLM:
     return _for_role("SWARM_CODER_MODEL", temperature=0, allow_paid=True)
 
 
+def local_coder_llm() -> LLM:
+    """Free local coder for trivial micro-steps (015 D2)."""
+    model = os.getenv("SWARM_LOCAL_CODER_MODEL", "ollama/swarm-coder:latest").strip()
+    return _build(model, temperature=0, allow_paid=False)
+
+
 def planner_llm(*, allow_paid: bool = False) -> LLM:
     return _for_role("SWARM_PLANNER_MODEL", temperature=0.2, allow_paid=allow_paid)
 

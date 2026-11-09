@@ -51,19 +51,9 @@ FIX_RULES = (
     "the feature, and never blanket-suppress a file. "
     "Delete stray files you created at wrong paths instead of leaving them."
 )
-# Only post-QA agents verify: the reviewer runs the gates first, so a coder that
-# has a QA BLOCKED verdict may re-run them to confirm its fix. Fresh development
-# runs never pay for gate calls. The fix round self-verifies in a bounded loop so
-# the coder hands back a state where every gate problem it introduced is fixed.
-MAX_FIX_VERIFY_CYCLES = 3
-VERIFY_RULE = (
-    "QA returned BLOCKED, so verify your own fix: run the project gates "
-    "(`SWARM_GATE_COMMANDS`; autofix forms such as `ruff check --fix .` are allowed). "
-    "If any gate still fails, fix those findings and run the gates again — repeat "
-    f"for at most {MAX_FIX_VERIFY_CYCLES} fix→verify cycles, and stop early once every "
-    "gate exits 0. End your answer with the last exit code you saw for each gate. "
-    "Never remove or disable a feature to make a gate pass."
-)
+# 015 D1: QA is the only gate executor. Coders never run gates; they work from
+# QA's report (per-gate argv, exit code, failure output). The flow drives
+# QA→coder→QA rounds, bounded by MAX_FIX_ROUNDS.
 MAX_STEPS = 8
 
 
@@ -120,8 +110,8 @@ def _stack_hint(task: SpecTask) -> str:
     if role == "Frontend Coder":
         return (
             "This is UI/frontend work. QA type-checks the frontend with the project gates "
-            "(`SWARM_GATE_COMMANDS`); write code that passes them, but do not run them "
-            "unless QA returned BLOCKED. Treat type-checker errors as design "
+            "(`SWARM_GATE_COMMANDS`); write code that passes them and never run the gates "
+            "yourself. Treat type-checker errors as design "
             "feedback: read the failing expression, infer the type from the API response/contract "
             "or an existing interface, reuse or extend that type, and narrow unions properly. "
             "Try that first. If no correct typing is possible in the task, a narrow last-resort "
@@ -133,13 +123,13 @@ def _stack_hint(task: SpecTask) -> str:
     return "This is service/backend work: keep imports, types, and public contracts coherent."
 
 
-def _tools(*, allow_gates: bool = False) -> list[object]:
-    """Coder tools; gates are unlocked only for post-QA fix work."""
+def _tools(*, allow_gates: bool = False, role: str = "coder") -> list[object]:
+    """Coder tools. `allow_gates` is False for every coder-side crew (015 D1)."""
     return [
         TrimmedFileReadTool(),
         CreateTool(),
         EditTool(),
-        ShellTool(allow_gates=allow_gates),
+        ShellTool(allow_gates=allow_gates, agent_role=role),
     ]
 
 
@@ -150,17 +140,22 @@ def _coder(
     backstory: str,
     max_iter: int = 6,
     allow_gates: bool = False,
+    model_kind: str = "paid",
 ) -> Agent:
+    from swarm.llms import local_coder_llm
+
+    llm = local_coder_llm() if model_kind == "local" else coder_llm()
     return Agent(
         role=coder_role(task),
         goal=goal,
         backstory=(
             backstory
-            + " QA is the only role that runs the gates; do not run them yourself "
-            "unless QA returned BLOCKED. " + _stack_hint(task)
+            + " QA is the only role that runs the gates and you never run them. "
+            "When QA blocks, its report lists each gate command, its exit code, and the "
+            "failure output: investigate from that evidence. " + _stack_hint(task)
         ),
-        llm=coder_llm(),
-        tools=_tools(allow_gates=allow_gates),
+        llm=llm,
+        tools=_tools(allow_gates=allow_gates, role=coder_role(task)),
         verbose=False,
         max_iter=max_iter,
     )
@@ -171,27 +166,35 @@ def _reviewer() -> Agent:
         role="QA Gatekeeper",
         goal="Block done unless every configured gate is attached and green.",
         backstory=(
-            "You are the only role that runs the project gates; the coder never re-runs them "
-            "unless your verdict is BLOCKED. "
-            "You verify with Guarded Shell and report exit codes honestly. "
+            "You are the only role that runs the project gates; the coder never runs them. "
+            "You run every configured gate with Guarded Shell, then report each command, "
+            "its exit code, and the failure output so the coder can investigate. "
             "Never paste source code or repeat the work summary. "
             "Prefer real type fixes. A fix that removes/disables the feature or "
             "blanket-suppresses types is BLOCKED; a narrow, explained last-resort "
             "suppression may PASS when gates are green and the feature is intact."
         ),
         llm=reviewer_llm(),
-        tools=[TrimmedFileReadTool(), ShellTool()],
+        tools=[TrimmedFileReadTool(), ShellTool(agent_role="QA Gatekeeper")],
         verbose=False,
         max_iter=5,
     )
 
 
-def build_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: int, total: int) -> Crew:
+def build_step_crew(
+    spec_dir: str,
+    task: SpecTask,
+    step_text: str,
+    idx: int,
+    total: int,
+    model_kind: str = "paid",
+) -> Crew:
     """One coder, one micro-step, fresh message history (bounds context)."""
     coder = _coder(
         task,
         goal="Execute one small step with Repo Edit only. Smallest diff.",
         backstory="You write scaffold files precisely. You run no network commands.",
+        model_kind=model_kind,
     )
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)}"
     t_step = Task(
@@ -219,7 +222,7 @@ def build_senior_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: i
             "in one pass. You run no network commands. " + _stack_hint(task)
         ),
         llm=senior_llm(),
-        tools=_tools(),
+        tools=_tools(role="Senior Developer"),
         verbose=False,
         max_iter=12,
     )
@@ -244,18 +247,25 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     t_verify = Task(
         description=(
             f"Final verification for {ctx}. The coder reports:\n{work_summary[:3000]}\n"
-            f"Run the project gate commands via Guarded Shell: {gate_commands_hint()}. "
-            "Paste exit codes + tails for each. "
+            f"Run EVERY project gate via Guarded Shell: {gate_commands_hint()}. "
+            "You are the only agent allowed to run them. For each: paste the command, "
+            "its exit code, and the failure output (failing test ids, lint rules, type "
+            "errors) — the coder fixes from this report and must not re-run anything. "
             "Also list changed files via `git status --short`: if the coder changed nothing "
             "relevant to the brief, verdict BLOCKED (no-op), never PASS on an empty diff. "
             "If type-checker errors were suppressed with a blanket suppression or by "
             "removing/disabling the feature, verdict BLOCKED; a narrow, explained last-resort "
             "escape is acceptable when the feature is intact. "
-            "Your final answer must be at most 8 short lines: one gate line per check and a "
-            "final line `VERDICT: PASS` or `VERDICT: BLOCKED`. Never paste source code or "
-            "repeat the work summary; the verdict word must be present."
+            "Final answer format: for each gate `command → exit=<code>`; on BLOCKED, also "
+            "include the failing output for that gate (up to 120 lines) and one line naming "
+            "the root cause. On PASS keep it to one line per gate. End with exactly "
+            "`VERDICT: PASS` or `VERDICT: BLOCKED`. Never paste whole source files or repeat "
+            "the work summary; the verdict word must be present."
         ),
-        expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit and PASS/BLOCKED verdict.",
+        expected_output=(
+            "Per gate: command, exit code, and on BLOCKED the failure output; "
+            "then `VERDICT: PASS` or `VERDICT: BLOCKED`."
+        ),
         agent=reviewer,
     )
     return Crew(agents=[reviewer], tasks=[t_verify], process=Process.sequential, verbose=False)
@@ -296,61 +306,53 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
 
 
 def build_fix_crew(
-    spec_dir: str, task: SpecTask, transcript: str, qa_review: str = ""
+    spec_dir: str, task: SpecTask, qa_report_text: str, qa_review: str = ""
 ) -> Crew:
-    """Coder + Reviewer: fix what QA rejected. Bounded by MAX_FIX_ROUNDS in flow."""
+    """Coder only: fix what QA's report proves is broken (015 D1).
+
+    QA is invoked by the flow after this crew, so a round is: QA report → coder
+    fix (no gates) → QA re-verification. The coder never runs gates.
+    """
     coder = _coder(
         task,
-        goal="Investigate why QA did not pass, then fix the real cause. Smallest coherent diff.",
+        goal="Investigate QA's report, then fix the real cause. Smallest coherent diff.",
         backstory=(
             "You fix scaffold files precisely. QA has already run the gates and rejected "
-            "this attempt, so you investigate and may re-run them to confirm. "
-            "You run no network commands."
+            "this attempt; you work from its exit codes and failure output. "
+            "You run no network commands and no gates."
         ),
         max_iter=14,
-        allow_gates=True,
+        allow_gates=False,
     )
-    reviewer = _reviewer()
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
     qa_block = (
-        f"QA returned BLOCKED and reported:\n{qa_review[-1500:]}\n"
-        "Investigate the real cause before editing: read the files named in the "
-        "report, reproduce the failure with the gate commands, and fix the cause — "
-        "not just the symptom line. "
-        if qa_review.strip()
-        else ""
+        f"QA's verdict note:\n{qa_review[-1200:]}\n" if qa_review.strip() else ""
     )
     t_fix = Task(
         description=(
-            f"Fix round for {ctx}. The previous attempt FAILED gates:\n{transcript[:3000]}\n"
+            f"Fix round for {ctx}. QA ran the gates and its report is your evidence:\n"
+            f"{qa_report_text[:7000]}\n"
             + qa_block
-            + "Change only what the transcript/report rejects. Use Repo Create for new files, "
-            "Repo Edit for existing files. " + FIX_RULES + " " + VERIFY_RULE + " "
-            "Work in fix→verify cycles: fix the findings, run the gates, and keep going "
-            "while any gate is red — never hand back a fix that you left unverified. "
-            "Loop rules (hard): at most 14 tool calls, then write the final answer; "
+            + "Investigate the real cause before editing: read the files named in the "
+            "report and follow the failing test/lint/type lines. Fix the cause, not the "
+            "symptom. Change only what the report proves is wrong. "
+            "Use Repo Create for new files, Repo Edit for existing files. "
+            + FIX_RULES
+            + " Loop rules (hard): at most 12 tool calls, then write the final answer; "
             "never read the same file twice. " + SCOPE_RULE
         ),
         expected_output=(
-            "Diff summary of the fix + the last exit code seen per gate "
-            "(and what was still red, if anything)."
+            "Diff summary of the fix + which reported gate line each change addresses."
         ),
         agent=coder,
     )
-    t_verify = Task(
-        description=f"Re-verify {ctx}: run the project gates {gate_commands_hint()} via Guarded Shell and paste exit codes + tails; block feature removal or blanket type suppression, accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
-        expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
-        agent=reviewer,
-        context=[t_fix],
-    )
-    return Crew(agents=[coder, reviewer], tasks=[t_fix, t_verify], process=Process.sequential, verbose=False)
+    return Crew(agents=[coder], tasks=[t_fix], process=Process.sequential, verbose=False)
 
 
-def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str, qa_review: str = "") -> Crew:
-    """Senior Developer (strong free-tier brain) + QA Reviewer: one-shot escalation.
+def build_senior_crew(spec_dir: str, task: SpecTask, qa_report_text: str, qa_review: str = "") -> Crew:
+    """Senior Developer only: one-shot escalation after repeated QA rejections.
 
-    Used after DEV_ATTEMPTS dev phases all failed gates. The senior investigates
-    WHY QA keeps blocking, fixes every failure in one pass, then QA re-verifies.
+    QA re-verifies afterwards in the flow (same contract as a normal fix round).
     """
     from swarm.llms import senior_llm
 
@@ -358,39 +360,30 @@ def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str, qa_review:
         role="Senior Developer",
         goal="Investigate why QA keeps blocking, fix every failure in one pass. No thrash.",
         backstory=(
-            "You are the senior escalation: the junior coder failed repeatedly and QA "
-            "returned BLOCKED, so you may run the gates to reproduce and confirm. "
-            "Read the gate transcript, fix every failure completely and coherently "
-            "(imports must resolve, sync/async must match, types must check). "
-            "You run no network commands. " + _stack_hint(task)
+            "You are the senior escalation: the junior coder failed repeatedly and QA kept "
+            "returning BLOCKED. QA owns the gates, so its exit codes and failure output are "
+            "your evidence. You run no network commands and no gates. " + _stack_hint(task)
         ),
         llm=senior_llm(),
-        tools=_tools(allow_gates=True),
+        tools=_tools(allow_gates=False, role="Senior Developer"),
         verbose=False,
         max_iter=16,
     )
-    reviewer = _reviewer()
     ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
-    qa_block = f"QA's latest BLOCKED report:\n{qa_review[-1500:]}\n" if qa_review.strip() else ""
+    qa_block = f"QA's latest BLOCKED note:\n{qa_review[-1200:]}\n" if qa_review.strip() else ""
     t_fix = Task(
         description=(
-            f"Senior fix for {ctx}. The junior dev FAILED gates repeatedly, latest transcript:\n{transcript[:4000]}\n"
+            f"Senior fix for {ctx}. QA report:\n{qa_report_text[:7000]}\n"
             + qa_block
-            + "Find the root cause, fix EVERY failure in one pass. " + FIX_RULES + " " + VERIFY_RULE + " "
-            "Use Repo Create for new files, Repo Edit for existing files. "
-            "Loop rules (hard): at most 16 tool calls, then write the final answer; "
+            + "Find the root cause and fix EVERY reported failure in one pass. "
+            + FIX_RULES
+            + " Use Repo Create for new files, Repo Edit for existing files. "
+            "Loop rules (hard): at most 14 tool calls, then write the final answer; "
             "never read the same file twice. " + SCOPE_RULE
         ),
         expected_output=(
-            "Diff summary of the fix + the last exit code seen per gate "
-            "(and what was still red, if anything)."
+            "Diff summary of the fix + which reported gate line each change addresses."
         ),
         agent=senior,
     )
-    t_verify = Task(
-        description=f"Re-verify {ctx}: run the project gates {gate_commands_hint()} via Guarded Shell and paste exit codes + tails; block feature removal or blanket type suppression, accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
-        expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
-        agent=reviewer,
-        context=[t_fix],
-    )
-    return Crew(agents=[senior, reviewer], tasks=[t_fix, t_verify], process=Process.sequential, verbose=False)
+    return Crew(agents=[senior], tasks=[t_fix], process=Process.sequential, verbose=False)

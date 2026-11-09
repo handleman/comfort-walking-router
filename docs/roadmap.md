@@ -23,6 +23,7 @@
 - Pilot progress: `001-T1`..`T5` and `011-T1` autocommitted green at $0 with `run.json` traces + constitution gates. Spec: `specs/009-swarm-harness/`.
 - `012-dark-factory-harness` is complete (Phase 0 + Phase 1): truthful green, guarded tools, preflight, budgets, fallback/backoff, branch-per-task merge queue, repo-only sandbox, operator dashboard (ADR-011).
 - `013-dark-factory-phase-2` is implemented: commit-trailer done ledger (no spec edits), approval-resume commit for held runs, and per-step crash checkpoints. Control-plane spec, skipped by the queue.
+- `015-dark-factory-economics` is implemented: QA is the only gate executor backed by harness-recorded evidence (`shell_log.jsonl`), QA→coder→QA fix rounds, paid coder only for non-trivial steps, per-task budgets + `make swarm-report`, no step re-execution, provider-error classification, `make swarm-supervise`, hygiene (revert/stash/self-heal), and honest `skipped_ac`. Control-plane spec, skipped by the queue.
 
 ## 4 — Non-goals (no spec yet)
 - Turn-by-turn, mobile native, offline maps.
