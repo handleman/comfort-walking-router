@@ -731,7 +731,7 @@ class SwarmFlow(Flow[SwarmState]):
         self._max_seconds = env_int("SWARM_MAX_RUNTIME_SECONDS", 14400)
         # 015 AC-6: a single task cannot eat the whole run.
         self._max_cost_task = env_float("SWARM_MAX_COST_PER_TASK", 0.05)
-        self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 900)
+        self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 1800)
         self._task_started = time.monotonic()
         self._task_tokens_start = 0
         self._task_cost_start = 0.0
@@ -1322,6 +1322,9 @@ class SwarmFlow(Flow[SwarmState]):
             completion_before = self.state.completion_tokens
             for attempt in (1, 2, 3):
                 try:
+                    # 015 AC-6: never abort between a green verdict and its commit —
+                    # budgets are checked before spending, not after a result.
+                    self._check_budget()
                     crew = build()
                     out = crew.kickoff()
                 except Exception as e:
@@ -1355,7 +1358,6 @@ class SwarmFlow(Flow[SwarmState]):
                         step=step,
                         before=(prompt_before, completion_before),
                     )
-                    self._check_budget()
                     return crew, str(out)[:8000]
             raise SystemExit(f"crew failed after retries, trace in {self.run_dir}/run.json") from last_err
 
