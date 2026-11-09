@@ -200,3 +200,27 @@ def test_same_spec_matches_queue_prefix():
     assert same_spec("005-saved-routes", "005")
     assert not same_spec("005", "006-comfort-plus")
     assert not same_spec("", "005")
+
+
+def test_save_attempts_keeps_the_parked_list(tmp_path):
+    path = tmp_path / "retry_later.json"
+    supervise.mark_retry_later("007-live-position/T9", path)
+    supervise.save_attempts({"007-live-position/T9": 2}, path)
+    data = json.loads(path.read_text())
+    assert data["attempts"] == {"007-live-position/T9": 2}
+    assert data["retry_later"] == ["007-live-position/T9"]
+
+
+def test_load_attempts_reads_the_legacy_flat_file(tmp_path):
+    path = tmp_path / "retry_later.json"
+    path.write_text(json.dumps({"007/T9": 1}))
+    assert supervise.load_attempts(path) == {"007/T9": 1}
+
+
+def test_mark_retry_later_normalises_a_spec_prefix(tmp_path):
+    repo = tmp_path
+    (repo / "specs" / "007-live-position").mkdir(parents=True)
+    path = repo / "swarm" / "runs" / "retry_later.json"
+    path.parent.mkdir(parents=True)
+    supervise.mark_retry_later("007/T9", path)
+    assert json.loads(path.read_text())["retry_later"] == ["007-live-position/T9"]

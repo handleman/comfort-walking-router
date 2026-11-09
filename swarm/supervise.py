@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from swarm.spec_loader import task_key
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNS = REPO_ROOT / "swarm" / "runs"
 RETRY_LATER = RUNS / "retry_later.json"
@@ -81,17 +83,25 @@ def read_outcome(run_dir: Path) -> Outcome:
 
 
 def load_attempts(path: Path = RETRY_LATER) -> dict[str, int]:
+    """Attempt counts; also reads the legacy flat `{key: count}` schema."""
     try:
         data = json.loads(path.read_text())
-        return {str(k): int(v) for k, v in data.items()} if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+    except (OSError, json.JSONDecodeError):
         return {}
+    if not isinstance(data, dict):
+        return {}
+    raw = data.get("attempts")
+    if not isinstance(raw, dict):
+        raw = data  # legacy: the whole file was the attempts map
+    return {str(k): int(v) for k, v in raw.items() if isinstance(v, int | float)}
 
 
 def save_attempts(attempts: dict[str, int], path: Path = RETRY_LATER) -> None:
+    """Write counts *and* keep the parked list; they share one file."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(attempts, indent=2, sort_keys=True))
+        payload = {"attempts": dict(attempts), "retry_later": _existing_later(path)}
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True))
     except OSError:
         pass
 
@@ -121,7 +131,9 @@ def supervise(
             log("supervisor: no run produced — stopping")
             return code
         outcome = read_outcome(run_dir)
-        key = f"{outcome.spec}/{outcome.task}"
+        # run.json records the invocation prefix (`007`); park the canonical
+        # directory name so the flow's own parked-task check matches it.
+        key = task_key(runs.parent.parent, outcome.spec, outcome.task)
         log(f"supervisor: {key} → {outcome.status} ({outcome.action})")
         if outcome.action == "continue":
             log("supervisor: queue finished")
@@ -149,6 +161,9 @@ def supervise(
 def mark_retry_later(key: str, path: Path = RETRY_LATER) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        if "/" in key:
+            spec, task = key.split("/", 1)
+            key = task_key(path.parent.parent.parent, spec, task)
         data = load_attempts(path)
         data.setdefault(key, 0)
         payload = {"attempts": data, "retry_later": sorted({*_existing_later(path), key})}

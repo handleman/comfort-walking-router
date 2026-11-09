@@ -2120,20 +2120,35 @@ def _last_checkpoint_task(repo_root: Path) -> tuple[str, str] | None:
 
 
 def _retry_later_keys(repo_root: Path | None = None) -> set[str]:
-    """015 AC-9: tasks the supervisor parked after exhausting their attempts."""
-    runs = (repo_root or REPO_ROOT) / "swarm" / "runs"
+    """015 AC-9: tasks the supervisor parked after exhausting their attempts.
+
+    Parked keys are canonicalised on read: an older entry written from
+    `run.json.spec` (`007/T9`) must match the flow's `007-live-position/T9`.
+    """
+    from swarm.spec_loader import task_key
+
+    root = repo_root or REPO_ROOT
+    runs = root / "swarm" / "runs"
     try:
         data = json.loads((runs / "retry_later.json").read_text())
     except (OSError, json.JSONDecodeError):
         return set()
     if not isinstance(data, dict):
         return set()
-    return {str(v) for v in data.get("retry_later", [])}
+    keys: set[str] = set()
+    for raw in data.get("retry_later", []):
+        key = str(raw)
+        spec, _, task = key.partition("/")
+        keys.add(task_key(root, spec, task) if task else key)
+    return keys
 
 
 def _without_retry_later(spec_dir: str, ids: list[str], repo_root: Path | None = None) -> list[str]:
-    parked = _retry_later_keys(repo_root)
-    kept = [task for task in ids if f"{spec_dir}/{task}" not in parked]
+    from swarm.spec_loader import task_key
+
+    root = repo_root or REPO_ROOT
+    parked = _retry_later_keys(root)
+    kept = [task for task in ids if task_key(root, spec_dir, task) not in parked]
     # Never deadlock: if everything is parked, run them anyway.
     return kept or list(ids)
 
@@ -2178,7 +2193,9 @@ def _resume_point(repo_root: Path) -> tuple[str, str] | None:
     ids = [t.id for t in all_tasks]
     todo_ids = _open_task_ids(repo_root, spec_path, all_tasks)
     if status != "green" and task in ids:
-        if f"{spec_path.name}/{task}" not in _retry_later_keys(repo_root):
+        from swarm.spec_loader import task_key
+
+        if task_key(repo_root, spec_path.name, task) not in _retry_later_keys(repo_root):
             return spec_path.name, task
         todo_ids = _without_retry_later(spec_path.name, todo_ids, repo_root)
     nxt = _next_todo(ids, todo_ids, task)

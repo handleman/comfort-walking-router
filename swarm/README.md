@@ -344,10 +344,11 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 - **Fallbacks are per role.** A coder timeout must not degrade QA: 007-T4 lost
   30 minutes because one global switch moved the reviewer to `qwen3.5:9b`, which
   looped over the report and never declared a verdict (`reviewer_no_verdict`).
-  The reviewer has no fallback chain — a missing verdict uses
-  the senior model instead. The coder chain is
-  `SWARM_LOCAL_FALLBACK_MODEL` (default `ollama/swarm-coder:latest`) for every
-  role; only a provider-wide quota wall switches every role at once.
+  The reviewer has no fallback chain — a missing verdict is decided by the
+  senior model instead. Every other role falls back to
+  `SWARM_LOCAL_FALLBACK_MODEL` (default `ollama/swarm-coder:latest`), with
+  `SWARM_<ROLE>_FALLBACK_MODEL` as a per-role override; only a provider-wide
+  quota wall switches every role at once.
 - Verification honesty: DB-backed tests that skip are recorded in
   `run.json.skipped_ac` + `verification_note` (set `DATABASE_URL` to run them).
 - Retries resume at the failing step; a drifted checkpoint redoes only its last

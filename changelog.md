@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-10
+- swarm: parked tasks are visible to the queue again. The supervisor keyed `retry_later` from `run.json.spec` (`007/T9`, the invocation prefix) while the flow compared against the directory name (`007-live-position/T9`), so a parked task was retried forever; `save_attempts` also rewrote the file as a flat `{key: count}`, erasing the parked list after one retry. Keys are now canonicalised via `spec_loader.task_key()` on read and write, and attempts + parked list share one schema (`{attempts, retry_later}`), with the legacy flat file still readable
 - swarm: the verdict fallback *is* the senior model. `verdict_fallback_llm()` now builds `SWARM_SENIOR_MODEL` (free, tool-capable) instead of a separate `SWARM_VERDICT_FALLBACK_MODEL` id; the env var and `DEFAULT_VERDICT_FALLBACK` are gone. Still free-only: a paid model must never be the reviewer of record
 
 ## 2026-11-09

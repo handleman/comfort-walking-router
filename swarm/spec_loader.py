@@ -25,6 +25,28 @@ def parse_tasks_md(text: str) -> list[SpecTask]:
     return out
 
 
+def spec_dir_name(repo_root: Path, spec: str) -> str:
+    """Canonical spec directory name; a unique prefix (`007`) → `007-live-position`.
+
+    Queue keys must not depend on how the run was invoked: `run.sh 007 T9`
+    records `spec: "007"` in run.json, but the flow and the parked-task list use
+    the directory name. Normalising once keeps `retry_later` honest.
+    """
+    specs = repo_root / "specs"
+    try:
+        if (specs / spec).is_dir():
+            return spec
+        matches = sorted(p.name for p in specs.iterdir() if p.is_dir() and p.name.startswith(spec))
+    except OSError:
+        return spec
+    return matches[0] if len(matches) == 1 else spec
+
+
+def task_key(repo_root: Path, spec: str, task: str) -> str:
+    """Queue key `spec_dir/task`, the same whatever form the caller passes."""
+    return f"{spec_dir_name(repo_root, spec)}/{task}"
+
+
 def load_spec_tasks(repo_root: Path, spec_dir: str, task_filter: str | None = None) -> tuple[Path, list[SpecTask]]:
     specs = repo_root / "specs"
     spec_path = specs / spec_dir

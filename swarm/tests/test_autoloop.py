@@ -1159,3 +1159,35 @@ def test_ollama_timeout_is_bounded(monkeypatch):
     model = llms._build("ollama/swarm-qa:latest", temperature=0, allow_paid=False)
     assert model.timeout == 120
     # The LiteLLM route does not expose `max_retries`; the bounded timeout is the guard.
+
+
+def test_resume_skips_a_task_parked_under_the_invocation_prefix(tmp_path):
+    """`run.sh 007 T9` writes `spec: "007"`; the parked key must still match."""
+    import json
+
+    from swarm.flow import _resume_point
+
+    _resume_tree(
+        tmp_path,
+        {"20261011-100000": {"run.json": json.dumps({"spec": "007", "task": "T9", "status": "budget_exhausted"})}},
+        {
+            "007-live-position": "- [ ] T8 (AC-1): a\n- [ ] T9 (AC-1): b\n",
+            "008-mapbox-routing": "- [ ] T1 (AC-1): c\n",
+        },
+    )
+    runs = tmp_path / "swarm" / "runs"
+    (runs / "retry_later.json").write_text(json.dumps({"attempts": {}, "retry_later": ["007/T9"]}))
+    assert _resume_point(tmp_path) == ("008-mapbox-routing", "T1")
+
+
+def test_resume_retries_a_red_prefix_task_when_it_is_not_parked(tmp_path):
+    import json
+
+    from swarm.flow import _resume_point
+
+    _resume_tree(
+        tmp_path,
+        {"20261011-100000": {"run.json": json.dumps({"spec": "007", "task": "T9", "status": "needs_human"})}},
+        {"007-live-position": "- [ ] T8 (AC-1): a\n- [ ] T9 (AC-1): b\n"},
+    )
+    assert _resume_point(tmp_path) == ("007-live-position", "T9")
