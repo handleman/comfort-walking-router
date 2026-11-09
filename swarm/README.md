@@ -324,7 +324,11 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 - Hygiene: out-of-scope writes are reverted (`out_of_scope_reverted`), unrelated
   dirty in-scope files are stashed before the run and restored after
   (`SWARM_STASH_UNRELATED=0` disables), and preflight self-heals a missing venv,
-  `frontend/node_modules`, or Ollama image (`SWARM_SELF_HEAL=0` disables).
+  `frontend/node_modules`, or Ollama image — and runs `npm install` when a task
+  added a devDependency the coder cannot install itself (`SWARM_SELF_HEAL=0`).
+- Transport: cloud calls use one SDK retry with `SWARM_LLM_TIMEOUT_SECONDS` (120);
+  a connection/timeout switches to the fallback models instead of retrying a dead
+  endpoint (006/007 runs showed five SDK retries × 120s before the flow saw it).
 - Verification honesty: DB-backed tests that skip are recorded in
   `run.json.skipped_ac` + `verification_note` (set `DATABASE_URL` to run them).
 - Retries resume at the failing step; a drifted checkpoint redoes only its last

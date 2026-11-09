@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-11-09
+- swarm: self-heal installs newly added frontend devDependencies (`npm ls` failure → `npm install`), and cloud calls fail over to the fallback models on connection timeouts instead of spending 5 SDK retries; documented in `swarm/README.md`
 - swarm: stop LLM connection timeouts from hanging a run — cloud calls use one SDK retry with a configurable 120s timeout (`SWARM_LLM_TIMEOUT_SECONDS`/`SWARM_LLM_MAX_RETRIES`), a connection/timeout failure immediately switches to the fallback models, and identical failures are never retried twice on the same model
 - docs: add `docs/runbooks/overnight-runs.md` (sleep vs lock screen, `make swarm-night`, AC/lid/tmux checklist, supervisor recovery, knobs) and link it from `swarm/README.md`, `AGENTS.md`, and the roadmap
 - swarm: add `make swarm-night` (`caffeinate -is` + supervisor) and document sleep/lock-screen rules — a locked screen is harmless, system sleep is not; keep the Mac on AC and the lid open
