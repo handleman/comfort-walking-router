@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from . import saved_routes
 from .cache import Cache
 from .geocoder import geocode_place
 from .preferences import auto_preference
@@ -17,6 +18,7 @@ from .scoring import score_comfort
 from .weather_cache import WeatherCache
 
 app = FastAPI(title="Comfort Walking Router")
+app.include_router(saved_routes.router)
 cache = Cache()
 osrm = OSRMProvider()
 open_meteo = OpenMeteoProvider()
