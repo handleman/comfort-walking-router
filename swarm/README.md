@@ -313,6 +313,7 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | `SWARM_MAX_RUNTIME_SECONDS` | 14400 | 4h wall clock on a slow machine. |
 | QA report tails | 4k/gate, 9k prompt | Failure output is enough to investigate; the coder is paid per token. |
 | Supervisor | 30s base, 600s cap, 3 attempts, 20 rounds | A 5-minute task retries at most ~10 minutes apart; parked tasks let the queue move on. |
+| `SWARM_OLLAMA_TIMEOUT_SECONDS` | 300 | Local generation at 64k context can take minutes; a stuck call is bounded and retried once. |
 | `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 60 / 1 | Normal cloud calls return in 1–7 s; a 60 s stall is a dead connection, not work. One same-model retry, then the fallback models. |
 
 ### Unattended operation (015)

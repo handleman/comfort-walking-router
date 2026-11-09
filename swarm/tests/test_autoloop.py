@@ -1150,3 +1150,12 @@ def test_self_heal_installs_new_frontend_deps(tmp_path, monkeypatch):
     actions = preflight.self_heal({"SWARM_SELF_HEAL": "1"}, log=lambda _m: None)
     assert ["npm", "--prefix", "frontend", "install"] in calls
     assert any("newly added frontend deps" in a for a in actions)
+
+
+def test_ollama_timeout_is_bounded(monkeypatch):
+    from swarm import llms
+
+    monkeypatch.setenv("SWARM_OLLAMA_TIMEOUT_SECONDS", "120")
+    model = llms._build("ollama/swarm-qa:latest", temperature=0, allow_paid=False)
+    assert model.timeout == 120
+    assert model.max_retries == 1

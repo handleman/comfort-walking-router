@@ -110,10 +110,16 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
     # dead endpoint just multiply the wait (5 × timeout before the flow sees it).
     sdk_retries = int(os.getenv("SWARM_LLM_MAX_RETRIES", "1") or 1)
     if model.startswith("ollama/"):
+        try:
+            ollama_timeout = max(30, int(os.getenv("SWARM_OLLAMA_TIMEOUT_SECONDS", "300") or 300))
+        except ValueError:
+            ollama_timeout = 300
         return LLM(
             model=model,
             api_base=os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA),
             temperature=temperature,
+            timeout=ollama_timeout,
+            max_retries=1,
             # Qwen thinking blocks break tool-call parsing ("None or empty").
             # think:false must travel via LiteLLM: CrewAI's native
             # openai_compatible route drops extra_body, so force is_litellm.
