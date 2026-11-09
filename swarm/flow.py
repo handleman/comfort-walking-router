@@ -81,6 +81,8 @@ class SwarmState(BaseModel):
     out_of_scope_reverted: list[str] = []
     stashed: list[str] = []
     evidence_note: str = ""
+    no_progress: bool = False
+    ungrounded_block: bool = False
 
 
 class _QuotaExhausted(SystemExit):
@@ -173,12 +175,19 @@ def _resolve_scope() -> tuple[str, ...]:
     return resolve_scope()
 
 
-_VERDICT_RE = re.compile(r"\b(PASS|BLOCKED)\b", re.IGNORECASE)
+_VERDICT_RE = re.compile(r"^\s*\**\s*VERDICT\s*:?\s*\**\s*(PASS|BLOCKED)\b", re.IGNORECASE | re.MULTILINE)
+_STANDALONE_RE = re.compile(r"^\s*\**\s*(PASS|BLOCKED)\s*\**\s*[.!]?\s*$", re.IGNORECASE | re.MULTILINE)
 _JSON_BLOCK_RE = re.compile(r"\{.*?\}", re.DOTALL)
 
 
 def reviewer_verdict(text: str) -> str:
-    """Last PASS/BLOCKED verdict; parses a JSON verdict object first."""
+    """The reviewer's declared verdict, never a word from its reasoning.
+
+    A 9B reviewer writes things like "the verdict should be BLOCKED" while
+    thinking and can run out of iterations before its final line (006-T5). Only
+    `VERDICT: …` lines (or a JSON verdict, or a standalone final word) count;
+    anything else is `unknown`, which triggers one clean verdict-only retry.
+    """
     body = text or ""
     for block in _JSON_BLOCK_RE.findall(body):
         try:
@@ -190,7 +199,26 @@ def reviewer_verdict(text: str) -> str:
             if verdict in ("pass", "blocked"):
                 return verdict
     hits = _VERDICT_RE.findall(body)
-    return hits[-1].lower() if hits else "unknown"
+    if hits:
+        return hits[-1].lower()
+    standalone = _STANDALONE_RE.findall(body)
+    return standalone[-1].lower() if standalone else "unknown"
+
+
+_GROUNDED_RE = re.compile(
+    r"(test_\w+|FAILED\s|\w+\.(?:py|svelte|ts|tsx|js):\d+|exit=[1-9]\d*|AC-\d+|TypeError|AssertionError)",
+    re.IGNORECASE,
+)
+
+
+def block_is_grounded(text: str) -> bool:
+    """A BLOCKED verdict must point at something checkable, not a vibe.
+
+    006-T5 burned six paid fix rounds because the reviewer's *reasoning* said
+    "the verdict should be BLOCKED" and the parser believed it. A real block
+    cites a test, a file:line, a failing command, or an AC.
+    """
+    return bool(_GROUNDED_RE.search(text or ""))
 
 
 def _gates_green(gates: dict[str, int]) -> bool:
@@ -205,6 +233,10 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
     if status != "needs_human":
         return status
     verdict = str(getattr(state, "review_verdict", "") or "")
+    if getattr(state, "no_progress", False):
+        return "no_progress"
+    if getattr(state, "ungrounded_block", False):
+        return "reviewer_blocked_ungrounded"
     if verdict == "unknown":
         return "reviewer_no_verdict"
     if verdict and verdict != "pass":
@@ -976,6 +1008,13 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.review_text = review_out
         self.state.result = review_out[:8000]
 
+    def _delta_signature(self) -> str:
+        """Hash of this run's in-scope delta, to detect rounds that change nothing."""
+        from swarm.tools_guarded import hash_paths, run_delta
+
+        paths = self._in_scope_paths(run_delta(self._baseline))
+        return hashlib.sha256(json.dumps(hash_paths(paths), sort_keys=True).encode()).hexdigest()
+
     def _evidence_hash(self) -> str:
         """Same computation ShellTool logs, so evidence can be matched to edits."""
         from swarm.tools_guarded import _git_changed, hash_paths, in_scope_changes
@@ -1453,10 +1492,11 @@ class SwarmFlow(Flow[SwarmState]):
             self._task_started = time.monotonic()
             # Dev phase: micro-steps → QA review → QA-driven fix rounds (015 AC-4),
             # up to DEV_ATTEMPTS; then senior escalation, then human.
+            # 015 AC-7: step outputs survive a dev retry — a second attempt must
+            # not re-execute work the first attempt already finished.
+            step_outs: list[str] = list(checkpoint_outputs)
             while True:
                 self.state.dev_attempts += 1
-                # 015 AC-7: completed steps are never re-executed on a retry.
-                step_outs: list[str] = list(checkpoint_outputs)
                 self._write_progress(plan_hash, steps, len(step_outs), step_outs)
                 for i, step in enumerate(steps, 1):
                     if i <= len(step_outs):
@@ -1540,6 +1580,7 @@ class SwarmFlow(Flow[SwarmState]):
                     not _gates_green(gates) or self.state.review_verdict == "blocked"
                 ) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
                     self.state.fix_rounds += 1
+                    round_start = self._delta_signature()
                     self.state.transcript = transcript
                     report = self._qa_report(gates, transcript, changed, missing)
                     self.state.qa_report = report
@@ -1569,6 +1610,21 @@ class SwarmFlow(Flow[SwarmState]):
                     self._maybe_repair_verdict(task, gates, transcript)
                     if _gates_green(gates) and self.state.review_verdict == "pass":
                         break
+                    if _gates_green(gates) and self.state.review_verdict == "blocked":
+                        if self._delta_signature() == round_start:
+                            self.state.no_progress = True
+                            print(
+                                "no progress: gates green, QA still blocks, diff unchanged",
+                                flush=True,
+                            )
+                            break
+                        if not block_is_grounded(self.state.review_text):
+                            self.state.ungrounded_block = True
+                            print(
+                                "ungrounded block: gates green and QA cited nothing checkable",
+                                flush=True,
+                            )
+                            break
                 if _gates_green(gates) or self.state.dev_attempts >= DEV_ATTEMPTS:
                     break
             if not _gates_green(gates):

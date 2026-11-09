@@ -321,13 +321,18 @@ def test_reviewer_blocks_noop():
     assert "git status --short" in desc
 
 
-def test_reviewer_verdict_parses_last_word():
+def test_reviewer_verdict_uses_declared_line_only():
     from swarm.flow import reviewer_verdict
 
-    assert reviewer_verdict("pytest exit=0 ... verdict: PASS") == "pass"
-    assert reviewer_verdict("gates red; BLOCKED (no-op)") == "blocked"
-    assert reviewer_verdict("PASS on step 1\nBLOCKED: missing tests") == "blocked"
+    assert reviewer_verdict("pytest exit=0\nVERDICT: PASS") == "pass"
+    assert reviewer_verdict("ruff exit=0\n**VERDICT: BLOCKED**") == "blocked"
+    assert reviewer_verdict("gates red\nVERDICT: PASS\nVERDICT: BLOCKED") == "blocked"
+    assert reviewer_verdict("PASS\nBLOCKED") == "blocked"  # standalone final word
     assert reviewer_verdict("all good") == "unknown"
+    # 006-T5 regression: reasoning mentions the word, but no verdict was declared.
+    thought = "Thought: if no changes were made, the verdict should be BLOCKED. Let me run git status."
+    assert reviewer_verdict(thought) == "unknown"
+    assert reviewer_verdict("VERDICT: PASS because the diff adds the test") == "pass"
 
 
 def test_resolve_steps_rejects_over_budget():
@@ -1081,3 +1086,28 @@ def test_qa_budget_covers_every_gate():
     crew = build_review_crew("001", SpecTask(id="T1", ac_refs=("AC-1",), brief="x"), "did it")
     required = len(gate_commands()) + 1  # + `git status`
     assert crew.agents[0].max_iter >= required + 2
+
+
+def test_block_is_grounded_requires_checkable_evidence():
+    from swarm.flow import block_is_grounded
+
+    assert block_is_grounded("FAILED tests/test_scoring_regression.py::test_matrix")
+    assert block_is_grounded("app/main.py:42 - TypeError")
+    assert block_is_grounded("AC-5 is not covered by any test")
+    assert block_is_grounded("pytest exit=1")
+    assert not block_is_grounded("this does not look complete enough")
+    assert not block_is_grounded("Thought: the verdict should be BLOCKED")
+
+
+def test_reason_codes_for_stalled_rounds():
+    import types
+
+    from swarm.flow import _reason_code
+
+    state = types.SimpleNamespace(review_verdict="blocked", no_progress=True, ungrounded_block=False)
+    assert _reason_code("needs_human", {}, state) == "no_progress"
+    state.no_progress = False
+    state.ungrounded_block = True
+    assert _reason_code("needs_human", {}, state) == "reviewer_blocked_ungrounded"
+    state.ungrounded_block = False
+    assert _reason_code("needs_human", {}, state) == "reviewer_blocked"

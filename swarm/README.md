@@ -250,6 +250,14 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
   own gate run does not weaken truthful green. A missing or stale record is
   `reason_code=qa_gate_missing`, never green. `SWARM_TRUST_QA_EVIDENCE=0` restores
   the 012 behaviour (flow re-runs gates) for debugging.
+- **Only a declared verdict counts.** `reviewer_verdict` accepts a `VERDICT: PASS|BLOCKED`
+  line, a JSON `{"verdict": …}`, or a standalone final word — never the word
+  "BLOCKED" from the reviewer's reasoning. A review that runs out of iterations
+  is `reviewer_no_verdict` (one clean verdict-only retry, then human), not a block.
+- **Stalled blocks stop early.** With every gate green, a round that changes no
+  files (`no_progress`) or a block that cites nothing checkable
+  (`reviewer_blocked_ungrounded`) ends the loop instead of paying for more coder
+  rounds; a grounded block (test id, file:line, failing command, AC) keeps looping.
 - **The coder gets QA's evidence.** `run.json.qa_report` (and the fix prompt)
   contains per gate: argv, exit code, and the failure output — failing test ids,
   lint rules, type errors — plus the changed-file list. Rounds are QA→coder→QA,
