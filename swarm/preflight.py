@@ -162,6 +162,14 @@ def self_heal(
     ).is_dir()
     if needs_frontend and _run(["npm", "--prefix", "frontend", "ci"], timeout=900):
         actions.append("installed frontend deps")
+    else:
+        # A task added a devDependency (e.g. vitest in 007-T1) but the coder cannot
+        # run `npm install`; install it here so the gate sees the dependency.
+        deps_missing = (root / "frontend" / "node_modules").is_dir() and not _run(
+            ["npm", "--prefix", "frontend", "ls", "--depth=0"], timeout=120
+        )
+        if deps_missing and _run(["npm", "--prefix", "frontend", "install"], timeout=900):
+            actions.append("installed newly added frontend deps")
     modelfiles = {
         "swarm-qa": root / "swarm" / "ollama" / "Modelfile.qa",
         "swarm-coder": root / "swarm" / "ollama" / "Modelfile",

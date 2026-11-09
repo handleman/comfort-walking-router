@@ -1131,3 +1131,22 @@ def test_connection_timeout_is_retryable():
     err = RuntimeError("Failed to connect to OpenAI API: Request timed out.")
     assert is_retryable(err) is True
     assert classify_provider_error(err) == "retryable"
+
+
+def test_self_heal_installs_new_frontend_deps(tmp_path, monkeypatch):
+    from swarm import preflight
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, timeout):
+        calls.append(cmd)
+        missing = cmd[:3] == ["npm", "--prefix", "frontend"] and cmd[3:4] == ["ls"]
+        return not missing  # `ls` fails when a dependency is missing
+
+    monkeypatch.setattr(preflight, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(preflight, "_run", fake_run)
+    (tmp_path / "frontend" / "node_modules").mkdir(parents=True)
+    (tmp_path / "frontend" / "package.json").write_text("{}")
+    actions = preflight.self_heal({"SWARM_SELF_HEAL": "1"}, log=lambda _m: None)
+    assert ["npm", "--prefix", "frontend", "install"] in calls
+    assert any("newly added frontend deps" in a for a in actions)
