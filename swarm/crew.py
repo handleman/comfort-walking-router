@@ -112,6 +112,7 @@ def _reviewer() -> Agent:
         goal="Block done unless pytest+ruff+mypy (+npm check) evidence is attached and green.",
         backstory=(
             "You verify with Guarded Shell and report exit codes honestly. "
+            "Never paste source code or repeat the work summary. "
             "Prefer real type fixes. A fix that removes/disables the feature or "
             "blanket-suppresses types is BLOCKED; a narrow, explained last-resort "
             "`any`/`@ts-ignore` may PASS when gates are green and the feature is intact."
@@ -188,7 +189,9 @@ def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
             "If frontend/TS errors were suppressed with a blanket `any`/`@ts-ignore` or by "
             "removing/disabling the feature, verdict BLOCKED; a narrow, explained last-resort "
             "escape is acceptable when the feature is intact. "
-            "End with exactly one verdict word: PASS or BLOCKED."
+            "Your final answer must be at most 8 short lines: one gate line per check and a "
+            "final line `VERDICT: PASS` or `VERDICT: BLOCKED`. Never paste source code or "
+            "repeat the work summary; the verdict word must be present."
         ),
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit and PASS/BLOCKED verdict.",
         agent=reviewer,
@@ -252,7 +255,7 @@ def build_fix_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         agent=coder,
     )
     t_verify = Task(
-        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. End with PASS or BLOCKED.",
+        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
         agent=reviewer,
         context=[t_fix],
@@ -296,7 +299,7 @@ def build_senior_crew(spec_dir: str, task: SpecTask, transcript: str) -> Crew:
         agent=senior,
     )
     t_verify = Task(
-        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. End with PASS or BLOCKED.",
+        description=f"Re-verify {ctx}: run `pytest`, `ruff check .`, `mypy app tests` via Guarded Shell and paste exit codes + tails; if frontend files changed, also run `npm --prefix frontend run check`. Block feature removal or blanket type suppression; accept a narrow explained last-resort escape. Reply with one line per gate plus `VERDICT: PASS` or `VERDICT: BLOCKED`; never paste source code.",
         expected_output="Gate transcripts: pytest exit + ruff exit + mypy exit (+ npm check when relevant) and PASS/BLOCKED verdict.",
         agent=reviewer,
         context=[t_fix],
