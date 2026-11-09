@@ -984,8 +984,13 @@ class SwarmFlow(Flow[SwarmState]):
             json.dumps(hash_paths(in_scope_changes(_git_changed())), sort_keys=True).encode()
         ).hexdigest()
 
-    def _gate_evidence(self, changed: list[str]) -> tuple[dict[str, int], str, list[str]]:
-        """015 AC-2: green comes from QA's recorded executions, not model prose."""
+    def _gate_evidence(
+        self,
+        changed: list[str],
+        *,
+        agents: tuple[str, ...] | None = None,
+    ) -> tuple[dict[str, int], str, list[str]]:
+        """015 AC-2: green comes from recorded executions, not model prose."""
         from swarm.evidence import SHELL_LOG, gate_evidence, read_executions
         from swarm.tools_guarded import scope_violations
 
@@ -995,6 +1000,7 @@ class SwarmFlow(Flow[SwarmState]):
             executions=executions,
             commands=commands,
             current_hash=self._evidence_hash(),
+            agents=agents,
         )
         bad = scope_violations(changed, _resolve_scope())
         gates["scope"] = 0 if not bad else 1
@@ -1009,11 +1015,28 @@ class SwarmFlow(Flow[SwarmState]):
             gates, transcript = self._run_gates(changed)
             return gates, transcript, []
         gates, transcript, missing = self._gate_evidence(changed)
+        used_fallback = False
+        if missing and os.getenv("SWARM_GATE_FALLBACK", "1") == "1":
+            # The local QA model sometimes skips a gate. The harness runs only the
+            # missing ones and records them; QA stays the primary executor.
+            from swarm.tools_guarded import ShellTool
+
+            runner = ShellTool(agent_role="harness-fallback")
+            for command in missing:
+                runner._run(command)
+            gates, transcript, missing = self._gate_evidence(
+                changed, agents=("QA Gatekeeper", "harness-fallback")
+            )
+            used_fallback = True
         if missing:
-            self.state.evidence_note = "QA did not run: " + ", ".join(missing)
+            self.state.evidence_note = "no evidence for: " + ", ".join(missing)
             print(f"qa_gate_missing: {missing}", flush=True)
+        elif used_fallback:
+            self.state.evidence_note = "harness ran gates QA skipped"
+            print("gate fallback: harness ran gates QA skipped", flush=True)
         else:
             self.state.evidence_note = ""
+        self._evidence_agents = ("QA Gatekeeper", "harness-fallback") if used_fallback else None
         return gates, transcript, missing
 
     def _commit_green(
@@ -1313,6 +1336,10 @@ class SwarmFlow(Flow[SwarmState]):
         # 015: ShellTool evidence sink + step routing.
         os.environ["SWARM_RUN_DIR"] = str(self.run_dir)
         self._stash_unrelated(task)
+        # Baseline AFTER stashing: parked work must not look like this run's delta.
+        from swarm.tools_guarded import snapshot_worktree
+
+        self._baseline = snapshot_worktree()
         from swarm.evidence import report_text
         from swarm.routing import classify_step, routing_enabled
         cache = plan_cache_path(self._spec_dir, task.id)
@@ -1659,7 +1686,9 @@ class SwarmFlow(Flow[SwarmState]):
         # last gate run (or a gate QA skipped) is never green.
         evidence_missing: list[str] = []
         if status == "green" and os.getenv("SWARM_TRUST_QA_EVIDENCE", "1") != "0":
-            gates_now, transcript_now, evidence_missing = self._gate_evidence(changed)
+            gates_now, transcript_now, evidence_missing = self._gate_evidence(
+                changed, agents=getattr(self, "_evidence_agents", None)
+            )
             self.state.gates = gates_now
             self.state.transcript = transcript_now
             if evidence_missing or not _gates_green(gates_now):

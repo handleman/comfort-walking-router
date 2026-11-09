@@ -537,7 +537,7 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         def _revert_out_of_scope(self, changed):
             return []
 
-        def _gate_evidence(self, changed):
+        def _gate_evidence(self, changed, *, agents=None):
             return dict(self.state.gates), "", []
 
         def _restore_stash(self):

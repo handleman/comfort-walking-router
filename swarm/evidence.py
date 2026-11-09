@@ -72,16 +72,18 @@ def gate_evidence(
     executions: Iterable[dict[str, Any]],
     commands: Iterable[str],
     current_hash: str,
-    agent: str = DEFAULT_AGENT,
+    agent: str | None = DEFAULT_AGENT,
+    agents: Iterable[str] | None = None,
 ) -> tuple[dict[str, int], list[str], list[str]]:
     """Return (gates, tails, missing) from harness-recorded QA executions.
 
     A command counts only when its newest record comes from the QA agent at the
     *current* in-scope content hash, i.e. the gate ran after the last edit.
     """
+    allowed = {agent} if agents is None else set(agents)
     latest: dict[str, dict[str, Any]] = {}
     for rec in executions:
-        if str(rec.get("agent") or "") != agent:
+        if str(rec.get("agent") or "") not in allowed:
             continue
         if str(rec.get("changed_after") or "") != current_hash:
             continue

@@ -127,3 +127,18 @@ def test_provider_error_classification():
     assert classify_provider_error(RuntimeError("Invalid API key")) == "config"
     assert classify_provider_error(RuntimeError("weird")) == "unknown"
     assert classify_provider_error(RuntimeError("free-models-per-day quota")) == "quota"
+
+
+def test_gate_evidence_accepts_multiple_agents():
+    commands = ["pytest -q", "ruff check ."]
+    rows = [
+        {"agent": "QA Gatekeeper", "argv": ["pytest", "-q"], "exit": 0, "changed_after": "h"},
+        {"agent": "harness-fallback", "argv": ["ruff", "check", "."], "exit": 0, "changed_after": "h"},
+    ]
+    gates, _, missing = evidence.gate_evidence(
+        executions=rows,
+        commands=commands,
+        current_hash="h",
+        agents=("QA Gatekeeper", "harness-fallback"),
+    )
+    assert missing == [] and gates == {"pytest -q": 0, "ruff check .": 0}
