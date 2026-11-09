@@ -191,3 +191,12 @@ def test_stash_uses_untracked_flag(monkeypatch):
     flow.SwarmFlow._stash_unrelated(stub, object())
     assert calls and calls[0][:4] == ["stash", "push", "-u", "-m"]
     assert "tests/new_file.py" in calls[0]
+
+
+def test_same_spec_matches_queue_prefix():
+    from swarm.flow import same_spec
+
+    assert same_spec("005", "005-saved-routes")
+    assert same_spec("005-saved-routes", "005")
+    assert not same_spec("005", "006-comfort-plus")
+    assert not same_spec("", "005")

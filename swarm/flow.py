@@ -445,6 +445,15 @@ class RunLock:
         self._fh = None
 
 
+def same_spec(a: str, b: str) -> bool:
+    """`005` and `005-saved-routes` name the same spec (queue uses prefixes)."""
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    return a.startswith(b + "-") or b.startswith(a + "-")
+
+
 def _unique_run_id() -> str:
     """Timestamp + pid + random suffix: sortable and collision-free."""
     base = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -522,7 +531,7 @@ def _previous_run(
                 break
             except (OSError, json.JSONDecodeError):
                 rec = {}
-        if str(rec.get("spec")) == spec_dir and str(rec.get("task")) == task_id:
+        if same_spec(str(rec.get("spec")), spec_dir) and str(rec.get("task")) == task_id:
             return d
     return None
 
@@ -546,7 +555,7 @@ def load_checkpoint(
         prog = json.loads((prev_run / "progress.json").read_text())
     except (OSError, json.JSONDecodeError):
         return None, "no progress.json"
-    if str(prog.get("spec")) != spec_dir or str(prog.get("task")) != task_id:
+    if not same_spec(str(prog.get("spec")), spec_dir) or str(prog.get("task")) != task_id:
         return None, "spec/task changed"
     if str(prog.get("plan_hash")) != plan_hash:
         return None, "plan changed"
@@ -590,7 +599,7 @@ def _find_held_run(repo_root: Path, spec_dir: str, task_id: str) -> Path | None:
         if (
             rec.get("status") == "awaiting_approval"
             and str(rec.get("task")) == task_id
-            and str(rec.get("spec")) == spec_dir
+            and same_spec(str(rec.get("spec")), spec_dir)
         ):
             return d
     return None
@@ -1124,7 +1133,9 @@ class SwarmFlow(Flow[SwarmState]):
                     break
                 except (OSError, json.JSONDecodeError):
                     rec = {}
-            if str(rec.get("spec")) != self.state.spec_dir or str(rec.get("task")) != str(task.id):
+            if not same_spec(str(rec.get("spec")), self.state.spec_dir) or str(
+                rec.get("task")
+            ) != str(task.id):
                 continue
             if _run_status(d) == "green":
                 continue
