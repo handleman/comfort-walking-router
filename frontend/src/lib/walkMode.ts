@@ -7,6 +7,7 @@
  */
 
 import { get, writable } from 'svelte/store'
+import { checkArrival } from './navigation/arrival'
 import type { LatLng } from './navigation/interpolate'
 
 /** Milliseconds a dismissed reroute warning stays snoozed (AC-5). */
@@ -22,6 +23,8 @@ export interface WalkModeState {
   rerouteWarning: boolean
   /** Latest off-route distance in meters, shown in the banner (AC-4). */
   offRouteMeters: number
+  /** True once the walker has arrived at the destination (AC-7). */
+  arrived: boolean
 }
 
 export const walkMode = writable<WalkModeState>({
@@ -31,6 +34,7 @@ export const walkMode = writable<WalkModeState>({
   destination: null,
   rerouteWarning: false,
   offRouteMeters: 0,
+  arrived: false,
 })
 
 export const autoCenter = writable<boolean>(true)
@@ -51,6 +55,7 @@ export function start(route: LatLng[]): void {
     destination: route.length > 0 ? route[route.length - 1] : null,
     rerouteWarning: false,
     offRouteMeters: 0,
+    arrived: false,
   })
 }
 
@@ -62,6 +67,7 @@ export function stop(): void {
     destination: null,
     rerouteWarning: false,
     offRouteMeters: 0,
+    arrived: false,
   })
   snoozedUntil.set(null)
   rerouteError.set(null)
@@ -72,6 +78,15 @@ export function onFix(lat: number, lng: number): void {
   if (get(autoCenter)) {
     followPaused.set(false)
   }
+  walkMode.update((s) => {
+    if (!s.active || !s.destination) return s
+    const status = checkArrival(
+      { position: [lat, lng], accuracyMeters: 0, timestampMs: 0 },
+      s.destination,
+    )
+    if (!status.arrived) return s
+    return { ...s, active: false, arrived: true }
+  })
 }
 
 /** Raise the off-route warning once drift is sustained (AC-4). */
