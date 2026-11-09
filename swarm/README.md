@@ -34,7 +34,7 @@ Verified 2026-11-08 (tool calls + latency): free unless noted.
 | Coder | `SWARM_CODER_MODEL=ollama/swarm-coder:latest` (Qwen3.5 9B, `make swarm-coder-image`) | $0 local, ~6–13 s |
 | Planner | `SWARM_PLANNER_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` | $0, 1M ctx, ~1 s |
 | Reviewer | `SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest` (Qwen3.5 9B, 64k ctx, QA prompt) | $0 local |
-| Verdict fallback | `SWARM_VERDICT_FALLBACK_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` (only when local QA gives no verdict) | $0 |
+| Verdict fallback | the senior model (`SWARM_SENIOR_MODEL`, free, tool-capable) — used only when local QA gives no verdict | $0 |
 | Trivial-step coder | `SWARM_LOCAL_CODER_MODEL=ollama/swarm-coder:latest` (mechanical steps only; 015 D2) | $0 local |
 | Senior | `SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0, 550B, tools OK |
 
@@ -345,7 +345,7 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
   30 minutes because one global switch moved the reviewer to `qwen3.5:9b`, which
   looped over the report and never declared a verdict (`reviewer_no_verdict`).
   The reviewer has no fallback chain — a missing verdict uses
-  `SWARM_VERDICT_FALLBACK_MODEL` instead. The coder chain is
+  the senior model instead. The coder chain is
   `SWARM_LOCAL_FALLBACK_MODEL` (default `ollama/swarm-coder:latest`) for every
   role; only a provider-wide quota wall switches every role at once.
 - Verification honesty: DB-backed tests that skip are recorded in

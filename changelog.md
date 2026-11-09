@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-10
+- swarm: the verdict fallback *is* the senior model. `verdict_fallback_llm()` now builds `SWARM_SENIOR_MODEL` (free, tool-capable) instead of a separate `SWARM_VERDICT_FALLBACK_MODEL` id; the env var and `DEFAULT_VERDICT_FALLBACK` are gone. Still free-only: a paid model must never be the reviewer of record
+
 ## 2026-11-09
 - swarm: one configurable local fallback. `SWARM_LOCAL_FALLBACK_MODEL` (default `ollama/swarm-coder:latest`) is now what every role falls back to when its cloud provider is unreachable; `SWARM_<ROLE>_FALLBACK_MODEL` still overrides per role, and the hardcoded `qwen3.5:9b` chains are gone. Fallbacks stay per role, so a coder failure never moves QA
 - swarm: the dashboard model list is now per role and live. Live mode reads the effective model each role will call (`llms.role_models()`), `--tail` reads `progress.json` while a run is in flight and `run.json usage.by_role` after it; a role on a fallback is tagged `fallback`, Ollama models `local`. The flow also records `usage.by_role[*].model` and `usage.fallback_roles`, so a paid → local switch is auditable after the run

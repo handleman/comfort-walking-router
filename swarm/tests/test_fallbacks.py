@@ -99,3 +99,17 @@ def test_role_models_reflect_the_active_fallback(monkeypatch):
     assert rows["reviewer"]["model"] == "ollama/swarm-qa:latest"
     assert rows["reviewer"]["fallback"] is False
     assert llms.fallback_roles() == ["SWARM_CODER_MODEL"]
+
+
+def test_verdict_fallback_is_the_senior_model(monkeypatch):
+    """A missing local verdict is decided by the senior brain, not a second id."""
+    monkeypatch.setenv("SWARM_SENIOR_MODEL", "openrouter/nvidia/x:free")
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "0")
+    assert llms.verdict_fallback_llm().model == "nvidia/x:free"
+
+
+def test_verdict_fallback_never_uses_a_paid_model(monkeypatch):
+    monkeypatch.setenv("SWARM_SENIOR_MODEL", "zen/glm-5.3-flash")
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "0")
+    with pytest.raises(PermissionError):
+        llms.verdict_fallback_llm()

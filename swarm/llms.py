@@ -29,7 +29,6 @@ except Exception:
 DEFAULT_OLLAMA = "http://localhost:11434"
 DEFAULT_ZEN = "https://opencode.ai/zen/v1"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
-DEFAULT_VERDICT_FALLBACK = "openrouter/nvidia/nemotron-3.5-super-vl:free"
 
 # Roles (identified by their `*_MODEL` env var) that have fallen back. A
 # transport blip in one role must not degrade the others: 007-T4 lost a run
@@ -242,6 +241,11 @@ def senior_llm(*, allow_paid: bool = False) -> LLM:
 
 
 def verdict_fallback_llm() -> LLM:
-    """Free cloud model used only when the local QA model returns no verdict."""
-    model = os.getenv("SWARM_VERDICT_FALLBACK_MODEL", DEFAULT_VERDICT_FALLBACK).strip()
-    return _build(model, temperature=0, allow_paid=False)
+    """Verdict-only reviewer, used when the local QA model returns no verdict.
+
+    It is the senior model: the strongest free tool-capable brain we already
+    configure, so a missing verdict is decided by the same model that reasons
+    about hard fixes instead of a second, separately-maintained id. Free only:
+    a paid model must never become the reviewer of record.
+    """
+    return _for_role("SWARM_SENIOR_MODEL", temperature=0, allow_paid=False)
