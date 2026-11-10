@@ -420,9 +420,10 @@ def _valid_npm(argv: list[str]) -> bool:
     script = argv[4]
     if script == "test":
         return argv[5:] == ["--", "--run"]
-    # `format` is a deterministic, in-scope autofix (Prettier); `install` stays
-    # blocked. Gates themselves remain QA-only (see is_gate_command).
-    return script in {"check", "build", "lint", "format"} and argv[5:] == []
+    # `format`/`lint:fix` are deterministic, in-scope autofixes (Prettier/ESLint);
+    # `install` stays blocked. Gates themselves remain QA-only (see
+    # is_gate_command).
+    return script in {"check", "build", "lint", "lint:fix", "format"} and argv[5:] == []
 
 
 VALIDATORS = {

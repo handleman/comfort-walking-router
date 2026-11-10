@@ -202,6 +202,10 @@ def build_step_crew(
     t_step = Task(
         description=(
             f"Execute micro-step {idx}/{total} for {ctx} (no other work):\n{step_text[:2000]}\n"
+            "Before you write code for an existing module, read that module once and use "
+            "its REAL exported API — never invent a function, store or field. If the API "
+            "you need does not exist, add it in this task's scope instead of calling "
+            "something imaginary. "
             "Use Repo Create for new files, Repo Edit for existing ones. Loop rules (hard): at most 5 tool calls, "
             "then write the result; never read the same file twice. " + SCOPE_RULE
         ),
@@ -300,6 +304,9 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
         description=(
             f"Split {ctx} into MICRO-STEPS for a tiny coder model (each step: one file, one exact edit, "
             f"independently executable). Read specs/{spec_dir}/spec.md, plan.md, tasks.md and constitution first. "
+            "Before a step touches an existing module, read that module so the step names its REAL "
+            "exported API — a step that writes a test must name the module under test and the "
+            "functions it calls. Never plan a call to a function you have not seen. "
             "Output format (exact, one per line): `STEP n: <file> — <one precise action>`. "
             f"4–{MAX_STEPS} steps. No other text. Loop rules (hard): at most 6 tool calls, then write the answer; "
             "never read the same file twice; `ls` instead of guessing paths. " + SCOPE_RULE
@@ -430,12 +437,19 @@ def build_fix_crew(
     t_fix = Task(
         description=(
             f"Fix round for {ctx}. QA ran the gates and its report is your evidence:\n"
-            f"{qa_report_text[:7000]}\n"
+            f"{qa_report_text}\n"
             + qa_block
-            + "Investigate the real cause before editing: read the files named in the "
-            "report and follow the failing test/lint/type lines. Fix the cause, not the "
-            "symptom. If the report is a Prettier/code-style failure, run "
-            "`npm --prefix frontend run format` first (allowed in fix rounds). "
+            + "The report lists the FAILING gates first, each with its exit code, the "
+            "key lines (file:line: message) and the raw output. Fix exactly those "
+            "lines: read the file named in a key line once, change the cause, move on. "
+            "Never re-read a file you already read in this round. "
+            "If a key line says a name is missing or a type does not match, the module "
+            "that should provide it is named nearby: read it once and use its REAL API. "
+            "If the API you need does not exist, add it in this task's scope instead of "
+            "inventing calls to it. "
+            "If the only failing gate is a lint/format gate, the harness already ran the "
+            "project formatter, so what is left is a rule violation, not a wrap: fix the "
+            "rule (never disable it). "
             "Change only what the report proves is wrong. "
             "Use Repo Create for new files, Repo Edit for existing files. "
             + FIX_RULES
@@ -474,9 +488,12 @@ def build_senior_crew(spec_dir: str, task: SpecTask, qa_report_text: str, qa_rev
     qa_block = f"QA's latest BLOCKED note:\n{qa_review[-1200:]}\n" if qa_review.strip() else ""
     t_fix = Task(
         description=(
-            f"Senior fix for {ctx}. QA report:\n{qa_report_text[:7000]}\n"
+            f"Senior fix for {ctx}. QA report:\n{qa_report_text}\n"
             + qa_block
-            + "Find the root cause and fix EVERY reported failure in one pass. "
+            + "Find the root cause and fix EVERY reported failure in one pass. The "
+            "report lists the failing gates first with their key lines (file:line: "
+            "message); read each named file once and use the REAL API of the modules "
+            "involved — if the API does not exist, add it in scope. "
             + FIX_RULES
             + " Use Repo Create for new files, Repo Edit for existing files. "
             "Loop rules (hard): at most 14 tool calls, then write the final answer; "

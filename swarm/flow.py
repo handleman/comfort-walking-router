@@ -87,6 +87,7 @@ class SwarmState(BaseModel):
     stash_conflict_note: str = ""
     orphan_stashes: list[dict[str, str]] = []
     evidence_note: str = ""
+    style_autofix: dict[str, Any] = {}
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -1224,20 +1225,30 @@ class SwarmFlow(Flow[SwarmState]):
         if os.getenv("SWARM_TRUST_QA_EVIDENCE", "1") == "0":
             gates, transcript = self._run_gates(changed)
             return gates, transcript, []
-        gates, transcript, missing = self._gate_evidence(changed)
         used_fallback = False
-        if missing and os.getenv("SWARM_GATE_FALLBACK", "1") == "1":
-            # The local QA model sometimes skips a gate. The harness runs only the
-            # missing ones and records them; QA stays the primary executor.
-            from swarm.tools_guarded import ShellTool
+        gates: dict[str, int] = {}
+        transcript = ""
+        missing: list[str] = []
+        for attempt in range(2):
+            gates, transcript, missing = self._gate_evidence(changed)
+            used_fallback = False
+            if missing and os.getenv("SWARM_GATE_FALLBACK", "1") == "1":
+                # The local QA model sometimes skips a gate. The harness runs only the
+                # missing ones and records them; QA stays the primary executor.
+                from swarm.tools_guarded import ShellTool
 
-            runner = ShellTool(agent_role="harness-fallback")
-            for command in missing:
-                runner._run(command)
-            gates, transcript, missing = self._gate_evidence(
-                changed, agents=("QA Gatekeeper", "harness-fallback")
-            )
-            used_fallback = True
+                runner = ShellTool(agent_role="harness-fallback")
+                for command in missing:
+                    runner._run(command)
+                gates, transcript, missing = self._gate_evidence(
+                    changed, agents=("QA Gatekeeper", "harness-fallback")
+                )
+                used_fallback = True
+            if attempt == 0 and self._autofix_style(gates, transcript):
+                # The formatter changed files, so the evidence hash moved: the
+                # gates have to run again before anything is called green.
+                continue
+            break
         if missing:
             self.state.evidence_note = "no evidence for: " + ", ".join(missing)
             print(f"qa_gate_missing: {missing}", flush=True)
@@ -1248,6 +1259,63 @@ class SwarmFlow(Flow[SwarmState]):
             self.state.evidence_note = ""
         self._evidence_agents = ("QA Gatekeeper", "harness-fallback") if used_fallback else None
         return gates, transcript, missing
+
+    def _autofix_style(self, gates: dict[str, int], transcript: str) -> bool:
+        """Run the project's formatter when the only red gate is style (016).
+
+        A Prettier/ESLint slip is mechanical: the harness fixes it and the gate
+        is re-checked, instead of spending a coder round (and a local model)
+        on a wrap. Only a *sole* style failure qualifies — with a red type
+        check or a red test the code is wrong, not badly formatted.
+        """
+        from swarm import style
+        from swarm.evidence import split_tails
+        from swarm.tools_guarded import ShellTool, _git_changed, run_delta
+
+        if not style.enabled():
+            return False
+        tails: dict[str, str] = {}
+        for block in split_tails(transcript):
+            head, _, body = block.partition("\n")
+            command = head.removeprefix("$ ").strip()
+            if command:
+                tails[command] = body
+        gate = style.style_gate(gates, tails)
+        if not gate:
+            return False
+        before = set(_git_changed())
+        runner = ShellTool(agent_role="harness-style")
+        output = runner._run(style.fix_command())
+        after = set(_git_changed())
+        touched = sorted(after - before)
+        # The formatter may reach files this run does not own: undo those.
+        mine = set(run_delta(self._baseline)) | before
+        foreign = [path for path in touched if path not in mine]
+        reverted: list[str] = []
+        for path in foreign:
+            listed = _git(["ls-files", "--error-unmatch", path])[0] == 0
+            if listed:
+                rc, _ = _git(["checkout", "--", path])
+            else:
+                try:
+                    (REPO_ROOT / path).unlink()
+                    rc = 0
+                except OSError:
+                    rc = 1
+            if rc == 0:
+                reverted.append(path)
+        self.state.style_autofix = {
+            "gate": gate,
+            "command": style.fix_command(),
+            "files": touched,
+            "reverted": reverted,
+            "output": output[-500:],
+        }
+        print(
+            f"style autofix: {gate} -> {style.fix_command()} ({touched or 'no change'})",
+            flush=True,
+        )
+        return True
 
     def _commit_green(
         self,
@@ -2005,6 +2073,16 @@ class SwarmFlow(Flow[SwarmState]):
                     self._maybe_repair_verdict(task, gates, transcript)
                     if not reviewed and self.state.review_verdict == "unknown":
                         break
+                    if self._delta_signature() == round_start:
+                        # The fix round changed nothing (007-T9: five rounds of
+                        # re-reading the same file). Another identical round
+                        # cannot help: stop and let a human/senior look.
+                        self.state.no_progress = True
+                        print(
+                            "no progress: fix round changed no files",
+                            flush=True,
+                        )
+                        break
                     if _gates_green(gates) and self.state.review_verdict == "pass":
                         break
                     if _gates_green(gates) and self.state.review_verdict == "blocked":
@@ -2214,6 +2292,7 @@ class SwarmFlow(Flow[SwarmState]):
             "out_of_scope_reverted": self.state.out_of_scope_reverted,
             "evidence_note": self.state.evidence_note
             or ("QA did not run: " + ", ".join(evidence_missing) if evidence_missing else ""),
+            "style_autofix": self.state.style_autofix,
         }
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate

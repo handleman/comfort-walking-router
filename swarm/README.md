@@ -268,6 +268,23 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
   contains per gate: argv, exit code, and the failure output — failing test ids,
   lint rules, type errors — plus the changed-file list. Rounds are QA→coder→QA,
   max 3 (`MAX_FIX_ROUNDS`); the coder never re-runs a gate.
+- **The failure output comes first.** The report lists the *failing* gates first,
+  each with its exit code, its raw output and a compact list of key lines
+  (`file:line: message`) extracted from the tail; passing gates are one line
+  each. 007-T9 (2026-11-10) lost its vitest failure to the old 9000-char
+  report cap, so the coder "fixed" a file it never saw. The budget is now
+  14k chars with a 3k tail per failing gate (`swarm/evidence.py`).
+- **A style-only failure is repaired by the harness, not by a coder round.**
+  When the *only* red gate is a lint/format gate and its output names nothing
+  but formatting (`prettier`, or an ESLint rule that `eslint --fix` repairs),
+  the flow runs `SWARM_STYLE_FIX_COMMAND` (this repo:
+  `npm --prefix frontend run lint:fix`), re-checks the gate, and reverts files
+  the formatter touched that the run does not own. A red type check or a red
+  test is never treated as style — that is a code problem. `SWARM_STYLE_FIX=0`
+  disables it; `run.json.style_autofix` records what ran.
+- **A fix round that changes nothing ends the round.** If a fix round leaves the
+  in-scope delta byte-identical, the flow stops the round (`no_progress`) and
+  escalates instead of paying for another identical attempt.
 
 ### Cost routing (015 D2)
 - Non-trivial steps (existing file, >1 file, frontend/type-checked path, logic/
@@ -323,6 +340,7 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | Supervisor | 30s base, 600s cap, 3 attempts, 20 rounds | A 5-minute task retries at most ~10 minutes apart; parked tasks let the queue move on. |
 | `SWARM_LOCAL_FALLBACK_MODEL` | `ollama/swarm-coder:latest` | One local model every role falls back to when the cloud is unreachable; per-role `SWARM_<ROLE>_FALLBACK_MODEL` still overrides. |
 | `SWARM_OLLAMA_TIMEOUT_SECONDS` | 1800 | Local generation at 64k context legitimately ran past 300 s (two `litellm.Timeout` on 2026-11-10); 30 min bounds a hang without cutting a real answer. |
+| `SWARM_STYLE_FIX_COMMAND` | `npm --prefix frontend run lint:fix` | The harness repairs a style-only gate failure (Prettier/ESLint) instead of spending a coder round on a wrap. |
 | `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 180 / 0 | Small calls return in 1–7 s, but a fix generation on a big prompt legitimately runs past 60 s (007-T5 saw 6 failures at exactly 2×60 s). SDK retries off: the harness retries once, visibly, then falls back per role. |
 
 ### Stash lifecycle: conflicts are resolved, not parked

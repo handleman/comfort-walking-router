@@ -68,6 +68,49 @@ def test_qa_report_is_bounded_and_carries_failure_output():
     assert "exit=1" in text and "test_y" in text and "app/x.py" in text
 
 
+def test_report_text_puts_failing_gates_first_and_keeps_their_output():
+    """007-T9: the vitest failure was cut off by the old 9000 char cap."""
+    transcript = (
+        "$ pytest -q\nexit=0\n69 passed\n"
+        "$ npm --prefix frontend run check\nexit=1\n"
+        "/repo/frontend/src/lib/navigation/walk.integration.test.ts:109:7\n"
+        "Error: Cannot find name 'positionStore'.\n"
+        "$ npm --prefix frontend test -- --run\nexit=1\n"
+        "FAIL src/lib/navigation/walk.integration.test.ts\n"
+        "AssertionError: expected { x: 0, y: 0 } to deeply equal { x: 10, y: 20 }\n"
+    )
+    report = evidence.qa_report(
+        gates={
+            "pytest -q": 0,
+            "npm --prefix frontend run check": 1,
+            "npm --prefix frontend test -- --run": 1,
+        },
+        tails=evidence.split_tails(transcript),
+        changed=["frontend/src/lib/navigation/walk.integration.test.ts"],
+        verdict="blocked",
+        reason="type error",
+    )
+    text = evidence.report_text(report)
+    assert text.index("FAILING GATES") < text.index("PASSED GATES")
+    assert "Cannot find name 'positionStore'" in text
+    assert "AssertionError" in text
+    assert "walk.integration.test.ts:109:7" in text
+    # The failing output must survive the prompt budget.
+    assert len(text) <= evidence.REPORT_MAX_CHARS
+
+
+def test_extract_error_lines_keeps_position_and_message():
+    tail = (
+        "/repo/frontend/src/lib/navigation/walk.integration.test.ts:109:7\n"
+        "Error: Cannot find name 'positionStore'.\n"
+        "\n"
+        "====================================\n"
+        "svelte-check found 27 errors and 0 warnings in 1 file\n"
+    )
+    lines = evidence.extract_error_lines(tail)
+    assert lines == ["walk.integration.test.ts:109 Error: Cannot find name 'positionStore'."]
+
+
 def test_shell_log_append_and_read(tmp_path: Path):
     log = tmp_path / evidence.SHELL_LOG
     evidence.append_execution(

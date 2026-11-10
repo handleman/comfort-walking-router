@@ -18,6 +18,12 @@ SHELL_LOG = "shell_log.jsonl"
 DEFAULT_AGENT = "QA Gatekeeper"
 TAIL_CHARS = 4000
 REPORT_TAIL_CHARS = 4000
+# A fix round is a prompt, not a log: the failing gate output has to reach the
+# coder intact. 007-T9 (2026-11-10) lost its vitest failure text to the 9000
+# char report cap, so the coder "fixed" a file it could not see.
+FAILURE_TAIL_CHARS = 3000
+REPORT_MAX_CHARS = 14000
+MAX_KEY_LINES = 40
 
 
 def append_execution(
@@ -121,21 +127,30 @@ def qa_report(
     reason: str,
     missing: Iterable[str] = (),
 ) -> dict[str, Any]:
-    """Comprehensive, bounded report the coder can investigate from."""
+    """Comprehensive, bounded report the coder can investigate from.
+
+    Failing gates come first and carry a compact list of *key lines*
+    (`file:line: message`), because the raw tail of `svelte-check` or
+    `vitest` is too noisy to act on — and too long to survive a prompt.
+    """
     tail_by_command: dict[str, str] = {}
     for block in tails:
         head, _, body = block.partition("\n")
         command = head.removeprefix("$ ").strip()
         if command:
             tail_by_command[command] = body[-REPORT_TAIL_CHARS:]
-    entries = [
-        {
-            "command": command,
-            "exit": int(code),
-            "tail": tail_by_command.get(command, "")[-REPORT_TAIL_CHARS:],
-        }
-        for command, code in gates.items()
-    ]
+    entries = []
+    for command, code in gates.items():
+        body = tail_by_command.get(command, "")[-REPORT_TAIL_CHARS:]
+        entries.append(
+            {
+                "command": command,
+                "exit": int(code),
+                "tail": body,
+                "errors": extract_error_lines(body),
+            }
+        )
+    entries.sort(key=lambda e: (int(e["exit"]) == 0, e["command"]))
     return {
         "verdict": verdict,
         "reason": (reason or "")[-1500:],
@@ -146,7 +161,13 @@ def qa_report(
 
 
 def report_text(report: dict[str, Any]) -> str:
-    """Render the report for a prompt (bounded)."""
+    """Render the report for a prompt (bounded, failures first).
+
+    007-T9 (2026-11-10): the old render put every gate in config order and
+    cut the text at 9000 chars, so the vitest failure never reached the coder
+    — five fix rounds were spent guessing. Now the failing gates lead, each
+    with its key lines, and the budget covers the failure output.
+    """
     lines = [
         f"QA verdict: {report.get('verdict') or 'unknown'}",
         f"QA reason: {report.get('reason') or '(none)'}",
@@ -154,12 +175,103 @@ def report_text(report: dict[str, Any]) -> str:
     ]
     if report.get("missing"):
         lines.append("Gates QA did not run: " + ", ".join(report["missing"]))
-    for entry in report.get("gates") or []:
+    entries = list(report.get("gates") or [])
+    failing = [e for e in entries if int(e.get("exit") or 0) != 0]
+    passing = [e for e in entries if int(e.get("exit") or 0) == 0]
+    if failing:
+        lines.append("\nFAILING GATES (fix these first):")
+    for entry in failing:
         lines.append(f"\n$ {entry.get('command')}  (exit={entry.get('exit')})")
+        errors = list(entry.get("errors") or [])
+        if errors:
+            lines.append("key lines:")
+            lines.extend(f"  - {line}" for line in errors)
         body = str(entry.get("tail") or "")
         if body:
-            lines.append(body[-REPORT_TAIL_CHARS:])
-    return "\n".join(lines)[:9000]
+            lines.append("output:")
+            lines.append(body[-FAILURE_TAIL_CHARS:])
+    if passing:
+        lines.append(
+            "\nPASSED GATES: " + ", ".join(f"{e.get('command')} (exit=0)" for e in passing)
+        )
+    return "\n".join(lines)[:REPORT_MAX_CHARS]
+
+
+_KEY_LINE_RE = re.compile(
+    r"error|err!|ts\d{4}|parsing error|cannot find|not assignable|assertionerror|"
+    r"referenceerror|typeerror|syntaxerror|unexpected|✖|fail|warning",
+    re.IGNORECASE,
+)
+_PATH_LINE_RE = re.compile(
+    r"^(?P<path>[\w.\-/\\ ]*?[\w-]+\.(?:ts|tsx|js|mjs|svelte|py|css|json))"
+    r"(?::(?P<line>\d+))?(?::(?P<col>\d+))?\s*$"
+)
+_NOISE = (
+    "checking formatting",
+    "npm notice",
+    "> frontend@",
+    "> swarm@",
+    "run lint",
+    "run check",
+    "eslint .",
+    "prettier --check",
+    "start at ",
+    "duration ",
+    "test files",
+    "pass with no tests",
+)
+_SUMMARY_RE = re.compile(r"(\bfound \d+|\d+\s+(errors?|problems?|warnings?)\b|✖\s*\d+)", re.IGNORECASE)
+_ABS_PATH_RE = re.compile(r"(?<![\w.])/(?:[\w.\-]+/)+([\w-]+\.[A-Za-z]{1,5})")
+
+
+def _short_path(path: str) -> str:
+    return path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def extract_error_lines(text: str, limit: int = MAX_KEY_LINES) -> list[str]:
+    """The lines that name a problem, as `file:line: message`.
+
+    A raw gate tail is unusable in a prompt: `svelte-check` prints 27 errors
+    with absolute paths and a stack of context lines. The coder needs the
+    short list of `file:line: message` lines, and the file that a bare
+    message belongs to (`Error: Cannot find name 'positionStore'` follows a
+    path line that carries the position).
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    current_file = ""
+    current_line = ""
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        path_match = _PATH_LINE_RE.match(line)
+        if path_match:
+            current_file = _short_path(path_match.group("path"))
+            current_line = path_match.group("line") or ""
+            continue
+        if len(line) > 400:
+            continue
+        low = line.lower()
+        if any(noise in low for noise in _NOISE):
+            continue
+        if _SUMMARY_RE.search(line) and "error:" not in low:
+            continue
+        if not _KEY_LINE_RE.search(line):
+            continue
+        message = re.sub(r"\s+", " ", line)
+        message = _ABS_PATH_RE.sub(r"\1", message)
+        if current_file and not re.search(r"[\w-]+\.\w{1,5}:\d+", message):
+            prefix = f"{current_file}:{current_line}" if current_line else current_file
+            message = f"{prefix} {message}"
+            current_line = ""
+        if message in seen:
+            continue
+        seen.add(message)
+        out.append(message)
+        if len(out) >= limit:
+            break
+    return out
 
 
 def split_tails(transcript: str) -> list[str]:
