@@ -1310,6 +1310,16 @@ class SwarmFlow(Flow[SwarmState]):
         except Exception as e:
             return False, f"conflict crew failed: {e}"[:300]
         self._record_usage(crew, out, role="conflict", before=before)
+        # The merge is only those files: an extra edit is scope creep the task's
+        # QA never saw, so reject instead of committing it later.
+        _rc, out_diff = _git(["diff", "--name-only"])
+        extra = [
+            p.strip()
+            for p in out_diff.splitlines()
+            if p.strip() and p.strip() not in conflicts
+        ]
+        if extra:
+            return False, f"crew touched files outside the conflict: {', '.join(extra[:4])}"
         leftover = conflict_markers(conflicts)
         if leftover:
             return False, f"conflict markers left in {', '.join(leftover)}"

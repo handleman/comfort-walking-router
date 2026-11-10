@@ -100,6 +100,7 @@ def test_acceptance_requires_markers_gone_and_gates_green(monkeypatch):
     stub.state.task_id = "T1"
     stub._record_usage = lambda *a, **k: None
 
+    monkeypatch.setattr(flow, "_git", lambda args, timeout=120: (0, "frontend/src/App.svelte\n"))
     monkeypatch.setattr(flow, "conflict_markers", lambda paths: ["frontend/src/App.svelte"])
     assert flow.SwarmFlow._resolve_conflict(stub, ["frontend/src/App.svelte"])[0] is False
 
@@ -129,3 +130,30 @@ def test_conflict_llm_defaults_to_the_coder_model(monkeypatch):
     monkeypatch.setenv("SWARM_CODER_MODEL", "ollama/swarm-coder:latest")
     monkeypatch.delenv("SWARM_CONFLICT_MODEL", raising=False)
     assert llms.conflict_llm().model == "ollama/swarm-coder:latest"
+
+
+def test_resolver_rejects_edits_outside_the_conflicted_files(monkeypatch):
+    import swarm.crew as crew_mod
+
+    class FakeCrew:
+        def __init__(self):
+            self.agents = []
+
+        def kickoff(self):
+            return object()
+
+    monkeypatch.setattr(crew_mod, "build_conflict_crew", lambda *a, **k: FakeCrew())
+    monkeypatch.setattr(flow.SwarmFlow, "_record_usage", lambda *a, **k: None)
+    monkeypatch.setattr(
+        flow, "_git", lambda args, timeout=120: (0, "frontend/src/App.svelte\nfrontend/src/other.ts\n")
+    )
+
+    stub = type("S", (), {})()
+    stub.state = flow.SwarmState()
+    stub.state.spec_dir = "016"
+    stub.state.task_id = "T1"
+    stub._record_usage = lambda *a, **k: None
+
+    ok, note = flow.SwarmFlow._resolve_conflict(stub, ["frontend/src/App.svelte"])
+    assert ok is False
+    assert "outside the conflict" in note

@@ -26,8 +26,8 @@ dedicated crew that runs only then.
   `git merge --no-ff` fails with unmerged paths, and never for `stash_conflict`,
   preflight failures, or red gates.
 - **AC-2 — deterministic acceptance.** The merge is committed only when no
-  conflict marker remains in the conflicted files **and** every configured gate
-  (`gate_commands()`) exits 0. Otherwise the merge is aborted, the base is left
+  conflict marker remains in the conflicted files, the crew edited **only**
+  those files, **and** every configured gate (`gate_commands()`) exits 0. Otherwise the merge is aborted, the base is left
   untouched, and the run stays `merge_failed` with `autocommit.conflict`
   evidence (paths + reason).
 - **AC-3 — one role, configurable, no gate tool.** A single
