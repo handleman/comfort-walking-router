@@ -234,7 +234,7 @@ def test_restore_stash_conflict_keeps_the_current_worktree(monkeypatch):
 
     def fake_git(args, timeout=120):
         calls.append(list(args))
-        if args[:2] == ["stash", "pop"]:
+        if args[:2] == ["stash", "apply"]:
             return 1, "CONFLICT (content): Merge conflict in frontend/src/App.svelte"
         if args[:3] == ["diff", "--name-only", "--diff-filter=U"]:
             return 0, "frontend/src/App.svelte\n"
@@ -242,6 +242,7 @@ def test_restore_stash_conflict_keeps_the_current_worktree(monkeypatch):
 
     stub = type("S", (), {})()
     stub._stash_ref = "swarm-20261110-041814-43318-1ebe"
+    stub._stash_sha = "abc123"
     stub.state = flow.SwarmState()
     stub._unmerged_paths = lambda: ["frontend/src/App.svelte"]
     monkeypatch.setattr(flow, "_git", fake_git)
@@ -253,3 +254,49 @@ def test_restore_stash_conflict_keeps_the_current_worktree(monkeypatch):
     assert ["checkout", "--ours", "--", "frontend/src/App.svelte"] in calls
     assert ["add", "--", "frontend/src/App.svelte"] in calls
     assert ["reset", "-q", "HEAD", "--", "frontend/src/App.svelte"] in calls
+
+
+def test_restore_stash_applies_its_own_commit_not_the_stack_top(monkeypatch):
+    """A stash pushed during the run must not be popped in its place."""
+    from swarm import flow
+
+    calls: list[list[str]] = []
+
+    def fake_git(args, timeout=120):
+        calls.append(list(args))
+        if args[:3] == ["stash", "list", "--format=%gd %H"]:
+            return 0, "stash@{0} ffff\nstash@{1} abc123\n"
+        return 0, ""
+
+    stub = type("S", (), {})()
+    stub._stash_ref = "swarm-run"
+    stub._stash_sha = "abc123"
+    stub.state = flow.SwarmState()
+    stub._drop_stash = lambda sha: flow.SwarmFlow._drop_stash(stub, sha)
+    monkeypatch.setattr(flow, "_git", fake_git)
+
+    flow.SwarmFlow._restore_stash(stub)
+
+    assert ["stash", "apply", "abc123"] in calls
+    assert ["stash", "drop", "stash@{1}"] in calls
+
+
+def test_stash_unrelated_records_the_stash_commit(monkeypatch):
+    from swarm import flow
+
+    calls: list[list[str]] = []
+
+    def fake_git(args, timeout=120):
+        calls.append(list(args))
+        if args[:2] == ["rev-parse", "refs/stash"]:
+            return 0, "deadbeef\n"
+        return 0, ""
+
+    stub = type("S", (), {})()
+    stub.run_dir = flow.REPO_ROOT / "swarm" / "runs" / "20260101-000000-1-a"
+    stub.state = type("St", (), {"stashed": []})()
+    stub._task_owned_dirty = lambda task: {}
+    stub._in_scope_dirty = lambda: ["tests/new_file.py"]
+    monkeypatch.setattr(flow, "_git", fake_git)
+    flow.SwarmFlow._stash_unrelated(stub, object())
+    assert stub._stash_sha == "deadbeef"

@@ -812,6 +812,7 @@ class SwarmFlow(Flow[SwarmState]):
         self._usage_by_step: dict[str, dict[str, Any]] = {}
         self._failure_sigs: set[tuple[str, str]] = set()
         self._stash_ref = ""
+        self._stash_sha = ""
         self._lock = RunLock(_runs_dir() / ".lock")
         if not self._lock.acquire():
             raise SystemExit("another swarm run is active (lock: swarm/runs/.lock)")
@@ -1152,6 +1153,10 @@ class SwarmFlow(Flow[SwarmState]):
             print(f"stash skipped: {out.strip()[:200]}", flush=True)
             return
         self._stash_ref = f"swarm-{self.run_dir.name}"
+        # Remember the exact stash commit: a bare `stash pop` takes whatever is
+        # on top, which may be a stash a human (or another run) pushed meanwhile.
+        rc, sha = _git(["rev-parse", "refs/stash"])
+        self._stash_sha = sha.strip().splitlines()[-1] if rc == 0 and sha.strip() else ""
         self.state.stashed = candidates
         print(f"stashed {len(candidates)} unrelated path(s): {candidates}", flush=True)
 
@@ -1161,12 +1166,30 @@ class SwarmFlow(Flow[SwarmState]):
             return []
         return [line.strip() for line in out.splitlines() if line.strip()]
 
+    def _drop_stash(self, sha: str) -> None:
+        """Drop our own stash entry, wherever it sits in the stack."""
+        if not sha:
+            return
+        rc, listing = _git(["stash", "list", "--format=%gd %H"])
+        if rc != 0:
+            return
+        for line in listing.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1] == sha:
+                _git(["stash", "drop", parts[0]])
+                return
+
     def _restore_stash(self) -> None:
         if not self._stash_ref:
             return
         ref, self._stash_ref = self._stash_ref, ""
-        rc, out = _git(["stash", "pop"])
+        sha, self._stash_sha = self._stash_sha, ""
+        # Apply *our* stash, never `stash pop`: LIFO would take a stash pushed
+        # by someone else during the run (it happened on 2026-11-10 and wiped a
+        # recovery stash).
+        rc, out = _git(["stash", "apply", sha or "stash@{0}"])
         if rc == 0:
+            self._drop_stash(sha)
             return
         # A conflicted pop leaves `UU` index stages *and* keeps the stash. 014
         # broke exactly this way: T8's pop conflicted on App.svelte, the markers
