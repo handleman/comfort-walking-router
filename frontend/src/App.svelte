@@ -33,7 +33,7 @@
 
   import { onMount } from 'svelte'
   import L from 'leaflet'
-  import { personIcon } from './lib/map/icons'
+  import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
   import {
     deleteRoute,
     ensureToken,
@@ -63,6 +63,10 @@
   let prefsError = ''
   let locateError = ''
   let currentMarker: L.Marker | null = null
+  let startCoords: [number, number] | null = null
+  let endCoords: [number, number] | null = null
+  let startMarker: L.Marker | null = null
+  let endMarker: L.Marker | null = null
 
   onMount(() => {
     map = L.map(mapElement).setView([48.137, 11.575], 12)
@@ -75,6 +79,7 @@
     map.locate({ setView: true, maxZoom: 16, timeout: 8000, enableHighAccuracy: true })
     map.on('locationfound', onLocationFound)
     map.on('locationerror', onLocationError)
+    map.on('click', onMapClick)
     loadSaved()
     loadPrefs()
   })
@@ -119,6 +124,51 @@
     map?.locate({ setView: true, maxZoom: 16 })
   }
 
+  function onMapClick(e: L.LeafletMouseEvent) {
+    const { lat, lng } = e.latlng
+    if (!startCoords) {
+      setStartCoords([lat, lng])
+    } else {
+      setEndCoords([lat, lng])
+    }
+  }
+
+  function setStartCoords(coords: [number, number]) {
+    startCoords = coords
+    if (startMarker) {
+      startMarker.remove()
+      startMarker = null
+    }
+    if (!map) return
+    startMarker = L.marker(coords, { icon: L.divIcon(startPinIcon()) }).addTo(map)
+  }
+
+  function setEndCoords(coords: [number, number]) {
+    endCoords = coords
+    if (endMarker) {
+      endMarker.remove()
+      endMarker = null
+    }
+    if (!map) return
+    endMarker = L.marker(coords, { icon: L.divIcon(endPinIcon()) }).addTo(map)
+  }
+
+  function clearStartCoords() {
+    startCoords = null
+    if (startMarker) {
+      startMarker.remove()
+      startMarker = null
+    }
+  }
+
+  function clearEndCoords() {
+    endCoords = null
+    if (endMarker) {
+      endMarker.remove()
+      endMarker = null
+    }
+  }
+
   async function submitRoute() {
     error = ''
     loading = true
@@ -132,6 +182,8 @@
           preference: manualOverride ? preference || null : null,
           prefer_lit: prefs?.prefer_lit ?? false,
           avoid_traffic: prefs?.avoid_traffic ?? false,
+          ...(startCoords ? { start_coords: startCoords } : {}),
+          ...(endCoords ? { end_coords: endCoords } : {}),
         }),
       })
       const data = await response.json()
@@ -156,11 +208,18 @@
     const layer = L.layerGroup().addTo(map)
     routeLayer = layer
     const line = L.geoJSON(route.geometry).addTo(layer)
-    route.waypoints.forEach((point, index) => {
-      L.circleMarker([point.lat, point.lng], { radius: 6 })
-        .bindTooltip(index === 0 ? 'Start' : 'End')
+    const startPoint = route.waypoints[0]
+    const endPoint = route.waypoints[1]
+    if (startPoint) {
+      L.marker([startPoint.lat, startPoint.lng], { icon: L.divIcon(startPinIcon()) })
+        .bindTooltip('Start')
         .addTo(layer)
-    })
+    }
+    if (endPoint) {
+      L.marker([endPoint.lat, endPoint.lng], { icon: L.divIcon(endPinIcon()) })
+        .bindTooltip('End')
+        .addTo(layer)
+    }
     map.fitBounds(line.getBounds(), { padding: [24, 24] })
   }
 
@@ -287,11 +346,21 @@
     <form on:submit|preventDefault={submitRoute}>
       <label>
         Start
-        <input bind:value={start} placeholder="e.g. Marienplatz, Munich" required />
+        <input
+          bind:value={start}
+          on:input={clearStartCoords}
+          placeholder="e.g. Marienplatz, Munich"
+          required
+        />
       </label>
       <label>
         End
-        <input bind:value={end} placeholder="e.g. Englischer Garten" required />
+        <input
+          bind:value={end}
+          on:input={clearEndCoords}
+          placeholder="e.g. Englischer Garten"
+          required
+        />
       </label>
       <label>
         Preference
@@ -359,6 +428,7 @@
 
   <div id="map" bind:this={mapElement}></div>
 </main>
+tyle>
 
 <style>
   :global(body) {
