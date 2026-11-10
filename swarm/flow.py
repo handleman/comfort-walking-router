@@ -717,6 +717,11 @@ def load_checkpoint(
     if not isinstance(delta, dict) or hash_paths(list(delta)) != delta:
         if not lenient:
             return None, "worktree changed"
+        # A deleted file invalidates the whole prefix: the remaining steps build
+        # on it, so redoing only the last step would resume on a missing file.
+        gone = [path for path in delta if not (REPO_ROOT / path).exists()]
+        if gone:
+            return None, f"worktree changed: {len(gone)} file(s) missing"
         # 015 AC-7: keep the verified prefix and redo only the last step.
         prog = {**prog, "drift": True}
     try:
