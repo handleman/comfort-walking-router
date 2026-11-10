@@ -1025,6 +1025,24 @@ class SwarmFlow(Flow[SwarmState]):
             self.state.models_used, self.state.prompt_tokens, self.state.completion_tokens
         )
 
+    def _usage_snapshot(self) -> dict[str, Any]:
+        cost = self._run_cost()
+        return {
+            "prompt_tokens": self.state.prompt_tokens,
+            "completion_tokens": self.state.completion_tokens,
+            "cached_prompt_tokens": self.state.cached_prompt_tokens,
+            "total_tokens": self.state.total_tokens,
+            "llm_calls": self.state.llm_calls,
+            "models": list(self.state.models_used),
+            "fallback_roles": _fallback_role_names(),
+            "cost_usd": cost,
+            "started_at": self.state.started_at,
+            "finished_at": self.state.finished_at,
+            "duration_seconds": round(time.monotonic() - self._started_monotonic, 1),
+            "by_role": self._usage_by_role,
+            "by_step": self._usage_by_step,
+        }
+
     def _local_coder(self) -> bool:
         """True when the coder runs on Ollama, so its spend is exactly $0."""
         try:
@@ -2124,22 +2142,8 @@ class SwarmFlow(Flow[SwarmState]):
         head_rc, head_out = _git(["rev-parse", "HEAD"])
         head = head_out.strip().splitlines()[-1] if head_rc == 0 and head_out.strip() else ""
         self.state.finished_at = dt.datetime.now().isoformat(timespec="seconds")
-        cost = self._run_cost()
-        usage = {
-            "prompt_tokens": self.state.prompt_tokens,
-            "completion_tokens": self.state.completion_tokens,
-            "cached_prompt_tokens": self.state.cached_prompt_tokens,
-            "total_tokens": self.state.total_tokens,
-            "llm_calls": self.state.llm_calls,
-            "models": list(self.state.models_used),
-            "fallback_roles": _fallback_role_names(),
-            "cost_usd": cost,
-            "started_at": self.state.started_at,
-            "finished_at": self.state.finished_at,
-            "duration_seconds": round(time.monotonic() - self._started_monotonic, 1),
-            "by_role": self._usage_by_role,
-            "by_step": self._usage_by_step,
-        }
+        usage = self._usage_snapshot()
+        cost = usage["cost_usd"]
 
         payload: dict[str, Any] = {
             "spec": self.state.spec_dir,
@@ -2274,6 +2278,18 @@ class SwarmFlow(Flow[SwarmState]):
         payload["stash_conflict_ref"] = self.state.stash_conflict_ref
         payload["stash_conflict_resolution"] = self.state.stash_conflict_resolution
         payload["stash_conflict_note"] = self.state.stash_conflict_note
+        if self.state.stash_conflict_resolution == "crew":
+            # The resolver ran after the first snapshot: refresh spend so its
+            # tokens/model are in run.json too.
+            usage = self._usage_snapshot()
+            cost = usage["cost_usd"]
+            payload["usage"] = usage
+            payload["cost"] = cost
+            payload["cost_note"] = (
+                "free/local models"
+                if cost == 0.0
+                else ("unknown price for paid model" if cost is None else "estimated from token usage")
+            )
         payload["reason_code"] = _reason_code(status, payload, self.state)
         if status == "green":
             self._delete_progress()

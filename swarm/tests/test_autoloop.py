@@ -530,6 +530,9 @@ def _save_run_stub(tmp_path, monkeypatch, *, review="pass", changed=("app/x.py",
         def _run_cost(self):
             return 0.0
 
+        def _usage_snapshot(self):
+            return flow.SwarmFlow._usage_snapshot(self)
+
         def _teardown_listener(self):
             return None
 
