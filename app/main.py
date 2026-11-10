@@ -66,6 +66,8 @@ ERROR_CODES = {
 class RouteRequest(BaseModel):
     start: str = Field(min_length=1)
     end: str = Field(min_length=1)
+    start_coords: tuple[float, float] | None = None
+    end_coords: tuple[float, float] | None = None
     preference: Literal["hot", "cloudy"] | None = None
     prefer_lit: bool = Field(default=False)
     avoid_traffic: bool = Field(default=False)
@@ -212,7 +214,14 @@ def _build_response(
 def route(body: RouteRequest) -> RouteResponse:
     global cache_hits, provider_calls
 
-    cached = cache.get((body.start, body.end, body.preference))
+    cache_key = (
+        body.start,
+        body.end,
+        body.preference,
+        body.start_coords,
+        body.end_coords,
+    )
+    cached = cache.get(cache_key)
     if cached is not None:
         cache_hits += 1
         logging.getLogger(__name__).info(
@@ -226,7 +235,16 @@ def route(body: RouteRequest) -> RouteResponse:
         f"{body.start}|{body.end}|{body.preference}"
     )
     try:
-        if fixtures.route_fixtures_enabled():
+        if body.start_coords is not None and body.end_coords is not None:
+            start = body.start_coords
+            end = body.end_coords
+            if fixtures.route_fixtures_enabled():
+                raw_route = fixtures.recorded_route(
+                    start, end, preference=body.preference
+                )
+            else:
+                raw_route = mapbox.route(start, end, preference=body.preference)
+        elif fixtures.route_fixtures_enabled():
             start = fixtures.recorded_geocode(body.start)
             end = fixtures.recorded_geocode(body.end)
             raw_route = fixtures.recorded_route(
@@ -274,5 +292,5 @@ def route(body: RouteRequest) -> RouteResponse:
         preference_source=preference_source,
         weather=weather,
     )
-    cache.set((body.start, body.end, body.preference), response.model_dump())
+    cache.set(cache_key, response.model_dump())
     return response
