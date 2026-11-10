@@ -18,6 +18,12 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   evidence in `run.json`. Evidence: `_resolve_conflict` / `_commit_changes`.
 - [x] T5 (AC-6): stash-pop conflicts stay deterministic (no crew). Evidence:
   preflight `worktree` check + `stash_conflict` in `run.json`.
+- [x] T6 (AC-7): stash lifecycle with no human step. `swarm/stashes.py` lists,
+  archives (`refs/swarm/archive/<stamp>-<sha>` + `orphan_stashes.json`), sweeps
+  orphaned `swarm-*` stashes at kickoff, and archives a conflicted restore's
+  stash (`stash_conflict_ref`); non-`swarm-*` stashes are never selected.
+  `SWARM_ARCHIVE_STASHES=0` disables. Evidence: `swarm/tests/test_stashes.py`
+  (real repos: refs resolvable, user stash untouched, `UU` cleared).
 
 Known gaps (follow-ups, not blocking): resolver runs are not budget-gated
 beyond the run budget; a conflict in an out-of-scope path fails the attempt

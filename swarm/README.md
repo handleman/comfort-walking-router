@@ -325,6 +325,23 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | `SWARM_OLLAMA_TIMEOUT_SECONDS` | 300 | Local generation at 64k context can take minutes; a stuck call is bounded and retried once. |
 | `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 180 / 0 | Small calls return in 1–7 s, but a fix generation on a big prompt legitimately runs past 60 s (007-T5 saw 6 failures at exactly 2×60 s). SDK retries off: the harness retries once, visibly, then falls back per role. |
 
+### Stash lifecycle (016 follow-up)
+A run parks unrelated dirty work in a `swarm-<run-id>` stash and restores it
+afterwards. Stashes never survive a run as loose entries:
+
+- **Orphans.** At kickoff the flow archives every `swarm-*` stash left by an
+  earlier run (a crashed/killed run, or an old budget stop). Each becomes a
+  permanent ref `refs/swarm/archive/<timestamp>-<sha>` and is appended to
+  `swarm/runs/orphan_stashes.json`, then dropped from the stack. The ref makes
+  the work readable with `git show <ref>:<path>` (and GC-safe) without keeping
+  a landmine that LIFO `stash pop` could apply to the wrong base.
+- **Conflicted restore.** If the run's own `git stash apply <sha>` conflicts, the
+  tree is resolved to `--ours` (the run's/merged work), the stash is archived
+  with `reason: "conflict"`, and `run.json` records `stash_conflict` (paths) and
+  `stash_conflict_ref`. No human step: the stack stays clean and nothing is lost.
+- Only `swarm-*` entries are touched — a user's `WIP` stash is never archived or
+  dropped. `SWARM_ARCHIVE_STASHES=0` disables the whole lifecycle.
+
 ### Unattended operation (015)
 - `make swarm-supervise` drives `./swarm/run.sh --resume`: retryable outcomes
   (`interrupted`, transient `crew_error`, `quota_exhausted`, `budget_exhausted`,
@@ -413,8 +430,9 @@ commits and pushes the merge. A rejected attempt `git merge --abort`s, leaves
 the base untouched, and the run stops with `merge_failed` +
 `autocommit.conflict` evidence. `SWARM_CONFLICT_CREW=0` disables it;
 `SWARM_CONFLICT_MODEL` defaults to `SWARM_CODER_MODEL`. A conflicted **stash
-pop** is *not* a merge: it is resolved deterministically (`--ours`, stash kept,
-`stash_conflict` recorded). Out-of-scope dirty files are never staged.
+pop** is *not* a merge: it is resolved deterministically (`--ours`, archived as
+a ref, `stash_conflict`/`stash_conflict_ref` recorded). Out-of-scope dirty files
+are never staged.
 `SWARM_MERGE_MODE=direct` restores the old commit-straight-to-base path;
 `SWARM_DELETE_MERGED_BRANCH=1` deletes a merged branch locally and remotely.
 
@@ -585,8 +603,9 @@ swarm/.venv/bin/python -m pytest swarm/tests -v
 - Local Qwen-9B as **planner** loses the plot (verified 2026-10-10: listed `.git/` internals, asked "what would you like to do" instead of writing the plan). Keep cloud brains (OpenRouter `:free` / Zen) for planner + reviewer; local Qwen is coder-only material with reviewer gates.
 - `swarm/.venv/`, `swarm/runs/`, `swarm/.env` are gitignored — safe to run freely.
 - **`UU` paths / conflict markers in the tree**: a `git stash pop` conflicted
-  (it keeps the stash and leaves index stages behind). Preflight now refuses to
-  start on unmerged paths, and a conflicted restore resolves to the current
-  worktree (`--ours`) while keeping the stash, recording `stash_conflict` in
-  `run.json`. Recover the parked work with `git stash list` /
-  `git stash show -p stash@{n}`; this is not a branch-merge conflict.
+  and left index stages behind. Preflight now refuses to start on unmerged
+  paths, and a conflicted restore resolves to the current worktree (`--ours`),
+  archives the stash as `refs/swarm/archive/<stamp>-<sha>`, and records
+  `stash_conflict` + `stash_conflict_ref` in `run.json`. Recover the parked work
+  with `git show <ref>:<path>` or the index in
+  `swarm/runs/orphan_stashes.json`; this is not a branch-merge conflict.

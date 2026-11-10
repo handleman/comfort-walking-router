@@ -82,6 +82,8 @@ class SwarmState(BaseModel):
     out_of_scope_reverted: list[str] = []
     stashed: list[str] = []
     stash_conflict: list[str] = []
+    stash_conflict_ref: str = ""
+    orphan_stashes: list[dict[str, str]] = []
     evidence_note: str = ""
     no_progress: bool = False
     ungrounded_block: bool = False
@@ -1286,9 +1288,23 @@ class SwarmFlow(Flow[SwarmState]):
             _git(["add", "--", path])
             _git(["reset", "-q", "HEAD", "--", path])
         self.state.stash_conflict = conflicts or [ref]
+        archived = ""
+        if sha and os.getenv("SWARM_ARCHIVE_STASHES", "1") == "1":
+            try:
+                from swarm.stashes import archive, list_stashes
+
+                entry = next((e for e in list_stashes(REPO_ROOT) if e["sha"] == sha), None)
+                if entry is not None:
+                    archived = archive(
+                        REPO_ROOT, entry, run_id=self.run_dir.name, reason="conflict"
+                    )["ref"]
+            except (RuntimeError, OSError, KeyError):
+                archived = ""
+        self.state.stash_conflict_ref = archived
         print(
             f"STASH RESTORE CONFLICT ({ref}): {', '.join(conflicts) or out.strip()[:200]}; "
-            "kept the stash, resolved to the current worktree",
+            "resolved to the current worktree, kept as "
+            + (archived or "an unarchived stash for manual recovery"),
             flush=True,
         )
 
@@ -1576,6 +1592,20 @@ class SwarmFlow(Flow[SwarmState]):
                 print(f"PREFLIGHT FAILED: {note}"[:1500], flush=True)
                 self.save_run("preflight_failed")
                 return self.state.result
+
+        # 016 follow-up: a stash left by an earlier run is preserved as a ref and
+        # removed from the stack, so it can never be restored onto a wrong base.
+        if os.getenv("SWARM_ARCHIVE_STASHES", "1") == "1":
+            from swarm.stashes import sweep
+
+            archived = sweep(REPO_ROOT, run_id=self.run_dir.name)
+            if archived:
+                self.state.orphan_stashes = archived
+                print(
+                    f"archived {len(archived)} orphan stash(es): "
+                    + ", ".join(r["ref"] for r in archived),
+                    flush=True,
+                )
 
         task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
         self.listener = SwarmListener(self.run_dir)  # always trace, TUI or headless
@@ -2067,6 +2097,9 @@ class SwarmFlow(Flow[SwarmState]):
             "steps": self.state.steps_meta,
             "skipped_ac": self.state.skipped_ac,
             "stashed": self.state.stashed,
+            "stash_conflict": self.state.stash_conflict,
+            "stash_conflict_ref": self.state.stash_conflict_ref,
+            "orphan_stashes": self.state.orphan_stashes,
             "out_of_scope_reverted": self.state.out_of_scope_reverted,
             "evidence_note": self.state.evidence_note
             or ("QA did not run: " + ", ".join(evidence_missing) if evidence_missing else ""),

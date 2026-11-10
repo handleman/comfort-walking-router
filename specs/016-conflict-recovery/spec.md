@@ -1,6 +1,6 @@
 # 016 Conflict Recovery — Spec
 
-**Status: implementing 2026-11-10**
+**Status: done 2026-11-10**
 
 Control-plane spec: it changes `swarm/` and must stay in `HARNESS_SPECS`, so the
 queue never tries to implement it.
@@ -43,6 +43,13 @@ dedicated crew that runs only then.
 - **AC-6 — stash conflicts stay deterministic.** No crew for a conflicted
   `git stash pop`; the restore resolves to `--ours` and records
   `stash_conflict` (already implemented).
+- **AC-7 — no stash needs a human.** `swarm-*` stashes never accumulate as loose
+  entries: at kickoff every orphan is archived as
+  `refs/swarm/archive/<timestamp>-<sha>`, indexed in
+  `swarm/runs/orphan_stashes.json`, and dropped; a conflicted restore archives
+  the kept stash the same way and records `stash_conflict_ref`. Content stays
+  readable with `git show <ref>:<path>`, a user's non-`swarm-*` stash is never
+  touched, and `SWARM_ARCHIVE_STASHES=0` disables the lifecycle.
 
 ## Non-goals
 
