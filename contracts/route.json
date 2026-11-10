@@ -88,6 +88,20 @@
       "properties": {
         "start": {"type": "string", "minLength": 1},
         "end": {"type": "string", "minLength": 1},
+        "start_coords": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Optional start as [lat, lng]"
+        },
+        "end_coords": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Optional end as [lat, lng]"
+        },
         "preference": {"enum": ["hot", "cloudy", null], "default": null},
         "prefer_lit": {"type": "boolean", "default": false},
         "avoid_traffic": {"type": "boolean", "default": false}

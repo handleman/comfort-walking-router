@@ -79,6 +79,48 @@ def test_identical_query_hits_cache(client: TestClient) -> None:
     assert first == second
 
 
+def test_different_coords_produce_separate_cache_entries(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[float, float]] = []
+
+    def counting_route(start, end, preference=None):
+        calls.append((start[0], start[1]))
+        return FAKE_ROUTE
+
+    monkeypatch.setattr(main.mapbox, "route", counting_route)
+
+    first = client.post(
+        "/route",
+        json={
+            "start": "Start",
+            "end": "End",
+            "start_coords": [48.13, 11.57],
+            "end_coords": [48.14, 11.58],
+            "preference": "hot",
+        },
+    )
+    second = client.post(
+        "/route",
+        json={
+            "start": "Start",
+            "end": "End",
+            "start_coords": [48.20, 11.60],
+            "end_coords": [48.21, 11.61],
+            "preference": "hot",
+        },
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    # The cache key must include the coords: different coords mean the second
+    # request is a cache miss with its own provider call, never a reuse of the
+    # first request's cache entry.
+    assert len(calls) == 2
+    assert calls[0] == (48.13, 11.57)
+    assert calls[1] == (48.20, 11.60)
+
+
 def test_unknown_preference_is_rejected(client: TestClient) -> None:
     response = _post(client, preference="rainy")
 
