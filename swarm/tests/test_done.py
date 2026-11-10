@@ -159,3 +159,17 @@ def test_next_todo_skips_done_and_wraps_specs(tmp_path):
     assert _next_todo(["T1", "T2", "T3"], ["T2", "T3"], "T1") == "T2"
     assert _next_todo(["T1", "T2", "T3"], ["T2"], "T3") is None
     assert _next_todo(["T1"], [], "T1") is None
+
+
+def test_done_entries_normalises_a_legacy_spec_prefix(tmp_path):
+    """A `007/T5` trailer must mark `007-live-position/T5` done."""
+    repo = tmp_path / "repo"
+    (repo / "specs" / "007-live-position").mkdir(parents=True)
+    _init(repo)
+    task = _task("T5")
+    _commit_with_trailer(repo, "007", "T5", task_hash(task), "b" * 64)
+
+    entries = done_entries(repo)
+
+    assert "007/T5" not in entries
+    assert is_done(entries, "007-live-position", task, "b" * 64)

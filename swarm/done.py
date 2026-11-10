@@ -138,7 +138,15 @@ def _git_entries(repo_root: Path, limit: int = 1000) -> dict[str, DoneEntry]:
 
 
 def done_entries(repo_root: Path | None = None) -> dict[str, DoneEntry]:
-    """Newest done entry per task: git trailers first, local cache for gaps."""
+    """Newest done entry per task: git trailers first, local cache for gaps.
+
+    Keys are canonicalised to `<spec-dir>/<task>`: older commits recorded the
+    invocation prefix (`007/T5`), which never matched the dir name the queue
+    asks for, so a green task looked open and was re-run (007-T5, 2026-11-10).
+    Newer entries win because `_git_entries` walks `git log` newest first.
+    """
+    from swarm.spec_loader import spec_dir_name
+
     root = repo_root or REPO_ROOT
     entries = _git_entries(root)
     for key, rec in _read_cache(root).items():
@@ -150,7 +158,11 @@ def done_entries(repo_root: Path | None = None) -> dict[str, DoneEntry]:
             run=str(rec.get("run", "")),
             source="cache",
         )
-    return entries
+    normalised: dict[str, DoneEntry] = {}
+    for key, entry in entries.items():
+        spec, _, task = key.partition("/")
+        normalised.setdefault(_key(spec_dir_name(root, spec), task), entry)
+    return normalised
 
 
 def is_done(

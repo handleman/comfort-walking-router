@@ -2354,19 +2354,34 @@ def _spec_after(repo_root: Path, current_dir: str) -> str | None:
 
 
 def _next_open_spec(repo_root: Path, current_dir: str) -> tuple[str, str] | None:
-    """First unchecked task in a spec that sorts after `current_dir`."""
-    from swarm.spec_loader import load_spec_tasks
+    """First *runnable* task in a spec that sorts after `current_dir`.
 
+    013: a `- [ ]` line whose hashes match the done ledger is not work. Without
+    the ledger check the queue re-ran 007-T5 (green on 2026-11-09, hash-identical)
+    after every green step. 015: parked tasks are skipped too, unless every
+    remaining task is parked, so the queue never deadlocks on `retry_later`.
+    """
+    from swarm.spec_loader import load_spec_tasks, task_key
+
+    parked = _retry_later_keys(repo_root)
+    fallback: tuple[str, str] | None = None
     nxt_spec = _spec_after(repo_root, current_dir)
     while nxt_spec is not None:
         try:
-            _, nt = load_spec_tasks(repo_root, nxt_spec, None)
+            spec_path, nt = load_spec_tasks(repo_root, nxt_spec, None)
         except (OSError, SystemExit):
-            nt = []
-        if nt:
-            return nxt_spec, nt[0].id
+            spec_path, nt = None, []
+        if spec_path is not None and nt:
+            todo = _open_task_ids(repo_root, spec_path, nt)
+            runnable = [
+                t for t in todo if task_key(repo_root, spec_path.name, t) not in parked
+            ]
+            if runnable:
+                return spec_path.name, runnable[0]
+            if todo and fallback is None:
+                fallback = (spec_path.name, todo[0])
         nxt_spec = _spec_after(repo_root, nxt_spec)
-    return None
+    return fallback
 
 
 def _open_task_ids(repo_root: Path, spec_path: Path, tasks: list[Any]) -> list[str]:
@@ -2396,12 +2411,14 @@ def _next_todo(all_ids: list[str], todo_ids: list[str], current: str) -> str | N
 
 
 def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tuple[str, str] | None:
-    """Earliest unchecked, not-done task across the queue (wrap-around)."""
-    from swarm.spec_loader import load_spec_tasks
+    """Earliest unchecked, not-done, not-parked task across the queue (wrap-around)."""
+    from swarm.spec_loader import load_spec_tasks, task_key
 
     specs = repo_root / "specs"
     if not specs.is_dir():
         return None
+    parked = _retry_later_keys(repo_root)
+    fallback: tuple[str, str] | None = None
     for name in sorted(
         p.name
         for p in specs.iterdir()
@@ -2413,9 +2430,14 @@ def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tu
             continue
         todo = _open_task_ids(repo_root, spec_path, tasks)
         for task_id in todo:
-            if skip != (name, task_id):
-                return name, task_id
-    return None
+            if skip == (name, task_id):
+                continue
+            if task_key(repo_root, name, task_id) in parked:
+                if fallback is None:
+                    fallback = (name, task_id)
+                continue
+            return name, task_id
+    return fallback
 
 
 def _last_checkpoint_task(repo_root: Path) -> tuple[str, str] | None:
@@ -2524,7 +2546,7 @@ def _resume_point(repo_root: Path) -> tuple[str, str] | None:
         return (spec, task) if status != "green" else _first_open_task(repo_root, (spec, task))
     ids = [t.id for t in all_tasks]
     todo_ids = _open_task_ids(repo_root, spec_path, all_tasks)
-    if status != "green" and task in ids:
+    if status != "green" and task in todo_ids:
         from swarm.spec_loader import task_key
 
         if task_key(repo_root, spec_path.name, task) not in _retry_later_keys(repo_root):

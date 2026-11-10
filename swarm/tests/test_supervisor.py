@@ -304,3 +304,70 @@ def test_stash_unrelated_records_the_stash_commit(monkeypatch):
     monkeypatch.setattr(flow, "_git", fake_git)
     flow.SwarmFlow._stash_unrelated(stub, object())
     assert stub._stash_sha == "deadbeef"
+
+
+def test_next_open_spec_skips_a_done_but_unchecked_task(monkeypatch):
+    """013: a hash-identical green task must not be re-run from the next spec."""
+    from swarm import flow, spec_loader
+
+    specs = iter(["990-alpha", "991-beta", None])
+    monkeypatch.setattr(flow, "_spec_after", lambda root, cur: next(specs))
+    monkeypatch.setattr(
+        spec_loader,
+        "load_spec_tasks",
+        lambda root, spec, task=None: (
+            Path(spec),
+            [types.SimpleNamespace(id="T5"), types.SimpleNamespace(id="T6")],
+        ),
+    )
+    monkeypatch.setattr(flow, "_retry_later_keys", lambda root=None: set())
+    monkeypatch.setattr(
+        flow,
+        "_open_task_ids",
+        lambda root, path, tasks: [] if path.name == "990-alpha" else ["T1"],
+    )
+
+    assert flow._next_open_spec(Path("."), "989-before") == ("991-beta", "T1")
+
+
+def test_next_open_spec_skips_parked_specs_but_never_deadlocks(monkeypatch):
+    from swarm import flow, spec_loader
+
+    monkeypatch.setattr(
+        spec_loader,
+        "load_spec_tasks",
+        lambda root, spec, task=None: (Path(spec), [types.SimpleNamespace(id="T1")]),
+    )
+    monkeypatch.setattr(flow, "_open_task_ids", lambda root, path, tasks: ["T1"])
+
+    specs = iter(["990-alpha", "991-beta", None])
+    monkeypatch.setattr(flow, "_spec_after", lambda root, cur: next(specs))
+    monkeypatch.setattr(flow, "_retry_later_keys", lambda root=None: {"990-alpha/T1"})
+    assert flow._next_open_spec(Path("."), "989-before") == ("991-beta", "T1")
+
+    # Everything left is parked: run the first one instead of stopping.
+    specs = iter(["990-alpha", None])
+    monkeypatch.setattr(flow, "_spec_after", lambda root, cur: next(specs))
+    monkeypatch.setattr(flow, "_retry_later_keys", lambda root=None: {"990-alpha/T1"})
+    assert flow._next_open_spec(Path("."), "989-before") == ("990-alpha", "T1")
+
+
+def test_resume_does_not_pin_a_red_task_the_ledger_already_retired(tmp_path, monkeypatch):
+    """A stale red run of a green task must advance, not loop on that task."""
+    from swarm import flow
+
+    spec = tmp_path / "specs" / "990-alpha"
+    spec.mkdir(parents=True)
+    (spec / "tasks.md").write_text("- [ ] T5 (AC-1): a\n- [ ] T6 (AC-1): b\n")
+    run = tmp_path / "swarm" / "runs" / "20260101-000000-1-a"
+    run.mkdir(parents=True)
+    (run / "run.json").write_text(
+        json.dumps({"spec": "990-alpha", "task": "T5", "status": "needs_human"})
+    )
+    # T5 is green in the ledger, so only T6 is open.
+    monkeypatch.setattr(flow, "_open_task_ids", lambda root, path, tasks: ["T6"])
+    monkeypatch.setattr(flow, "_retry_later_keys", lambda root=None: set())
+    monkeypatch.setattr(flow, "_next_open_spec", lambda root, cur: None)
+    monkeypatch.setattr(flow, "_first_open_task", lambda root, skip=None: None)
+
+    assert flow._resume_point(tmp_path) == ("990-alpha", "T6")
