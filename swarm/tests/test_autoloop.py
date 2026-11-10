@@ -1191,3 +1191,42 @@ def test_resume_retries_a_red_prefix_task_when_it_is_not_parked(tmp_path):
         {"007-live-position": "- [ ] T8 (AC-1): a\n- [ ] T9 (AC-1): b\n"},
     )
     assert _resume_point(tmp_path) == ("007-live-position", "T9")
+
+
+def _budget_stub(local: bool):
+    stub = type("S", (), {})()
+    stub._local_coder = lambda: local
+    stub.state = type("St", (), {"total_tokens": 5_000_000, "spec_dir": "007", "task_id": "T9"})()
+    stub._run_cost = lambda: 0.9
+    stub._task_cost_start = 0.0
+    stub._task_tokens_start = 0
+    stub._max_cost_task = 0.25
+    stub._max_seconds_task = 1800
+    stub._max_tokens = 2_000_000
+    stub._max_cost = 3.0
+    stub._max_seconds = 14400
+    return stub
+
+
+def test_local_coder_is_not_stopped_by_budget_caps():
+    import time
+
+    from swarm.flow import SwarmFlow
+
+    stub = _budget_stub(True)
+    stub._task_started = 0.0  # 1885s+ of local work: previously budget_exhausted
+    stub._started_monotonic = time.monotonic()
+    stub._task_budget_note = lambda: SwarmFlow._task_budget_note(stub)
+    assert SwarmFlow._task_budget_note(stub) == ""
+    SwarmFlow._check_budget(stub)  # does not raise
+
+
+def test_cloud_coder_still_hits_the_task_cost_cap():
+    import time
+
+    from swarm.flow import SwarmFlow
+
+    stub = _budget_stub(False)
+    stub._task_started = time.monotonic()
+    note = SwarmFlow._task_budget_note(stub)
+    assert "cost budget exceeded" in note

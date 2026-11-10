@@ -406,8 +406,15 @@ Default (`SWARM_MERGE_MODE=merge`):
 5. Push the base. If that final push fails, local `reset --hard` back to the pre-merge
    SHA (status `push_failed`, branch kept as the recovery point / `rollback` in `run.json`).
 
-Merge conflicts abort the merge, leave the branch intact, and stop with
-`merge_failed` — never a half-merged green. Out-of-scope dirty files are never staged.
+**Conflicts (016).** One `Merge Conflict Resolver` crew gets the conflicted
+files (read + edit only, no shell). Its merge is accepted only if no conflict
+marker remains and every configured gate exits 0; then the harness `git add`s,
+commits and pushes the merge. A rejected attempt `git merge --abort`s, leaves
+the base untouched, and the run stops with `merge_failed` +
+`autocommit.conflict` evidence. `SWARM_CONFLICT_CREW=0` disables it;
+`SWARM_CONFLICT_MODEL` defaults to `SWARM_CODER_MODEL`. A conflicted **stash
+pop** is *not* a merge: it is resolved deterministically (`--ours`, stash kept,
+`stash_conflict` recorded). Out-of-scope dirty files are never staged.
 `SWARM_MERGE_MODE=direct` restores the old commit-straight-to-base path;
 `SWARM_DELETE_MERGED_BRANCH=1` deletes a merged branch locally and remotely.
 
@@ -511,7 +518,11 @@ Budgets are env-driven and stop the pilot with `budget_exhausted`:
 (14400), plus per task `SWARM_MAX_COST_PER_TASK`/`SWARM_MAX_SECONDS_PER_TASK`.
 Set any to `0` to disable it. `budget_note` records which limit tripped. The QA
 review bypasses the cost cap — gates and the local reviewer are free, and a cap
-must never turn into an unverified `needs_human`.
+must never turn into an unverified `needs_human`. **A local coder (`ollama/…`)
+is exempt from the cost/token and per-task caps** (its spend is exactly $0);
+only the run-level time cap still applies. Three local runs had stopped with
+`budget_exhausted` purely on the per-task 1800 s clock (T9 2342 s, T10 2039 s,
+005-T8 1885 s) while making progress. `run.json budget.local_coder` records it.
 
 ## Event listener & dashboard (012 T15)
 Each flow unregisters its CrewAI event handlers on `save_run` (`SwarmListener.teardown`),

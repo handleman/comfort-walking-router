@@ -310,6 +310,49 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
     return Crew(agents=[planner], tasks=[t_plan], process=Process.sequential, verbose=False)
 
 
+def build_conflict_crew(
+    spec_dir: str,
+    task_id: str,
+    conflicts: list[str],
+    *,
+    detail: str = "",
+) -> Crew:
+    """016: one resolver for a `--no-ff` merge conflict. Read + edit only.
+
+    No ShellTool at all: the harness runs the gates and stages the files, so the
+    crew cannot mark its own work green.
+    """
+    from swarm.llms import conflict_llm
+
+    resolver = Agent(
+        role="Merge Conflict Resolver",
+        goal="Merge both sides of a conflicted --no-ff merge without losing either.",
+        backstory=(
+            "You resolve git merge conflicts. Both sides are wanted: keep the task's "
+            "new behaviour AND the base branch's changes, merged coherently. "
+            "Remove every conflict marker (<<<<<<<, =======, >>>>>>>). "
+            "You never run gates or commits — the harness does that. " + SCOPE_RULE
+        ),
+        llm=conflict_llm(allow_paid=True),
+        tools=[TrimmedFileReadTool(), EditTool()],
+        verbose=False,
+        max_iter=10,
+    )
+    files = "\n".join(f"- {p}" for p in conflicts)
+    t_resolve = Task(
+        description=(
+            f"Resolve the merge conflict in spec={spec_dir} task={task_id}.\n"
+            f"Conflicted files (edit ONLY these):\n{files}\n\n"
+            "Read each file, merge the two sides coherently, and leave no markers. "
+            "Keep imports/types consistent with both sides. Smallest correct merge. "
+            + (f"\nLatest QA transcript (context only):\n{detail[-1200:]}" if detail else "")
+        ),
+        expected_output="One line per file: how the two sides were merged.",
+        agent=resolver,
+    )
+    return Crew(agents=[resolver], tasks=[t_resolve], process=Process.sequential, verbose=False)
+
+
 def build_fix_crew(
     spec_dir: str, task: SpecTask, qa_report_text: str, qa_review: str = ""
 ) -> Crew:

@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import signal
 import subprocess
 import threading
@@ -307,6 +308,44 @@ def _unique_branch(name: str) -> str:
     return f"{name}-{dt.datetime.now().strftime('%H%M%S')}"
 
 
+def _unmerged_paths() -> list[str]:
+    rc, out = _git(["diff", "--name-only", "--diff-filter=U"])
+    if rc != 0:
+        return []
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def conflict_markers(paths: list[str]) -> list[str]:
+    """016: paths that still contain conflict markers after the crew edited them."""
+    bad: list[str] = []
+    for path in paths:
+        try:
+            text = (REPO_ROOT / path).read_text(errors="replace")
+        except OSError:
+            bad.append(path)
+            continue
+        if any(
+            line.lstrip().startswith(("<<<<<<<", ">>>>>>>", "======="))
+            for line in text.splitlines()
+        ):
+            bad.append(path)
+    return bad
+
+
+def _run_gate_commands() -> list[tuple[str, int, str]]:
+    """Deterministic gates for a crew-resolved merge (the crew never runs them)."""
+    results: list[tuple[str, int, str]] = []
+    for cmd in gate_commands():
+        try:
+            p = subprocess.run(
+                shlex.split(cmd), check=False, cwd=REPO_ROOT, capture_output=True, text=True, timeout=1800
+            )
+            results.append((cmd, p.returncode, (p.stdout + p.stderr)[-400:]))
+        except (OSError, subprocess.SubprocessError) as e:
+            results.append((cmd, 1, str(e)[:400]))
+    return results
+
+
 def _commit_changes(
     spec_id: str,
     task_id: str,
@@ -318,6 +357,7 @@ def _commit_changes(
     spec_hash_value: str = "",
     run_id: str = "",
     allow_empty: bool = False,
+    resolver: Callable[[list[str]], tuple[bool, str]] | None = None,
 ) -> dict[str, str]:
     """Commit + push only the run-delta paths that are in scope.
 
@@ -429,11 +469,34 @@ def _commit_changes(
     pre_sha = pre.strip().splitlines()[-1] if pre_rc == 0 and pre.strip() else ""
     merge_msg = f"merge: swarm {spec_id}-{task_id} green"
     rc, out = _git(["merge", "--no-ff", branch, "-m", merge_msg])
-    if rc != 0:
-        _git(["merge", "--abort"])
-        rec["merge"] = f"conflict: {out}"
-        return rec
-    rec["merge"] = "ok"
+    if rc == 0:
+        rec["merge"] = "ok"
+    else:
+        # 016: give one dedicated crew the conflicted files, then decide
+        # deterministically (no markers, all gates green) whether to keep it.
+        conflicts = _unmerged_paths()
+        resolved = False
+        note = ""
+        if resolver is not None and conflicts:
+            resolved, note = resolver(conflicts)
+        if not resolved:
+            _git(["merge", "--abort"])
+            rec["merge"] = f"conflict: {out}"
+            rec["conflict"] = f"{', '.join(conflicts)} — {note}".strip(" —")
+            return rec
+        rc_add, add_out = _git(["add", "--", *conflicts])
+        rc_commit, commit_out = (
+            _git(["commit", "-m", merge_msg]) if rc_add == 0 else (1, add_out)
+        )
+        if rc_commit != 0:
+            _git(["merge", "--abort"])
+            rec["merge"] = f"conflict: {out}"
+            rec["conflict"] = (
+                f"{', '.join(conflicts)} — commit failed: {commit_out.strip()[:200]}"
+            )
+            return rec
+        rec["merge"] = f"ok (crew resolved: {', '.join(conflicts)})"
+        rec["conflict"] = note or "resolved"
 
     rc, out = _git(["push", "origin", base])
     if rc != 0:
@@ -942,15 +1005,31 @@ class SwarmFlow(Flow[SwarmState]):
             self.state.models_used, self.state.prompt_tokens, self.state.completion_tokens
         )
 
+    def _local_coder(self) -> bool:
+        """True when the coder runs on Ollama, so its spend is exactly $0."""
+        try:
+            from swarm.llms import role_models
+
+            return any(
+                row["role"] == "coder" and str(row["model"]).startswith("ollama/")
+                for row in role_models()
+            )
+        except Exception:
+            return False
+
     def _check_budget(self) -> None:
         from swarm.usage import budget_note
 
+        # Free local work must not be stopped by a dollar/token ceiling (it can
+        # never spend one). The run-level time cap stays as the backstop.
+        local_fn = getattr(self, "_local_coder", None)
+        local = bool(local_fn()) if callable(local_fn) else False
         note = budget_note(
-            total_tokens=self.state.total_tokens,
-            cost_usd=self._run_cost(),
+            total_tokens=0 if local else self.state.total_tokens,
+            cost_usd=None if local else self._run_cost(),
             elapsed_seconds=time.monotonic() - self._started_monotonic,
-            max_tokens=self._max_tokens,
-            max_cost_usd=self._max_cost,
+            max_tokens=0 if local else self._max_tokens,
+            max_cost_usd=0.0 if local else self._max_cost,
             max_seconds=self._max_seconds,
         )
         if note:
@@ -965,6 +1044,12 @@ class SwarmFlow(Flow[SwarmState]):
         """015 AC-6: per-task ceiling, independent of the run budget."""
         from swarm.usage import budget_note
 
+        local_fn = getattr(self, "_local_coder", None)
+        if callable(local_fn) and local_fn():
+            # 015 follow-up: a local coder costs $0 and is slow by nature; the
+            # per-task cap killed three green-in-progress runs (T9 2342s, T10
+            # 2039s, 005-T8 1885s). Only the run-level time cap still applies.
+            return ""
         cost = self._run_cost()
         cost_delta = None if cost is None else max(0.0, cost - self._task_cost_start)
         return budget_note(
@@ -1133,6 +1218,7 @@ class SwarmFlow(Flow[SwarmState]):
             spec_hash_value=spec_hash_value,
             run_id=self.run_dir.name,
             allow_empty=allow_empty,
+            resolver=self._resolve_conflict,
         )
 
     def _stash_unrelated(self, task: Any) -> None:
@@ -1161,10 +1247,7 @@ class SwarmFlow(Flow[SwarmState]):
         print(f"stashed {len(candidates)} unrelated path(s): {candidates}", flush=True)
 
     def _unmerged_paths(self) -> list[str]:
-        rc, out = _git(["diff", "--name-only", "--diff-filter=U"])
-        if rc != 0:
-            return []
-        return [line.strip() for line in out.splitlines() if line.strip()]
+        return _unmerged_paths()
 
     def _drop_stash(self, sha: str) -> None:
         """Drop our own stash entry, wherever it sits in the stack."""
@@ -1208,6 +1291,33 @@ class SwarmFlow(Flow[SwarmState]):
             "kept the stash, resolved to the current worktree",
             flush=True,
         )
+
+    def _resolve_conflict(self, conflicts: list[str]) -> tuple[bool, str]:
+        """016: one conflict crew; accepted only if markers are gone and gates pass."""
+        if os.getenv("SWARM_CONFLICT_CREW", "1") != "1":
+            return False, "conflict crew disabled (SWARM_CONFLICT_CREW=0)"
+        from swarm.crew import build_conflict_crew
+
+        before = (self.state.prompt_tokens, self.state.completion_tokens)
+        try:
+            crew = build_conflict_crew(
+                self.state.spec_dir,
+                self.state.task_id,
+                conflicts,
+                detail=self.state.transcript[-1500:],
+            )
+            out = crew.kickoff()
+        except Exception as e:
+            return False, f"conflict crew failed: {e}"[:300]
+        self._record_usage(crew, out, role="conflict", before=before)
+        leftover = conflict_markers(conflicts)
+        if leftover:
+            return False, f"conflict markers left in {', '.join(leftover)}"
+        gates = _run_gate_commands()
+        failed = [f"{cmd} exit={code}" for cmd, code, _ in gates if code != 0]
+        if failed:
+            return False, f"conflict merge failed gates: {'; '.join(failed)}"
+        return True, f"crew resolved; gates: {len(gates)}/{len(gates)} green"
 
     def _revert_out_of_scope(self, changed: list[str]) -> list[str]:
         """015 AC-10: undo out-of-scope writes instead of stopping the queue."""
@@ -1936,6 +2046,7 @@ class SwarmFlow(Flow[SwarmState]):
                 "max_runtime_seconds": self._max_seconds,
                 "max_cost_per_task": self._max_cost_task,
                 "max_seconds_per_task": self._max_seconds_task,
+                "local_coder": bool(getattr(self, "_local_coder", lambda: False)()),
             },
             "budget_note": self.state.budget_note,
             "done": {"task_hash": task_hash_value, "spec_hash": spec_hash_value, "recorded": False},
@@ -2058,6 +2169,7 @@ HARNESS_SPECS = (
     "012-dark-factory-harness",
     "013-dark-factory-phase-2",
     "015-dark-factory-economics",
+    "016-conflict-recovery",
 )
 
 

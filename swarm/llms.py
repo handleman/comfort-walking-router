@@ -240,6 +240,19 @@ def senior_llm(*, allow_paid: bool = False) -> LLM:
     return _for_role("SWARM_SENIOR_MODEL", temperature=0, allow_paid=allow_paid)
 
 
+def conflict_llm(*, allow_paid: bool = True) -> LLM:
+    """Merge-conflict resolver (016): the coder brain unless overridden.
+
+    `SWARM_CONFLICT_MODEL` is optional; without it the coder model is reused, so
+    there is no second model to keep working. Per-role fallbacks apply.
+    """
+    configured = os.getenv("SWARM_CONFLICT_MODEL", "").strip()
+    model = configured or os.getenv("SWARM_CODER_MODEL", "").strip()
+    if fallbacks_active("SWARM_CONFLICT_MODEL"):
+        model = fallback_model("SWARM_CONFLICT_MODEL", allow_paid=allow_paid) or model
+    return _build(model, temperature=0, allow_paid=allow_paid)
+
+
 def verdict_fallback_llm() -> LLM:
     """Verdict-only reviewer, used when the local QA model returns no verdict.
 
