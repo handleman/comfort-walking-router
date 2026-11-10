@@ -33,6 +33,7 @@
 
   import { onMount } from 'svelte'
   import L from 'leaflet'
+  import { personIcon } from './lib/map/icons'
   import {
     deleteRoute,
     ensureToken,
@@ -60,6 +61,8 @@
   let showPrefs = false
   let savedError = ''
   let prefsError = ''
+  let locateError = ''
+  let currentMarker: L.Marker | null = null
 
   onMount(() => {
     map = L.map(mapElement).setView([48.137, 11.575], 12)
@@ -69,6 +72,9 @@
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map)
     ensureToken()
+    map.locate({ setView: true, maxZoom: 16, timeout: 8000, enableHighAccuracy: true })
+    map.on('locationfound', onLocationFound)
+    map.on('locationerror', onLocationError)
     loadSaved()
     loadPrefs()
   })
@@ -89,6 +95,28 @@
     } catch (err) {
       prefsError = err instanceof Error ? err.message : String(err)
     }
+  }
+
+  function onLocationFound(e: L.LocationEvent) {
+    locateError = ''
+    if (!map) return
+    const { lat, lng } = e.latlng
+    if (currentMarker) {
+      currentMarker.setLatLng([lat, lng])
+    } else {
+      currentMarker = L.marker([lat, lng], {
+        icon: L.divIcon(personIcon()),
+      }).addTo(map)
+    }
+  }
+
+  function onLocationError(e: L.ErrorEvent) {
+    locateError = e.message || 'Unable to determine your location.'
+  }
+
+  function retryLocate() {
+    locateError = ''
+    map?.locate({ setView: true, maxZoom: 16 })
   }
 
   async function submitRoute() {
@@ -250,6 +278,12 @@
         <p class="error">{prefsError}</p>
       {/if}
     </section>
+    {#if locateError}
+      <div class="locate-notice" role="alert">
+        {locateError}
+        <button type="button" class="locate-retry" on:click={retryLocate}> Use my location </button>
+      </div>
+    {/if}
     <form on:submit|preventDefault={submitRoute}>
       <label>
         Start
@@ -453,6 +487,39 @@
   #map {
     min-height: 400px;
     height: 100vh;
+  }
+
+  .locate-notice {
+    position: absolute;
+    top: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    max-width: 90%;
+    padding: 0.5rem 0.9rem;
+    background: #fff8e1;
+    border: 1px solid #e0c36a;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    font-size: 0.85rem;
+    color: #5c4a00;
+    pointer-events: none;
+  }
+
+  .locate-retry {
+    pointer-events: auto;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.6rem;
+    background: #5c4a00;
+    color: #fff8e1;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .locate-retry:hover {
+    background: #7a6300;
   }
 
   @media (max-width: 720px) {
