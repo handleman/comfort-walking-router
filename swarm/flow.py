@@ -1055,13 +1055,25 @@ class SwarmFlow(Flow[SwarmState]):
         except Exception:
             return False
 
+    def _free_local_run(self) -> bool:
+        """A local coder that has spent nothing: dollar/token caps are meaningless.
+
+        The cost check is not decoration: with `SWARM_ALLOW_PAID=1` the planner or
+        senior can still spend real money in a local-coder run, and that spend must
+        be capped like any other.
+        """
+        local_fn = getattr(self, "_local_coder", None)
+        if not callable(local_fn) or not local_fn():
+            return False
+        return self._run_cost() == 0.0
+
     def _check_budget(self) -> None:
         from swarm.usage import budget_note
 
         # Free local work must not be stopped by a dollar/token ceiling (it can
         # never spend one). The run-level time cap stays as the backstop.
-        local_fn = getattr(self, "_local_coder", None)
-        local = bool(local_fn()) if callable(local_fn) else False
+        free_fn = getattr(self, "_free_local_run", None)
+        local = bool(free_fn()) if callable(free_fn) else False
         note = budget_note(
             total_tokens=0 if local else self.state.total_tokens,
             cost_usd=None if local else self._run_cost(),
@@ -1082,8 +1094,8 @@ class SwarmFlow(Flow[SwarmState]):
         """015 AC-6: per-task ceiling, independent of the run budget."""
         from swarm.usage import budget_note
 
-        local_fn = getattr(self, "_local_coder", None)
-        if callable(local_fn) and local_fn():
+        free_fn = getattr(self, "_free_local_run", None)
+        if callable(free_fn) and free_fn():
             # 015 follow-up: a local coder costs $0 and is slow by nature; the
             # per-task cap killed three green-in-progress runs (T9 2342s, T10
             # 2039s, 005-T8 1885s). Only the run-level time cap still applies.
@@ -2181,6 +2193,9 @@ class SwarmFlow(Flow[SwarmState]):
                 "max_cost_per_task": self._max_cost_task,
                 "max_seconds_per_task": self._max_seconds_task,
                 "local_coder": bool(getattr(self, "_local_coder", lambda: False)()),
+                "free_local_run": bool(
+                    getattr(self, "_free_local_run", lambda: False)()
+                ),
             },
             "budget_note": self.state.budget_note,
             "done": {"task_hash": task_hash_value, "spec_hash": spec_hash_value, "recorded": False},

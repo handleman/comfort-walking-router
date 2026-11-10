@@ -1197,10 +1197,13 @@ def test_resume_retries_a_red_prefix_task_when_it_is_not_parked(tmp_path):
 
 
 def _budget_stub(local: bool):
+    from swarm.flow import SwarmFlow
+
     stub = type("S", (), {})()
     stub._local_coder = lambda: local
     stub.state = type("St", (), {"total_tokens": 5_000_000, "spec_dir": "007", "task_id": "T9"})()
-    stub._run_cost = lambda: 0.9
+    stub._run_cost = lambda: 0.0 if local else 0.9
+    stub._free_local_run = lambda: SwarmFlow._free_local_run(stub)
     stub._task_cost_start = 0.0
     stub._task_tokens_start = 0
     stub._max_cost_task = 0.25
@@ -1222,6 +1225,36 @@ def test_local_coder_is_not_stopped_by_budget_caps():
     stub._task_budget_note = lambda: SwarmFlow._task_budget_note(stub)
     assert SwarmFlow._task_budget_note(stub) == ""
     SwarmFlow._check_budget(stub)  # does not raise
+
+
+def test_paid_spend_re_enables_the_caps_for_a_local_coder():
+    """A paid planner/senior in a local run must not inherit the $0 exemption."""
+    import time as _time
+
+    import pytest
+
+    from swarm.flow import SwarmFlow, _BudgetExhausted
+
+    stub = _budget_stub(True)
+    stub._run_cost = lambda: 0.9
+    stub.state.total_tokens = 0  # prove the *cost* caps, not the token cap
+    stub._task_budget_note = lambda: SwarmFlow._task_budget_note(stub)
+    stub._task_started = 0.0
+    stub._started_monotonic = _time.monotonic()
+
+    assert "cost budget exceeded" in SwarmFlow._task_budget_note(stub)
+    with pytest.raises(_BudgetExhausted, match="cost budget"):
+        SwarmFlow._check_budget(stub)
+
+
+def test_free_local_run_is_recorded_in_the_payload():
+    from swarm.flow import SwarmFlow
+
+    assert SwarmFlow._free_local_run(_budget_stub(True)) is True
+    # unknown price (None) is *not* proof of $0
+    stub = _budget_stub(True)
+    stub._run_cost = lambda: None
+    assert SwarmFlow._free_local_run(stub) is False
 
 
 def test_cloud_coder_still_hits_the_task_cost_cap():
