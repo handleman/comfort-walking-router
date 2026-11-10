@@ -175,9 +175,9 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
     sdk_retries = int(os.getenv("SWARM_LLM_MAX_RETRIES", "0") or 0)
     if model.startswith("ollama/"):
         try:
-            ollama_timeout = max(30, int(os.getenv("SWARM_OLLAMA_TIMEOUT_SECONDS", "300") or 300))
+            ollama_timeout = max(30, int(os.getenv("SWARM_OLLAMA_TIMEOUT_SECONDS", "1800") or 1800))
         except ValueError:
-            ollama_timeout = 300
+            ollama_timeout = 1800
         return LLM(
             model=model,
             api_base=os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA),

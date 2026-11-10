@@ -1266,3 +1266,12 @@ def test_cloud_coder_still_hits_the_task_cost_cap():
     stub._task_started = time.monotonic()
     note = SwarmFlow._task_budget_note(stub)
     assert "cost budget exceeded" in note
+
+
+def test_ollama_timeout_defaults_to_30_minutes(monkeypatch):
+    """300 s cut real local generations; the default must fit a slow 64k call."""
+    from swarm import llms
+
+    monkeypatch.delenv("SWARM_OLLAMA_TIMEOUT_SECONDS", raising=False)
+    model = llms._build("ollama/swarm-qa:latest", temperature=0, allow_paid=False)
+    assert model.timeout == 1800
