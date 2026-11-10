@@ -25,6 +25,16 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   `SWARM_ARCHIVE_STASHES=0` disables. Evidence: `swarm/tests/test_stashes.py`
   (real repos: refs resolvable, user stash untouched, `UU` cleared).
 
+- [x] T7 (AC-8): solve a stash conflict instead of parking it.
+  `build_stash_crew()` + `SwarmFlow._resolve_stash_conflict()` run at restore
+  time under the same deterministic acceptance as the merge resolver (no
+  markers, only conflicted files, all gates green) and revert a rejected attempt
+  (`_dirty_paths()` baseline), falling back to `--ours`. `run.json` gains
+  `stash_conflict_resolution`/`stash_conflict_note`; `_cleanup()` passes
+  `allow_crew=False`. Evidence: `swarm/tests/test_stashes.py` (real repos:
+  merged content accepted, markers/gates/extras rejected, cleanup never calls
+  the crew), `swarm/tests/test_conflict.py`.
+
 Known gaps (follow-ups, not blocking): resolver runs are not budget-gated
 beyond the run budget; a conflict in an out-of-scope path fails the attempt
 (tools enforce `DEFAULT_SCOPE`) and stays `merge_failed` by design.

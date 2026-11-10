@@ -83,6 +83,8 @@ class SwarmState(BaseModel):
     stashed: list[str] = []
     stash_conflict: list[str] = []
     stash_conflict_ref: str = ""
+    stash_conflict_resolution: str = ""
+    stash_conflict_note: str = ""
     orphan_stashes: list[dict[str, str]] = []
     evidence_note: str = ""
     no_progress: bool = False
@@ -308,6 +310,20 @@ def _unique_branch(name: str) -> str:
     if rc != 0:
         return name
     return f"{name}-{dt.datetime.now().strftime('%H%M%S')}"
+
+
+def _dirty_paths() -> set[str]:
+    p = subprocess.run(
+        ["git", "diff", "--name-only"],
+        check=False,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if p.returncode != 0:
+        return set()
+    return {line.strip() for line in p.stdout.splitlines() if line.strip()}
 
 
 def _unmerged_paths() -> list[str]:
@@ -919,7 +935,9 @@ class SwarmFlow(Flow[SwarmState]):
                 pass
 
     def _cleanup(self) -> None:
-        self._restore_stash()
+        # Never kick a crew from a signal/atexit path: see save_run for the
+        # run-end restore, where a conflict can be resolved and recorded.
+        self._restore_stash(allow_crew=False)
         with contextlib.suppress(Exception):
             self._lock.release()
         pid = _runs_dir() / "swarm.pid"
@@ -1264,7 +1282,49 @@ class SwarmFlow(Flow[SwarmState]):
                 _git(["stash", "drop", parts[0]])
                 return
 
-    def _restore_stash(self) -> None:
+    def _resolve_stash_conflict(
+        self, conflicts: list[str], *, stash: str = ""
+    ) -> tuple[bool, str]:
+        """Resolve a conflicted stash restore; accepted only if it is provably safe.
+
+        The parked work is wanted (the user's rule), so a crew merges it into the
+        current tree. Acceptance is deterministic: no markers, no edits outside
+        the conflicted files, every gate green. Anything else falls back to the
+        current worktree, so the queue never inherits a broken or half-merged tree.
+        """
+        if os.getenv("SWARM_CONFLICT_CREW", "1") != "1":
+            return False, "stash resolver disabled (SWARM_CONFLICT_CREW=0)"
+        from swarm.crew import build_stash_crew
+
+        before = (self.state.prompt_tokens, self.state.completion_tokens)
+        dirty_before = _dirty_paths()
+        try:
+            crew = build_stash_crew(
+                self.state.spec_dir,
+                self.state.task_id,
+                conflicts,
+                stash=stash,
+                detail=self.state.transcript[-1500:],
+            )
+            out = crew.kickoff()
+        except Exception as e:
+            return False, f"stash resolver failed: {e}"[:300]
+        self._record_usage(crew, out, role="conflict", before=before)
+        leftover = conflict_markers(conflicts)
+        if leftover:
+            return False, f"conflict markers left in {', '.join(leftover)}"
+        extra = sorted(_dirty_paths() - dirty_before - set(conflicts))
+        if extra:
+            for path in extra:
+                _git(["checkout", "HEAD", "--", path])
+            return False, f"resolver touched files outside the conflict: {', '.join(extra[:4])}"
+        gates = _run_gate_commands()
+        failed = [f"{cmd} exit={code}" for cmd, code, _ in gates if code != 0]
+        if failed:
+            return False, f"resolved tree failed gates: {'; '.join(failed)}"
+        return True, f"resolver re-applied the parked work; gates: {len(gates)}/{len(gates)} green"
+
+    def _restore_stash(self, *, allow_crew: bool = True) -> None:
         if not self._stash_ref:
             return
         ref, self._stash_ref = self._stash_ref, ""
@@ -1279,34 +1339,64 @@ class SwarmFlow(Flow[SwarmState]):
         # A conflicted pop leaves `UU` index stages *and* keeps the stash. 014
         # broke exactly this way: T8's pop conflicted on App.svelte, the markers
         # stayed in the tree, and the next three runs gated/edited around them.
-        # Resolve to "ours" (the current run's work, or the merged HEAD) — the
-        # stashed side stays recoverable in the kept stash — so the tree is
-        # consistent for the next run either way.
         conflicts = self._unmerged_paths()
+        self.state.stash_conflict = conflicts or [ref]
+        resolved = False
+        note = "apply failed without unmerged paths; kept the stash"
+        if conflicts:
+            resolved, note = (
+                self._resolve_stash_conflict(conflicts, stash=ref)
+                if allow_crew
+                else (False, "crew skipped during cleanup; current worktree kept")
+            )
+        # A rejected attempt must not leave markers or `UU`: fall back to the
+        # current worktree. An accepted one gets its stages cleared so the parked
+        # work stays an ordinary unstaged change.
         for path in conflicts:
-            _git(["checkout", "--ours", "--", path])
+            if not resolved:
+                _git(["checkout", "--ours", "--", path])
             _git(["add", "--", path])
             _git(["reset", "-q", "HEAD", "--", path])
-        self.state.stash_conflict = conflicts or [ref]
         archived = ""
-        if sha and os.getenv("SWARM_ARCHIVE_STASHES", "1") == "1":
+        if conflicts and sha and os.getenv("SWARM_ARCHIVE_STASHES", "1") == "1":
             try:
                 from swarm.stashes import archive, list_stashes
 
                 entry = next((e for e in list_stashes(REPO_ROOT) if e["sha"] == sha), None)
                 if entry is not None:
                     archived = archive(
-                        REPO_ROOT, entry, run_id=self.run_dir.name, reason="conflict"
+                        REPO_ROOT,
+                        entry,
+                        run_id=self.run_dir.name,
+                        reason="resolved" if resolved else "conflict",
                     )["ref"]
             except (RuntimeError, OSError, KeyError):
                 archived = ""
+        elif resolved:
+            # Archiving is off but the content now lives in the worktree: a
+            # successful restore is supposed to consume its stash entry.
+            self._drop_stash(sha)
         self.state.stash_conflict_ref = archived
-        print(
-            f"STASH RESTORE CONFLICT ({ref}): {', '.join(conflicts) or out.strip()[:200]}; "
-            "resolved to the current worktree, kept as "
-            + (archived or "an unarchived stash for manual recovery"),
-            flush=True,
-        )
+        if not conflicts:
+            self.state.stash_conflict_resolution = "kept"
+        elif resolved:
+            self.state.stash_conflict_resolution = "crew"
+        else:
+            self.state.stash_conflict_resolution = "ours"
+        self.state.stash_conflict_note = note
+        if resolved:
+            print(
+                f"STASH RESTORE CONFLICT ({ref}) RESOLVED: {note}; "
+                f"parked work archived as {archived or 'an unarchived stash'}",
+                flush=True,
+            )
+        else:
+            print(
+                f"STASH RESTORE CONFLICT ({ref}): {', '.join(conflicts) or out.strip()[:200]}; "
+                f"{note}; kept the current worktree plus "
+                + (archived or "an unarchived stash for manual recovery"),
+                flush=True,
+            )
 
     def _resolve_conflict(self, conflicts: list[str]) -> tuple[bool, str]:
         """016: one conflict crew; accepted only if markers are gone and gates pass."""
@@ -2099,6 +2189,8 @@ class SwarmFlow(Flow[SwarmState]):
             "stashed": self.state.stashed,
             "stash_conflict": self.state.stash_conflict,
             "stash_conflict_ref": self.state.stash_conflict_ref,
+            "stash_conflict_resolution": self.state.stash_conflict_resolution,
+            "stash_conflict_note": self.state.stash_conflict_note,
             "orphan_stashes": self.state.orphan_stashes,
             "out_of_scope_reverted": self.state.out_of_scope_reverted,
             "evidence_note": self.state.evidence_note
@@ -2179,6 +2271,9 @@ class SwarmFlow(Flow[SwarmState]):
         # instead of silently dirtying the tree for the next run.
         self._restore_stash()
         payload["stash_conflict"] = self.state.stash_conflict
+        payload["stash_conflict_ref"] = self.state.stash_conflict_ref
+        payload["stash_conflict_resolution"] = self.state.stash_conflict_resolution
+        payload["stash_conflict_note"] = self.state.stash_conflict_note
         payload["reason_code"] = _reason_code(status, payload, self.state)
         if status == "green":
             self._delete_progress()

@@ -157,3 +157,20 @@ def test_resolver_rejects_edits_outside_the_conflicted_files(monkeypatch):
     ok, note = flow.SwarmFlow._resolve_conflict(stub, ["frontend/src/App.svelte"])
     assert ok is False
     assert "outside the conflict" in note
+
+
+def test_stash_crew_has_no_gate_tool_and_names_the_stash(monkeypatch):
+    from swarm import crew as crew_mod
+
+    monkeypatch.setenv("SWARM_CODER_MODEL", "ollama/swarm-coder:latest")
+    c = crew_mod.build_stash_crew(
+        "016", "T1", ["frontend/src/App.svelte"], stash="swarm-parked"
+    )
+
+    names = [type(t).__name__ for t in c.agents[0].tools]
+    assert "ShellTool" not in names
+    assert "EditTool" in names
+    desc = c.tasks[0].description
+    assert "swarm-parked" in desc
+    assert "Conflicted files" in desc
+    assert "do not duplicate" in desc.lower()

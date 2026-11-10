@@ -50,6 +50,18 @@ dedicated crew that runs only then.
   the kept stash the same way and records `stash_conflict_ref`. Content stays
   readable with `git show <ref>:<path>`, a user's non-`swarm-*` stash is never
   touched, and `SWARM_ARCHIVE_STASHES=0` disables the lifecycle.
+- **AC-8 — a stash conflict is resolved, not parked.** A conflicted
+  `git stash apply` gives one `Stash Conflict Resolver` crew (read/edit only, no
+  shell) the unmerged files; it re-applies the parked side on the newer tree
+  without duplicating already-present changes. The harness accepts it only when
+  no marker remains, the crew edited only the conflicted files, and every gate
+  exits 0; then the stages are cleared (parked work stays unstaged) and the
+  stash is archived with `reason: "resolved"`. Otherwise the attempt is reverted
+  (including out-of-conflict edits), the current worktree is kept, and the stash
+  is archived with `reason: "conflict"`. `run.json` records
+  `stash_conflict_resolution` (`crew`/`ours`/`kept`) and
+  `stash_conflict_note`; cleanup/signal paths never call a crew.
+  `SWARM_CONFLICT_CREW=0` disables both resolvers.
 
 ## Non-goals
 

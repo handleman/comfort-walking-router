@@ -246,6 +246,10 @@ def test_restore_stash_conflict_keeps_the_current_worktree(monkeypatch):
     stub.state = flow.SwarmState()
     stub._unmerged_paths = lambda: ["frontend/src/App.svelte"]
     monkeypatch.setattr(flow, "_git", fake_git)
+    monkeypatch.setenv("SWARM_CONFLICT_CREW", "0")
+    stub._resolve_stash_conflict = lambda conflicts, **k: flow.SwarmFlow._resolve_stash_conflict(
+        stub, conflicts, **k
+    )
 
     flow.SwarmFlow._restore_stash(stub)
 
