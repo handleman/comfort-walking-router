@@ -573,3 +573,9 @@ swarm/.venv/bin/python -m pytest swarm/tests -v
 - `Invalid response from LLM call - None or empty` on local Qwen: thinking blocks break tool parsing — harness already sets `extra_body={"think": False}` on all Ollama LLMs; if you add a new Ollama model id, keep it. Single transient empties still occur; `flow` re-kicks the crew once automatically.
 - Local Qwen-9B as **planner** loses the plot (verified 2026-10-10: listed `.git/` internals, asked "what would you like to do" instead of writing the plan). Keep cloud brains (OpenRouter `:free` / Zen) for planner + reviewer; local Qwen is coder-only material with reviewer gates.
 - `swarm/.venv/`, `swarm/runs/`, `swarm/.env` are gitignored — safe to run freely.
+- **`UU` paths / conflict markers in the tree**: a `git stash pop` conflicted
+  (it keeps the stash and leaves index stages behind). Preflight now refuses to
+  start on unmerged paths, and a conflicted restore resolves to the current
+  worktree (`--ours`) while keeping the stash, recording `stash_conflict` in
+  `run.json`. Recover the parked work with `git stash list` /
+  `git stash show -p stash@{n}`; this is not a branch-merge conflict.

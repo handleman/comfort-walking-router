@@ -224,3 +224,32 @@ def test_mark_retry_later_normalises_a_spec_prefix(tmp_path):
     path.parent.mkdir(parents=True)
     supervise.mark_retry_later("007/T9", path)
     assert json.loads(path.read_text())["retry_later"] == ["007-live-position/T9"]
+
+
+def test_restore_stash_conflict_keeps_the_current_worktree(monkeypatch):
+    """A conflicted `stash pop` must clear `UU`, not leave markers for later runs."""
+    from swarm import flow
+
+    calls: list[list[str]] = []
+
+    def fake_git(args, timeout=120):
+        calls.append(list(args))
+        if args[:2] == ["stash", "pop"]:
+            return 1, "CONFLICT (content): Merge conflict in frontend/src/App.svelte"
+        if args[:3] == ["diff", "--name-only", "--diff-filter=U"]:
+            return 0, "frontend/src/App.svelte\n"
+        return 0, ""
+
+    stub = type("S", (), {})()
+    stub._stash_ref = "swarm-20261110-041814-43318-1ebe"
+    stub.state = flow.SwarmState()
+    stub._unmerged_paths = lambda: ["frontend/src/App.svelte"]
+    monkeypatch.setattr(flow, "_git", fake_git)
+
+    flow.SwarmFlow._restore_stash(stub)
+
+    assert stub._stash_ref == ""
+    assert stub.state.stash_conflict == ["frontend/src/App.svelte"]
+    assert ["checkout", "--ours", "--", "frontend/src/App.svelte"] in calls
+    assert ["add", "--", "frontend/src/App.svelte"] in calls
+    assert ["reset", "-q", "HEAD", "--", "frontend/src/App.svelte"] in calls

@@ -141,3 +141,16 @@ def test_free_model_detection_matches_guard():
     assert is_free_model("zen/some-free")
     assert is_free_model("openai/muse-spark-1.3-contributor-free")
     assert not is_free_model("zen/glm-5.3-flash")
+
+
+def test_unmerged_worktree_blocks_a_run(monkeypatch):
+    """A leftover conflicted stash pop must not reach the gates or a commit."""
+    monkeypatch.setattr(preflight, "unmerged_paths", lambda repo_root=None: ["frontend/src/App.svelte"])
+    problems = check(
+        _ok_env(),
+        fetch=_tags("swarm-coder:latest", "swarm-qa:latest"),
+        which=_which,
+    )
+    tags = [p.check for p in problems]
+    assert "worktree" in tags
+    assert "App.svelte" in next(p.detail for p in problems if p.check == "worktree")

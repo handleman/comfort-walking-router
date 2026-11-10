@@ -80,6 +80,7 @@ class SwarmState(BaseModel):
     skipped_ac: list[str] = []
     out_of_scope_reverted: list[str] = []
     stashed: list[str] = []
+    stash_conflict: list[str] = []
     evidence_note: str = ""
     no_progress: bool = False
     ungrounded_block: bool = False
@@ -1154,13 +1155,36 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.stashed = candidates
         print(f"stashed {len(candidates)} unrelated path(s): {candidates}", flush=True)
 
+    def _unmerged_paths(self) -> list[str]:
+        rc, out = _git(["diff", "--name-only", "--diff-filter=U"])
+        if rc != 0:
+            return []
+        return [line.strip() for line in out.splitlines() if line.strip()]
+
     def _restore_stash(self) -> None:
         if not self._stash_ref:
             return
         ref, self._stash_ref = self._stash_ref, ""
         rc, out = _git(["stash", "pop"])
-        if rc != 0:
-            print(f"STASH RESTORE FAILED ({ref}): {out.strip()[:300]}", flush=True)
+        if rc == 0:
+            return
+        # A conflicted pop leaves `UU` index stages *and* keeps the stash. 014
+        # broke exactly this way: T8's pop conflicted on App.svelte, the markers
+        # stayed in the tree, and the next three runs gated/edited around them.
+        # Resolve to "ours" (the current run's work, or the merged HEAD) — the
+        # stashed side stays recoverable in the kept stash — so the tree is
+        # consistent for the next run either way.
+        conflicts = self._unmerged_paths()
+        for path in conflicts:
+            _git(["checkout", "--ours", "--", path])
+            _git(["add", "--", path])
+            _git(["reset", "-q", "HEAD", "--", path])
+        self.state.stash_conflict = conflicts or [ref]
+        print(
+            f"STASH RESTORE CONFLICT ({ref}): {', '.join(conflicts) or out.strip()[:200]}; "
+            "kept the stash, resolved to the current worktree",
+            flush=True,
+        )
 
     def _revert_out_of_scope(self, changed: list[str]) -> list[str]:
         """015 AC-10: undo out-of-scope writes instead of stopping the queue."""
@@ -1974,6 +1998,10 @@ class SwarmFlow(Flow[SwarmState]):
                 f"{skipped} test(s) skipped and this task touches persistence; "
                 "the AC is not fully exercised (set DATABASE_URL to run them)"
             )
+        # Pop the stash here, not in cleanup, so a conflict lands in run.json
+        # instead of silently dirtying the tree for the next run.
+        self._restore_stash()
+        payload["stash_conflict"] = self.state.stash_conflict
         payload["reason_code"] = _reason_code(status, payload, self.state)
         if status == "green":
             self._delete_progress()

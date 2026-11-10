@@ -191,6 +191,22 @@ def self_heal(
     return actions
 
 
+def unmerged_paths(repo_root: Path | None = None) -> list[str]:
+    """Paths with unresolved index stages (mid-merge, rebase, or stash pop)."""
+    try:
+        p = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=U"],
+            cwd=repo_root or REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return sorted({line.strip() for line in p.stdout.splitlines() if line.strip()})
+
+
 def check(
     env: dict[str, str] | None = None,
     *,
@@ -203,6 +219,18 @@ def check(
     self_heal(env)
     problems: list[Problem] = []
     allow_paid = env.get("SWARM_ALLOW_PAID", "0") == "1"
+
+    # 0. A conflicted worktree poisons every gate and can be committed by the
+    #    next green run; stop before the first paid call.
+    conflicts = unmerged_paths()
+    if conflicts:
+        problems.append(
+            Problem(
+                "worktree",
+                "unmerged paths — resolve them or `git merge --abort` before a run: "
+                + ", ".join(conflicts[:6]),
+            )
+        )
 
     # 1. Model ids present, free-guard, provider key present.
     for var in ROLE_VARS:
