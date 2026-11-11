@@ -291,6 +291,9 @@ DEV_ATTEMPTS = 2  # full dev phases (steps + review + fix rounds) before senior
 SENIOR_ATTEMPTS = 2  # senior passes (free model) before giving up to human
 STEP_ATTEMPTS = 2  # step kickoff tries; the second already runs on the paid model
 PLAN_ATTEMPTS = 2  # planner retries on unparseable output before giving up
+# 017: coder fix rounds for the static checks (types, lint) before QA sees the
+# work. A red type check is a one-line defect, not a QA round-trip.
+MAX_SELF_CHECK_ROUNDS = 2
 
 
 def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
@@ -466,6 +469,52 @@ def build_fix_crew(
         ),
         expected_output=(
             "Diff summary of the fix + which reported gate line each change addresses."
+        ),
+        agent=coder,
+    )
+    return Crew(agents=[coder], tasks=[t_fix], process=Process.sequential, verbose=False)
+
+
+def build_selfcheck_crew(spec_dir: str, task: SpecTask, report_text: str) -> Crew:
+    """Coder only: fix the type/lint errors found before QA (017).
+
+    The harness ran the project's static checks (type checker, linter) after
+    the micro-steps; the coder gets their exit codes and error output and
+    fixes the cause. QA stays the only gate executor: this crew runs no
+    gates, so it cannot certify its own work.
+    """
+    coder = _coder(
+        task,
+        goal="Fix the type and lint errors the harness found. Smallest coherent diff.",
+        backstory=(
+            "You fix scaffold files precisely. The harness ran the project's static "
+            "checks (type checker and linter) before QA and they are red; you work "
+            "from their exit codes and error output, not from a report you have to "
+            "re-derive. You run no gates and no network commands."
+        ),
+        max_iter=12,
+        allow_gates=False,
+    )
+    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
+    t_fix = Task(
+        description=(
+            f"Type/lint check failed for {ctx}. The harness ran the static checks "
+            "and this is the evidence:\n"
+            f"{report_text}\n"
+            "Each key line is `file:line: message`: read that file once and fix the "
+            "cause — a type error means the code disagrees with a real API, so read "
+            "the module that owns the type and use its REAL exported API. If the API "
+            "you need does not exist, add it in this task's scope instead of casting, "
+            "suppressing or disabling the check. A lint rule is a real rule: fix the "
+            "code, never disable the rule. "
+            "Change only what the report proves is wrong. "
+            "Use Repo Create for new files, Repo Edit for existing files. "
+            + FIX_RULES
+            + " Loop rules (hard): at most 12 tool calls, then write the final answer; "
+            "never read the same file twice. " + SCOPE_RULE
+        ),
+        expected_output=(
+            "Diff summary of the fix + which reported type/lint line each change addresses."
         ),
         agent=coder,
     )

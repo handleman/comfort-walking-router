@@ -85,8 +85,12 @@ class _Stub:
     def __init__(self) -> None:
         import types
 
+        from swarm import flow
+
         self._baseline: dict[str, str] = {}
         self.state = types.SimpleNamespace(style_autofix={})
+        # 017: the formatter is shared with the pre-QA self-check.
+        self._apply_formatter = types.MethodType(flow.SwarmFlow._apply_formatter, self)
 
 
 def test_autofix_style_runs_the_formatter_and_records_it(monkeypatch):

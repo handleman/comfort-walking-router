@@ -224,14 +224,14 @@ stops as `needs_human`.
 
 ## Gates (sequence)
 Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
-context each, max 8 steps) → Reviewer verifies once at the end → `flow` re-runs
-every command from `SWARM_GATE_COMMANDS` (this repo: `pytest -q`, `ruff check .`,
-`mypy app tests`, `npm --prefix frontend run check`, `npm --prefix frontend run lint`)
+context each, max 8 steps) → **the harness runs the static checks (types, lint) and
+gives a red one back to the coder** → Reviewer verifies once at the end →
+`flow` re-runs every command from `SWARM_GATE_COMMANDS` (this repo: `pytest -q`,
+`ruff check .`, `mypy app tests`, `npm --prefix frontend run check`,
+`npm --prefix frontend run lint`)
 itself (never trusts agent claims). Red gates or a reviewer `BLOCKED` → fix
 round: Coder investigates with the QA report (+ Reviewer re-verify), max 3 rounds
-(`MAX_FIX_ROUNDS` in `swarm/crew.py`). Inside a round the coder self-verifies:
-fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify cycles
-(`MAX_FIX_VERIFY_CYCLES`), then reports the last exit per gate. Still red → `needs_human`, TUI pauses,
+(`MAX_FIX_ROUNDS` in `swarm/crew.py`). Still red → `needs_human`, TUI pauses,
 `r` starts a fresh run. Crash → one fresh re-kickoff, then `crew_error`.
 
 ### Gate ownership (who runs what)
@@ -282,6 +282,21 @@ fix → run gates → while anything is red, fix and rerun, up to 3 fix→verify
   the formatter touched that the run does not own. A red type check or a red
   test is never treated as style — that is a code problem. `SWARM_STYLE_FIX=0`
   disables it; `run.json.style_autofix` records what ran.
+- **The coder checks types and lint before QA sees the work (017).** Right
+  after the micro-steps the harness runs the project's *static* checks — the
+  type checker and the linter, never the test suites (`SWARM_SELF_CHECK_COMMANDS`,
+  or the static subset of `SWARM_GATE_COMMANDS`: here `ruff check .`,
+  `mypy app tests`, `npm --prefix frontend run check`,
+  `npm --prefix frontend run lint`). A red check produces a report in the same
+  shape as QA's (failing command, exit code, `file:line: message` key lines)
+  and the coder gets a fix round with it (`MAX_SELF_CHECK_ROUNDS`, coder only,
+  no gates), so a one-line type error is fixed while the work is still his.
+  007-T9 (2026-11-11) spent three QA rounds and two coder rounds on
+  `Property 'tick' does not exist on type 'PositionProvider'` — an error the
+  checker had already named. The phase is *not* a gate: it runs under its own
+  agent role (`harness-selfcheck`), so its records are never counted as QA
+  evidence and it can never make a run green. `SWARM_SELF_CHECK=0` disables it;
+  `run.json.self_check` records the commands, their exit codes and the rounds.
 - **A fix round that changes nothing ends the round.** If a fix round leaves the
   in-scope delta byte-identical, the flow stops the round (`no_progress`) and
   escalates instead of paying for another identical attempt.

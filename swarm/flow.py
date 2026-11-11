@@ -88,6 +88,8 @@ class SwarmState(BaseModel):
     orphan_stashes: list[dict[str, str]] = []
     evidence_note: str = ""
     style_autofix: dict[str, Any] = {}
+    # 017: the static checks (types, lint) the coder had to pass before QA.
+    self_check: dict[str, Any] = {}
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -1265,29 +1267,16 @@ class SwarmFlow(Flow[SwarmState]):
         self._evidence_agents = ("QA Gatekeeper", "harness-fallback") if used_fallback else None
         return gates, transcript, missing
 
-    def _autofix_style(self, gates: dict[str, int], transcript: str) -> bool:
-        """Run the project's formatter when the only red gate is style (016).
+    def _apply_formatter(self, gate: str) -> bool:
+        """Run the project's formatter; revert files this run does not own.
 
-        A Prettier/ESLint slip is mechanical: the harness fixes it and the gate
-        is re-checked, instead of spending a coder round (and a local model)
-        on a wrap. Only a *sole* style failure qualifies — with a red type
-        check or a red test the code is wrong, not badly formatted.
+        Shared by the QA path (`_autofix_style`) and the pre-QA self-check
+        (017): formatting is mechanical, so the harness does it in both
+        places and the coder never spends a round on a wrap.
         """
         from swarm import style
-        from swarm.evidence import split_tails
         from swarm.tools_guarded import ShellTool, _git_changed, run_delta
 
-        if not style.enabled():
-            return False
-        tails: dict[str, str] = {}
-        for block in split_tails(transcript):
-            head, _, body = block.partition("\n")
-            command = head.removeprefix("$ ").strip()
-            if command:
-                tails[command] = body
-        gate = style.style_gate(gates, tails)
-        if not gate:
-            return False
         before = set(_git_changed())
         runner = ShellTool(agent_role="harness-style")
         output = runner._run(style.fix_command())
@@ -1321,6 +1310,119 @@ class SwarmFlow(Flow[SwarmState]):
             flush=True,
         )
         return True
+
+    def _autofix_style(self, gates: dict[str, int], transcript: str) -> bool:
+        """Run the project's formatter when the only red gate is style (016).
+
+        A Prettier/ESLint slip is mechanical: the harness fixes it and the gate
+        is re-checked, instead of spending a coder round (and a local model)
+        on a wrap. Only a *sole* style failure qualifies — with a red type
+        check or a red test the code is wrong, not badly formatted.
+        """
+        from swarm import style
+        from swarm.evidence import split_tails
+
+        if not style.enabled():
+            return False
+        tails: dict[str, str] = {}
+        for block in split_tails(transcript):
+            head, _, body = block.partition("\n")
+            command = head.removeprefix("$ ").strip()
+            if command:
+                tails[command] = body
+        gate = style.style_gate(gates, tails)
+        if not gate:
+            return False
+        return self._apply_formatter(gate)
+
+    def _run_self_check(self) -> dict[str, Any]:
+        """Run the project's static checks (types, lint) before QA (017).
+
+        The checks are the harness's own, run under their own agent role: the
+        records never count as QA evidence, so this can never make a run
+        green — it only gives the coder the error before QA does.
+        """
+        from swarm import selfcheck, style
+        from swarm.tools_guarded import ShellTool, run_delta
+
+        if not selfcheck.enabled():
+            return {}
+        commands = selfcheck.commands(gate_commands())
+        if not commands:
+            return {}
+
+        def _run() -> tuple[dict[str, int], dict[str, str]]:
+            runner = ShellTool(agent_role="harness-selfcheck")
+            codes: dict[str, int] = {}
+            tails: dict[str, str] = {}
+            for command in commands:
+                out = runner._run(command)
+                code = 99
+                try:
+                    code = int(out.split("exit=")[1].split()[0])
+                except (IndexError, ValueError):
+                    code = 99
+                codes[command] = code
+                _, _, body = out.partition("\n")
+                tails[command] = body
+            return codes, tails
+
+        codes, tails = _run()
+        # Formatting-only failures are mechanical: the harness formats, the
+        # coder is never asked to.
+        if style.enabled() and style.style_failures(codes, tails):
+            self._apply_formatter(", ".join(style.style_failures(codes, tails)))
+            codes, tails = _run()
+        red = sorted(command for command, code in codes.items() if int(code) != 0)
+        changed = self._in_scope_paths(run_delta(self._baseline))
+        return {
+            "commands": list(commands),
+            "exit": codes,
+            "red": red,
+            "report": selfcheck.render_report(codes, tails, changed),
+        }
+
+    def _self_check_phase(self, task: Any, kick: Any) -> None:
+        """Static checks before QA: the coder passes on type-clean work (017).
+
+        007-T9 (2026-11-11) spent three QA rounds and two coder rounds on one
+        type error the checker had already named. The coder now gets the
+        evidence while the work is still his.
+        """
+        from swarm.crew import MAX_SELF_CHECK_ROUNDS, build_selfcheck_crew
+
+        for attempt in range(MAX_SELF_CHECK_ROUNDS + 1):
+            result = self._run_self_check()
+            if not result:
+                return
+            self.state.self_check = {
+                "commands": result["commands"],
+                "exit": result["exit"],
+                "red": result["red"],
+                "rounds": attempt,
+                "report": result["report"][-2000:],
+            }
+            if not result["red"]:
+                print("self-check: static checks green", flush=True)
+                return
+            if attempt >= MAX_SELF_CHECK_ROUNDS:
+                print(
+                    f"self-check: still red after {MAX_SELF_CHECK_ROUNDS} fix round(s): "
+                    + ", ".join(result["red"]),
+                    flush=True,
+                )
+                return
+            report = result["report"]
+            try:
+                kick(
+                    lambda report=report: build_selfcheck_crew(
+                        self._spec_dir, task, report
+                    ),
+                    f"coder:selfcheck{attempt + 1}",
+                )
+            except SystemExit as e:
+                self.state.result = str(e)[:4000]
+                return
 
     def _commit_green(
         self,
@@ -2033,6 +2135,13 @@ class SwarmFlow(Flow[SwarmState]):
                     )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
                     self._write_progress(plan_hash, steps, i, step_outs)
+                # 017: the coder checks types/lint before the work is passed on.
+                # QA is still the only gate executor; this is early feedback, not
+                # a gate, and it can never make a run green.
+                self._self_check_phase(
+                    task,
+                    lambda build, role: _kickoff(build, role=role, step="selfcheck"),
+                )
                 work_summary = "\n".join(step_outs)
                 # 015 AC-2/AC-3: QA runs the gates; its recorded executions are
                 # the evidence green is built from.
@@ -2298,6 +2407,7 @@ class SwarmFlow(Flow[SwarmState]):
             "evidence_note": self.state.evidence_note
             or ("QA did not run: " + ", ".join(evidence_missing) if evidence_missing else ""),
             "style_autofix": self.state.style_autofix,
+            "self_check": self.state.self_check,
         }
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate
@@ -2423,6 +2533,7 @@ HARNESS_SPECS = (
     "013-dark-factory-phase-2",
     "015-dark-factory-economics",
     "016-conflict-recovery",
+    "017-coder-selfcheck",
 )
 
 

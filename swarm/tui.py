@@ -368,6 +368,11 @@ def format_human_report(
         value = p.get(key)
         if value:
             reasons.append(f"{label}: {value}")
+    self_check = p.get("self_check") or {}
+    if self_check.get("red"):
+        reasons.append(
+            "self-check red: " + ", ".join(str(command) for command in self_check["red"])
+        )
     if not reasons:
         if status == "needs_human":
             reasons.append("no explicit note — inspect gates/reviewer below")

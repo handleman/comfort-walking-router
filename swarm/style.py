@@ -103,3 +103,20 @@ def style_gate(gates: dict[str, int], tails: dict[str, str]) -> str | None:
     if not is_style_failure(tails.get(command, "")):
         return None
     return command
+
+
+def style_failures(gates: dict[str, int], tails: dict[str, str]) -> list[str]:
+    """Every failing command whose output names nothing but formatting.
+
+    Unlike `style_gate` this does not require the failure to be the only one:
+    the pre-QA self-check (017) formats first and then reports what is left,
+    so a Prettier slip never reaches the coder as "your code is wrong".
+    """
+    return [
+        command
+        for command, code in gates.items()
+        if int(code) != 0
+        and command != "scope"
+        and any(word in command for word in ("lint", "prettier", "format"))
+        and is_style_failure(tails.get(command, ""))
+    ]
