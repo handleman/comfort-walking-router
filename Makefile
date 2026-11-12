@@ -5,7 +5,7 @@
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
 	swarm-supervise swarm-report swarm-log swarm-night \
-	swarm-bench swarm-bench-build swarm-bench-baseline
+	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -84,6 +84,10 @@ swarm-bench-build: ## Rebuild the frozen replay corpus from green runs (git hist
 
 swarm-bench-baseline: ## Snapshot the current bench score as baseline.json (before a harness change)
 	swarm/.venv/bin/python -m swarm.bench --update-baseline
+
+swarm-bench-live: ## Live replay of one case in a throwaway worktree: make swarm-bench-live CASE=<id>
+	@test -n "$(CASE)" || { echo "CASE=<corpus id> is required (see: make swarm-bench ARGS=--list)"; exit 2; }
+	swarm/.venv/bin/python -m swarm.bench --live $(CASE)
 
 swarm-test: ## Harness unit tests (no LLM, no network)
 	swarm/.venv/bin/python -m pytest swarm/tests -q

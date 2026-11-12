@@ -50,11 +50,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", default="", help="score one case id")
     parser.add_argument("--json", action="store_true", help="print the score payload")
     parser.add_argument("--list", action="store_true", help="list corpus cases and exit")
+    parser.add_argument("--live", default="", help="live replay of one case in a throwaway worktree")
     args = parser.parse_args(argv)
     repo = Path(args.repo)
 
     if args.build:
         return build(repo)
+
+    if args.live:
+        from swarm.bench import live
+
+        result = live.run_case(args.live, repo=repo)
+        print(live.render(result))
+        if not result.get("ok"):
+            print(json.dumps(result, indent=2, sort_keys=True), file=sys.stderr)
+        return 0 if result.get("ok") else 1
 
     try:
         cases = corpus.load_corpus(repo)

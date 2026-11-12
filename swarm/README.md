@@ -876,3 +876,21 @@ prefix byte-identical (T2) and (b) send a hint where a provider accepts one.
 `run.json.cache` (with `cached_prompt_tokens`), and `SWARM_PROMPT_CACHE=0` turns
 every hint off. The default routing (Ollama + OpenRouter) caches automatically,
 so the measured signal is `usage.cached_prompt_tokens`, not a request field.
+
+## Live replay (`make swarm-bench-live`, 020 T7)
+The offline bench measures prompts; only a real run shows whether the loop still
+reaches green. `make swarm-bench-live CASE=006-comfort-plus-T3`:
+
+1. refuses a dirty tree, a linked worktree, or a case without `base_sha`;
+2. creates `git worktree add --detach <tmp> <green_sha^>`;
+3. copies the **current** `swarm/` package into it (never `.venv`, `runs`,
+   `__pycache__` or `bench/corpus`);
+4. runs `python -m swarm.flow --spec <spec> --task <task> --no-commit --no-tui`
+   with `PYTHONPATH=<tmp>`, `SWARM_BENCH=1` and the pinned models from
+   `SWARM_BENCH_MODELS=coder=…,qa=…,planner=…,senior=…,verifier=…`;
+5. reads that run's `run.json` and prints status, wall clock, prompt/cached
+   tokens, cost, fix rounds and gates; the worktree is removed on success and
+   kept (path printed) on failure.
+
+It needs models and is never part of `make swarm-test`. Use a small case first;
+`make swarm-bench ARGS=--list` shows the ids.

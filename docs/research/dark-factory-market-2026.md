@@ -321,6 +321,11 @@ fall 7.4% net, but unevenly: a case with one step and zero fix rounds is still
 slightly above baseline (the T2 brief cost) because compaction has nothing to
 remove there. Gate count is untouched — that is T5.
 
+**T7 reading.** A live replay is the only number that proves the offline win is
+real. It runs one frozen case in a worktree at `green_sha^` with the current
+harness, pinned models and no commit, and reports status/tokens/wall clock/fix
+rounds. It is opt-in because it needs models; T8 records what it measured.
+
 **T3 reading.** Our routes (Ollama, OpenRouter) cache an identical prefix
 automatically; the hint path exists for a direct Anthropic model and falls back
 to a plain call when a provider rejects the field. That is why the character

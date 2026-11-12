@@ -2763,7 +2763,7 @@ class SwarmFlow(Flow[SwarmState]):
             "compaction": self.state.compaction,
             "gate_selection": self.state.gate_selection,
             "cache": {
-                "prompt_cache": self._prompt_cache,
+                "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),
                 "cached_prompt_tokens": self.state.cached_prompt_tokens,
             },
