@@ -90,6 +90,8 @@ class SwarmState(BaseModel):
     style_autofix: dict[str, Any] = {}
     # 017: the static checks (types, lint) the coder had to pass before QA.
     self_check: dict[str, Any] = {}
+    # 019: the scenario verifier's verdict, rounds, findings and correction plan.
+    verifier: dict[str, Any] = {}
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -132,6 +134,8 @@ def _fallback_key(role: str) -> str:
         return "SWARM_REVIEWER_MODEL"
     if role.startswith("planner"):
         return "SWARM_PLANNER_MODEL"
+    if role.startswith("verifier"):
+        return "SWARM_VERIFIER_MODEL"
     if role.startswith("senior"):
         return "SWARM_SENIOR_MODEL"
     return "SWARM_CODER_MODEL"
@@ -272,6 +276,9 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
         return "green"
     if status != "needs_human":
         return status
+    verifier = getattr(state, "verifier", None) or {}
+    if verifier.get("blocked"):
+        return "verifier_blocked"
     verdict = str(getattr(state, "review_verdict", "") or "")
     if getattr(state, "no_progress", False):
         return "no_progress"
@@ -1456,6 +1463,153 @@ class SwarmFlow(Flow[SwarmState]):
                 self.state.result = str(e)[:4000]
                 return
 
+    def _verify_phase(self, task: Any, kick: Any) -> bool:
+        """Scenario verification between the 017 self-check and QA (019).
+
+        The gates only test the code that exists, so a *missing* piece (an
+        endpoint never mounted, a component never wired) passes them. This runs
+        one read-only crew over the whole scenario — brief, referenced ACs,
+        plan lines, the full content of every delta file and an import graph —
+        and asks whether the implementation does what the brief says.
+
+        On `BLOCKED` the verifier emits a correction plan in the planner's own
+        `STEP n:` format; those steps run through `build_step_crew` (role
+        `coder:verify<n>`) and the scenario is verified again, bounded by
+        `MAX_VERIFY_ROUNDS`. A non-converging verifier sets `blocked` and
+        returns False, so the run ends `verifier_blocked` instead of looping.
+        QA still owns the gates: this phase can never make a run green.
+        """
+        from swarm import verify
+        from swarm.crew import MAX_STEPS, build_step_crew, build_verify_crew
+        from swarm.tools_guarded import run_delta
+
+        self.state.verifier = {}
+        if not verify.enabled():
+            return True
+
+        record: dict[str, Any] = {
+            "verdict": "",
+            "rounds": 0,
+            "findings": [],
+            "plan": [],
+            "files": [],
+            "skipped": [],
+            "model": verify.model_name(),
+            "delta": "",
+            "blocked": False,
+            "corrections": False,
+        }
+        self.state.verifier = record
+        for round_no in range(verify.MAX_VERIFY_ROUNDS):
+            changed = self._in_scope_paths(run_delta(self._baseline))
+            record["delta"] = self._delta_signature()
+            context = verify.scenario_context(REPO_ROOT, self._spec_dir, task, changed)
+            record["files"] = list(context.get("files") or [])
+            record["skipped"] = list(context.get("skipped") or [])
+            context_text = verify.render_context(context)
+            try:
+                crew, out = kick(
+                    lambda context_text=context_text: build_verify_crew(
+                        self._spec_dir, task, context_text
+                    ),
+                    f"verifier:{round_no + 1}",
+                )
+            except SystemExit as e:
+                # Advisory phase: a transport failure must not throw away a run
+                # that QA can still decide. Recorded, then the loop continues.
+                record["verdict"] = "error"
+                record["note"] = str(e)[:500]
+                print(f"verifier unavailable: {e}"[:500], flush=True)
+                return True
+            model = ""
+            if crew is not None:
+                agents = getattr(crew, "agents", None) or []
+                if agents:
+                    model = str(getattr(getattr(agents[0], "llm", None), "model", "") or "")
+            if model:
+                record["model"] = model
+            verdict, findings = verify.parse_verdict(out)
+            record["verdict"] = verdict
+            record["rounds"] = round_no + 1
+            if findings:
+                record["findings"] = findings
+            record["output"] = str(out)[-2000:]
+            history = record.setdefault("history", [])
+            history.append(
+                {"round": round_no + 1, "verdict": verdict, "findings": findings, "plan": []}
+            )
+            if verdict != "blocked":
+                record["blocked"] = False
+                print(
+                    f"verifier: {verdict.upper()} after round {round_no + 1}",
+                    flush=True,
+                )
+                return True
+            plan = verify.parse_plan(out)[:MAX_STEPS]
+            record["plan"] = plan
+            history[-1]["plan"] = plan
+            if not findings:
+                # An ungrounded block is not a loop: with nothing the coder can
+                # act on, the honest answer is that the scenario was not shown
+                # to be broken (019 risk note). Record it, keep the run moving.
+                record["verdict"] = "pass"
+                record["blocked"] = False
+                print("verifier: blocked without a finding (treated as pass)", flush=True)
+                return True
+            if not plan:
+                record["blocked"] = True
+                print("verifier: blocked with no correction plan → needs a human", flush=True)
+                return False
+            print(
+                f"verifier: BLOCKED round {round_no + 1}/{verify.MAX_VERIFY_ROUNDS} — "
+                f"{len(findings)} finding(s), {len(plan)} correction step(s)",
+                flush=True,
+            )
+            if round_no + 1 >= verify.MAX_VERIFY_ROUNDS:
+                record["blocked"] = True
+                print("verifier: still blocked after the round budget → needs a human", flush=True)
+                return False
+            report = verify.render_report(context, findings, plan)
+            record["report"] = report[-4000:]
+            for idx, step in enumerate(plan, 1):
+                try:
+                    kick(
+                        lambda step=step, idx=idx, plan=plan: build_step_crew(
+                            self._spec_dir, task, step, idx, len(plan)
+                        ),
+                        f"coder:verify{round_no + 1}",
+                    )
+                except SystemExit as e:
+                    record["blocked"] = True
+                    record["note"] = f"correction step failed: {e}"[:500]
+                    print(f"verifier correction failed: {e}"[:500], flush=True)
+                    return False
+        record["blocked"] = True
+        return False
+
+    def _reverify_if_stale(self, task: Any, kick: Any) -> bool:
+        """Re-run the scenario verifier when a later round changed the delta (019).
+
+        Sets `state.verifier["corrections"]` when correction steps edited the
+        tree, which makes QA's gate evidence stale: the caller re-runs QA.
+        Returns False only when the scenario is verifiably still broken.
+        """
+        record = self.state.verifier
+        if record.get("blocked") or not record.get("delta"):
+            return True
+        if record.get("delta") == self._delta_signature():
+            # Fresh: nothing changed since the verifier read the tree, and a
+            # previous correction pass has already been re-checked by its caller.
+            record["corrections"] = False
+            return True
+        before = self._delta_signature()
+        if not self._verify_phase(task, kick):
+            return False
+        corrected = self._delta_signature() != before
+        self.state.verifier["delta"] = self._delta_signature()
+        self.state.verifier["corrections"] = corrected
+        return True
+
     def _commit_green(
         self,
         brief: str,
@@ -2054,6 +2208,10 @@ class SwarmFlow(Flow[SwarmState]):
             self._set_review(review_out)
             return True
 
+        def _verify_kick(build: Any, role: str) -> Any:
+            """Verifier crews are not steps and never run a gate (019)."""
+            return _kickoff(build, role=role, step="verify")
+
         def _plan_text(crew: Any) -> str:
             try:
                 plan_out = getattr(crew.tasks[0], "output", None)
@@ -2099,6 +2257,7 @@ class SwarmFlow(Flow[SwarmState]):
             gates: dict[str, int] = {}
             transcript = ""
             missing: list[str] = []
+            work_summary = ""
             self._task_tokens_start = self.state.total_tokens
             cost_at_task_start = self._run_cost()
             self._task_cost_start = cost_at_task_start if cost_at_task_start is not None else 0.0
@@ -2174,6 +2333,15 @@ class SwarmFlow(Flow[SwarmState]):
                     task,
                     lambda build, role: _kickoff(build, role=role, step="selfcheck"),
                 )
+                # 019: does the implemented scenario do what the brief says? The
+                # gates test what exists, so a missing endpoint or an unwired
+                # component passes them; this phase reads the whole scenario.
+                # Read-only and advisory: QA still owns the gates and green.
+                if not self._verify_phase(
+                    task,
+                    _verify_kick,
+                ):
+                    break
                 work_summary = "\n".join(step_outs)
                 # 015 AC-2/AC-3: QA runs the gates; its recorded executions are
                 # the evidence green is built from.
@@ -2246,9 +2414,21 @@ class SwarmFlow(Flow[SwarmState]):
                                 flush=True,
                             )
                             break
+                if _gates_green(gates) and self.state.review_verdict == "pass":
+                    # 019: QA has passed, so check the delta QA saw against the
+                    # one the verifier last read. Fixture: a QA fix round changed
+                    # it, so the scenario is stale until verified again.
+                    if not self._reverify_if_stale(task, _verify_kick):
+                        break
+                    if self.state.verifier.get("corrections"):
+                        # Correction steps edited the tree: QA's evidence is stale.
+                        changed = run_delta(self._baseline)
+                        reviewed = _review(task, work_summary)
+                        gates, transcript, missing = self._gates_or_evidence(changed)
+                        self._maybe_repair_verdict(task, gates, transcript)
                 if _gates_green(gates) or self.state.dev_attempts >= DEV_ATTEMPTS:
                     break
-            if not _gates_green(gates):
+            if not _gates_green(gates) and not self.state.verifier.get("blocked"):
                 # Senior escalation: up to SENIOR_ATTEMPTS passes, QA re-verifies
                 # each round exactly like a normal fix round.
                 while (
@@ -2279,6 +2459,19 @@ class SwarmFlow(Flow[SwarmState]):
                     self._maybe_repair_verdict(task, gates, transcript)
                     if not reviewed and self.state.review_verdict == "unknown":
                         break
+            if (
+                _gates_green(gates)
+                and self.state.review_verdict == "pass"
+                and self._reverify_if_stale(task, _verify_kick)
+                and self.state.verifier.get("corrections")
+            ):
+                # 019: the senior chase above may have changed the delta after the
+                # verifier last read it. Re-read the scenario, and let QA re-decide
+                # if a correction step edited it.
+                changed = run_delta(self._baseline)
+                reviewed = _review(task, work_summary)
+                gates, transcript, missing = self._gates_or_evidence(changed)
+                self._maybe_repair_verdict(task, gates, transcript)
             self.state.changed_files = run_delta(self._baseline)
         except _QuotaExhausted as e:
             self.state.result = str(e)[:4000]
@@ -2320,6 +2513,10 @@ class SwarmFlow(Flow[SwarmState]):
             return self.state.status
         if getattr(self, "_interrupted", False):
             self.state.status = "interrupted"
+        elif self.state.verifier.get("blocked"):
+            # 019: the scenario was verifiably not implemented; QA's gates cannot
+            # turn that into green, no matter how many of them exit 0.
+            self.state.status = "needs_human"
         elif (
             not self.state.gates
             or not all(v == 0 for v in self.state.gates.values())
@@ -2440,6 +2637,7 @@ class SwarmFlow(Flow[SwarmState]):
             or ("QA did not run: " + ", ".join(evidence_missing) if evidence_missing else ""),
             "style_autofix": self.state.style_autofix,
             "self_check": self.state.self_check,
+            "verifier": self.state.verifier,
         }
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate

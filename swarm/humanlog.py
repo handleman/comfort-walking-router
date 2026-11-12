@@ -124,6 +124,10 @@ def format_human_report(
         reasons.append(
             "self-check red: " + ", ".join(str(command) for command in self_check["red"])
         )
+    verifier = p.get("verifier") or {}
+    if verifier.get("blocked"):
+        count = len(verifier.get("findings") or [])
+        reasons.append(f"scenario verifier: BLOCKED ({count} finding(s)) — needs a human")
     if not reasons:
         if status == "needs_human":
             reasons.append("no explicit note — inspect gates/reviewer below")
@@ -145,6 +149,27 @@ def format_human_report(
             )
             for key_line in (gate.get("errors") or [])[:12]:
                 lines.append(f"      {key_line}")
+
+    verifier = p.get("verifier") or {}
+    if verifier.get("verdict"):
+        mark = str(verifier.get("verdict")).upper()
+        lines += [
+            "",
+            (
+                f"verifier ({mark}, round {verifier.get('rounds', 0)}, "
+                f"model {verifier.get('model') or '?'})"
+            ),
+        ]
+        for finding in (verifier.get("findings") or [])[:12]:
+            lines.append(f"  ✗ {finding}")
+        for step in (verifier.get("plan") or [])[:8]:
+            lines.append(f"  → {step}")
+        not_read = verifier.get("skipped") or []
+        if not_read:
+            lines.append(
+                "  not read: "
+                + ", ".join(f"{item.get('path')} ({item.get('chars', 0)} chars)" for item in not_read[:8])
+            )
 
     steps = p.get("steps") or []
     if steps:

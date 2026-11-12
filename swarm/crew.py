@@ -14,6 +14,7 @@ from swarm.tools_guarded import (
     DEFAULT_SCOPE,
     CreateTool,
     EditTool,
+    FullFileReadTool,
     ShellTool,
     TrimmedFileReadTool,
 )
@@ -254,6 +255,73 @@ def build_senior_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: i
         agent=senior,
     )
     return Crew(agents=[senior], tasks=[t_step], process=Process.sequential, verbose=False)
+
+
+def build_verify_crew(spec_dir: str, task: SpecTask, context_text: str) -> Crew:
+    """Scenario verifier (019): read the whole scenario, judge it, plan only.
+
+    Read-only by construction: `FullFileReadTool` (whole files) and a
+    `Guarded Shell` with `allow_gates=False` (inspection only), and **no**
+    write tools. Its final answer is the deliverable — `FINDING:` lines, the
+    correction steps in the planner's own `STEP n:` format, and one
+    `VERDICT: PASS|BLOCKED` line. The harness parses that text; the verifier
+    never edits the repository, never runs a gate and never decides green.
+    """
+    from swarm.llms import verifier_llm
+
+    verifier = Agent(
+        role="Scenario Verifier",
+        goal=(
+            "Decide whether the implemented scenario does what the brief says, end "
+            "to end. Read only: never write a file, never run a gate, never commit."
+        ),
+        backstory=(
+            "You verify the scenario, not the gates. The gates test the code that "
+            "exists; a missing endpoint, an unmounted route or a duplicate module "
+            "produces no failing assertion, so you are the only reader that compares "
+            "the implementation with what was asked for. You never write files and "
+            "never run gates — QA owns the gates. Your correction plan is advice for "
+            "the coder crews, and your final answer is the only artefact you produce."
+        ),
+        llm=verifier_llm(),
+        tools=[FullFileReadTool(), ShellTool(allow_gates=False, agent_role="verifier")],
+        verbose=False,
+        max_iter=12,
+    )
+    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)}"
+    t_verify = Task(
+        description=(
+            f"Verify the scenario for {ctx}. The harness built this from the spec and "
+            f"this run's delta:\n\n{context_text}\n\n"
+            "Answer ONE question: does the implemented scenario do what the brief says, "
+            "end to end? Check three things:\n"
+            "1. EVERY element the brief names exists (file, endpoint, component, test). "
+            "Read the files with the read tool; it returns whole files.\n"
+            "2. The pieces CONNECT: an endpoint is mounted where the app serves it; a "
+            "component imports the REAL module instead of a local copy; the pinned "
+            "contract and the code agree; a test imports the module it tests.\n"
+            "3. The referenced acceptance criteria are addressed.\n"
+            "The connection view is a best-effort static scan — a missing edge is a "
+            "hint, not a proof; verify a suspected duplicate by reading both files. "
+            "Judge the scenario only: no style or taste, no gate runs, no edits.\n\n"
+            "Output format (exact, no other prose):\n"
+            "FINDING: <file:line or file> — <what is wrong, precisely>\n"
+            "… one line per problem …\n"
+            "STEP n: <file> — <one precise action that fixes it>\n"
+            "… only when BLOCKED …\n"
+            "VERDICT: PASS\n"
+            "or\n"
+            "VERDICT: BLOCKED\n"
+            "A BLOCKED verdict must have at least one FINDING and at least one STEP; "
+            "with nothing concrete to fix, answer PASS instead."
+        ),
+        expected_output=(
+            "FINDING lines (one per problem), STEP n correction lines when blocked, "
+            "then exactly `VERDICT: PASS` or `VERDICT: BLOCKED`."
+        ),
+        agent=verifier,
+    )
+    return Crew(agents=[verifier], tasks=[t_verify], process=Process.sequential, verbose=False)
 
 
 def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:

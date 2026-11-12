@@ -34,6 +34,7 @@ Verified 2026-11-08 (tool calls + latency): free unless noted.
 | Coder | `SWARM_CODER_MODEL=ollama/swarm-coder:latest` (Qwen3.5 9B, `make swarm-coder-image`) | $0 local, ~6–13 s |
 | Planner | `SWARM_PLANNER_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` | $0, 1M ctx, ~1 s |
 | Reviewer | `SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest` (Qwen3.5 9B, 64k ctx, QA prompt) | $0 local |
+| Verifier | `SWARM_VERIFIER_MODEL`, default `SWARM_SENIOR_MODEL` (free, tool-capable) — the scenario verifier (019) | $0 |
 | Verdict fallback | the senior model (`SWARM_SENIOR_MODEL`, free, tool-capable) — used only when local QA gives no verdict | $0 |
 | Trivial-step coder | `SWARM_LOCAL_CODER_MODEL=ollama/swarm-coder:latest` (mechanical steps only; 015 D2) | $0 local |
 | Senior | `SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0, 550B, tools OK |
@@ -235,12 +236,14 @@ stops as `needs_human`.
 - `Repo Edit` — exact-match replace, exactly-once occurrence required, repo jail, **coder-scope check**, secret-path refusal.
 - `Repo Create` — new files only (makes parent dirs, refuses existing/escapes), **coder-scope check**, secret-path refusal. Scaffold needs it: without it the coder cannot create `app/__init__.py` et al.
 - `Guarded Shell` — argv-only (`shlex.split` + `shell=False`, never `shell=True`): `pytest`, `ruff check` (including `--fix`), `mypy` (gates); `git status|diff|log` (read-only); `ls`, `cat`, `grep` (read-only inspection, no recursive grep); `npm --prefix frontend run check|build|lint|test`, plus `run format` (deterministic Prettier autofix in fix rounds). Rejects shell metacharacters, absolute paths, `..`, `.env*`/key files, `npm install`/`npx`, `pip`/`uv`, and `python -c`. 120s timeout, repo cwd. Coder crews construct it with `allow_gates=False` (QA-only gates); fix crews and the Reviewer get `allow_gates=True`.
-- Read-only: trimmed file reads (3000 chars max) with the same secret/path guard; `ls` via Guarded Shell (no directory-search tool).
+- Read-only: trimmed file reads (3000 chars max) with the same secret/path guard for coders and QA; the scenario verifier (019) uses `FullFileReadTool` (whole files, `SWARM_VERIFY_READ_CHARS`, default 60000); `ls` via Guarded Shell (no directory-search tool).
 
 ## Gates (sequence)
 Planner splits the task into `STEP n:` micro-steps → one fresh coder per step (fresh
 context each, max 8 steps) → **the harness runs the static checks (types, lint) and
-gives a red one back to the coder** → Reviewer verifies once at the end →
+gives a red one back to the coder** → **the scenario verifier reads the whole
+scenario (brief, ACs, plan, full delta files, import graph) and blocks a brief
+that was not implemented** → Reviewer verifies once at the end →
 `flow` re-runs every command from `SWARM_GATE_COMMANDS` (this repo: `pytest -q`,
 `ruff check .`, `mypy app tests`, `npm --prefix frontend run check`,
 `npm --prefix frontend run lint`)
@@ -315,6 +318,47 @@ round: Coder investigates with the QA report (+ Reviewer re-verify), max 3 round
 - **A fix round that changes nothing ends the round.** If a fix round leaves the
   in-scope delta byte-identical, the flow stops the round (`no_progress`) and
   escalates instead of paying for another identical attempt.
+
+### Scenario verification (019)
+
+The gates test **the code that exists**, so a missing piece passes them: 014-T2
+shipped `app/cache.py` and a contract but never mounted `GET /geocode` in
+`app/main.py`, and every gate exited 0. Six 014 tasks were committed green that
+way, three of them not doing what their brief said and two never landing at all.
+
+A read-only **Scenario Verifier** now runs between the 017 self-check and QA,
+and again after a QA fix round that changed the delta:
+
+- **What it sees:** the task brief, the `AC-n:` paragraphs it references, the
+  `plan.md` lines that mention its files, the **full content** of every file in
+  the run delta (up to `SWARM_VERIFY_READ_CHARS`, default 60000 — not the
+  coder's 3000-char read) and a best-effort static import/imported-by view that
+  makes a duplicate implementation visible (`frontend/src/lib/navigation/walkMode.ts`
+  next to the real `frontend/src/lib/walkMode.ts`). Files that do not fit are
+  listed by name and size, never silently dropped.
+- **What it answers:** `VERDICT: PASS|BLOCKED`, with one `FINDING: <file/line> —
+  <problem>` line per problem. It checks that every element the brief names
+  exists, that the pieces connect (endpoint mounted, real module imported, the
+  contract and the code agree) and that the referenced ACs are addressed.
+- **What happens on BLOCKED:** it emits correction steps in the planner's own
+  `STEP n: <file> — <action>` format; the flow runs them with the existing step
+  coder crews (role `coder:verify<n>`) and verifies again, bounded by
+  `MAX_VERIFY_ROUNDS` (2). A verifier that does not converge ends the run as
+  `needs_human` / `reason_code=verifier_blocked`, never an unbounded loop. A
+  block with no `FINDING` is treated as a pass; a block with findings but no
+  plan of steps stops the round instead of looping.
+- **What it cannot do:** write a file (no `Repo Edit`/`Repo Create`), run a
+  gate (`allow_gates=False`), commit, or decide green. It runs under its own
+  agent role (`verifier`), so its shell records are never QA evidence; QA's
+  gates remain the only evidence of green. Its output is text, exactly like the
+  planner's `STEP n:` lines and QA's `VERDICT:` line.
+- **Where it is recorded:** `run.json.verifier` holds the verdict, the rounds,
+  the findings, the correction plan, the files it read (and the ones it could
+  not), the model and a per-round history; `human_log.txt` and the dashboard
+  show its verdict next to QA's (`h`). `SWARM_VERIFY=0` disables the phase.
+
+Like the self-check, the verifier is not a gate: it is cheap relative to a wrong
+green (one bounded crew per round on a free model) and it never certifies work.
 
 ### Cost routing (015 D2)
 - Non-trivial steps (existing file, >1 file, frontend/type-checked path, logic/
@@ -434,7 +478,8 @@ afterwards. Stashes never survive a run as loose entries:
 
 Green is deliberately strict (012 AC-4/AC-6):
 1. every gate exits `0` (including the run-delta scope gate);
-2. the Reviewer's final word is `PASS` (`BLOCKED` → `needs_human`; a missing verdict gets one free-model repair);
+2. the Reviewer's final word is `PASS` (`BLOCKED` → `needs_human`; a missing verdict gets one free-model repair),
+   and the scenario verifier (019) did not end blocked — a `verifier_blocked` run is `needs_human` even when every gate exits `0`;
 3. a non-empty in-scope run delta, or the same task's recovered interrupted delta, or an
    empty green commit when the tree is already clean/satisfied (never a blind commit of
    unrelated dirty work);
@@ -619,7 +664,12 @@ of re-reading the whole file every tick.
 flowchart TB
     P["Spec Planner<br/>(fresh plan or cached)"] --> STEPS["Dev phase, ≤3 attempts:<br/>fresh Coder per STEP, ≤3 tries each"]
     STEPS -.->|step fails 3×| SENIOR
-    STEPS --> REV["QA Reviewer<br/>(gate evidence)"]
+    STEPS --> SELF["Self-check (017)<br/>types + lint, coder fixes"]
+    SELF --> VERIFY["Scenario Verifier (019)<br/>brief + ACs + full delta + imports"]
+    VERIFY -.->|BLOCKED| CORR["Correction steps<br/>(coder crews), ≤2 rounds"]
+    CORR --> VERIFY
+    VERIFY -.-x|does not converge| HUMAN
+    VERIFY --> REV["QA Reviewer<br/>(gate evidence)"]
     REV --> GATES["Flow gates<br/>pytest + ruff + mypy + npm check + scope"]
     REV -.->|BLOCKED / no verdict| HUMAN
     GATES -->|green + PASS| COMMIT["Autocommit + push<br/>next task / next spec"]
@@ -647,8 +697,9 @@ swarm/.venv/bin/python -m pytest swarm/tests -v
 
 ## Traces & logs (all inside the project, never `/tmp`)
 - Pilot runs: `swarm/runs/<ts>-<pid>-<rand>/{run.json,events.jsonl,progress.json}` (+ `latest` pointer).
-  `run.json` records brief, `ac_refs`, changed files, gates, reviewer verdict, approval,
-  commit/push result, usage, done-ledger hashes, checkpoint recovery, and a compact `evidence` block.
+  `run.json` records brief, `ac_refs`, changed files, gates, reviewer verdict, the
+  self-check (017) and scenario verifier (019) records, approval, commit/push result,
+  usage, done-ledger hashes, checkpoint recovery, and a compact `evidence` block.
 - Approvals: `swarm/runs/approvals/<spec>-<task>.json` (task-keyed, survives retries);
   held-run deltas are committed by `make swarm-approve` (013).
 - Done ledger: `swarm/runs/done.json` cache (git commit trailers remain the source of truth).
@@ -657,6 +708,9 @@ swarm/.venv/bin/python -m pytest swarm/tests -v
 
 ## Anti-loop guards (Qwen-9B wanders: re-reads files, blows 262k ctx)
 - `TrimmedFileReadTool`: observations capped at 3000 chars (re-read via `start_line`/`line_count`).
+- `FullFileReadTool`: the scenario verifier's read (019), capped by `SWARM_VERIFY_READ_CHARS`
+  (default 60000); a bigger file is reported by name/size with the next `start_line`, never
+  silently returned as a head. Coders keep the trimmed read.
 - No `DirectoryReadTool`: `ls` via Guarded Shell has fewer wandering branches.
 - Task prompts carry hard loop rules (≤6 tool calls, never re-read, answer from observations).
 - `max_iter` 10/10/5 + 1 fix round max. Still stuck → `needs_human`.

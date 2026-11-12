@@ -314,6 +314,7 @@ def main() -> int:
         ("coder", llms.coder_llm),
         ("reviewer", llms.reviewer_llm),
         ("senior", llms.senior_llm),
+        ("verifier", llms.verifier_llm),
     ):
         try:
             factory()

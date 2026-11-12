@@ -12,6 +12,7 @@ is how a quota/rate-limit hit survives without ending the pilot.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -113,7 +114,29 @@ ROLE_MODEL_VARS: tuple[tuple[str, str], ...] = (
     ("coder", "SWARM_CODER_MODEL"),
     ("reviewer", "SWARM_REVIEWER_MODEL"),
     ("senior", "SWARM_SENIOR_MODEL"),
+    ("verifier", "SWARM_VERIFIER_MODEL"),
 )
+
+
+def verifier_model(env: Mapping[str, str] | None = None) -> str:
+    """The verifier's model id: its own role, else the senior/free brain (019).
+
+    The verifier has to reason, not count, so it defaults to the strongest free
+    model the harness already configures. Without `SWARM_VERIFIER_MODEL` there is
+    no second id to keep working.
+    """
+    source = os.environ if env is None else env
+    return (
+        source.get("SWARM_VERIFIER_MODEL", "").strip()
+        or source.get("SWARM_SENIOR_MODEL", "").strip()
+    )
+
+
+def _primary_model(role: str, env_var: str) -> str:
+    primary = os.getenv(env_var, "").strip()
+    if not primary and role == "verifier":
+        primary = os.getenv("SWARM_SENIOR_MODEL", "").strip()
+    return primary
 
 
 def role_models() -> list[dict[str, Any]]:
@@ -124,7 +147,7 @@ def role_models() -> list[dict[str, Any]]:
     """
     out: list[dict[str, Any]] = []
     for role, var in ROLE_MODEL_VARS:
-        primary = os.getenv(var, "").strip()
+        primary = _primary_model(role, var)
         fallback = ""
         if fallbacks_active(var):
             fallback = fallback_model(var, allow_paid=_allow_paid())
@@ -238,6 +261,24 @@ def reviewer_llm(*, allow_paid: bool = False) -> LLM:
 def senior_llm(*, allow_paid: bool = False) -> LLM:
     """Escalation brain: strong free-tier model (OpenRouter :free, tool-capable)."""
     return _for_role("SWARM_SENIOR_MODEL", temperature=0, allow_paid=allow_paid)
+
+
+def verifier_llm(*, allow_paid: bool = False) -> LLM:
+    """Scenario verifier (019): read the whole scenario and judge, not count.
+
+    `SWARM_VERIFIER_MODEL` wins; without it the senior/free brain is used, so
+    enabling the phase adds no second model id to keep working. Free only by
+    default: a paid model must not become the verifier of record.
+    """
+    model = verifier_model()
+    if not model:
+        raise RuntimeError(
+            "SWARM_VERIFIER_MODEL (or SWARM_SENIOR_MODEL) is not set; set one "
+            "to enable the scenario verifier."
+        )
+    if fallbacks_active("SWARM_VERIFIER_MODEL"):
+        model = fallback_model("SWARM_VERIFIER_MODEL", allow_paid=allow_paid) or model
+    return _build(model, temperature=0, allow_paid=allow_paid)
 
 
 def conflict_llm(*, allow_paid: bool = True) -> LLM:

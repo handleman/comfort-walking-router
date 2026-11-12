@@ -23,6 +23,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # on Qwen-9B, 2026-10-10). Hard cap every tool observation.
 MAX_OBSERVATION = 3000
 
+
+def verify_read_chars() -> int:
+    """Whole-file read cap for the scenario verifier (019 AC-3).
+
+    Kept in `swarm.verify` (with `SWARM_VERIFY_READ_CHARS`) so the verifier's
+    prompt size and its read cap share one knob; imported lazily to keep this
+    module free of a module-level cycle.
+    """
+    from swarm.verify import read_chars
+
+    return read_chars()
+
 # Coder scope: only these repo-relative prefixes/files may change (SWARM_SCOPE
 # overrides, comma-separated). Everything else (swarm/, specs/, docs/, .env*) is
 # off-limits. Keep this the single source of truth: crew.py derives its prompt
@@ -197,8 +209,13 @@ class TrimmedFileReadTool(FileReadTool):
     the run ended `no_progress` with the real defect still there.
 
     The note now names the exact next line, so a truncated read is a step
-    forward instead of a loop.
+    forward instead of a loop. The coder keeps this cap; the scenario verifier
+    (019) uses `FullFileReadTool`, whose cap is much larger.
     """
+
+    # Instance, not a constant: `FullFileReadTool` raises it (019 AC-3) without
+    # forking the path/secret guard or the resume hint.
+    max_observation: int = MAX_OBSERVATION
 
     def _run(self, *args: Any, **kwargs: Any) -> str:
         supplied = kwargs.get("file_path")
@@ -221,17 +238,56 @@ class TrimmedFileReadTool(FileReadTool):
         except (TypeError, ValueError):
             start_line = 1
         out = super()._run(*args, **kwargs)
-        if len(out) > MAX_OBSERVATION:
-            head = out[:MAX_OBSERVATION]
-            # The last line fully present in the head: the next read starts there.
-            last_line = start_line + head.count("\n")
-            return (
-                head
-                + f"\n…[truncated {len(out) - MAX_OBSERVATION} chars; "
-                f"showing lines {start_line}-{last_line}. "
-                f"CONTINUE with start_line={last_line + 1} (do not re-read from line {start_line})]"
-            )
+        cap = int(self.max_observation)
+        if len(out) > cap:
+            return self._truncate(out, start_line, cap, target)
         return out
+
+    def _truncate(self, out: str, start_line: int, cap: int, target: Path) -> str:
+        """Head + a note naming the exact line to continue from."""
+        head = out[:cap]
+        # The last line fully present in the head: the next read starts there.
+        last_line = start_line + head.count("\n")
+        return (
+            head
+            + f"\n…[truncated {len(out) - cap} chars; "
+            f"showing lines {start_line}-{last_line}. "
+            f"CONTINUE with start_line={last_line + 1} (do not re-read from line {start_line})]"
+        )
+
+
+class FullFileReadTool(TrimmedFileReadTool):
+    """The scenario verifier's whole-file read (019 AC-3).
+
+    The coder's 3000-char cap is deliberate — small models lose the plot in a
+    flood of context — but it is also why 014-T1 never saw line 169 of a
+    178-line file and why nobody could check a whole endpoint or a duplicate
+    module. This tool reads the whole file up to `SWARM_VERIFY_READ_CHARS`
+    (default 60000). A file that is still larger is reported by name and size
+    with the line to continue from; it is never silently returned as a head.
+    The path/secret guard is inherited unchanged.
+    """
+
+    max_observation: int = 60000  # `verify.DEFAULT_READ_CHARS`; the env wins below
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("max_observation", verify_read_chars())
+        super().__init__(*args, **kwargs)
+
+    def _truncate(self, out: str, start_line: int, cap: int, target: Path) -> str:
+        try:
+            name = target.relative_to(Path(REPO_ROOT).resolve()).as_posix()
+        except ValueError:
+            name = target.name
+        head = out[:cap]
+        last_line = start_line + head.count("\n")
+        lines = out.count("\n") + 1
+        return (
+            head
+            + f"\n…[NOT READ WHOLE: {name} is {len(out)} chars ({lines} lines) from line "
+            f"{start_line}, larger than the {cap}-char whole-file cap. Showing lines "
+            f"{start_line}-{last_line}. CONTINUE with start_line={last_line + 1}]"
+        )
 
 
 def _write_target(path: str) -> tuple[Path | None, str]:

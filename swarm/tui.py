@@ -48,6 +48,7 @@ ROLE_VARS = (
     ("coder", "SWARM_CODER_MODEL"),
     ("reviewer", "SWARM_REVIEWER_MODEL"),
     ("senior", "SWARM_SENIOR_MODEL"),
+    ("verifier", "SWARM_VERIFIER_MODEL"),
 )
 
 ROLE_ENV = dict(ROLE_VARS)
@@ -59,6 +60,8 @@ def _base_role(key: str) -> str | None:
         return "coder"
     if key.startswith(("qa", "reviewer")):
         return "reviewer"
+    if key.startswith("verifier"):
+        return "verifier"
     if key.startswith("planner"):
         return "planner"
     if key.startswith("senior"):
@@ -102,7 +105,7 @@ def models_from_payload(payload: dict[str, Any] | None) -> list[tuple[str, str, 
         return None
     return [
         (role, seen[role], ROLE_ENV[role] in fallen)
-        for role in ("planner", "coder", "reviewer", "senior")
+        for role in ("planner", "coder", "reviewer", "senior", "verifier")
         if role in seen
     ]
 
@@ -261,6 +264,16 @@ def format_metrics(
 
     if usage.get("llm_calls"):
         out.append(f"\nllm calls {usage['llm_calls']}", style="dim")
+    verifier = payload.get("verifier") or {}
+    if verifier.get("verdict"):
+        mark = str(verifier.get("verdict")).upper()
+        out.append("\nverifier ", style="bold")
+        out.append(mark, style="green" if mark == "PASS" else "bold yellow")
+        findings = verifier.get("findings") or []
+        if findings:
+            out.append(f"  {len(findings)} finding(s)", style="dim")
+        out.append(f"  round {verifier.get('rounds', 0)}", style="dim")
+        out.append("\n")
     return out
 
 
