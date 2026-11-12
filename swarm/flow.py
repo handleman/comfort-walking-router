@@ -1829,12 +1829,17 @@ class SwarmFlow(Flow[SwarmState]):
                 if record.get("corrected"):
                     # The correction landed and the same file is still wrong in a
                     # different way: the verifier is re-litigating its own advice.
+                    # Its block is no longer authoritative — QA's gates decide, and
+                    # the warning stays in run.json for a human.
                     record["unstable"] = True
-                    record["note"] = "same finding after a landed correction (unstable verdict)"
+                    record["overridden"] = True
+                    record["blocked"] = False
+                    record["note"] = "same finding after a landed correction (warning, QA decides)"
                     print(
-                        "verifier: same finding after a landed correction → stop (unstable)",
+                        "verifier: unstable verdict → warning, continuing to QA",
                         flush=True,
                     )
+                    return True
                 else:
                     # The correction changed nothing: this is a coder failure, not
                     # a verifier contradiction. Say so.

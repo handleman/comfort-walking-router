@@ -560,8 +560,11 @@ def test_a_landed_correction_still_blocked_on_the_same_file_is_unstable(monkeypa
             "VERDICT: BLOCKED"
         )
 
-    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
+    # an unstable verdict is a warning, not a veto: QA still decides
+    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is True
     assert stub.state.verifier["unstable"] is True
+    assert stub.state.verifier["overridden"] is True
+    assert stub.state.verifier["blocked"] is False
     assert stub.state.verifier["corrections"] is True
     assert stub.state.verifier["corrected"] is True
 

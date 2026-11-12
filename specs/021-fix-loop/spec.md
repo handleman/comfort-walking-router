@@ -132,12 +132,15 @@ autonomy) judgeable on outcomes rather than on prompt characters.
   The default stays strict until the suite shows a win.
 
 - **AC-11 — Verifier stability.** The 019 verifier may not re-litigate its own
-  correction: when a block arrives *after* a correction pass and names the same
-  file as the earlier finding, the run stops with `reason_code=verifier_unstable`
-  instead of paying for another round and another verifier call. Its prompt
-  forbids prescribing how a test mocks, structures fixtures or names cases — it
-  requires the behaviour the AC names. The stability record (`finding_files`,
-  `corrections`, `unstable`) lands in `run.json.verifier`.
+  correction. Its prompt forbids prescribing how a test mocks, structures
+  fixtures or names cases — it requires the behaviour the AC names. When a block
+  arrives after a **landed** correction and names the same file as the earlier
+  finding, the verdict is unstable: it becomes a warning (`verifier.overridden`)
+  and QA's gates decide, because a subjective test-design preference must not
+  make a run unconvergeable. When the correction changed nothing, the block is
+  `stalled` (a coder failure) and the run stops as `verifier_blocked`. The
+  stability record (`finding_files`, `corrections`, `corrected`, `unstable`,
+  `overridden`, `stalled`) lands in `run.json.verifier`.
 
 - **AC-12 — A step must land its file.** A plan step of the form
   `STEP n: <file> — <action>` is an edit, not a description: after the step

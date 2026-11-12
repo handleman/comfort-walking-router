@@ -222,9 +222,11 @@ instead of the AC, and changed its mind about the design. Two rules follow:
 
 - do not prescribe how a test mocks, structures fixtures or names cases — require
   the behaviour the AC names (021 AC-11, prompt rule);
-- a block after the correction pass on the same file is `verifier_unstable` and
-  stops the run, rather than paying for another round and another verifier call
-  (021 AC-11, `run.json.verifier.unstable`).
+- a block after a **landed** correction on the same file is not authoritative:
+  it becomes a warning (`verifier.overridden`) and QA's gates decide, because a
+  subjective test-design preference must not make a run unconvergeable. A
+  correction that changed nothing is `stalled` (coder failure) and still stops
+  the run (021 AC-11).
 
 This is the "too strict" question answered precisely: the **coder** was not too
 strict (the strong coder completed the work); the **verifier** was too
