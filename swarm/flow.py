@@ -2573,6 +2573,7 @@ HARNESS_SPECS = (
     "016-conflict-recovery",
     "017-coder-selfcheck",
     "018-operator-readable-runs",
+    "019-scenario-verifier",
 )
 
 
