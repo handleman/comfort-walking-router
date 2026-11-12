@@ -1,178 +1,93 @@
-"""Push to GitHub over SSH using paramiko (agent auth), bypassing /usr/bin/ssh.
+"""Push a branch to a git remote from an agent shell.
 
-Why this exists: the agent shell that runs the assistant has no passwd entry
-for its uid, so `/usr/bin/ssh` aborts with "No user exists for uid 501" and
-`getaddrinfo` cannot resolve github.com (no DNS in that context). Git's own
-`ssh` transport therefore cannot start.
+Why this exists: a broken `core.sshCommand` in the git config (a helper that
+was never written, e.g. `/path/to/py_ssh.py`) makes *every* `git push` die
+before the handshake, including the harness's own push in `swarm/flow.py`.
+This module pushes with an explicit, working ssh command instead of
+inheriting whatever the config says.
 
-This module speaks the git-over-SSH wire protocol directly:
-`git-receive-pack <repo>` on the remote, with the packfile produced locally by
-`git pack-objects`. The ssh-agent already holds the user's GitHub key, so the
-key never touches disk here.
+Two strategies, in order:
+
+1. `git push` with `core.sshCommand` set to a usable ssh binary
+   (`SWARM_SSH_COMMAND`, default `/usr/bin/ssh`).
+2. `git push` through `swarm/pyssh.py`, a small paramiko-based ssh client
+   for shells where `/usr/bin/ssh` cannot start at all.
 
 Usage:
-    python -m swarm.gitpush <remote-url> <branch>
+    python -m swarm.gitpush [remote] [branch]
 """
 
 from __future__ import annotations
 
 import os
-import re
-import socket
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+PYSSH = Path(__file__).resolve().parent / "pyssh.py"
 
 
-def _resolve_ip(host: str) -> str:
-    """Resolve `host` without the system resolver (this shell has none).
-
-    `dig` reads /etc/resolv.conf directly, so it works where getaddrinfo does
-    not. The host key is still checked against the hostname, never the IP.
-    """
-    try:
-        out = subprocess.run(
-            ["dig", "+short", host],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        ).stdout.decode()
-    except OSError:
-        out = ""
-    for line in out.splitlines():
-        line = line.strip()
-        if line and not line.startswith(";"):
-            return line
-    raise RuntimeError(f"cannot resolve {host}")
-
-
-def _git(*args: str, cwd: Path | None = None, stdin: bytes | None = None) -> bytes:
+def _git(*args: str, cwd: Path | None = None) -> str:
     proc = subprocess.run(
         ["git", *args],
         cwd=str(cwd or REPO_ROOT),
-        input=stdin,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         check=False,
     )
+    out = proc.stdout.decode("utf-8", "replace")
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"git {' '.join(args)} failed ({proc.returncode}): "
-            f"{proc.stderr.decode('utf-8', 'replace')[:500]}"
-        )
-    return proc.stdout
+        raise RuntimeError(f"git {' '.join(args)} failed ({proc.returncode}): {out[:500]}")
+    return out
 
 
-def _parse_ssh_url(url: str) -> tuple[str, str, int]:
-    """`git@github.com:owner/repo.git` → (host, owner/repo.git, port)."""
-    m = re.match(r"^(?:ssh://)?(?:([^@/]+)@)?([^:/]+)(?::(\d+))?[:/](.+)$", url)
-    if not m:
-        raise ValueError(f"cannot parse ssh url: {url!r}")
-    user, host, port, path = m.groups()
-    return host, path, int(port or 22)
+def _ssh_commands() -> list[str]:
+    """The ssh commands to try, most usable first."""
+    commands: list[str] = []
+    override = os.environ.get("SWARM_SSH_COMMAND", "").strip()
+    if override:
+        commands.append(override)
+    if Path("/usr/bin/ssh").exists():
+        commands.append("/usr/bin/ssh")
+    commands.append(f"{sys.executable} {PYSSH}")
+    return commands
 
 
-def _agent_key(paramiko_mod):
-    """The agent's key for github.com, or None."""
-    sock = os.environ.get("SSH_AUTH_SOCK")
-    if not sock:
-        return None
-    keys = paramiko_mod.Agent().get_keys()
-    for key in keys:
-        comment = getattr(key, "comment", "") or ""
-        if "github" in comment.lower():
-            return key
-    return keys[0] if keys else None
-
-
-def push(remote_url: str, branch: str = "main", *, cwd: Path | None = None) -> int:
-    """Push `branch` to `remote_url` over SSH. Returns a process exit code."""
-    import paramiko
-
+def push(remote: str = "origin", branch: str = "main", *, cwd: Path | None = None) -> int:
+    """Push `branch` to `remote`. Returns a process exit code."""
     repo = cwd or REPO_ROOT
-    host, path, port = _parse_ssh_url(remote_url)
-
-    # What the remote currently has, and what we are sending.
-    remote_ref = f"refs/heads/{branch}"
-    local_sha = _git("rev-parse", "refs/heads/" + branch, cwd=repo).decode().strip()
-    want = f"{local_sha} {remote_ref}"
-
-    client = paramiko.SSHClient()
-    client.load_system_host_keys(str(Path.home() / ".ssh" / "known_hosts"))
-    client.set_missing_host_key_policy(paramiko.RejectPolicy())
-
-    # This shell has no resolver, so connect to the IP and keep verifying the
-    # key against the *hostname* we asked for (never against the IP).
-    connect_host = host
-    try:
-        socket.getaddrinfo(host, port)[0][4][0]
-    except OSError:
-        connect_host = _resolve_ip(host)
-    client.connect(
-        hostname=connect_host,
-        port=port,
-        username="git",
-        key_filename=None,
-        allow_agent=True,
-        look_for_keys=False,
-        timeout=30,
-        server_hostkey_name=host,
-    )
-    try:
-        channel = client.get_transport().open_session()
-        channel.exec_command(f"git-receive-pack '{path}'")
-
-        # git's pkt-line protocol: the client sends its wants first.
-        channel.sendall(b"0000")  # flush
-        channel.sendall(f"{want}\0".encode() + b"0000")
-
-        # Then the packfile, and the stats the remote sends back.
-        pack = _git(
-            "pack-objects",
-            "--stdout",
-            "--revs",
-            "--thin",
-            "--delta-base-offset",
-            cwd=repo,
-            stdin=f"{local_sha}\n".encode(),
+    url = _git("remote", "get-url", remote, cwd=repo).strip()
+    if not url.startswith("git@") and not url.startswith("ssh://"):
+        print(f"{remote} is not an ssh remote ({url}); pushing directly")
+        proc = subprocess.run(
+            ["git", "push", remote, branch], cwd=str(repo), check=False
         )
-        channel.sendall(pack)
-        channel.sendall(b"0000")
+        return proc.returncode
 
-        out = b""
-        while True:
-            chunk = channel.recv(65536)
-            if not chunk:
-                break
-            out += chunk
-        channel.close()
-    finally:
-        client.close()
-
-    text = out.decode("utf-8", "replace")
-    print(text.strip() or "(no output)")
-    if "reject" in text or "error" in text.lower():
-        return 1
-    return 0
+    last = ""
+    for ssh in _ssh_commands():
+        cmd = ["git", "-c", f"core.sshCommand={ssh}", "push", remote, branch]
+        proc = subprocess.run(cmd, cwd=str(repo), check=False)
+        if proc.returncode == 0:
+            print(f"pushed {branch} to {remote} (ssh: {ssh})")
+            return 0
+        last = f"ssh={ssh} rc={proc.returncode}"
+        print(f"push failed with {last}; trying the next transport")
+    print(f"push failed: {last}")
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(description="git push over ssh via paramiko")
-    ap.add_argument("remote", nargs="?", default="origin")
-    ap.add_argument("branch", nargs="?", default="main")
-    args = ap.parse_args(argv)
-
-    url = _git("remote", "get-url", args.remote).decode().strip()
-    if not url.startswith("git@") and not url.startswith("ssh://"):
-        print(f"remote {args.remote} is not an ssh url: {url}")
-        return 1
+    parser = argparse.ArgumentParser(description="git push with a working ssh transport")
+    parser.add_argument("remote", nargs="?", default="origin")
+    parser.add_argument("branch", nargs="?", default="main")
+    args = parser.parse_args(argv)
     try:
-        return push(url, args.branch)
-    except Exception as e:
+        return push(args.remote, args.branch)
+    except Exception as e:  # noqa: BLE001 - the CLI reports, it does not trace
         print(f"push failed: {type(e).__name__}: {e}")
         return 1
 
