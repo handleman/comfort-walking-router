@@ -860,3 +860,19 @@ Measured at T6: task prompt **431,359 chars (−6.6%)**, report **5,768 (−86%)
 The prompt is slightly above T5 because the search tool's description is part
 of every coder prompt; the tool exists to stop the 014-T1 class of loop, which
 cost 229 calls and a `no_progress` stop.
+
+## Prompt caching (`SWARM_PROMPT_CACHE`, 020 T3)
+Prefix caching is a provider feature; what the harness can do is (a) keep the
+prefix byte-identical (T2) and (b) send a hint where a provider accepts one.
+
+| Route | Cache | What we do |
+| --- | --- | --- |
+| `ollama/*` | automatic KV reuse for an identical prefix | nothing to send |
+| `openrouter/*` | automatic for supporting models (`prompt_tokens_details.cached_tokens`) | nothing to send |
+| `zen/*` | none | nothing |
+| direct `anthropic/*` | ephemeral `cache_control` | hint sent; on rejection the plain LLM is built |
+
+`llms.cache_support(model)` decides, `llms.cache_modes()` records the result in
+`run.json.cache` (with `cached_prompt_tokens`), and `SWARM_PROMPT_CACHE=0` turns
+every hint off. The default routing (Ollama + OpenRouter) caches automatically,
+so the measured signal is `usage.cached_prompt_tokens`, not a request field.

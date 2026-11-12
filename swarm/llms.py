@@ -183,6 +183,51 @@ def fallback_model(env_var: str, *, allow_paid: bool) -> str:
     return ""
 
 
+# ---------------------------------------------------------------------------
+# Prompt-cache capability (020 T3)
+# ---------------------------------------------------------------------------
+# Prefix caching is a provider feature, and how it is enabled differs:
+#   ollama/*      — automatic KV reuse for an identical prefix; nothing to send.
+#   openrouter/*  — automatic for supporting models (usage reports
+#                   `prompt_tokens_details.cached_tokens`); nothing to send.
+#   zen/*         — the gateway does not cache; no hint exists.
+#   anthropic/*   — a direct Anthropic call accepts an ephemeral `cache_control`
+#                   hint; it is attached when the call succeeds, and a provider
+#                   that rejects the field falls back to the plain LLM.
+# The real enabler is the byte-stable prefix from 020 T2: a prompt that
+# reassembles its own head cannot be cached whatever we send.
+
+_cache_modes: dict[str, str] = {}
+
+
+def prompt_cache_enabled(env: Mapping[str, str] | None = None) -> bool:
+    source = os.environ if env is None else env
+    return str(source.get("SWARM_PROMPT_CACHE", "1")).strip().lower() not in {"0", "false", "no"}
+
+
+def cache_support(model: str) -> str:
+    """`auto` (provider caches an identical prefix), `hint` (we can ask),
+    `none` (no cache) or `off` (SWARM_PROMPT_CACHE=0)."""
+    if not prompt_cache_enabled():
+        return "off"
+    if model.startswith("zen/"):
+        return "none"
+    if model.startswith(("openrouter/", "ollama/")):
+        return "auto"
+    if model.startswith("anthropic/") or "claude" in model:
+        return "hint"
+    return "auto"
+
+
+def _record_cache_mode(model: str, mode: str) -> None:
+    _cache_modes[model] = mode
+
+
+def cache_modes() -> dict[str, str]:
+    """What was decided per model this process; recorded in `run.json.cache`."""
+    return dict(_cache_modes)
+
+
 def _timeout_seconds() -> int:
     """Per-request HTTP timeout. Lower it when the network is flaky; raise for slow local models."""
     try:
@@ -193,6 +238,7 @@ def _timeout_seconds() -> int:
 
 def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
     _guard(model, allow_paid=allow_paid)
+    support = cache_support(model)
     # The harness owns retries (backoff + fallback models); SDK-level retries of a
     # dead endpoint just multiply the wait (5 × timeout before the flow sees it).
     sdk_retries = int(os.getenv("SWARM_LLM_MAX_RETRIES", "0") or 0)
@@ -201,6 +247,7 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
             ollama_timeout = max(30, int(os.getenv("SWARM_OLLAMA_TIMEOUT_SECONDS", "1800") or 1800))
         except ValueError:
             ollama_timeout = 1800
+        _record_cache_mode(model, support)
         return LLM(
             model=model,
             api_base=os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA),
@@ -214,6 +261,7 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
             extra_body={"think": False},
         )
     if model.startswith("zen/"):
+        _record_cache_mode(model, support)
         return LLM(
             model=model.removeprefix("zen/"),
             custom_openai=True,  # gateway mode: keeps custom base_url
@@ -223,6 +271,25 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
             timeout=_timeout_seconds(),
             max_retries=sdk_retries,
         )
+    if support == "hint":
+        try:
+            llm = LLM(
+                model=model,
+                base_url=OPENROUTER_BASE,
+                api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+                temperature=temperature,
+                timeout=_timeout_seconds(),
+                max_retries=sdk_retries,
+                extra_body={"cache_control": {"type": "ephemeral"}},
+            )
+            _record_cache_mode(model, "hint")
+            return llm
+        except Exception:
+            # A provider that rejects the field must not break the run: the
+            # plain call still works, it just does not get the discount.
+            _record_cache_mode(model, "plain")
+    else:
+        _record_cache_mode(model, support)
     return LLM(
         model=model,
         base_url=OPENROUTER_BASE,

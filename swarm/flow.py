@@ -24,7 +24,7 @@ from typing import Any
 from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
 
-from swarm import compaction
+from swarm import compaction, llms
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 with contextlib.suppress(Exception):
@@ -959,6 +959,8 @@ class SwarmFlow(Flow[SwarmState]):
         from swarm import gates as gate_selection
 
         self._gate_select = gate_selection.enabled()
+        # 020 T3: provider cache hints (SWARM_PROMPT_CACHE=0 off).
+        self._prompt_cache = llms.prompt_cache_enabled()
         self._task_started = time.monotonic()
         self._task_tokens_start = 0
         self._task_cost_start = 0.0
@@ -2760,6 +2762,11 @@ class SwarmFlow(Flow[SwarmState]):
             "verifier": self.state.verifier,
             "compaction": self.state.compaction,
             "gate_selection": self.state.gate_selection,
+            "cache": {
+                "prompt_cache": self._prompt_cache,
+                "modes": llms.cache_modes(),
+                "cached_prompt_tokens": self.state.cached_prompt_tokens,
+            },
         }
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate

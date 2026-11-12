@@ -321,6 +321,12 @@ fall 7.4% net, but unevenly: a case with one step and zero fix rounds is still
 slightly above baseline (the T2 brief cost) because compaction has nothing to
 remove there. Gate count is untouched — that is T5.
 
+**T3 reading.** Our routes (Ollama, OpenRouter) cache an identical prefix
+automatically; the hint path exists for a direct Anthropic model and falls back
+to a plain call when a provider rejects the field. That is why the character
+numbers do not move at T3: caching changes what those characters *cost*, and
+`run.json.cache` plus `usage.cached_prompt_tokens` are where the effect is read.
+
 **T6 reading.** Reports now carry one form of the failure: key lines, plus the
 spilled-log path when there is more. The raw tail is a fallback for output that
 extraction cannot parse. The prompt is 3.6k chars above T5 because the search
