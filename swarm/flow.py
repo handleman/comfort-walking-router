@@ -2772,6 +2772,7 @@ HARNESS_SPECS = (
     "017-coder-selfcheck",
     "018-operator-readable-runs",
     "019-scenario-verifier",
+    "020-harness-efficiency",
 )
 
 
