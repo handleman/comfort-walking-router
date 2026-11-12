@@ -24,6 +24,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_OBSERVATION = 3000
 
 
+def coder_read_chars() -> int:
+    """Coder observation cap (020 AC-5): `SWARM_CODER_READ_CHARS`, default 3000.
+
+    The verifier keeps its own much larger cap (`FullFileReadTool`); this knob
+    only widens what a coder can see in one read when a task needs it.
+    """
+    try:
+        return max(500, int(os.getenv("SWARM_CODER_READ_CHARS", str(MAX_OBSERVATION))))
+    except (TypeError, ValueError):
+        return MAX_OBSERVATION
+
+
 def verify_read_chars() -> int:
     """Whole-file read cap for the scenario verifier (019 AC-3).
 
@@ -216,6 +228,9 @@ class TrimmedFileReadTool(FileReadTool):
     # Instance, not a constant: `FullFileReadTool` raises it (019 AC-3) without
     # forking the path/secret guard or the resume hint.
     max_observation: int = MAX_OBSERVATION
+    # True for the coder read (020 AC-5 reads `SWARM_CODER_READ_CHARS` at call
+    # time); the verifier's whole-file read sets it False.
+    env_cap: bool = True
 
     def _run(self, *args: Any, **kwargs: Any) -> str:
         supplied = kwargs.get("file_path")
@@ -238,7 +253,7 @@ class TrimmedFileReadTool(FileReadTool):
         except (TypeError, ValueError):
             start_line = 1
         out = super()._run(*args, **kwargs)
-        cap = int(self.max_observation)
+        cap = coder_read_chars() if self.env_cap else int(self.max_observation)
         if len(out) > cap:
             return self._truncate(out, start_line, cap, target)
         return out
@@ -269,6 +284,7 @@ class FullFileReadTool(TrimmedFileReadTool):
     """
 
     max_observation: int = 60000  # `verify.DEFAULT_READ_CHARS`; the env wins below
+    env_cap: bool = False  # the coder's SWARM_CODER_READ_CHARS does not apply here
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs.setdefault("max_observation", verify_read_chars())
@@ -329,6 +345,129 @@ class EditTool(BaseTool):
             return f"BLOCKED: oldString occurs {count}x in {path} (need exactly 1)"
         target.write_text(text.replace(oldString, newString, 1))
         return f"OK: edited {path}"
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        return self._run(*args, **kwargs)
+
+
+class SearchArgs(BaseModel):
+    pattern: str = Field(..., description="Python regular expression to search for")
+    path: str = Field("", description="Optional repo-relative file or directory to limit the search")
+
+
+SEARCH_SUFFIXES = (
+    ".py",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".svelte",
+    ".json",
+    ".css",
+    ".html",
+    ".md",
+    ".sql",
+)
+SEARCH_SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    "runs",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    "coverage",
+    ".svelte-kit",
+}
+MAX_SEARCH_FILES = 4000
+MAX_SEARCH_LINE = 400
+
+
+class SearchTool(BaseTool):
+    """Find a defect without re-reading the same file (020 AC-5).
+
+    014-T1 burned a run re-reading one range because the read cap kept returning
+    the same head. A search returns `path:line: text` for a regex, so the coder
+    can locate the one line that matters and then read the region it names.
+    Read-only: no shell, no writes, no gate. Secret paths and build/vendor
+    directories are skipped, and the result set is bounded.
+    """
+
+    name: str = "Repo Search"
+    description: str = (
+        "Search repo files with a regex; returns `path:line: text` (max 40). Read-only."
+    )
+    args_schema: type[BaseModel] = SearchArgs
+    max_results: int = 40
+
+    def _root(self, path: str) -> tuple[Path | None, str]:
+        root = Path(REPO_ROOT).resolve()
+        target = root if not path.strip() else root / path.strip()
+        try:
+            resolved = target.resolve()
+        except OSError:
+            return None, f"BLOCKED: cannot resolve {path!r}"
+        if resolved != root and root not in resolved.parents:
+            return None, f"BLOCKED: search path outside the repo: {path!r}"
+        if is_secret_path(resolved):
+            return None, f"BLOCKED: secret path: {path!r}"
+        return resolved, ""
+
+    def _run(self, pattern: str, path: str = "", **kwargs: Any) -> str:
+        import re as _re
+
+        if not str(pattern or "").strip():
+            return "BLOCKED: empty pattern"
+        try:
+            rx = _re.compile(pattern)
+        except _re.error as e:
+            return f"BLOCKED: bad regex: {e}"
+        root, err = self._root(path)
+        if root is None:
+            return err
+        if root.is_file():
+            files = [root] if root.suffix in SEARCH_SUFFIXES else []
+        else:
+            files = []
+            for dirpath, dirnames, filenames in os.walk(root):
+                dirnames[:] = [d for d in dirnames if d.lower() not in SEARCH_SKIP_DIRS]
+                for name in filenames:
+                    if not name.endswith(SEARCH_SUFFIXES):
+                        continue
+                    candidate = Path(dirpath) / name
+                    if is_secret_path(candidate):
+                        continue
+                    files.append(candidate)
+                    if len(files) >= MAX_SEARCH_FILES:
+                        break
+                if len(files) >= MAX_SEARCH_FILES:
+                    break
+        repo = Path(REPO_ROOT).resolve()
+        hits: list[str] = []
+        for file in sorted(files):
+            try:
+                text = file.read_text(errors="ignore")
+            except (OSError, UnicodeError):
+                continue
+            try:
+                rel = file.relative_to(repo).as_posix()
+            except ValueError:
+                continue
+            for number, line in enumerate(text.splitlines(), 1):
+                if not rx.search(line):
+                    continue
+                hits.append(f"{rel}:{number}: {line.strip()[:MAX_SEARCH_LINE]}")
+                if len(hits) >= self.max_results:
+                    return "\n".join(hits) + f"\n…[stopped at {self.max_results} matches]"
+        if not hits:
+            return f"(no matches for {pattern!r})"
+        return "\n".join(hits)
 
     async def _arun(self, *args: Any, **kwargs: Any) -> str:
         return self._run(*args, **kwargs)

@@ -1274,6 +1274,10 @@ class SwarmFlow(Flow[SwarmState]):
             enabled_flag=bool(getattr(self, "_compact", True)),
         )
         self.state.compaction = compaction.merge_records(self.state.compaction, spill)
+        # 020 AC-5: record how big the report the coder actually receives was.
+        from swarm.evidence import report_text
+
+        report["report_chars"] = len(report_text(report))
         return report
 
     def _maybe_repair_verdict(self, task: Any, gates: dict[str, int], transcript: str) -> None:

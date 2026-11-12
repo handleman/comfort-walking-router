@@ -158,6 +158,7 @@ def qa_report(
         )
     entries.sort(key=lambda e: (int(e["exit"]) == 0, e["command"]))
     return {
+        "version": 2,
         "verdict": verdict,
         "reason": (reason or "")[-1500:],
         "changed_files": list(changed),
@@ -197,7 +198,10 @@ def report_text(report: dict[str, Any]) -> str:
             # are the actionable part, and the path is there when they are not.
             lines.append(f"full log: {entry['log_path']}")
         body = str(entry.get("tail") or "")
-        if body:
+        if body and not errors:
+            # 020 AC-5: never send the same failure twice. Key lines are the
+            # actionable form; the raw body is the fallback when extraction
+            # found nothing (a formatter or an unrecognised tool's output).
             lines.append("output:")
             lines.append(body[-FAILURE_TAIL_CHARS:])
     if passing:

@@ -61,6 +61,7 @@ from swarm.tools_guarded import (
     CreateTool,
     EditTool,
     FullFileReadTool,
+    SearchTool,
     ShellTool,
     TrimmedFileReadTool,
 )
@@ -72,6 +73,8 @@ def _tools(*, allow_gates: bool = False, role: str = "coder") -> list[object]:
     """Coder tools. `allow_gates` is False for every coder-side crew (015 D1)."""
     return [
         TrimmedFileReadTool(),
+        # 020 AC-5: locate the line that matters instead of re-reading a range.
+        SearchTool(),
         CreateTool(),
         EditTool(),
         ShellTool(allow_gates=allow_gates, agent_role=role),

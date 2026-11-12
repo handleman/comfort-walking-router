@@ -92,9 +92,12 @@ def test_report_text_puts_failing_gates_first_and_keeps_their_output():
     )
     text = evidence.report_text(report)
     assert text.index("FAILING GATES") < text.index("PASSED GATES")
+    # 020 AC-5: the actionable form is the key line, not a second copy of the
+    # raw tail; the failure must still be named.
     assert "Cannot find name 'positionStore'" in text
     assert "AssertionError" in text
-    assert "walk.integration.test.ts:109:7" in text
+    assert "output:" not in text
+    assert "walk.integration.test.ts:109" in text  # key line: file:line is the locator
     # The failing output must survive the prompt budget.
     assert len(text) <= evidence.REPORT_MAX_CHARS
 

@@ -840,3 +840,23 @@ frontend/**=npm --prefix frontend run check;npm --prefix frontend run lint;npm -
 - `SWARM_GATE_SELECT=0` disables selection (always full).
 
 Measured at T5: **36 gate runs/round vs 60 (−40%)** on the frozen corpus.
+
+## Reports and search (020 T6)
+- `report_text` renders the failing gates first with their `file:line: message`
+  key lines. The raw tail is a fallback, shown only when extraction found
+  nothing (`output:`); when a tail was spilled the report carries
+  `full log: gate_logs/<gate>.log` instead. A failure is never sent twice.
+- `run.json.qa_report` carries `version: 2` and `report_chars`, so the size the
+  coder actually received is auditable next to the bench number.
+- `Repo Search` (`SearchTool`) is registered for coder and senior crews only:
+  a Python regex, optional repo-relative path, `path:line: text`, max 40 hits,
+  no shell, no writes, secret paths and vendor/build/run directories skipped.
+  Its description is one line on purpose — it is in every step prompt.
+- The coder read cap is `SWARM_CODER_READ_CHARS` (default 3000). The verifier's
+  `FullFileReadTool` ignores it and keeps `SWARM_VERIFY_READ_CHARS`; QA gets
+  neither search nor a widened read.
+
+Measured at T6: task prompt **431,359 chars (−6.6%)**, report **5,768 (−86%)**.
+The prompt is slightly above T5 because the search tool's description is part
+of every coder prompt; the tool exists to stop the 014-T1 class of loop, which
+cost 229 calls and a `no_progress` stop.

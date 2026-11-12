@@ -91,7 +91,7 @@ def test_long_failing_tail_is_spilled_and_key_lines_survive(tmp_path: Path):
         {"pytest -q": 0, "npm --prefix frontend test -- --run": 1},
     )
     before = report_text(report)
-    assert tail[-300:] in before  # the old behaviour pasted the raw output
+    assert "walk.integration.test.ts:156" in before  # the key line is in the report
 
     spilled, record = compaction.spill_report(report, tmp_path, enabled_flag=True, max_chars=500)
     text = report_text(spilled)
@@ -102,8 +102,7 @@ def test_long_failing_tail_is_spilled_and_key_lines_survive(tmp_path: Path):
     assert log.exists() and tail[-200:] in log.read_text()
     assert stuck_line(text, "walk.integration.test.ts:156")
     assert "full log: gate_logs/" in text
-    assert len(text) < len(before)
-    # the raw tail is no longer pasted into the prompt
+    # the raw tail is never pasted into the prompt
     assert tail[-300:] not in text
 
 
@@ -136,7 +135,10 @@ def test_spill_off_switch_keeps_the_tail(tmp_path: Path):
     report = _report(f"$ npm --prefix frontend test -- --run\nexit=1\n{tail}", {"npm --prefix frontend test -- --run": 1})
     spilled, record = compaction.spill_report(report, tmp_path, enabled_flag=False)
     assert record["enabled"] is False and record["gate_logs"] == []
-    assert tail[-200:] in report_text(spilled)
+    # not spilled: the tail is still in the report object and the key line is
+    # rendered (020 AC-5 stops the raw tail being pasted a second time)
+    assert spilled["gates"][0]["tail"].endswith(tail[-50:])
+    assert "walk.integration.test.ts:156" in report_text(spilled)
 
 
 def test_two_gates_with_the_same_slug_do_not_overwrite_each_other(tmp_path: Path):

@@ -311,6 +311,7 @@ T1 baseline (`swarm/bench/baseline.json`).
 | T2 prompt assembly | 488,177 (~122k tokens) | **+5.7%** | 41,456 | 0% | 60 |
 | T4 compaction + spilling | 427,725 (~107k tokens) | **−7.4%** | 5,768 | **−86.1%** | 60 |
 | T5 gate selection | 427,725 (~107k tokens) | −7.4% | 5,768 | −86.1% | **36 (−40%)** |
+| T6 reports + search | 431,359 (~108k tokens) | **−6.6%** | 5,768 | −86.1% | 36 (−40%) |
 
 **T4 reading.** The step digest and the gate-log spilling remove the two
 things that grew with every failed round. The report delta is the large one
@@ -319,6 +320,13 @@ plus a path, and the full text is still in `<run>/gate_logs/`. Task prompts
 fall 7.4% net, but unevenly: a case with one step and zero fix rounds is still
 slightly above baseline (the T2 brief cost) because compaction has nothing to
 remove there. Gate count is untouched — that is T5.
+
+**T6 reading.** Reports now carry one form of the failure: key lines, plus the
+spilled-log path when there is more. The raw tail is a fallback for output that
+extraction cannot parse. The prompt is 3.6k chars above T5 because the search
+tool's description rides in every coder prompt; that is a deliberate trade for
+killing the 014-T1 re-read loop (229 calls, `no_progress`), and the description
+is kept to one line.
 
 **T5 reading.** Selection is measured on the same cases: every one resolves
 to a single area (backend or frontend), so the inner loop asks for 3 commands

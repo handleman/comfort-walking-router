@@ -98,10 +98,10 @@ def test_report_fixture_carries_the_failing_tail_not_only_key_lines(tmp_path):
     from swarm.evidence import report_text
 
     case = _case()
+    assert len(case["report_fixture"]) >= 3000, "the fixture must exercise the tail budget"
     report = score.report_fixture(case)
     unspilled, _ = compaction.spill_report(report, tmp_path, enabled_flag=False)
     text = report_text(unspilled)
-    assert len(text) >= 3000, "the fixture must exercise the real failure-tail budget"
     assert "FAILING GATES" in text
     assert "corpus.py:12" in text
 
@@ -112,7 +112,7 @@ def test_report_fixture_carries_the_failing_tail_not_only_key_lines(tmp_path):
     assert record["gate_logs"], "a long tail is spilled (020 T4)"
     assert "corpus.py:12" in compact  # the key line survives
     assert "full log: gate_logs/" in compact  # and the full text has a locator
-    assert len(compact) < len(text)
+    assert case["report_fixture"][-200:] not in compact  # the raw tail is not pasted
 
 
 def test_report_is_renderable_without_a_model_and_identical_twice():
