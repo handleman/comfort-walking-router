@@ -2,8 +2,8 @@
 
 Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
 
-- [ ] T1 (AC-1): add the outcome replay suite — `make swarm-replay` runs 5–8 frozen corpus cases through the 020 T7 live path (worktree at `green_sha^`, current harness, pinned models, no commit), aggregates green/wall clock/tokens/cost/fix rounds/failing gates, and commits `swarm/bench/replay_baseline.json`. `SWARM_REPLAY_CASES` selects the set; `SWARM_REPLAY_OFF=1` maps every 021 knob to its 020 value for the A/B.
-  Evidence: `swarm/bench/replay.py`, `swarm/bench/replay_baseline.json`, `Makefile`, `swarm/tests/test_replay.py`.
+- [x] T1 (AC-1): add the outcome replay suite — `make swarm-replay` runs 5 frozen corpus cases through the 020 T7 live path (worktree at `green_sha^`, current harness, pinned models, no commit), aggregates green/wall clock/tokens/cost/fix rounds/failing gates, and writes `swarm/bench/replay_baseline.json` (first snapshot at T8, with `--off` so the baseline is the 020 loop). `SWARM_REPLAY_CASES` selects the set; `SWARM_REPLAY_OFF=1` maps every 021 knob to its 020 value for the A/B.
+  Evidence: `swarm/bench/replay.py`, `Makefile`, `swarm/tests/test_replay.py`; baseline at `swarm/bench/replay_baseline.json` (T8).
 - [ ] T2 (AC-2): record per-round fix telemetry — `swarm/fixcause.py` classifies each round mechanically (`type`/`lint`/`test`/`scenario`/`verdict`/`evidence`/`other`) from the report's failing gates and key lines; the flow appends cause, gates, delta signature, changed, tokens and seconds to `run.json.fix_rounds_detail`; `make swarm-report` aggregates causes, no-change rounds and phase hits.
   Evidence: `swarm/fixcause.py`, `swarm/flow.py`, `swarm/report.py`, `swarm/tests/test_fixcause.py`.
 - [ ] T3 (AC-3): repair deterministically before QA — run the formatter after the steps and after every fix, re-check the affected gate, broaden `style.is_style_failure` to Prettier-anywhere and `--fix`-owned unscoped rules, remove the sole-red-gate condition, and make the 017 static set include the frontend type check. `SWARM_STYLE_PRE_QA=0` restores 020.

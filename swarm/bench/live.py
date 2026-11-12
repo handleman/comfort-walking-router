@@ -184,6 +184,7 @@ def run_case(
     repo: Path = REPO_ROOT,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     keep_on_success: bool = False,
+    env_overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Run one corpus case end to end in a throwaway worktree."""
     cases = corpus.load_corpus(repo)
@@ -202,6 +203,8 @@ def run_case(
     env = dict(os.environ)
     env.update(model_env())
     fill_from_dotenv(repo, env)
+    if env_overrides:
+        env.update(env_overrides)
     env["SWARM_BENCH"] = "1"
     # The worktree carries the current harness copy on top of the base commit,
     # so `git status` is dirty by construction. Run-attribution already ignores

@@ -1,6 +1,6 @@
 # 021 Fix Loop — Plan
 
-Status: proposed. References `specs/021-fix-loop/spec.md` AC-1–AC-9 and
+Status: in progress (T1 suite machinery done; measurement runs at T8). References `specs/021-fix-loop/spec.md` AC-1–AC-9 and
 `docs/research/fix-loop-2026.md`.
 
 ## Approach

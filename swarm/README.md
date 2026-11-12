@@ -910,3 +910,24 @@ Every behaviour added in 020 has an off switch that restores the 019 behaviour;
 | `SWARM_CODER_READ_CHARS` | `3000` | coder read cap (T6); the verifier keeps `SWARM_VERIFY_READ_CHARS` |
 | `SWARM_BENCH_CASES` | 12 default cases | `spec/Tn` list for `make swarm-bench-build` |
 | `SWARM_BENCH_MODELS` | unset | pinned models for `make swarm-bench-live` |
+
+## Outcome replay suite (`make swarm-replay`, 021 T1)
+`make swarm-bench` measures prompt text; the suite measures outcomes. It runs
+each selected corpus case through the live path (worktree at `green_sha^`, current
+harness, pinned models, no commit) and reports green, wall clock, prompt/cached
+tokens, cost and fix rounds:
+
+```bash
+make swarm-replay                  # default 5 cases + delta vs replay_baseline.json
+make swarm-replay-off              # same cases, every 021 knob at its 020 value
+make swarm-replay-one CASE=004-weather-sun-T2   # one case, JSON details
+python -m swarm.bench.replay --update-baseline  # snapshot the first run
+```
+
+- `SWARM_REPLAY_CASES=case,case` overrides the selection.
+- The suite is opt-in (models required, ~60 min for five cases) and never part of
+  `make swarm-test`; the bookkeeping is tested with a fake runner.
+- `swarm/bench/replay_baseline.json` stores the first run: case list, per-case
+  status/time/tokens/fix rounds, the totals and the harness commit.
+- `004-weather-sun-T2` is deliberately in the set: it is the case the 020 T8
+  replay failed on (`verifier_blocked`), so it is the loop's current worst case.

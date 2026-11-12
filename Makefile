@@ -5,7 +5,8 @@
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
 	swarm-supervise swarm-report swarm-log swarm-night \
-	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live
+	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live \
+	swarm-replay swarm-replay-off swarm-replay-one
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -84,6 +85,16 @@ swarm-bench-build: ## Rebuild the frozen replay corpus from green runs (git hist
 
 swarm-bench-baseline: ## Snapshot the current bench score as baseline.json (before a harness change)
 	swarm/.venv/bin/python -m swarm.bench --update-baseline
+
+swarm-replay: ## Outcome replay suite (5–8 cases, models required; compares to replay_baseline.json)
+	swarm/.venv/bin/python -m swarm.bench.replay $(ARGS)
+
+swarm-replay-off: ## Same suite with every 021 knob at its 020 value (A/B side)
+	swarm/.venv/bin/python -m swarm.bench.replay --off
+
+swarm-replay-one: ## One case with details: make swarm-replay-one CASE=<id>
+	@test -n "$(CASE)" || { echo "CASE=<corpus id> is required"; exit 2; }
+	swarm/.venv/bin/python -m swarm.bench.replay --case $(CASE) --json
 
 swarm-bench-live: ## Live replay of one case in a throwaway worktree: make swarm-bench-live CASE=<id>
 	@test -n "$(CASE)" || { echo "CASE=<corpus id> is required (see: make swarm-bench ARGS=--list)"; exit 2; }
