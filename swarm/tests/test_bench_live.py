@@ -86,6 +86,30 @@ def test_link_venvs_reuses_the_repo_trees(tmp_path: Path):
     assert live.link_venvs(repo, worktree) == []
 
 
+def test_fill_from_dotenv_keeps_explicit_pins_and_fills_the_rest(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env").write_text("OPENROUTER_API_KEY=secret-value\nSWARM_PLANNER_MODEL=openrouter/p:free\n")
+    env = {"SWARM_CODER_MODEL": "ollama/pinned"}
+    filled = live.fill_from_dotenv(repo, env)
+    assert set(filled) == {"OPENROUTER_API_KEY", "SWARM_PLANNER_MODEL"}
+    assert env["OPENROUTER_API_KEY"] == "secret-value"
+    assert env["SWARM_CODER_MODEL"] == "ollama/pinned"  # an explicit pin wins
+
+
+def test_fill_from_dotenv_tolerates_a_missing_file(tmp_path: Path):
+    env = {"A": "1"}
+    assert live.fill_from_dotenv(tmp_path, env) == []
+    assert env == {"A": "1"}
+
+
+def test_the_replay_disables_stash_hygiene(tmp_path: Path):
+    from pathlib import Path as P
+
+    source = (P(__file__).resolve().parents[1] / "bench" / "live.py").read_text()
+    assert '"SWARM_STASH_UNRELATED"] = "0"' in source
+
+
 def test_model_pins_map_to_role_env():
     env = {"SWARM_BENCH_MODELS": "coder=ollama/a, qa=ollama/b,planner=ollama/c,senior=ollama/d"}
     assert live.model_env(env) == {

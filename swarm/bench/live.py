@@ -76,6 +76,29 @@ ROLE_ENV = {
 }
 
 
+def fill_from_dotenv(repo: Path, env: dict[str, str]) -> list[str]:
+    """Fill *missing* env vars from the repo's `.env` (models, keys, base URLs).
+
+    A replay must run with the operator's real configuration — the key that
+    makes the OpenRouter planner work, the local Ollama URL — but it must not
+    override an explicit pin. Values are copied into the child environment
+    only; nothing is printed and nothing is written into the worktree.
+    """
+    from dotenv import dotenv_values
+
+    try:
+        values = dotenv_values(repo / ".env")
+    except (OSError, ValueError):
+        return []
+    filled: list[str] = []
+    for key, value in values.items():
+        if not key or value is None or key in env or value == "":
+            continue
+        env[key] = value
+        filled.append(key)
+    return filled
+
+
 def model_env(env: dict[str, str] | None = None) -> dict[str, str]:
     """The env overrides for pinned models (empty when unpinned)."""
     out: dict[str, str] = {}
@@ -178,7 +201,13 @@ def run_case(
     added = False
     env = dict(os.environ)
     env.update(model_env())
+    fill_from_dotenv(repo, env)
     env["SWARM_BENCH"] = "1"
+    # The worktree carries the current harness copy on top of the base commit,
+    # so `git status` is dirty by construction. Run-attribution already ignores
+    # that (the baseline is taken after the copy); the stash hygiene would not,
+    # and it would park e.g. the node_modules symlink mid-run.
+    env["SWARM_STASH_UNRELATED"] = "0"
     env["PYTHONPATH"] = str(worktree)
     # The repo's `.env` is not copied into the worktree (it holds keys). Pin the
     # gate list from the case itself so the replay runs the task's real gates.
