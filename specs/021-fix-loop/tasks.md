@@ -22,6 +22,8 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/prompts.py`, `swarm/crew.py`, `swarm/tests/test_prompts.py`, `docs/research/fix-loop-2026.md` (result).
 - [ ] T11 (AC-11): verifier stability — track the files each block names and the correction pass; a second block on the same file stops with `verifier_unstable` instead of another round, and the verifier prompt forbids prescribing test structure (mocks/fixtures/naming).
   Evidence: `swarm/verify.py`, `swarm/flow.py`, `swarm/prompts.py`, `swarm/tests/test_verify.py`.
+- [ ] T12 (AC-12): a step must land its file — `artifacts.step_target` / `step_landed`; a step whose target is absent from the run delta is a failed attempt (retry, then senior), `run.json.steps[].landed` records it, and a verifier correction that changes nothing is `stalled` (coder failure) rather than `unstable`.
+  Evidence: `swarm/artifacts.py`, `swarm/flow.py`, `swarm/tests/test_artifacts.py`, `swarm/tests/test_verify.py`.
 - [ ] T9 (AC-8): close the loop — add `021-fix-loop` to `HARNESS_SPECS`, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
   Evidence: `swarm/flow.py::HARNESS_SPECS`, `.env.example`, `swarm/README.md`, `AGENTS.md`, `docs/roadmap.md`.
 

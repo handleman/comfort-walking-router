@@ -181,6 +181,16 @@ The suite compares strict vs loose on the same cases (green, fix rounds, tokens,
 p50). Keep loose only on a win; strict stays the default because it exists to
 stop small-model wandering.
 
+## T12 — a step must land its file
+
+The 021 replay's step 6 pasted a complete test file into its *answer* and never
+called Repo Create; the plan step "landed" nowhere, the static checks were green,
+and the verifier spent ~500k tokens to say "the file does not exist". After each
+step the harness now checks the step's target (the first repo path in
+`STEP n: <file> — …`) is in the run delta; if not, the attempt fails and the
+normal retry/senior path runs. A verifier correction that changes nothing is
+`stalled` (coder failure), never `unstable`.
+
 ## T11 — verifier stability
 
 - `verify.finding_files(findings)` extracts the paths a finding names.

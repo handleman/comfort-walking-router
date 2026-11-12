@@ -24,7 +24,7 @@ from typing import Any
 from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
 
-from swarm import compaction, fixcause, llms
+from swarm import artifacts, compaction, fixcause, llms
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 with contextlib.suppress(Exception):
@@ -1825,13 +1825,25 @@ class SwarmFlow(Flow[SwarmState]):
             previous = set(record.get("finding_files") or [])
             record["finding_files"] = sorted(files | previous)
             if record.get("corrections") and files & previous:
-                record["unstable"] = True
                 record["blocked"] = True
-                record["note"] = "same finding after the correction pass (unstable verdict)"
-                print(
-                    "verifier: same finding after a correction pass → stop (unstable)",
-                    flush=True,
-                )
+                if record.get("corrected"):
+                    # The correction landed and the same file is still wrong in a
+                    # different way: the verifier is re-litigating its own advice.
+                    record["unstable"] = True
+                    record["note"] = "same finding after a landed correction (unstable verdict)"
+                    print(
+                        "verifier: same finding after a landed correction → stop (unstable)",
+                        flush=True,
+                    )
+                else:
+                    # The correction changed nothing: this is a coder failure, not
+                    # a verifier contradiction. Say so.
+                    record["stalled"] = True
+                    record["note"] = "the correction pass changed nothing"
+                    print(
+                        "verifier: correction changed nothing → stop (stalled)",
+                        flush=True,
+                    )
                 return False
             # 021 AC-7: a grounded block found a scenario defect; whether the
             # correction pass fixes it or the run ends blocked, the phase paid.
@@ -1877,6 +1889,7 @@ class SwarmFlow(Flow[SwarmState]):
                     print(f"verifier correction failed: {e}"[:500], flush=True)
                     return False
             record["corrections"] = True
+            record["corrected"] = self._delta_signature() != verify_sig
             self._record_fix_round(
                 cause="scenario",
                 phase="verify",
@@ -2601,6 +2614,16 @@ class SwarmFlow(Flow[SwarmState]):
                                 step=i,
                             )
                             last_err = None
+                            target = artifacts.step_target(step)
+                            if target and not artifacts.step_landed(
+                                target, self._in_scope_paths(run_delta(self._baseline))
+                            ):
+                                last_err = SystemExit(
+                                    f"step {i} did not create or change {target} "
+                                    "(it described the file but the run delta does not contain it)"
+                                )
+                                print(f"step {i}: did not land {target}; retrying", flush=True)
+                                continue
                             break
                         except _QuotaExhausted:
                             raise
@@ -2628,6 +2651,7 @@ class SwarmFlow(Flow[SwarmState]):
                             "model": model_kind,
                             "kind": route.kind,
                             "routing_reason": route.reason,
+                            "landed": last_err is None,
                         }
                     )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")

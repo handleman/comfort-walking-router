@@ -139,6 +139,16 @@ autonomy) judgeable on outcomes rather than on prompt characters.
   requires the behaviour the AC names. The stability record (`finding_files`,
   `corrections`, `unstable`) lands in `run.json.verifier`.
 
+- **AC-12 — A step must land its file.** A plan step of the form
+  `STEP n: <file> — <action>` is an edit, not a description: after the step
+  crew runs, the harness checks the step's target file is in the run delta. If
+  it is not (the common small-model failure of pasting the file into the answer
+  instead of calling Repo Create), the step counts as a failed attempt and is
+  retried, and the senior escalation path is available exactly as for an
+  exception. `run.json.steps[].landed` records it. The verifier's own
+  correction pass follows the same rule: a correction that changes nothing is
+  `stalled` (a coder failure), not `unstable` (a verifier contradiction).
+
 - **AC-9 — Measured result.** The outcome suite runs before and after; the
   before/after table lands in `docs/research/fix-loop-2026.md` and `changelog.md`.
   Targets: fix-round rate **59% → ≤35%**, `coder:fix*` prompt tokens **−40%**,

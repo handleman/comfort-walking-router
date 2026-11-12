@@ -179,6 +179,30 @@ capability reason), and a truncated/no-test file is a **deterministic defect** t
 harness can name for free (`swarm/artifacts.py`, added in T10) instead of paying
 a verifier round for it.
 
+### The step that never landed
+
+The rerun with T11 made the failure even clearer. The plan's step 6 was
+
+```
+STEP 6: tests/test_route_toggles.py — Create the test file importing app.main …
+```
+
+The coder's final answer said "created test file" and **printed the whole file
+in its answer** — but the run delta did not contain it. The file was never
+written. The static checks were green (nothing to check), and the 019 verifier
+spent two rounds and ~500k prompt tokens saying "file does not exist"; the
+correction step also changed nothing, which the first T11 heuristic mislabelled
+`unstable`.
+
+Two fixes, both deterministic:
+
+- **a step must land its file**: the target of `STEP n: <file> — …` has to appear
+  in the run delta, or the attempt failed and is retried (then senior). This
+  turns a 500k-token silent failure into a second attempt (`run.json.steps[].landed`);
+- **stalled ≠ unstable**: a correction that changes nothing is a coder failure
+  (`stalled`, `verifier_blocked`); `unstable` is reserved for a correction that
+  *landed* and was still blocked on the same file in a different way.
+
 ### The verifier can re-litigate its own correction
 
 The capability run (006, `coder=nemotron-3.5-super-vl:free`) got much further:

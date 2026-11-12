@@ -18,6 +18,7 @@ Anything semantic stays with QA and the verifier.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 TEST_MARKERS = ("/tests/", "tests/", "/test_", "test_", "/e2e/", "e2e/", ".test.", ".spec.", "_test.")
@@ -27,6 +28,27 @@ _JS_TEST_CALL = ("it(", "test(", "it.each(", "test.each(", "describe(")
 def is_test_file(path: str) -> bool:
     norm = "/" + str(path).replace("\\", "/").lstrip("./")
     return any(marker in norm for marker in TEST_MARKERS)
+
+
+_STEP_TARGET_RE = re.compile(
+    r"(?:^|[\s:])((?:app|tests|frontend|contracts|docs|swarm)/[\w./-]+\.[A-Za-z0-9]+)"
+)
+
+
+def step_target(step: str) -> str | None:
+    """The file a `STEP n: <file> — <action>` line targets (first repo path)."""
+    match = _STEP_TARGET_RE.search(str(step or ""))
+    return match.group(1) if match else None
+
+
+def step_landed(target: str, changed: list[str]) -> bool:
+    """True when the step actually touched the file it names.
+
+    A plan step is an edit, not a description: a coder that pastes the new file
+    into its answer and never calls Repo Create has not done the step (021 T12).
+    """
+    norm = str(target).replace("\\", "/").lstrip("./")
+    return any(str(path).replace("\\", "/").lstrip("./") == norm for path in changed)
 
 
 def incomplete(changed: list[str], root: Path) -> list[str]:

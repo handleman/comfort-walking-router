@@ -57,3 +57,27 @@ def test_the_self_check_adds_the_artifact_check():
     source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
     assert "artifacts.incomplete(" in source
     assert 'codes["harness: artifacts"] = 1' in source
+
+
+# ---- 021 T12: a step must touch the file it names ----
+
+
+def test_step_target_reads_the_plan_line():
+    assert (
+        artifacts.step_target("STEP 6: tests/test_route_toggles.py — create the API tests")
+        == "tests/test_route_toggles.py"
+    )
+    assert artifacts.step_target("STEP 1: app/main.py — add the field") == "app/main.py"
+    assert artifacts.step_target("no repo path here") is None
+
+
+def test_step_landed_requires_the_file_in_the_run_delta():
+    assert artifacts.step_landed("tests/test_route_toggles.py", ["tests/test_route_toggles.py"])
+    assert not artifacts.step_landed("tests/test_route_toggles.py", ["app/main.py"])
+
+
+def test_a_step_that_only_describes_the_file_did_not_land():
+    """The 021 replay: the coder pasted the file into its answer, delta unchanged."""
+    step = "STEP 6: tests/test_route_toggles.py — create the API tests"
+    target = artifacts.step_target(step)
+    assert target and not artifacts.step_landed(target, [])

@@ -532,10 +532,12 @@ def test_finding_files_extracts_the_paths():
     ) == {"tests/test_route_toggles.py", "app/main.py"}
 
 
-def test_a_second_block_on_the_same_file_is_unstable(monkeypatch):
+def test_a_landed_correction_still_blocked_on_the_same_file_is_unstable(monkeypatch):
     from swarm import flow
 
     stub = _flow_stub(monkeypatch)
+    sig = {"v": "a"}
+    stub._delta_signature = lambda: sig["v"]
     rounds = {"n": 0}
 
     first = (
@@ -545,12 +547,13 @@ def test_a_second_block_on_the_same_file_is_unstable(monkeypatch):
     )
 
     def kick(build, role):
+        if role.startswith("coder:verify"):
+            sig["v"] = "b"  # the correction landed
+            return build(), "done"
         rounds["n"] += 1
         crew = build()
         if rounds["n"] == 1:
             return crew, first
-        # The correction ran; the next verdict names the same file with the
-        # opposite instruction.
         return crew, (
             "FINDING: tests/test_route_toggles.py — use one identical fixture\n"
             "STEP 1: tests/test_route_toggles.py — return the same properties\n"
@@ -560,6 +563,27 @@ def test_a_second_block_on_the_same_file_is_unstable(monkeypatch):
     assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
     assert stub.state.verifier["unstable"] is True
     assert stub.state.verifier["corrections"] is True
+    assert stub.state.verifier["corrected"] is True
+
+
+def test_a_correction_that_changes_nothing_is_a_coder_failure_not_unstable(monkeypatch):
+    from swarm import flow
+
+    stub = _flow_stub(monkeypatch)
+    rounds = {"n": 0}
+    first = (
+        "FINDING: tests/test_route_toggles.py — file does not exist\n"
+        "STEP 1: tests/test_route_toggles.py — create it\n"
+        "VERDICT: BLOCKED"
+    )
+
+    def kick(build, role):
+        rounds["n"] += 1
+        return build(), first  # the correction changes nothing
+
+    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
+    assert stub.state.verifier["stalled"] is True
+    assert "unstable" not in stub.state.verifier
 
 
 def test_the_unstable_reason_code_is_machine_readable():
