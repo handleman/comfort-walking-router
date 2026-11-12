@@ -96,13 +96,17 @@ def _flow_stub(monkeypatch, outputs: dict[str, str]):
     monkeypatch.setattr(tools_guarded, "ShellTool", FakeShell)
     monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: [])
     stub = types.SimpleNamespace(
-        state=types.SimpleNamespace(self_check={}, style_autofix={}),
+        state=types.SimpleNamespace(
+            self_check={}, style_autofix={}, total_tokens=0, fix_rounds_detail=[]
+        ),
         _baseline={},
         _spec_dir="007-live-position",
         _in_scope_paths=lambda paths: list(paths),
+        _delta_signature=lambda: "sig",
     )
     stub._run_self_check = types.MethodType(flow.SwarmFlow._run_self_check, stub)
     stub._self_check_phase = types.MethodType(flow.SwarmFlow._self_check_phase, stub)
+    stub._record_fix_round = types.MethodType(flow.SwarmFlow._record_fix_round, stub)
     return stub, calls
 
 

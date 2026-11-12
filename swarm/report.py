@@ -55,6 +55,23 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             bucket["completion_tokens"] += float(usage.get("completion_tokens") or 0)
             bucket["cost_usd"] += float(usage.get("cost_usd") or 0.0)
     fix_rounds = [int(r.get("fix_rounds") or 0) for r in green]
+    # 021 AC-2: why the repair rounds happened (mechanical labels).
+    causes: dict[str, int] = {}
+    phases: dict[str, int] = {}
+    rounds = 0
+    changed_rounds = 0
+    for row in rows:
+        for entry in row.get("fix_rounds_detail") or []:
+            rounds += 1
+            cause = str(entry.get("cause") or "other")
+            causes[cause] = causes.get(cause, 0) + 1
+            phase = str(entry.get("phase") or "fix")
+            phases[phase] = phases.get(phase, 0) + 1
+            if entry.get("changed"):
+                changed_rounds += 1
+    # 021 AC-7: does each verification phase catch anything?
+    selfcheck_runs = [r for r in rows if r.get("self_check")]
+    verifier_runs = [r for r in rows if r.get("verifier")]
     return {
         "runs": len(rows),
         "green": len(green),
@@ -70,6 +87,14 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "stop_reasons": dict(sorted(reasons.items(), key=lambda kv: -kv[1])),
         "by_role": by_role,
+        "fix_causes": dict(sorted(causes.items(), key=lambda kv: -kv[1])),
+        "fix_phases": dict(sorted(phases.items(), key=lambda kv: -kv[1])),
+        "fix_rounds_total": rounds,
+        "fix_rounds_changed": changed_rounds,
+        "self_check_runs": len(selfcheck_runs),
+        "self_check_hits": sum(1 for r in selfcheck_runs if (r.get("self_check") or {}).get("hit")),
+        "verifier_runs": len(verifier_runs),
+        "verifier_hits": sum(1 for r in verifier_runs if (r.get("verifier") or {}).get("hit")),
     }
 
 
@@ -88,6 +113,24 @@ def render(summary: dict[str, Any]) -> str:
     ]
     if summary["stop_reasons"]:
         lines.append("stops: " + ", ".join(f"{k}={v}" for k, v in summary["stop_reasons"].items()))
+    if summary.get("fix_rounds_total"):
+        causes = ", ".join(f"{k}={v}" for k, v in summary["fix_causes"].items())
+        phases = ", ".join(f"{k}={v}" for k, v in summary["fix_phases"].items())
+        changed = summary["fix_rounds_changed"]
+        total = summary["fix_rounds_total"]
+        lines.append(
+            f"repair rounds: {total} ({changed} changed the delta, "
+            f"{total - changed} changed nothing)"
+        )
+        lines.append(f"  causes: {causes}")
+        lines.append(f"  phases: {phases}")
+    if summary.get("self_check_runs") or summary.get("verifier_runs"):
+        sc = summary["self_check_runs"]
+        vr = summary["verifier_runs"]
+        lines.append(
+            f"verification: self-check {summary['self_check_hits']}/{sc} hit, "
+            f"verifier {summary['verifier_hits']}/{vr} hit"
+        )
     if summary["by_role"]:
         lines.append("tokens by role:")
         for role, bucket in sorted(summary["by_role"].items()):

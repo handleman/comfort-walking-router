@@ -24,7 +24,7 @@ from typing import Any
 from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
 
-from swarm import compaction, llms
+from swarm import compaction, fixcause, llms
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 with contextlib.suppress(Exception):
@@ -100,6 +100,8 @@ class SwarmState(BaseModel):
     gate_selection: dict[str, Any] = {}
     # 020 AC-9: provenance for a future replay corpus.
     plan_hash: str = ""
+    # 021 AC-2: why each repair round happened, mechanically labelled.
+    fix_rounds_detail: list[dict[str, Any]] = []
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -1237,6 +1239,28 @@ class SwarmFlow(Flow[SwarmState]):
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
 
+    def _record_fix_round(
+        self,
+        *,
+        cause: dict[str, Any] | str,
+        phase: str,
+        before_sig: str,
+        tokens_before: int,
+        started: float,
+    ) -> None:
+        """One repair round: cause, phase, whether it changed the delta, cost."""
+        label = cause if isinstance(cause, dict) else {"cause": cause, "gates": []}
+        self.state.fix_rounds_detail.append(
+            {
+                "cause": str(label.get("cause") or "other"),
+                "phase": phase,
+                "gates": list(label.get("gates") or []),
+                "changed": self._delta_signature() != before_sig,
+                "tokens": max(0, int(getattr(self.state, "total_tokens", 0)) - int(tokens_before)),
+                "seconds": round(time.monotonic() - started, 1),
+            }
+        )
+
     def _record_gate_selection(
         self,
         mode: str,
@@ -1538,6 +1562,13 @@ class SwarmFlow(Flow[SwarmState]):
                 )
                 return
             report = result["report"]
+            from swarm import fixcause
+
+            kinds = {fixcause.command_kind(command) for command in result["red"]}
+            selfcheck_cause = "type" if "type" in kinds else ("lint" if "lint" in kinds else "other")
+            check_sig = self._delta_signature()
+            check_tokens = int(getattr(self.state, "total_tokens", 0))
+            check_started = time.monotonic()
             try:
                 kick(
                     lambda report=report: build_selfcheck_crew(
@@ -1548,6 +1579,13 @@ class SwarmFlow(Flow[SwarmState]):
             except SystemExit as e:
                 self.state.result = str(e)[:4000]
                 return
+            self._record_fix_round(
+                cause=selfcheck_cause,
+                phase="selfcheck",
+                before_sig=check_sig,
+                tokens_before=check_tokens,
+                started=check_started,
+            )
 
     def _verify_phase(self, task: Any, kick: Any) -> bool:
         """Scenario verification between the 017 self-check and QA (019).
@@ -1657,6 +1695,9 @@ class SwarmFlow(Flow[SwarmState]):
                 return False
             report = verify.render_report(context, findings, plan)
             record["report"] = report[-4000:]
+            verify_sig = self._delta_signature()
+            verify_tokens = int(getattr(self.state, "total_tokens", 0))
+            verify_started = time.monotonic()
             for idx, step in enumerate(plan, 1):
                 try:
                     kick(
@@ -1670,6 +1711,13 @@ class SwarmFlow(Flow[SwarmState]):
                     record["note"] = f"correction step failed: {e}"[:500]
                     print(f"verifier correction failed: {e}"[:500], flush=True)
                     return False
+            self._record_fix_round(
+                cause="scenario",
+                phase="verify",
+                before_sig=verify_sig,
+                tokens_before=verify_tokens,
+                started=verify_started,
+            )
         record["blocked"] = True
         return False
 
@@ -2468,6 +2516,17 @@ class SwarmFlow(Flow[SwarmState]):
                     self.state.qa_report = report
                     report_block = report_text(report)
                     qa_note = self.state.review_text
+                    cause = fixcause.classify(
+                        gates=gates,
+                        report=report,
+                        verdict=self.state.review_verdict,
+                        reason=self.state.review_text,
+                        missing=missing,
+                        verifier_blocked=bool(self.state.verifier.get("blocked")),
+                        phase="fix",
+                    )
+                    tokens_before = int(getattr(self.state, "total_tokens", 0))
+                    round_started = time.monotonic()
                     try:
                         _kickoff(
                             lambda report_block=report_block, qa_note=qa_note: build_fix_crew(
@@ -2488,6 +2547,13 @@ class SwarmFlow(Flow[SwarmState]):
                         gates, transcript, missing = self._gates_or_evidence(changed)
                     self._record_gate_selection(
                         "affected" if skipped else "full", selected, skipped, gates
+                    )
+                    self._record_fix_round(
+                        cause=cause,
+                        phase="fix",
+                        before_sig=round_start,
+                        tokens_before=tokens_before,
+                        started=round_started,
                     )
                     self._maybe_repair_verdict(task, gates, transcript)
                     if not reviewed and self.state.review_verdict == "unknown":
@@ -2551,10 +2617,22 @@ class SwarmFlow(Flow[SwarmState]):
                     self.state.senior_used = True
                     self.state.senior_rounds += 1
                     self.state.transcript = transcript
+                    round_started_sig = self._delta_signature()
                     report = self._qa_report(gates, transcript, changed, missing)
                     self.state.qa_report = report
                     report_block = report_text(report)
                     qa_note = self.state.review_text
+                    cause = fixcause.classify(
+                        gates=gates,
+                        report=report,
+                        verdict=self.state.review_verdict,
+                        reason=self.state.review_text,
+                        missing=missing,
+                        verifier_blocked=bool(self.state.verifier.get("blocked")),
+                        phase="senior",
+                    )
+                    tokens_before = int(getattr(self.state, "total_tokens", 0))
+                    round_started = time.monotonic()
                     try:
                         _kickoff(
                             lambda report_block=report_block, qa_note=qa_note: build_senior_crew(
@@ -2573,6 +2651,13 @@ class SwarmFlow(Flow[SwarmState]):
                         gates, transcript, missing = self._gates_or_evidence(changed)
                     self._record_gate_selection(
                         "affected" if skipped else "full", selected, skipped, gates
+                    )
+                    self._record_fix_round(
+                        cause=cause,
+                        phase="senior",
+                        before_sig=round_started_sig,
+                        tokens_before=tokens_before,
+                        started=round_started,
                     )
                     self._maybe_repair_verdict(task, gates, transcript)
                     if not reviewed and self.state.review_verdict == "unknown":
@@ -2779,6 +2864,7 @@ class SwarmFlow(Flow[SwarmState]):
             "base_sha": getattr(self, "_base_sha", "") or None,
             "head_sha": _head_sha(),
             "plan_hash": self.state.plan_hash or None,
+            "fix_rounds_detail": self.state.fix_rounds_detail,
             "cache": {
                 "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),

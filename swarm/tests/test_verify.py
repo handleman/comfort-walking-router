@@ -273,13 +273,14 @@ def _flow_stub(monkeypatch):
 
     monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: [])
     stub = types.SimpleNamespace(
-        state=types.SimpleNamespace(verifier={}),
+        state=types.SimpleNamespace(verifier={}, total_tokens=0, fix_rounds_detail=[]),
         _spec_dir="019-scenario-verifier",
         _baseline={},
         _in_scope_paths=lambda paths: list(paths),
         _delta_signature=lambda: "sig",
     )
     stub._verify_phase = types.MethodType(flow.SwarmFlow._verify_phase, stub)
+    stub._record_fix_round = types.MethodType(flow.SwarmFlow._record_fix_round, stub)
     return stub
 
 

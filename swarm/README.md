@@ -931,3 +931,22 @@ python -m swarm.bench.replay --update-baseline  # snapshot the first run
   status/time/tokens/fix rounds, the totals and the harness commit.
 - `004-weather-sun-T2` is deliberately in the set: it is the case the 020 T8
   replay failed on (`verifier_blocked`), so it is the loop's current worst case.
+
+## Fix telemetry (021 T2)
+Every repair round is labelled mechanically from the report the coder received —
+never from model prose — and recorded in `run.json.fix_rounds_detail`:
+
+| cause | when |
+| --- | --- |
+| `scenario` | the 019 verifier blocked and its corrections drove the round |
+| `verdict` | QA produced no grounded verdict (unknown / ungrounded block) |
+| `evidence` | no gate evidence, or the round changed nothing (stale delta) |
+| `type` | a type-check gate is failing (outranks a failing test) |
+| `test` | a test gate is failing with assertion/failure lines |
+| `lint` | only lint/format gates are failing |
+| `other` | anything else |
+
+Each entry also carries `phase` (`fix`/`senior`/`verify`/`selfcheck`), the
+failing gates, `changed`, `tokens` and `seconds`. `make swarm-report` prints the
+cause distribution, how many rounds changed nothing, and the 017/019 hit rates —
+the last two are what 021 T8 uses to decide what to keep.
