@@ -88,6 +88,8 @@ def run_suite(
     off: bool = False,
     runner: Any = None,
     timeout: int = live.DEFAULT_TIMEOUT_SECONDS,
+    keep_failures: bool = False,
+    on_row: Any = None,
 ) -> dict[str, Any]:
     """Run every case sequentially; return the rows and their aggregate.
 
@@ -100,10 +102,27 @@ def run_suite(
     rows: list[dict[str, Any]] = []
     for case in chosen:
         try:
-            result = run(case, repo=repo, env_overrides=overrides, timeout=timeout)
+            result = run(
+                case,
+                repo=repo,
+                env_overrides=overrides,
+                timeout=timeout,
+                keep_on_failure=keep_failures,
+            )
         except (OSError, RuntimeError, ValueError, KeyError) as exc:  # a measurement, not a gate
             result = {"ok": False, "case": case, "error": f"{type(exc).__name__}: {exc}"}
         rows.append(_row(case, result))
+        print(f"  {case}: {'green' if rows[-1]['ok'] else rows[-1]['status']}", flush=True)
+        if on_row is not None:
+            on_row(
+                {
+                    "created": dt.datetime.now().isoformat(timespec="seconds"),
+                    "off": bool(off),
+                    "cases": chosen,
+                    "rows": rows,
+                    "totals": summarize(rows),
+                }
+            )
     return {
         "created": dt.datetime.now().isoformat(timespec="seconds"),
         "off": bool(off),
@@ -207,12 +226,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--off", action="store_true", help="every 021 knob at its 020 value")
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--keep", action="store_true", help="keep failed worktrees for inspection")
     args = parser.parse_args(argv)
     repo = Path(args.repo)
     cases = [args.case] if args.case else (
         [c.strip() for c in args.cases.split(",") if c.strip()] or list(selected_cases())
     )
-    suite = run_suite(cases, repo=repo, off=args.off)
+    partial = Path(__file__).resolve().parent / "replay_last.json"
+
+    def save_partial(snapshot: dict[str, Any]) -> None:
+        partial.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
+
+    suite = run_suite(
+        cases,
+        repo=repo,
+        off=args.off,
+        keep_failures=args.keep,
+        on_row=save_partial,
+    )
     if args.update_baseline:
         write_baseline(BASELINE, suite, repo=repo)
         print(f"replay baseline written: {BASELINE}")

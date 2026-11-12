@@ -1571,6 +1571,16 @@ class SwarmFlow(Flow[SwarmState]):
             return codes, tails
 
         codes, tails = _run()
+        # 021 T10: a truncated file or a test file with no tests is a
+        # deterministic defect; name it before the verifier spends a round.
+        from swarm import artifacts
+
+        problems = artifacts.incomplete(
+            self._in_scope_paths(run_delta(self._baseline)), REPO_ROOT
+        )
+        if problems:
+            codes["harness: artifacts"] = 1
+            tails["harness: artifacts"] = artifacts.report(problems)
         # Formatting-only failures are mechanical: the harness formats, the
         # coder is never asked to.
         if style.enabled() and style.style_failures(codes, tails):

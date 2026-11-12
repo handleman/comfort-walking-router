@@ -184,6 +184,7 @@ def run_case(
     repo: Path = REPO_ROOT,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     keep_on_success: bool = False,
+    keep_on_failure: bool = True,
     env_overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Run one corpus case end to end in a throwaway worktree."""
@@ -263,10 +264,13 @@ def run_case(
             "worktree": str(worktree),
             **summary,
         }
-        if summary and (keep_on_success or proc.returncode != 0 or summary.get("status") != "green"):
+        failed = proc.returncode != 0 or summary.get("status") != "green"
+        if summary and (keep_on_success or (failed and keep_on_failure)):
             result["kept"] = True
             result["tail"] = (proc.stdout or proc.stderr or "")[-4000:]
             added = False  # keep the worktree for inspection
+        elif failed:
+            result["tail"] = (proc.stdout or proc.stderr or "")[-4000:]
         return result
     except subprocess.TimeoutExpired:
         return {
