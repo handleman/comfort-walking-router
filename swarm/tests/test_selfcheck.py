@@ -248,3 +248,38 @@ def test_selfcheck_crew_runs_no_gates():
     shells = [tool for tool in crew.agents[0].tools if isinstance(tool, ShellTool)]
     assert [shell.allow_gates for shell in shells] == [False]
     assert "Property 'tick' does not exist" in crew.tasks[0].description
+
+
+def test_self_check_records_a_hit_when_the_coder_fixes_the_red_check(monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setenv("SWARM_GATE_COMMANDS", "npm --prefix frontend run check")
+    red = "exit=1\nError: Cannot find name 'x'.\n"
+    outputs = {"npm --prefix frontend run check": red}
+    stub, _ = _flow_stub(monkeypatch, outputs)
+    stub.state.self_check = {}
+    kicked: list[str] = []
+
+    def kick(build, role):
+        kicked.append(role)
+        outputs["npm --prefix frontend run check"] = "exit=0\nok\n"
+
+    flow.SwarmFlow._self_check_phase(
+        stub, types.SimpleNamespace(id="T1", ac_refs=(), brief="x"), kick
+    )
+    assert kicked == ["coder:selfcheck1"]
+    assert stub.state.self_check["detected"] is True
+    assert stub.state.self_check["hit"] is True
+
+
+def test_self_check_records_a_miss_when_it_stays_red(monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setenv("SWARM_GATE_COMMANDS", "npm --prefix frontend run check")
+    stub, _ = _flow_stub(monkeypatch, {"npm --prefix frontend run check": "exit=1\nError: Cannot find name 'x'.\n"})
+    stub.state.self_check = {}
+    flow.SwarmFlow._self_check_phase(
+        stub, types.SimpleNamespace(id="T1", ac_refs=(), brief="x"), lambda build, role: None
+    )
+    assert stub.state.self_check["detected"] is True
+    assert stub.state.self_check["hit"] is False

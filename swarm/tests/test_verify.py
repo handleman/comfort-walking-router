@@ -502,3 +502,17 @@ def test_dashboard_metrics_show_the_verifier_verdict():
     ).plain
     assert "verifier" in text
     assert "PASS" in text
+
+
+def test_a_grounded_verifier_block_is_recorded_as_a_hit(monkeypatch):
+    from swarm import flow
+
+    stub = _flow_stub(monkeypatch)
+
+    def kick(build, role):
+        crew = build()
+        return crew, _blocked()
+
+    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
+    assert stub.state.verifier["hit"] is True
+    assert stub.state.verifier["hit_basis"] == "corrections"

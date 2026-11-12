@@ -102,6 +102,11 @@ class SwarmState(BaseModel):
     plan_hash: str = ""
     # 021 AC-2: why each repair round happened, mechanically labelled.
     fix_rounds_detail: list[dict[str, Any]] = []
+    # 021 AC-4: the tests-first phase (author, frozen files, red state).
+    tests_first: dict[str, Any] = {}
+    # 021 AC-6: the best verified delta seen, so a later round cannot hide a
+    # regression of a gate that once passed.
+    best_delta: dict[str, Any] = {}
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -971,6 +976,12 @@ class SwarmFlow(Flow[SwarmState]):
         self._gate_select = gate_selection.enabled()
         # 020 T3: provider cache hints (SWARM_PROMPT_CACHE=0 off).
         self._prompt_cache = llms.prompt_cache_enabled()
+        # 021 AC-6: the code-round budget is a knob (the suite tests 3 vs 4);
+        # verdict/evidence rounds have their own small cap.
+        from swarm.crew import MAX_FIX_ROUNDS
+
+        self._max_fix_rounds = env_int("SWARM_MAX_FIX_ROUNDS", MAX_FIX_ROUNDS)
+        self._max_verdict_rounds = 1
         self._task_started = time.monotonic()
         self._task_tokens_start = 0
         self._task_cost_start = 0.0
@@ -988,8 +999,10 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.approval_required = self._require_approval
         self._install_signals()
         # Baseline before any LLM/tool call: only this run's changes count.
+        from swarm import tests_first as _tests_first
         from swarm.tools_guarded import snapshot_worktree
 
+        _tests_first.clear()
         self._baseline = snapshot_worktree()
         # 020 AC-9: the commit this run started from, so a corpus can be built
         # from the run instead of re-deriving it from `git log --grep`.
@@ -1238,6 +1251,21 @@ class SwarmFlow(Flow[SwarmState]):
         gates["scope"] = 0 if not bad else 1
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
+
+    def _record_best_delta(self, gates: dict[str, int]) -> None:
+        """Keep the delta that passed the most gates (021 AC-6)."""
+        considered = {c: v for c, v in (gates or {}).items() if c != "scope"}
+        green = sum(1 for value in considered.values() if int(value) == 0)
+        best = self.state.best_delta or {}
+        if green <= int(best.get("green_gates") or 0):
+            return
+        self.state.best_delta = {
+            "delta": self._delta_signature(),
+            "green_gates": green,
+            "total_gates": len(considered),
+            "gates": dict(considered),
+            "round": self.state.fix_rounds,
+        }
 
     def _record_fix_round(
         self,
@@ -1557,6 +1585,79 @@ class SwarmFlow(Flow[SwarmState]):
             "report": selfcheck.render_report(codes, tails, changed),
         }
 
+    def _tests_first_phase(self, task: Any, kick: Any) -> None:
+        """Write the failing test from the ACs before the implementation (021 T4).
+
+        Off by default: a weak test author can be worse than no test, so this is
+        an A/B (`SWARM_TESTS_FIRST=1`). The authored tests are frozen by hash and
+        the implementation steps are told not to edit them; a test that already
+        passes is recorded as a failed phase, never as a win.
+        """
+        from swarm import tests_first
+        from swarm.crew import build_test_author_crew
+        from swarm.tools_guarded import ShellTool, run_delta
+        from swarm.verify import ac_paragraphs
+
+        record: dict[str, Any] = {
+            "enabled": tests_first.enabled(),
+            "files": [],
+            "red": False,
+            "command": "",
+            "output": "",
+            "failed": "",
+        }
+        self.state.tests_first = record
+        if not record["enabled"]:
+            return
+        try:
+            spec_md = (REPO_ROOT / "specs" / self._spec_dir / "spec.md").read_text()
+        except OSError:
+            spec_md = ""
+        ac_text = "\n".join(ac_paragraphs(spec_md, task.ac_refs))
+        try:
+            kick(
+                lambda: build_test_author_crew(self._spec_dir, task, ac_text),
+                "test-author",
+            )
+        except SystemExit as e:
+            record["failed"] = f"test author failed: {e}"[:300]
+            print(f"tests-first: author failed ({e})"[:300], flush=True)
+            return
+        changed = run_delta(self._baseline)
+        files = [
+            path
+            for path in changed
+            if tests_first.is_test_path(path) and path.endswith(tests_first.WALK_SUFFIXES)
+        ]
+        if not files:
+            record["failed"] = "no test file written"
+            print("tests-first: author wrote no test file; phase skipped", flush=True)
+            return
+        contents: dict[str, str] = {}
+        for path in files:
+            try:
+                contents[path] = (REPO_ROOT / path).read_text(errors="ignore")
+            except OSError:
+                contents[path] = ""
+        tests_first.freeze(files, contents)
+        command = tests_first.command_for(files, gate_commands())
+        output = ShellTool(agent_role="harness-tests-first")._run(command)
+        try:
+            code = int(output.split("exit=")[1].split()[0])
+        except (IndexError, ValueError):
+            code = 99
+        record.update(
+            files=files,
+            command=command,
+            red=code != 0,
+            output=output[-2000:],
+        )
+        if code == 0:
+            record["failed"] = "the authored test already passes"
+            print("tests-first: authored test is already green; phase recorded as failed", flush=True)
+        else:
+            print(f"tests-first: {len(files)} frozen test file(s), red as required", flush=True)
+
     def _self_check_phase(self, task: Any, kick: Any) -> None:
         """Static checks before QA: the coder passes on type-clean work (017).
 
@@ -1566,16 +1667,22 @@ class SwarmFlow(Flow[SwarmState]):
         """
         from swarm.crew import MAX_SELF_CHECK_ROUNDS, build_selfcheck_crew
 
+        first_red: list[str] = []
         for attempt in range(MAX_SELF_CHECK_ROUNDS + 1):
             result = self._run_self_check()
             if not result:
                 return
+            if result["red"] and not first_red:
+                first_red = list(result["red"])
             self.state.self_check = {
                 "commands": result["commands"],
                 "exit": result["exit"],
                 "red": result["red"],
                 "rounds": attempt,
                 "report": result["report"][-2000:],
+                # 021 AC-7: did the phase find something the coder then fixed?
+                "detected": bool(first_red),
+                "hit": bool(first_red) and not result["red"],
             }
             if not result["red"]:
                 print("self-check: static checks green", flush=True)
@@ -1690,6 +1797,7 @@ class SwarmFlow(Flow[SwarmState]):
             )
             if verdict != "blocked":
                 record["blocked"] = False
+                record.setdefault("hit", False)
                 print(
                     f"verifier: {verdict.upper()} after round {round_no + 1}",
                     flush=True,
@@ -1698,6 +1806,10 @@ class SwarmFlow(Flow[SwarmState]):
             plan = verify.parse_plan(out)[:MAX_STEPS]
             record["plan"] = plan
             history[-1]["plan"] = plan
+            # 021 AC-7: a grounded block found a scenario defect; whether the
+            # correction pass fixes it or the run ends blocked, the phase paid.
+            record["hit"] = True
+            record["hit_basis"] = "corrections" if plan else "blocked"
             if not findings:
                 # An ungrounded block is not a loop: with nothing the coder can
                 # act on, the honest answer is that the scenario was not shown
@@ -2207,7 +2319,6 @@ class SwarmFlow(Flow[SwarmState]):
     def run_crew(self, ctx: dict[str, str]) -> str:
         from swarm.crew import (
             DEV_ATTEMPTS,
-            MAX_FIX_ROUNDS,
             PLAN_ATTEMPTS,
             SENIOR_ATTEMPTS,
             STEP_ATTEMPTS,
@@ -2432,6 +2543,8 @@ class SwarmFlow(Flow[SwarmState]):
             # 015 AC-7: step outputs survive a dev retry — a second attempt must
             # not re-execute work the first attempt already finished.
             step_outs: list[str] = list(checkpoint_outputs)
+            # 021 T4: tests-first, once per task, before the implementation.
+            self._tests_first_phase(task, _kickoff)
             while True:
                 self.state.dev_attempts += 1
                 self._write_progress(plan_hash, steps, len(step_outs), step_outs)
@@ -2533,11 +2646,12 @@ class SwarmFlow(Flow[SwarmState]):
                     _review(task, work_summary, role="qa:missing-gates")
                     changed = run_delta(self._baseline)
                     gates, transcript, missing = self._gates_or_evidence(changed)
-                base_rounds = self.state.fix_rounds
+                self._record_best_delta(gates)
+                code_rounds = 0
+                verdict_rounds = 0
                 while (
                     not _gates_green(gates) or self.state.review_verdict == "blocked"
-                ) and self.state.fix_rounds - base_rounds < MAX_FIX_ROUNDS:
-                    self.state.fix_rounds += 1
+                ) and code_rounds < self._max_fix_rounds:
                     round_start = self._delta_signature()
                     self.state.transcript = transcript
                     report = self._qa_report(gates, transcript, changed, missing)
@@ -2555,6 +2669,16 @@ class SwarmFlow(Flow[SwarmState]):
                     )
                     tokens_before = int(getattr(self.state, "total_tokens", 0))
                     round_started = time.monotonic()
+                    if cause["cause"] in {"verdict", "evidence"}:
+                        # 021 AC-6: a round with no grounded verdict (or no
+                        # change) is not code work; it gets its own small cap.
+                        verdict_rounds += 1
+                        if verdict_rounds > self._max_verdict_rounds:
+                            print("repair budget: verdict/evidence rounds exhausted", flush=True)
+                            break
+                    else:
+                        code_rounds += 1
+                        self.state.fix_rounds += 1
                     try:
                         _kickoff(
                             lambda report_block=report_block, qa_note=qa_note: build_fix_crew(
@@ -2576,6 +2700,7 @@ class SwarmFlow(Flow[SwarmState]):
                     self._record_gate_selection(
                         "affected" if skipped else "full", selected, skipped, gates
                     )
+                    self._record_best_delta(gates)
                     self._record_fix_round(
                         cause=cause,
                         phase="fix",
@@ -2893,6 +3018,8 @@ class SwarmFlow(Flow[SwarmState]):
             "head_sha": _head_sha(),
             "plan_hash": self.state.plan_hash or None,
             "fix_rounds_detail": self.state.fix_rounds_detail,
+            "tests_first": self.state.tests_first,
+            "best_delta": self.state.best_delta,
             "cache": {
                 "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),

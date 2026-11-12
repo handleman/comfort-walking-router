@@ -38,6 +38,18 @@ def test_stable_prefix_moves_with_the_role():
     assert "FINDING:" in verifier
 
 
+def test_coder_prefix_can_carry_the_acs_for_the_ab(monkeypatch):
+    task = _task()
+    monkeypatch.delenv("SWARM_CODER_ACS", raising=False)
+    assert "ACCEPTANCE CRITERIA" not in prompts.stable_prefix(task, "020-harness-efficiency", "step")
+    monkeypatch.setenv("SWARM_CODER_ACS", "1")
+    prefix = prompts.stable_prefix(task, "020-harness-efficiency", "step")
+    assert "ACCEPTANCE CRITERIA" in prefix and "cache hints" in prefix
+    # the prefix stays byte-identical across steps in both configurations
+    assert prefix == prompts.stable_prefix(task, "020-harness-efficiency", "step")
+    monkeypatch.delenv("SWARM_CODER_ACS")
+
+
 def test_verifier_prefix_carries_the_referenced_acceptance_criteria():
     task = _task()
     prefix = prompts.stable_prefix(task, "020-harness-efficiency", "verifier")

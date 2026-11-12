@@ -306,6 +306,14 @@ class FullFileReadTool(TrimmedFileReadTool):
         )
 
 
+def _frozen_error(path: str) -> str:
+    from swarm import tests_first
+
+    if tests_first.is_frozen(path):
+        return f"BLOCKED: {path} is a frozen test written from the acceptance criteria; make it pass, do not edit it"
+    return ""
+
+
 def _write_target(path: str) -> tuple[Path | None, str]:
     """Validate a write path: repo-relative, inside coder scope, no secrets."""
     rel = _safe_rel(path)
@@ -332,8 +340,18 @@ class EditTool(BaseTool):
     name: str = "Repo Edit"
     description: str = "Replace one exact occurrence of oldString with newString in an in-scope repo-relative file."
     args_schema: type[BaseModel] = EditArgs
+    # 021 T4: the Test Author may only edit tests; step crews may not edit frozen
+    # tests (the freeze guard applies to both).
+    test_only: bool = False
 
     def _run(self, path: str, oldString: str, newString: str, **kwargs: Any) -> str:
+        from swarm import tests_first
+
+        if self.test_only and not tests_first.is_test_path(path):
+            return f"BLOCKED: the Test Author writes tests only, not {path}"
+        frozen = _frozen_error(path)
+        if frozen:
+            return frozen
         target, err = _write_target(path)
         if target is None:
             return err
@@ -771,8 +789,16 @@ class CreateTool(BaseTool):
     name: str = "Repo Create"
     description: str = "Create a new in-scope repo-relative file. Refuses existing, out-of-scope, escaping, or secret paths."
     args_schema: type[BaseModel] = CreateArgs
+    test_only: bool = False
 
     def _run(self, path: str, content: str = "", **kwargs: Any) -> str:
+        from swarm import tests_first
+
+        if self.test_only and not tests_first.is_test_path(path):
+            return f"BLOCKED: the Test Author writes tests only, not {path}"
+        frozen = _frozen_error(path)
+        if frozen:
+            return frozen
         target, err = _write_target(path)
         if target is None:
             return err

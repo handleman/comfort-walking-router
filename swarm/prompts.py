@@ -31,6 +31,14 @@ from swarm.spec_loader import SpecTask
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_STEPS = 8
 MAX_AC_CHARS = 900
+# 021 T5: put the referenced AC paragraphs back into the coder prefix. 020 T2
+# excluded them to keep the prefix lean; this is the A/B for that decision.
+CODER_ACS_ENV = "SWARM_CODER_ACS"
+
+
+def coder_acs_enabled(env: dict[str, str] | None = None) -> bool:
+    source = os.environ if env is None else env
+    return str(source.get(CODER_ACS_ENV, "0")).strip().lower() in {"1", "true", "yes"}
 MAX_PLAN_LINES = 12
 
 _BACKTICK_PATH_RE = re.compile(r"`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`")
@@ -445,8 +453,10 @@ def stable_prefix(task: SpecTask, spec_dir: str = "", kind: str = "step") -> str
     round asks for it. Volatile content is appended by the `*_prompt` functions.
     """
     scenario = kind == "verifier"
+    coder = kind in {"step", "fix", "selfcheck", "senior", "senior_step"}
+    ac = scenario or (coder and coder_acs_enabled())
     return "\n".join(
-        [role_rules(kind), task_block(task, spec_dir, ac=scenario, plan=scenario)]
+        [role_rules(kind), task_block(task, spec_dir, ac=ac, plan=scenario)]
     )
 
 
@@ -474,10 +484,14 @@ def prompt_prefix(task: SpecTask, spec_dir: str = "", kind: str = "step") -> tup
 
 
 def step_prompt(task: SpecTask, spec_dir: str, step_text: str, idx: int, total: int) -> str:
+    from swarm import tests_first
+
+    frozen = tests_first.frozen_note()
     return (
         stable_prefix(task, spec_dir, "step")
         + f"\n\nExecute micro-step {idx}/{total} (no other work):\n{step_text[:2000]}\n"
-        f"Result: one line per file changed by step {idx}."
+        + (f"{frozen}\n" if frozen else "")
+        + f"Result: one line per file changed by step {idx}."
     )
 
 
@@ -536,6 +550,24 @@ def verify_prompt(task: SpecTask, spec_dir: str, context_text: str) -> str:
         stable_prefix(task, spec_dir, "verifier")
         + "\n\nThe harness built this from the spec and this run's delta:\n\n"
         + f"{context_text}\n"
+    )
+
+
+def test_author_prompt(task: SpecTask, spec_dir: str, ac_text: str = "") -> str:
+    """One failing test per acceptance criterion, before the implementation."""
+    acs = ac_text or task_block(task, spec_dir, ac=True)
+    return (
+        "Write the FAILING test(s) for this task before any implementation exists.\n"
+        "You are the Test Author: write tests only, never implementation code, and run no gates.\n\n"
+        f"{acs}\n\n"
+        "Rules (hard):\n"
+        "- one focused test per acceptance criterion, importing the REAL module and calling its "
+        "real exports; never re-declare or stub the code under test;\n"
+        "- the test must fail for the right reason (missing behaviour), not because of a syntax "
+        "error in the test;\n"
+        "- use the project's existing test layout and framework;\n"
+        "- do not touch implementation files, and do not fix the code to make your test pass.\n"
+        "Result: the test file paths you wrote, and one line per test naming the criterion it checks."
     )
 
 

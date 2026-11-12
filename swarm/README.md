@@ -932,6 +932,20 @@ python -m swarm.bench.replay --update-baseline  # snapshot the first run
 - `004-weather-sun-T2` is deliberately in the set: it is the case the 020 T8
   replay failed on (`verifier_blocked`), so it is the loop's current worst case.
 
+## Tests-first (021 T4, opt-in A/B)
+`SWARM_TESTS_FIRST=1` adds one phase between the plan and the implementation: a
+`Test Author` crew writes one failing test per referenced acceptance criterion.
+- The author has no shell and the write tools are `test_only`: it cannot edit
+  implementation files or run a gate.
+- The harness runs the test under its own role (`harness-tests-first`), records
+  `run.json.tests_first` (`files`, `command`, `red`, `output`, `failed`), and
+  **freezes** the files by hash. Step crews get a note naming them, and the tool
+  layer refuses an edit to a frozen test.
+- A test that already passes is a failed phase (`failed: the authored test
+  already passes`), never a win; the flow continues normally.
+- Default off because a weak test author can be worse than no test (ExecCritic);
+  `make swarm-replay` with `SWARM_TESTS_FIRST=1` is how it earns being on.
+
 ## Deterministic repair before QA (021 T3)
 Formatting is mechanical, so it never reaches a model. `SWARM_STYLE_FIX_COMMAND`
 is a `;`/newline-separated list (this repo can run
@@ -946,6 +960,19 @@ coder. The 017 self-check formats its own static failures the same way, and its
 resolved command list is recorded in `run.json.self_check.commands`.
 `SWARM_STYLE_PRE_QA=0` restores the 020 behaviour (format only when a sole style
 gate fails, after QA).
+
+## Repair budget and verification ROI (021 T6/T7)
+- `SWARM_MAX_FIX_ROUNDS` (default 3) caps **code** rounds. A round whose cause
+  is `verdict` or `evidence` (see below) does not consume that budget; it has
+  its own cap of 1, so a QA that never grounds a verdict cannot loop.
+- `run.json.best_delta` records the delta that passed the most gates
+  (`delta`, `green_gates`, `total_gates`, `gates`, `round`), so a later round
+  cannot silently regress a gate that once passed. Green still requires every
+  gate at the final delta.
+- `self_check.detected` / `self_check.hit` (017) and `verifier.hit` /
+  `hit_basis` (019) record whether each phase found something: 017 hits when a
+  red static check is then fixed in the phase; 019 hits on a grounded block.
+  `make swarm-report` prints both rates next to the repair causes.
 
 ## Fix telemetry (021 T2)
 Every repair round is labelled mechanically from the report the coder received —

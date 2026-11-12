@@ -219,6 +219,34 @@ PLAN_ATTEMPTS = 2  # planner retries on unparseable output before giving up
 MAX_SELF_CHECK_ROUNDS = 2
 
 
+def build_test_author_crew(spec_dir: str, task: SpecTask, ac_text: str = "") -> Crew:
+    """021 T4: write the failing test from the ACs, before the implementation.
+
+    Separate role, no shell and no gate: it can only read and write test paths,
+    so it cannot "fix" the implementation to agree with its own test.
+    """
+    agent = Agent(
+        role="Test Author",
+        goal="Write one failing test per acceptance criterion. Tests only, no implementation.",
+        backstory=(
+            "You write the check before the code exists. The test must import the real "
+            "module and fail because the behaviour is missing — not because the test "
+            "itself is broken. You never run gates, never run shell commands and never "
+            "edit implementation files."
+        ),
+        llm=coder_llm(),
+        tools=[TrimmedFileReadTool(), CreateTool(test_only=True), EditTool(test_only=True)],
+        verbose=False,
+        max_iter=8,
+    )
+    t_tests = Task(
+        description=prompts.test_author_prompt(task, spec_dir, ac_text),
+        expected_output="Test file paths written, plus one line per test naming the criterion it checks.",
+        agent=agent,
+    )
+    return Crew(agents=[agent], tasks=[t_tests], process=Process.sequential, verbose=False)
+
+
 def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
     """Planner only: split the task into STEP micro-steps for the tiny coder."""
     copy = prompts.agent_copy(task, "plan")
