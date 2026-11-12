@@ -70,6 +70,22 @@ def test_copy_harness_skips_runs_and_vendor(tmp_path: Path):
     assert "runs" in skipped and "bench/corpus" in skipped
 
 
+def test_link_venvs_reuses_the_repo_trees(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / "swarm" / ".venv" / "bin").mkdir(parents=True)
+    (repo / ".venv" / "bin").mkdir(parents=True)
+    (repo / "frontend" / "node_modules").mkdir(parents=True)
+    worktree = tmp_path / "wt"
+    (worktree / "swarm").mkdir(parents=True)
+
+    linked = live.link_venvs(repo, worktree)
+    assert linked == [".venv", "swarm/.venv", "frontend/node_modules"]
+    assert (worktree / "swarm" / ".venv").is_symlink()
+    assert (worktree / ".venv").resolve() == (repo / ".venv").resolve()
+    # idempotent: a second call changes nothing
+    assert live.link_venvs(repo, worktree) == []
+
+
 def test_model_pins_map_to_role_env():
     env = {"SWARM_BENCH_MODELS": "coder=ollama/a, qa=ollama/b,planner=ollama/c,senior=ollama/d"}
     assert live.model_env(env) == {

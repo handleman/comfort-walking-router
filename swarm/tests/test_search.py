@@ -119,6 +119,17 @@ def test_report_is_versioned_and_never_repeats_the_tail():
     assert "output:" not in text
 
 
+def test_compaction_off_restores_the_old_report_rendering(monkeypatch):
+    from swarm.evidence import report_text
+
+    tail = "app/scoring.py:12: error: expected value\n" + "context\n" * 10
+    report = _report(tail)
+    monkeypatch.setenv("SWARM_CONTEXT_COMPACT", "0")
+    text = report_text(report)
+    assert "key lines:" in text and "output:" in text
+    assert "app/scoring.py:12" in text
+
+
 def test_report_falls_back_to_raw_output_when_nothing_is_extractable():
     from swarm.evidence import report_text
 

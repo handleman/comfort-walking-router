@@ -109,6 +109,28 @@ def copy_harness(repo: Path, destination: Path) -> list[str]:
     return skipped
 
 
+VENV_LINKS = ((".venv", ".venv"), ("swarm/.venv", "swarm/.venv"), ("frontend/node_modules", "frontend/node_modules"))
+
+
+def link_venvs(repo: Path, worktree: Path) -> list[str]:
+    """Reuse the repo's dependency trees instead of bootstrapping in the worktree.
+
+    The harness copy runs with `PYTHONPATH=<worktree>`, so `import swarm` is the
+    worktree's code while the interpreters, pytest/mypy/ruff and node_modules are
+    the repo's. Bootstrap would take minutes and would use the *worktree* source.
+    """
+    linked: list[str] = []
+    for rel, target_rel in VENV_LINKS:
+        target = repo / target_rel
+        link = worktree / rel
+        if not target.exists() or link.exists():
+            continue
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(target, target_is_directory=True)
+        linked.append(rel)
+    return linked
+
+
 def _run_dir(worktree: Path) -> Path | None:
     latest = worktree / "swarm" / "runs" / "latest"
     try:
@@ -158,6 +180,13 @@ def run_case(
     env.update(model_env())
     env["SWARM_BENCH"] = "1"
     env["PYTHONPATH"] = str(worktree)
+    # The repo's `.env` is not copied into the worktree (it holds keys). Pin the
+    # gate list from the case itself so the replay runs the task's real gates.
+    commands = [g for g in (case.get("gates") or {}) if g != "scope"]
+    if commands:
+        env["SWARM_GATE_COMMANDS"] = ";".join(commands)
+    for rel in (".venv", "swarm/.venv"):
+        env["PATH"] = f"{repo / rel / 'bin'}:{env.get('PATH', '')}"
     env.pop("SWARM_REQUIRE_APPROVAL", None)
     try:
         rc, out = _git(repo, "worktree", "add", "--detach", str(worktree), case["base_sha"])
@@ -165,6 +194,7 @@ def run_case(
             return {"ok": False, "error": f"worktree add failed: {out.strip()}", "case": case_id}
         added = True
         copy_harness(repo, worktree)
+        link_venvs(repo, worktree)
         python = repo / "swarm" / ".venv" / "bin" / "python"
         cmd = [
             str(python),

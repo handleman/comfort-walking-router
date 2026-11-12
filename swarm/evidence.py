@@ -167,6 +167,12 @@ def qa_report(
     }
 
 
+def _compaction_on() -> bool:
+    from swarm.compaction import enabled
+
+    return enabled()
+
+
 def report_text(report: dict[str, Any]) -> str:
     """Render the report for a prompt (bounded, failures first).
 
@@ -198,10 +204,11 @@ def report_text(report: dict[str, Any]) -> str:
             # are the actionable part, and the path is there when they are not.
             lines.append(f"full log: {entry['log_path']}")
         body = str(entry.get("tail") or "")
-        if body and not errors:
+        if body and (not errors or not _compaction_on()):
             # 020 AC-5: never send the same failure twice. Key lines are the
             # actionable form; the raw body is the fallback when extraction
-            # found nothing (a formatter or an unrecognised tool's output).
+            # found nothing (a formatter or an unrecognised tool's output) and
+            # when context compaction is switched off (AC-3's old behaviour).
             lines.append("output:")
             lines.append(body[-FAILURE_TAIL_CHARS:])
     if passing:
