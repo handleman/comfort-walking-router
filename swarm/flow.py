@@ -2919,6 +2919,7 @@ HARNESS_SPECS = (
     "018-operator-readable-runs",
     "019-scenario-verifier",
     "020-harness-efficiency",
+    "021-fix-loop",
 )
 
 

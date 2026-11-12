@@ -1,0 +1,201 @@
+# The fix loop: where the tokens actually go (2026-11)
+
+Status: investigation for `specs/021-*`. Read-only analysis of `swarm/runs/`
+(86 runs, 2026-10-10 → 2026-11-12) plus a focused market check on repair loops.
+It complements `docs/research/dark-factory-market-2026.md`: that document asked
+*which harness capabilities are missing*; this one asks *why a task needs a
+second round at all*.
+
+## Why this exists
+
+020 removed the cheap waste: prompt prefix stability, context compaction,
+gate-log spilling, gate selection. It did not touch the expensive waste.
+
+Measured over the same history:
+
+| Fact | Value |
+| --- | --- |
+| Green runs that needed ≥1 fix round | **32 of 54 (59%)** |
+| Prompt tokens spent in `coder:fix*` roles | **7.27M of 16.3M (44.6%)** |
+| Wall clock, green runs without a fix round (p50) | **202 s** |
+| Wall clock, green runs with ≥1 fix round (p50) | **615 s (3.0×)** |
+| Fix rounds burned by non-green runs | **60** (8 budget stops had 3–4; two reviewer-blocked runs had 6) |
+
+Fix rounds are not a quality detail. They are the largest single line in the
+token bill, the reason the p90 tail exists, and the state in which most human
+stops happen. A phase that halves them is worth more than any of the 020
+changes, and it makes 022 (parallelism) and 023 (earned autonomy) safer:
+parallelising a 59%-repair loop multiplies rework, and automating merges on top
+of it multiplies risk.
+
+## What the history says about the cause
+
+### The failing gate is usually frontend
+
+Last failing gate among all runs, from `run.json.qa_report` / `evidence.gates`:
+
+| Gate | Runs where it is the last red gate |
+| --- | --- |
+| `npm --prefix frontend run lint` | **20** |
+| `npm --prefix frontend run check` (svelte-check) | **12** |
+| `pytest -q` | 8 |
+| `ruff check .` | 8 |
+| `npm --prefix frontend test -- --run` | 7 |
+| `mypy app tests` | 5 |
+
+Where a green run's last report is analyzable (20 of 32), the shapes are:
+
+| Shape | Runs |
+| --- | --- |
+| sole `npm run lint` | 6 |
+| `npm run check` + `npm run lint` | 3 |
+| sole `pytest` / sole `ruff` / mixed backend | 5 |
+| `check` + `test`, `test` alone, others | 3 |
+
+So the loop is not dominated by deep semantic bugs. It is dominated by the
+frontend verification pair: formatting/lint and type checking.
+
+### The deterministic repair path never fires
+
+`swarm/style.py` can repair formatting without a coder round, and
+`run.json.style_autofix` records every time it does. In 86 runs — including 68
+after the feature landed — **it fired zero times**.
+
+The reason is structural, not bad luck:
+
+- `_autofix_style` only runs when the style gate is the **only** red gate
+  (`style_gate` requires `len(failing) == 1`). A lint+check round never
+  qualifies, even when the lint half is pure formatting.
+- `is_style_failure` recognises Prettier markers and a small set of *scoped*
+  ESLint rules (`@scope/rule`). `npm run lint` is `eslint . && prettier
+  --check .`, so an unscoped rule (e.g. `no-unused-vars`) yields no rule match
+  and the tail is not treated as style even when Prettier would also fail.
+- The repair runs after QA, not before it: the coder has already spent a round
+  by the time the formatter is considered.
+
+That is the clearest single defect the data contains: a mechanical class of
+failure reaches a model, 20 times.
+
+### Tests encode the coder's own assumptions
+
+Several of the long repairs are assertion churn: the test and the
+implementation are written in the same trajectory, so a wrong assumption is
+encoded twice (014-T7 shipped a client reading `results` while the pinned plan
+said `suggestions`; 007-T9's test declared a `tick` the provider never had).
+The 019 verifier catches "the pieces do not connect" after the fact, but it
+does not prevent the first wrong test. Nothing in the loop writes the failing
+test *from the acceptance criteria* before the implementation exists.
+
+### Evidence quality and verdict gaps
+
+Four runs ended in `reviewer_blocked` / `reviewer_no_verdict`, two of them after
+**6** fix rounds: the loop kept spending rounds while QA never produced a
+grounded verdict. 007's lessons fixed part of this (verdict repair, report key
+lines), and 020 T4/T6 made the report smaller and single-form, but the history
+predates those changes. The point for 021 is measurement: we cannot currently
+tell a *code* fix round from a *verdict/evidence* fix round in `run.json`.
+
+### We have no data on the new verification phases
+
+017 (self-check) appears in **1** run and 019 (verifier) in **0** — both landed
+at the end of the window. Their cost is one extra crew call per task and their
+benefit is unmeasured. Task 021 must instrument the hit rate, because "remove
+work the loop does not need" applies to the harness's own phases too.
+
+## What the market does about repair loops
+
+The 2026 literature is consistent on four points, and all four map to this
+harness:
+
+1. **Tests first, and written independently of the patch.** A tests-first phase
+   (write the failing test from the requirement, then implement) reports
+   ~40–50% fewer iterations and roughly half the tokens versus a naive loop
+   ([tests-first agent loop, 2026-01](https://micheallanham.substack.com/p/the-tests-first-ai-agent-loop-for);
+   [Augment, 2026-07](https://www.augmentcode.com/guides/how-agents-close-build-test-fix-loop)).
+   ExecCritic's finding is the important nuance: when the same trajectory writes
+   both test and patch, both can agree on a wrong behaviour; an independent test
+   author lifts the resolved rate, while a weak test author *lowers* it below no
+   test at all ([ExecCritic, 2026](https://arxiv.org/pdf/2609.09133v1)).
+2. **Repair budgets have diminishing returns.** The first 3–4 repair iterations
+   deliver most of the gain; later ones are marginal, and orchestration/feedback
+   design matters more than the model
+   ([Is Three the Magic Number?, 2026-10](https://doi.org/10.1145/3832783.3834547)).
+3. **Stale evidence is harmful; verified checkpoints should be preserved.**
+   Forced revision with *stale* traces hurts previously-correct solutions;
+   current evidence helps. The proposed discipline is a typed revision contract
+   with an evidence gate and checkpoint preservation
+   ([Looping Is Not Reliability, 2026-07](https://ar5iv.labs.arxiv.org/html/2607.24604)).
+4. **Validate deterministically before presenting a fix.** Google's AutoRepair
+   runs a generate-and-validate loop with a bounded tool/runtime budget and a
+   final deterministic validation, because a model's own claim of success is not
+   evidence ([AutoRepair, 2026-10](https://arxiv.org/html/2610.07289v1)).
+
+Our harness already has (2)'s bound (`MAX_FIX_ROUNDS=3`), (4)'s final
+validation (QA-only evidence, `shell_log.jsonl`), and (3)'s "current evidence"
+rule partly (evidence hash). It does **not** have (1), and its deterministic
+repair is narrower than the data requires.
+
+## Opportunity backlog
+
+Impact is on fix rounds / tokens / wall clock; effort S ≤ 1 day, M ≤ 1 week,
+H > 1 week; risk is "new trust surface" or "gameable check".
+
+| ID | Opportunity | Evidence | Impact | Effort | Risk |
+| --- | --- | --- | --- | --- | --- |
+| **R1** | **Format before QA, every round** — run the formatter after the steps and after each fix, then re-check; drop the "sole red gate" condition | `style_autofix` fired 0/86; lint is the #1 failing gate | High | S | Low |
+| **R2** | **Deterministic-repair coverage** — recognise unscoped ESLint rules that `--fix` owns and Prettier failures alongside other red gates; never send those to a model | 20 lint-fail runs, 6 sole-lint shapes | High | S–M | Low |
+| **R3** | **Tests-first phase** — a red test step derived from the ACs, written by a *test author* role separate from the implementer, frozen before the implementation steps | 40–50% fewer iterations in trials; ExecCritic on independent test authoring | High | M–H | Medium |
+| **R4** | **AC-aware coder prefix (A/B)** — 020 T2 excluded AC paragraphs from coder prompts for cost; test whether they cut rounds | The "green but wrong" class (014) | Med | S | Low |
+| **R5** | **Per-round fix telemetry** — `fix_cause` (type/lint/test/scenario/verdict/evidence), report shape, and 017/019 hit rate in `run.json`; `make swarm-report` aggregates | Today cause is inferred from prose; 017/019 unmeasured | High (enabler) | S | Low |
+| **R6** | **Repair budget + checkpoint preservation** — stop at 3–4, keep the best verified delta, never retry from stale evidence | Diminishing returns after 3–4; stale traces harm | Med | M | Low |
+| **R7** | **Static-check coverage audit** — confirm the pre-QA self-check runs the frontend type check as well as lint; fix the gap if not | `check` is the #2 failing gate | Med | S | Low |
+| **R8** | **Contract pinning check** — one source per field, asserted before QA (019 already checks "contract and code agree"; make it a typed finding) | 014-T1's three schemas | Med | M | Medium |
+| **R9** | **Outcome replay suite** — extend 020 T7 from one case to 5–8, on/off A/B, scoring green/cost/time/fix rounds | 020 T8 needed a live run; chars are not outcomes | High (enabler) | M | Low |
+
+## Proposed 021 scope (`021-fix-loop`)
+
+Measure first, then remove the mechanical class, then test the tests-first bet:
+
+1. **Outcome suite + fix telemetry (R5, R9).** Before changing behaviour:
+   5–8 frozen cases replayed on demand; `fix_cause` recorded per round; a
+   `make swarm-report` view of cause distribution, 017/019 hit rate and
+   `cached_prompt_tokens`.
+2. **Deterministic repair before QA (R1, R2, R7).** Formatting never reaches a
+   model; lint failures that `--fix` owns are repaired and re-checked; the
+   pre-QA static set covers the frontend type check. No new trust surface: QA
+   still runs the gates and owns green.
+3. **Tests-first, as an A/B (R3, R4).** A red test step from the ACs, written by
+   a separate test-author role and frozen; then the implementation steps. Run it
+   on N cases against the current flow and keep it only if the fix rate drops
+   without lowering the green rate. AC-aware coder prompts ride along as the
+   cheap variant.
+4. **Repair budget + checkpoint preservation (R6).** Stop at the measured knee,
+   keep the best verified delta, and refuse a round whose evidence is stale.
+5. **Contract pinning (R8)** if the A/B leaves room; otherwise record it for 022.
+
+**Success (measured on the outcome suite, not the offline bench):**
+fix-round rate 59% → **≤35%**, `coder:fix*` prompt tokens **−40%**, p50 wall
+clock for fix tasks 615 s → **≤400 s**, and the green rate **not lower** than
+the 020 baseline. A change that lowers green is reverted, not documented.
+
+## Decision points
+
+1. **Tests-first shape** — full phase (separate test-author crew, frozen tests)
+   or an opt-in A/B (`SWARM_TESTS_FIRST=1`) that ships only if it wins?
+   Recommendation: A/B, because ExecCritic shows a weak test author can make
+   results *worse* than no test.
+2. **Repair budget** — keep 3 fix rounds, or adopt the measured knee (4) with
+   checkpoint preservation? Recommendation: 3 for local models, 4 only if the
+   suite shows a gain.
+3. **Scope** — does the outcome suite + telemetry belong in 021 (recommended:
+   yes, it is how 022/023 will be judged) or a separate measurement spec?
+4. **`fix_cause` ownership** — classify mechanically from the report (gates +
+   key lines) or ask QA for one line? Recommendation: mechanical, with QA's
+   reason as a fallback; a model-labelled cause is not evidence.
+
+## Sources
+
+- Repo: `swarm/runs/*/run.json` (86 runs), `swarm/report.py`, `swarm/style.py`,
+  `swarm/flow.py` (`_autofix_style`, `_gates_or_evidence`), `specs/020-*`.
+- Market: links inline above; the broader landscape is in
+  `docs/research/dark-factory-market-2026.md`.
