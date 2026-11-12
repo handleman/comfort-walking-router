@@ -724,6 +724,34 @@ make swarm-bench ARGS="--json --case 006-comfort-plus-T3"
   mutates git. Prompt text is model-independent; crews are built with
   `ollama/bench` for the duration of a measurement.
 
+## Prompt assembly (`swarm/prompts.py`, 020 T2)
+One module builds every per-task prompt, in two parts:
+
+```
+description = stable_prefix(task, spec_dir, kind) + "\n\n" + volatile part
+```
+
+- `stable_prefix` is a pure function of the task and `specs/<spec>/`: task
+  context (spec/task/AC ids, brief), the fixed rules for the role (scope,
+  read-real-API, loop limits, the verifier's whole-scenario contract), and, for
+  the verifier only, the referenced AC paragraphs and plan lines. The volatile
+  tail is the step text, the round's report or the work summary, always last.
+- `prompt_prefix(task, spec_dir, kind)` returns the provider-order prefix
+  (role, goal, backstory, then the stable block) and its short SHA-256. The
+  bench records the hash per case: if a change silently reassembles the head of
+  the prompt, the hash moves instead of the character count drifting.
+- Two steps (or two fix rounds) of the same task produce a byte-identical
+  prefix. That is what makes provider prefix caching and Ollama KV reuse
+  possible; the cache hints themselves land in 020 T3.
+- Agent copy (role/goal/backstory) lives in `prompts.agent_copy(task, kind)`;
+  `swarm/crew.py` only assembles CrewAI objects. `swarm/crew.py` re-exports the
+  old names (`MAX_STEPS`, `SCOPE_RULE`, `FIX_RULES`, `parse_steps`, …) for the
+  flow and the tests.
+- Measured at T2: +5.7% task prompt chars over the T1 baseline (the brief is
+  now part of every step's stable prefix), report chars unchanged. The win is
+  cacheability and one coherent head per task, not raw characters; T4/T5/T6 do
+  the cutting.
+
 ## Traces & logs (all inside the project, never `/tmp`)
 - Pilot runs: `swarm/runs/<ts>-<pid>-<rand>/{run.json,events.jsonl,progress.json}` (+ `latest` pointer).
   `run.json` records brief, `ac_refs`, changed files, gates, reviewer verdict, the

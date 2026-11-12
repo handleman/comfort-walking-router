@@ -2,16 +2,62 @@
 
 from __future__ import annotations
 
-import os
-import re
 from pathlib import Path
 
 from crewai import Agent, Crew, Process, Task
 
-from swarm.llms import coder_llm, planner_llm, reviewer_llm
+from swarm import prompts
+from swarm.llms import (
+    coder_llm,
+    conflict_llm,
+    planner_llm,
+    reviewer_llm,
+    senior_llm,
+    verifier_llm,
+)
+
+# Back-compat re-exports: flow.py and the tests import these from swarm.crew.
+from swarm.prompts import (
+    FIX_RULES,
+    MAX_STEPS,
+    SCOPE_RULE,
+    STEP_RE,
+    coder_role,
+    gate_commands_hint,
+    parse_steps,
+    stack_hint,
+    steps_usable,
+)
+
+__all__ = [
+    "DEV_ATTEMPTS",
+    "FIX_RULES",
+    "MAX_FIX_ROUNDS",
+    "MAX_SELF_CHECK_ROUNDS",
+    "MAX_STEPS",
+    "PLAN_ATTEMPTS",
+    "SCOPE_RULE",
+    "SENIOR_ATTEMPTS",
+    "STEP_ATTEMPTS",
+    "STEP_RE",
+    "build_conflict_crew",
+    "build_fix_crew",
+    "build_plan_crew",
+    "build_review_crew",
+    "build_selfcheck_crew",
+    "build_senior_crew",
+    "build_senior_step_crew",
+    "build_stash_crew",
+    "build_step_crew",
+    "build_verify_crew",
+    "coder_role",
+    "gate_commands_hint",
+    "parse_steps",
+    "stack_hint",
+    "steps_usable",
+]
 from swarm.spec_loader import SpecTask
 from swarm.tools_guarded import (
-    DEFAULT_SCOPE,
     CreateTool,
     EditTool,
     FullFileReadTool,
@@ -20,108 +66,6 @@ from swarm.tools_guarded import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _scope_rule() -> str:
-    """Prompt text derived from the same scope the tools enforce (no drift)."""
-    dirs = [s for s in DEFAULT_SCOPE if s.endswith("/")]
-    files = [s for s in DEFAULT_SCOPE if not s.endswith("/")]
-    return (
-        "Touch ONLY files under " + ", ".join(dirs)
-        + " and these exact files: " + ", ".join(files) + ". "
-        "NEVER modify swarm/, specs/, docs/, .env*."
-    )
-
-
-SCOPE_RULE = _scope_rule()
-
-STEP_RE = re.compile(r"^STEP\s*(\d+)\s*[:.\-–]\s*(.+)$", re.MULTILINE)
-# Findings from 001-T2 thrash (2026-10-10): fix rounds converged only when the
-# agent fixed coherently instead of patching single lines. Shared by fix + senior crews.
-FIX_RULES = (
-    "Fix COMPLETELY and coherently, not one line at a time: imports must resolve "
-    "(relative imports within the package, never bare top-level names for package "
-    "modules); sync/async must match (never await a sync function — make the caller "
-    "match its callees); implementations must match their ABC signatures. "
-    "If the transcript contains type-checker errors, diagnose the real "
-    "mismatch first: read the failing expression, infer the type from the API "
-    "response/contract or an existing interface, reuse/extend that type, and narrow "
-    "unions with real guards. Try that before any escape. If a correct typing is "
-    "genuinely impossible within this task, the language's narrow last-resort "
-    "suppression is allowed — say why in your final answer. Never delete or disable "
-    "the feature, and never blanket-suppress a file. "
-    "Delete stray files you created at wrong paths instead of leaving them."
-)
-# 015 D1: QA is the only gate executor. Coders never run gates; they work from
-# QA's report (per-gate argv, exit code, failure output). The flow drives
-# QA→coder→QA rounds, bounded by MAX_FIX_ROUNDS.
-MAX_STEPS = 8
-
-
-def gate_commands_hint() -> str:
-    """The project's gate commands (config-driven; no stack assumptions)."""
-    raw = os.getenv("SWARM_GATE_COMMANDS", "").strip()
-    commands = [c.strip() for c in re.split(r"[;\n]", raw) if c.strip()] or [
-        "pytest -q",
-        "ruff check .",
-        "mypy app tests",
-    ]
-    return ", ".join(f"`{command}`" for command in commands)
-
-
-def parse_steps(plan_text: str) -> list[str]:
-    """Split a planner STEP list into executable micro-steps. Never truncates."""
-    return [m.group(2).strip() for m in STEP_RE.finditer(plan_text) if m.group(2).strip()]
-
-
-def steps_usable(steps: list[str]) -> bool:
-    """A plan is usable only when it fits the micro-step budget and each step is sane."""
-    return 1 <= len(steps) <= MAX_STEPS and all(3 <= len(s) <= 500 for s in steps)
-
-
-def coder_role(task: SpecTask) -> str:
-    """Pick a role from the task text; stack names are examples, not assumptions."""
-    text = task.brief.lower()
-    if any(
-        k in text
-        for k in (
-            "frontend/",
-            "ui/",
-            "component",
-            "react",
-            "vue",
-            "angular",
-            "svelte",
-            "typescript",
-            "javascript",
-            "css",
-            "tailwind",
-            "vite",
-            "npm ",
-        )
-    ):
-        return "Frontend Coder"
-    if any(k in text for k in ("tests/", "test_", "pytest", "test")):
-        return "Test Coder"
-    return "Service Coder"
-
-
-def _stack_hint(task: SpecTask) -> str:
-    role = coder_role(task)
-    if role == "Frontend Coder":
-        return (
-            "This is UI/frontend work. QA type-checks the frontend with the project gates "
-            "(`SWARM_GATE_COMMANDS`); write code that passes them and never run the gates "
-            "yourself. Treat type-checker errors as design "
-            "feedback: read the failing expression, infer the type from the API response/contract "
-            "or an existing interface, reuse or extend that type, and narrow unions properly. "
-            "Try that first. If no correct typing is possible in the task, a narrow last-resort "
-            "type suppression is acceptable with an explanation; deleting/disabling the feature "
-            "or blanket-suppressing the file is not."
-        )
-    if role == "Test Coder":
-        return "This is test work: add focused coverage; do not change behavior beyond the brief."
-    return "This is service/backend work: keep imports, types, and public contracts coherent."
 
 
 def _tools(*, allow_gates: bool = False, role: str = "coder") -> list[object]:
@@ -136,47 +80,33 @@ def _tools(*, allow_gates: bool = False, role: str = "coder") -> list[object]:
 
 def _coder(
     task: SpecTask,
+    kind: str,
     *,
-    goal: str,
-    backstory: str,
     max_iter: int = 6,
     allow_gates: bool = False,
     model_kind: str = "paid",
 ) -> Agent:
     from swarm.llms import local_coder_llm
 
+    copy = prompts.agent_copy(task, kind)
     llm = local_coder_llm() if model_kind == "local" else coder_llm()
     return Agent(
-        role=coder_role(task),
-        goal=goal,
-        backstory=(
-            backstory
-            + " QA is the only role that runs the gates and you never run them. "
-            "When QA blocks, its report lists each gate command, its exit code, and the "
-            "failure output: investigate from that evidence. " + _stack_hint(task)
-        ),
+        role=copy["role"],
+        goal=copy["goal"],
+        backstory=copy["backstory"],
         llm=llm,
-        tools=_tools(allow_gates=allow_gates, role=coder_role(task)),
+        tools=_tools(allow_gates=allow_gates, role=copy["role"]),
         verbose=False,
         max_iter=max_iter,
     )
 
 
 def _reviewer() -> Agent:
+    copy = prompts.agent_copy(None, "qa")
     return Agent(
-        role="QA Gatekeeper",
-        goal="Block done unless every configured gate is attached and green.",
-        backstory=(
-            "You are the only role that runs the project gates; the coder never runs them. "
-            "You run every configured gate with Guarded Shell, then report each command, "
-            "its exit code, and the failure output so the coder can investigate. "
-            "Never paste source code or repeat the work summary. "
-            "A test that re-declares or stubs the module under test instead of "
-            "importing it tests nothing: verdict BLOCKED. "
-            "Prefer real type fixes. A fix that removes/disables the feature or "
-            "blanket-suppresses types is BLOCKED; a narrow, explained last-resort "
-            "suppression may PASS when gates are green and the feature is intact."
-        ),
+        role=copy["role"],
+        goal=copy["goal"],
+        backstory=copy["backstory"],
         llm=reviewer_llm(),
         tools=[TrimmedFileReadTool(), ShellTool(agent_role="QA Gatekeeper")],
         verbose=False,
@@ -199,27 +129,9 @@ def build_step_crew(
     model_kind: str = "paid",
 ) -> Crew:
     """One coder, one micro-step, fresh message history (bounds context)."""
-    coder = _coder(
-        task,
-        goal="Execute one small step with Repo Edit only. Smallest diff.",
-        backstory="You write scaffold files precisely. You run no network commands.",
-        model_kind=model_kind,
-    )
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)}"
+    coder = _coder(task, "step", model_kind=model_kind)
     t_step = Task(
-        description=(
-            f"Execute micro-step {idx}/{total} for {ctx} (no other work):\n{step_text[:2000]}\n"
-            "Before you write code for an existing module, read that module once and use "
-            "its REAL exported API — never invent a function, store or field. If the API "
-            "you need does not exist, add it in this task's scope instead of calling "
-            "something imaginary. "
-            "When the step writes a test, IMPORT the module under test (e.g. "
-            "`import { walkMode } from '../walkMode'`) and call its real exports. Never "
-            "re-declare a local copy of the code under test and never stub the function "
-            "you are testing: a test that tests its own fake proves nothing. "
-            "Use Repo Create for new files, Repo Edit for existing ones. Loop rules (hard): at most 5 tool calls, "
-            "then write the result; never read the same file twice. " + SCOPE_RULE
-        ),
+        description=prompts.step_prompt(task, spec_dir, step_text, idx, total),
         expected_output=f"Step {idx} diff summary: files changed + one line each.",
         agent=coder,
     )
@@ -228,29 +140,18 @@ def build_step_crew(
 
 def build_senior_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: int, total: int, last_error: str) -> Crew:
     """Senior Developer executes one micro-step the junior coder failed repeatedly."""
-    from swarm.llms import senior_llm
-
+    copy = prompts.agent_copy(task, "senior_step")
     senior = Agent(
-        role="Senior Developer",
-        goal="Execute one small step completely and coherently. No thrash.",
-        backstory=(
-            "You are the senior escalation for a single stuck step: the junior coder "
-            "failed it repeatedly. Read the step and the last error, then do it right "
-            "in one pass. You run no network commands. " + _stack_hint(task)
-        ),
+        role=copy["role"],
+        goal=copy["goal"],
+        backstory=copy["backstory"],
         llm=senior_llm(),
-        tools=_tools(role="Senior Developer"),
+        tools=_tools(role=copy["role"]),
         verbose=False,
         max_iter=12,
     )
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)}"
     t_step = Task(
-        description=(
-            f"Senior rescue for micro-step {idx}/{total} for {ctx} (no other work):\n{step_text[:2000]}\n"
-            f"The junior failed with: {last_error[:1000]}\n"
-            "Use Repo Create for new files, Repo Edit for existing ones. " + FIX_RULES + " "
-            "Loop rules (hard): at most 10 tool calls, then write the result. " + SCOPE_RULE
-        ),
+        description=prompts.senior_step_prompt(task, spec_dir, step_text, idx, total, last_error),
         expected_output=f"Step {idx} diff summary: files changed + one line each.",
         agent=senior,
     )
@@ -267,54 +168,18 @@ def build_verify_crew(spec_dir: str, task: SpecTask, context_text: str) -> Crew:
     `VERDICT: PASS|BLOCKED` line. The harness parses that text; the verifier
     never edits the repository, never runs a gate and never decides green.
     """
-    from swarm.llms import verifier_llm
-
+    copy = prompts.agent_copy(task, "verifier")
     verifier = Agent(
-        role="Scenario Verifier",
-        goal=(
-            "Decide whether the implemented scenario does what the brief says, end "
-            "to end. Read only: never write a file, never run a gate, never commit."
-        ),
-        backstory=(
-            "You verify the scenario, not the gates. The gates test the code that "
-            "exists; a missing endpoint, an unmounted route or a duplicate module "
-            "produces no failing assertion, so you are the only reader that compares "
-            "the implementation with what was asked for. You never write files and "
-            "never run gates — QA owns the gates. Your correction plan is advice for "
-            "the coder crews, and your final answer is the only artefact you produce."
-        ),
+        role=copy["role"],
+        goal=copy["goal"],
+        backstory=copy["backstory"],
         llm=verifier_llm(),
         tools=[FullFileReadTool(), ShellTool(allow_gates=False, agent_role="verifier")],
         verbose=False,
         max_iter=12,
     )
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)}"
     t_verify = Task(
-        description=(
-            f"Verify the scenario for {ctx}. The harness built this from the spec and "
-            f"this run's delta:\n\n{context_text}\n\n"
-            "Answer ONE question: does the implemented scenario do what the brief says, "
-            "end to end? Check three things:\n"
-            "1. EVERY element the brief names exists (file, endpoint, component, test). "
-            "Read the files with the read tool; it returns whole files.\n"
-            "2. The pieces CONNECT: an endpoint is mounted where the app serves it; a "
-            "component imports the REAL module instead of a local copy; the pinned "
-            "contract and the code agree; a test imports the module it tests.\n"
-            "3. The referenced acceptance criteria are addressed.\n"
-            "The connection view is a best-effort static scan — a missing edge is a "
-            "hint, not a proof; verify a suspected duplicate by reading both files. "
-            "Judge the scenario only: no style or taste, no gate runs, no edits.\n\n"
-            "Output format (exact, no other prose):\n"
-            "FINDING: <file:line or file> — <what is wrong, precisely>\n"
-            "… one line per problem …\n"
-            "STEP n: <file> — <one precise action that fixes it>\n"
-            "… only when BLOCKED …\n"
-            "VERDICT: PASS\n"
-            "or\n"
-            "VERDICT: BLOCKED\n"
-            "A BLOCKED verdict must have at least one FINDING and at least one STEP; "
-            "with nothing concrete to fix, answer PASS instead."
-        ),
+        description=prompts.verify_prompt(task, spec_dir, context_text),
         expected_output=(
             "FINDING lines (one per problem), STEP n correction lines when blocked, "
             "then exactly `VERDICT: PASS` or `VERDICT: BLOCKED`."
@@ -327,25 +192,8 @@ def build_verify_crew(spec_dir: str, task: SpecTask, context_text: str) -> Crew:
 def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     """Reviewer only, after all micro-steps: run gates, paste evidence, give one verdict."""
     reviewer = _reviewer()
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
     t_verify = Task(
-        description=(
-            f"Final verification for {ctx}. The coder reports:\n{work_summary[:3000]}\n"
-            f"Run EVERY project gate via Guarded Shell: {gate_commands_hint()}. "
-            "You are the only agent allowed to run them. For each: paste the command, "
-            "its exit code, and the failure output (failing test ids, lint rules, type "
-            "errors) — the coder fixes from this report and must not re-run anything. "
-            "Also list changed files via `git status --short`: if the coder changed nothing "
-            "relevant to the brief, verdict BLOCKED (no-op), never PASS on an empty diff. "
-            "If type-checker errors were suppressed with a blanket suppression or by "
-            "removing/disabling the feature, verdict BLOCKED; a narrow, explained last-resort "
-            "escape is acceptable when the feature is intact. "
-            "Final answer format: for each gate `command → exit=<code>`; on BLOCKED, also "
-            "include the failing output for that gate (up to 120 lines) and one line naming "
-            "the root cause. On PASS keep it to one line per gate. End with exactly "
-            "`VERDICT: PASS` or `VERDICT: BLOCKED`. Never paste whole source files or repeat "
-            "the work summary; the verdict word must be present."
-        ),
+        description=prompts.qa_prompt(task, spec_dir, work_summary),
         expected_output=(
             "Per gate: command, exit code, and on BLOCKED the failure output; "
             "then `VERDICT: PASS` or `VERDICT: BLOCKED`."
@@ -370,29 +218,18 @@ MAX_SELF_CHECK_ROUNDS = 2
 
 def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
     """Planner only: split the task into STEP micro-steps for the tiny coder."""
-    read = TrimmedFileReadTool()
+    copy = prompts.agent_copy(task, "plan")
     planner = Agent(
-        role="Spec Planner",
-        goal="Split one spec task into micro-steps. No code writes.",
-        backstory="You plan minimal diffs from specs/ context. You never write files. " + _stack_hint(task),
+        role=copy["role"],
+        goal=copy["goal"],
+        backstory=copy["backstory"],
         llm=planner_llm(),
-        tools=[read, ShellTool()],
+        tools=[TrimmedFileReadTool(), ShellTool()],
         verbose=False,
         max_iter=10,
     )
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
     t_plan = Task(
-        description=(
-            f"Split {ctx} into MICRO-STEPS for a tiny coder model (each step: one file, one exact edit, "
-            f"independently executable). Read specs/{spec_dir}/spec.md, plan.md, tasks.md and constitution first. "
-            "Before a step touches an existing module, read that module so the step names its REAL "
-            "exported API — a step that writes a test must name the module under test, the import "
-            "path to use and the functions it calls. Never plan a call to a function you have not "
-            "seen, and never plan a test that re-declares the code under test. "
-            "Output format (exact, one per line): `STEP n: <file> — <one precise action>`. "
-            f"4–{MAX_STEPS} steps. No other text. Loop rules (hard): at most 6 tool calls, then write the answer; "
-            "never read the same file twice; `ls` instead of guessing paths. " + SCOPE_RULE
-        ),
+        description=prompts.plan_prompt(task, spec_dir),
         expected_output=f"STEP 1: ...\nSTEP 2: ... (4-{MAX_STEPS} lines, nothing else)",
         agent=planner,
     )
@@ -411,7 +248,6 @@ def build_conflict_crew(
     No ShellTool at all: the harness runs the gates and stages the files, so the
     crew cannot mark its own work green.
     """
-    from swarm.llms import conflict_llm
 
     resolver = Agent(
         role="Merge Conflict Resolver",
@@ -456,7 +292,6 @@ def build_stash_crew(
     newer. Both are wanted unless the parked change is already present (the
     duplicate-merge case that used to make `--ours` the only safe choice).
     """
-    from swarm.llms import conflict_llm
 
     resolver = Agent(
         role="Stash Conflict Resolver",
@@ -501,44 +336,9 @@ def build_fix_crew(
     QA is invoked by the flow after this crew, so a round is: QA report → coder
     fix (no gates) → QA re-verification. The coder never runs gates.
     """
-    coder = _coder(
-        task,
-        goal="Investigate QA's report, then fix the real cause. Smallest coherent diff.",
-        backstory=(
-            "You fix scaffold files precisely. QA has already run the gates and rejected "
-            "this attempt; you work from its exit codes and failure output. "
-            "You run no network commands and no gates."
-        ),
-        max_iter=14,
-        allow_gates=False,
-    )
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
-    qa_block = (
-        f"QA's verdict note:\n{qa_review[-1200:]}\n" if qa_review.strip() else ""
-    )
+    coder = _coder(task, "fix", max_iter=14, allow_gates=False)
     t_fix = Task(
-        description=(
-            f"Fix round for {ctx}. QA ran the gates and its report is your evidence:\n"
-            f"{qa_report_text}\n"
-            + qa_block
-            + "The report lists the FAILING gates first, each with its exit code, the "
-            "key lines (file:line: message) and the raw output. Fix exactly those "
-            "lines: read the file named in a key line once, change the cause, move on. "
-            "Never re-read a file you already read in this round. "
-            "If a key line says a name is missing or a type does not match, the module "
-            "that should provide it is named nearby: read it once and use its REAL API. "
-            "If the API you need does not exist, add it in this task's scope instead of "
-            "inventing calls to it. If the file under repair re-declares the module it "
-            "should import, replace the local copy with the real import. "
-            "If the only failing gate is a lint/format gate, the harness already ran the "
-            "project formatter, so what is left is a rule violation, not a wrap: fix the "
-            "rule (never disable it). "
-            "Change only what the report proves is wrong. "
-            "Use Repo Create for new files, Repo Edit for existing files. "
-            + FIX_RULES
-            + " Loop rules (hard): at most 12 tool calls, then write the final answer; "
-            "never read the same file twice. " + SCOPE_RULE
-        ),
+        description=prompts.fix_prompt(task, spec_dir, qa_report_text, qa_review),
         expected_output=(
             "Diff summary of the fix + which reported gate line each change addresses."
         ),
@@ -555,36 +355,9 @@ def build_selfcheck_crew(spec_dir: str, task: SpecTask, report_text: str) -> Cre
     fixes the cause. QA stays the only gate executor: this crew runs no
     gates, so it cannot certify its own work.
     """
-    coder = _coder(
-        task,
-        goal="Fix the type and lint errors the harness found. Smallest coherent diff.",
-        backstory=(
-            "You fix scaffold files precisely. The harness ran the project's static "
-            "checks (type checker and linter) before QA and they are red; you work "
-            "from their exit codes and error output, not from a report you have to "
-            "re-derive. You run no gates and no network commands."
-        ),
-        max_iter=12,
-        allow_gates=False,
-    )
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
+    coder = _coder(task, "selfcheck", max_iter=12, allow_gates=False)
     t_fix = Task(
-        description=(
-            f"Type/lint check failed for {ctx}. The harness ran the static checks "
-            "and this is the evidence:\n"
-            f"{report_text}\n"
-            "Each key line is `file:line: message`: read that file once and fix the "
-            "cause — a type error means the code disagrees with a real API, so read "
-            "the module that owns the type and use its REAL exported API. If the API "
-            "you need does not exist, add it in this task's scope instead of casting, "
-            "suppressing or disabling the check. A lint rule is a real rule: fix the "
-            "code, never disable the rule. "
-            "Change only what the report proves is wrong. "
-            "Use Repo Create for new files, Repo Edit for existing files. "
-            + FIX_RULES
-            + " Loop rules (hard): at most 12 tool calls, then write the final answer; "
-            "never read the same file twice. " + SCOPE_RULE
-        ),
+        description=prompts.selfcheck_prompt(task, spec_dir, report_text),
         expected_output=(
             "Diff summary of the fix + which reported type/lint line each change addresses."
         ),
@@ -598,36 +371,18 @@ def build_senior_crew(spec_dir: str, task: SpecTask, qa_report_text: str, qa_rev
 
     QA re-verifies afterwards in the flow (same contract as a normal fix round).
     """
-    from swarm.llms import senior_llm
-
+    copy = prompts.agent_copy(task, "senior")
     senior = Agent(
-        role="Senior Developer",
-        goal="Investigate why QA keeps blocking, fix every failure in one pass. No thrash.",
-        backstory=(
-            "You are the senior escalation: the junior coder failed repeatedly and QA kept "
-            "returning BLOCKED. QA owns the gates, so its exit codes and failure output are "
-            "your evidence. You run no network commands and no gates. " + _stack_hint(task)
-        ),
+        role=copy["role"],
+        goal=copy["goal"],
+        backstory=copy["backstory"],
         llm=senior_llm(),
-        tools=_tools(allow_gates=False, role="Senior Developer"),
+        tools=_tools(allow_gates=False, role=copy["role"]),
         verbose=False,
         max_iter=16,
     )
-    ctx = f"spec={spec_dir} task={task.id} ac={','.join(task.ac_refs)} brief={task.brief}"
-    qa_block = f"QA's latest BLOCKED note:\n{qa_review[-1200:]}\n" if qa_review.strip() else ""
     t_fix = Task(
-        description=(
-            f"Senior fix for {ctx}. QA report:\n{qa_report_text}\n"
-            + qa_block
-            + "Find the root cause and fix EVERY reported failure in one pass. The "
-            "report lists the failing gates first with their key lines (file:line: "
-            "message); read each named file once and use the REAL API of the modules "
-            "involved — if the API does not exist, add it in scope. "
-            + FIX_RULES
-            + " Use Repo Create for new files, Repo Edit for existing files. "
-            "Loop rules (hard): at most 14 tool calls, then write the final answer; "
-            "never read the same file twice. " + SCOPE_RULE
-        ),
+        description=prompts.senior_prompt(task, spec_dir, qa_report_text, qa_review),
         expected_output=(
             "Diff summary of the fix + which reported gate line each change addresses."
         ),

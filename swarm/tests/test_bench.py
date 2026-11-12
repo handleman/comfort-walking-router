@@ -167,3 +167,34 @@ def test_cli_json_prints_a_score(tmp_path: Path, capsys):
     assert main(["--json", "--case", cases[0]["id"]]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["totals"]["cases"] == 1
+
+
+# ---- 020 AC-2: the bench records the stable prefix ----
+
+
+def test_bench_records_a_stable_prefix_hash():
+    case = _case()
+    row = score.score_case(case)
+    assert len(row["prefix_sha256"]) == 16
+    assert row["prefix_chars"] > 200
+    assert row["prefix_sha256"] == score.score_case(case)["prefix_sha256"]
+
+
+def test_prefix_hash_changes_when_the_brief_changes():
+    a = score.score_case(_case())
+    b = score.score_case(_case(brief="Add `swarm/bench/other.py` instead."))
+    assert a["prefix_sha256"] != b["prefix_sha256"]
+
+
+def test_recorded_prefix_is_the_head_of_the_real_step_prompt():
+    case = _case()
+    from swarm.crew import build_step_crew
+    from swarm.prompts import prompt_prefix
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id=case["task"], ac_refs=tuple(case["ac_refs"]), brief=case["brief"])
+    with score.bench_env():
+        crew = build_step_crew(case["spec"], task, case["steps"][0], 1, 1)
+    prefix_text, prefix_hash = prompt_prefix(task, case["spec"], "step")
+    assert score.score_case(case)["prefix_sha256"] == prefix_hash
+    assert score.crew_prompt(crew).startswith(prefix_text)

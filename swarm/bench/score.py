@@ -80,14 +80,20 @@ def _spec_task(case: dict[str, Any]):
     )
 
 
-def prompts(case: dict[str, Any]) -> dict[str, int]:
-    """Prompt characters for one step, one QA round, one fix round, one verify."""
+def prompts(case: dict[str, Any]) -> dict[str, int | str]:
+    """Prompt characters for one step, one QA round, one fix round, one verify.
+
+    Also records the stable-prefix hash (020 AC-2): a change that silently
+    reassembles the head of the prompt shows up as a different prefix instead of
+    a mystery in the character count.
+    """
     from swarm.crew import (
         build_fix_crew,
         build_review_crew,
         build_step_crew,
         build_verify_crew,
     )
+    from swarm.prompts import prompt_prefix
 
     task = _spec_task(case)
     spec = str(case.get("spec") or "")
@@ -98,11 +104,14 @@ def prompts(case: dict[str, Any]) -> dict[str, int]:
         qa = crew_prompt(build_review_crew(spec, task, _work_summary(case)))
         fix = crew_prompt(build_fix_crew(spec, task, report_fixture_text(case)[0]))
         verify = crew_prompt(build_verify_crew(spec, task, _verify_context(case)))
+    prefix_text, prefix_hash = prompt_prefix(task, spec, "step")
     return {
         "step_prompt_chars": len(step),
         "qa_prompt_chars": len(qa),
         "fix_prompt_chars": len(fix),
         "verify_prompt_chars": len(verify),
+        "prefix_chars": len(prefix_text),
+        "prefix_sha256": prefix_hash,
     }
 
 

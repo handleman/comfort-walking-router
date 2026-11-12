@@ -298,3 +298,24 @@ Answered by the operator before writing the spec:
 The exposure is deliberately unchanged by 020: same green definition (QA-only
 evidence), same human merge gate, same harness-as-control-plane rule
 (`HARNESS_SPECS`). 020 should make the loop cheaper, not more trusted.
+
+## Results (020, in progress)
+
+Same 12 frozen cases, same machine, no model call: `make swarm-bench` renders
+the real prompt/report text and measures characters. Deltas are against the
+T1 baseline (`swarm/bench/baseline.json`).
+
+| After | Task prompt chars | Δ vs baseline | Report chars | Δ | Gates / round |
+| --- | --- | --- | --- | --- | --- |
+| T1 baseline | 461,763 (~115k tokens) | — | 41,456 | — | 60 |
+| T2 prompt assembly | 488,177 (~122k tokens) | **+5.7%** | 41,456 | 0% | 60 |
+
+**T2 reading.** Prompts are now byte-stable per task and role: the brief and
+fixed rules form one cacheable head, and the volatile step/report/summary comes
+last. The +5.7% is the brief, which the old step prompt never carried (it was
+passed only to the planner/QA/fix crews); it is charged per step and is the
+content that makes a step self-contained. The prefix is what provider caching
+and Ollama KV reuse can discount in T3 — the character count alone is not the
+metric that should move here. T4 (compaction/spilling) and T6 (structured
+reports) are where the net reduction has to come from; the −30% target is
+judged at T8, not here.
