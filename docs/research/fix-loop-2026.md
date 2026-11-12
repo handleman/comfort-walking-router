@@ -152,6 +152,33 @@ H > 1 week; risk is "new trust surface" or "gameable check".
 | **R8** | **Contract pinning check** — one source per field, asserted before QA (019 already checks "contract and code agree"; make it a typed finding) | 014-T1's three schemas | Med | M | Medium |
 | **R9** | **Outcome replay suite** — extend 020 T7 from one case to 5–8, on/off A/B, scoring green/cost/time/fix rounds | 020 T8 needed a live run; chars are not outcomes | High (enabler) | M | Low |
 
+### The 021 baseline replay: the coder, not the verifier
+
+The first 021 baseline run (five cases, `--off`, local `ollama/swarm-coder`)
+stopped after three cases because the tool session died; the three completed
+cases are unambiguous:
+
+| Case | Status | Time | Prompt tokens | Fix rounds | Verifier |
+| --- | --- | --- | --- | --- | --- |
+| 004-weather-sun-T2 | `needs_human` / `verifier_blocked` | 983 s | 180k | 0 | 7 → 3 findings |
+| 005-saved-routes-T2 | `needs_human` / `verifier_blocked` | 936 s | 188k | 0 | blocked |
+| 006-comfort-plus-T3 | `needs_human` / `verifier_blocked` | 1287 s | 404k | 0 | 2 rounds |
+
+006 is the clearest: the coder wrote `tests/test_route_toggles.py` as a
+**truncated file** (9 lines, a partial `def _build_route_response(start: str`).
+The 017 self-check was red, the coder's repair made the truncation *parse* —
+after which `mypy`, `ruff`, `svelte-check` and lint were all green — and the 019
+verifier then correctly blocked because the file contained **no test functions**.
+The correction step could not fix it, and the run ended `needs_human` without a
+single QA gate execution.
+
+That is not the verifier being strict; it is the coder under-implementing. Two
+consequences for 021: the suite baseline needs a **capable coder pin** before it
+can measure a harness change (otherwise every variant is red for the same
+capability reason), and a truncated/no-test file is a **deterministic defect** the
+harness can name for free (`swarm/artifacts.py`, added in T10) instead of paying
+a verifier round for it.
+
 ### Is the coder prompt too strict?
 
 A fourth hypothesis came out of the 020 T8 replay: the step prompt's hard rules
