@@ -212,3 +212,31 @@ def test_recorded_prefix_is_the_head_of_the_real_step_prompt():
     prefix_text, prefix_hash = prompt_prefix(task, case["spec"], "step")
     assert score.score_case(case)["prefix_sha256"] == prefix_hash
     assert score.crew_prompt(crew).startswith(prefix_text)
+
+
+# ---- 020 AC-9 / AC-8: provenance and the case-selection knob ----
+
+
+def test_base_prefers_the_recorded_sha_and_falls_back_to_the_parent():
+    assert corpus.base_for({"base_sha": "abc123"}, "def456") == "abc123"
+    assert corpus.base_for({}, "def456") == "def456^"
+    assert corpus.base_for({"base_sha": ""}, "def456") == "def456^"
+
+
+def test_configured_cases_can_override_the_default_corpus():
+    assert corpus.configured_cases({}) == corpus.DEFAULT_CASES
+    picked = corpus.configured_cases({"SWARM_BENCH_CASES": "001-example-app/T8, 006-comfort-plus/T3"})
+    assert picked == (
+        ("001-example-app", "T8", "operator-selected"),
+        ("006-comfort-plus", "T3", "operator-selected"),
+    )
+    assert corpus.configured_cases({"SWARM_BENCH_CASES": "nonsense"}) == corpus.DEFAULT_CASES
+
+
+def test_every_run_records_provenance_for_a_future_corpus():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
+    assert '"base_sha": getattr' in source
+    assert '"head_sha": _head_sha()' in source
+    assert '"plan_hash": self.state.plan_hash or None' in source

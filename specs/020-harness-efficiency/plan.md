@@ -1,6 +1,6 @@
 # 020 Harness Efficiency — Plan
 
-Status: in progress (T1–T7 done; T8 measurement and T9 docs remain). References `specs/020-harness-efficiency/spec.md` AC-1–AC-9 and
+Status: implemented (T1–T9); measurement in T8 is recorded in the results section of `docs/research/dark-factory-market-2026.md`. References `specs/020-harness-efficiency/spec.md` AC-1–AC-9 and
 `docs/research/dark-factory-market-2026.md`.
 
 ## Approach

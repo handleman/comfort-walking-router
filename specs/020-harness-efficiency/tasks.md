@@ -18,8 +18,8 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/bench/live.py`, `swarm/bench/__main__.py`, `Makefile`, `swarm/tests/test_bench_live.py`.
 - [ ] T8 (AC-7): measure and report — fill the before/after table from `baseline.json` vs the new bench, run at least one live replay, apply the AC-7 thresholds, revert any change that lowers the replay green rate, and write the result into the investigation doc and `changelog.md`.
   Evidence: `docs/research/dark-factory-market-2026.md` (results section), `changelog.md`.
-- [ ] T9 (AC-8, AC-9): close the loop — add `020-harness-efficiency` to `HARNESS_SPECS`, record `base_sha`/`head_sha`/`plan_hash` in `run.json` for future replays, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
-  Evidence: `swarm/flow.py::HARNESS_SPECS`, `swarm/flow.py::save_run`, `.env.example`, `swarm/README.md`, `AGENTS.md`, `docs/roadmap.md`.
+- [x] T9 (AC-8, AC-9): close the loop — add `020-harness-efficiency` to `HARNESS_SPECS`, record `base_sha`/`head_sha`/`plan_hash` in `run.json` for future replays (the corpus prefers the recorded base), `SWARM_BENCH_CASES` selects the corpus, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
+  Evidence: `swarm/flow.py` (`HARNESS_SPECS`, `save_run`), `swarm/bench/corpus.py`, `.env.example`, `swarm/README.md`, `AGENTS.md`, `docs/roadmap.md`.
 
 ## Decisions (2026-11-12)
 

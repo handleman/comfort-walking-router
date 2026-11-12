@@ -894,3 +894,19 @@ reaches green. `make swarm-bench-live CASE=006-comfort-plus-T3`:
 
 It needs models and is never part of `make swarm-test`. Use a small case first;
 `make swarm-bench ARGS=--list` shows the ids.
+
+## 020 knobs
+Every behaviour added in 020 has an off switch that restores the 019 behaviour;
+`make swarm-test` covers both paths.
+
+| Knob | Default | Effect |
+| --- | --- | --- |
+| `SWARM_PROMPT_CACHE` | `1` | provider cache hints (T3); `0` = plain LLM calls |
+| `SWARM_CONTEXT_COMPACT` | `1` | step digests + gate-log spilling (T4); `0` = full concatenation, tails in the report |
+| `SWARM_GATE_SPILL_CHARS` | `2000` | a failing tail longer than this goes to `gate_logs/` |
+| `SWARM_GATE_TAIL_CHARS` | `20000` | how much of one execution `shell_log.jsonl` keeps (the source for key lines) |
+| `SWARM_GATE_SELECT` | `1` | inner-loop gate selection (T5); `0` = always the full suite |
+| `SWARM_GATE_MAP` | repo defaults | newline-separated `glob=cmd;cmd`; an unmapped path runs everything |
+| `SWARM_CODER_READ_CHARS` | `3000` | coder read cap (T6); the verifier keeps `SWARM_VERIFY_READ_CHARS` |
+| `SWARM_BENCH_CASES` | 12 default cases | `spec/Tn` list for `make swarm-bench-build` |
+| `SWARM_BENCH_MODELS` | unset | pinned models for `make swarm-bench-live` |

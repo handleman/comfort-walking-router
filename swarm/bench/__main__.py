@@ -51,10 +51,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="print the score payload")
     parser.add_argument("--list", action="store_true", help="list corpus cases and exit")
     parser.add_argument("--live", default="", help="live replay of one case in a throwaway worktree")
+    parser.add_argument("--cases", default="", help="comma-separated spec/Tn list for --build")
     args = parser.parse_args(argv)
     repo = Path(args.repo)
 
     if args.build:
+        if args.cases:
+            import os
+
+            os.environ["SWARM_BENCH_CASES"] = args.cases
         return build(repo)
 
     if args.live:

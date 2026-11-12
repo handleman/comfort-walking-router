@@ -163,6 +163,30 @@ def _read_run(run_dir: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def base_for(run: dict[str, Any], sha: str) -> str:
+    """The state a task started from: recorded `base_sha`, else the parent commit."""
+    return str(run.get("base_sha") or "") or f"{sha}^"
+
+
+def configured_cases(env: dict[str, str] | None = None) -> tuple[tuple[str, str, str], ...]:
+    """`SWARM_BENCH_CASES` (`spec/T1, spec2/T2`) overrides the default selection."""
+    import os
+
+    source = os.environ if env is None else env
+    raw = str(source.get("SWARM_BENCH_CASES", "")).strip()
+    if not raw:
+        return DEFAULT_CASES
+    out: list[tuple[str, str, str]] = []
+    for part in raw.replace("\n", ",").split(","):
+        item = part.strip()
+        if not item:
+            continue
+        spec, _, task = item.partition("/")
+        if spec.strip() and task.strip():
+            out.append((spec.strip(), task.strip(), "operator-selected"))
+    return tuple(out) or DEFAULT_CASES
+
+
 def find_run(runs_dir: Path, spec: str, task: str, sha: str) -> Path | None:
     """Newest green run whose recorded spec/task and commit match the case.
 
@@ -321,7 +345,8 @@ def build_case(repo: Path, spec: str, task: str, sha: str, run_dir: Path) -> dic
         "spec": spec,
         "task": task,
         "green_sha": sha,
-        "base_sha": f"{sha}^",
+        # 020 AC-9: prefer what the run recorded; old runs fall back to the parent.
+        "base_sha": base_for(run, sha),
         "brief": brief,
         "ac_refs": ac_refs,
         "ac_text": _ac_paragraphs(spec_md, ac_refs),
@@ -383,8 +408,11 @@ def case_digest(case: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
-def select(repo: Path, cases: tuple[tuple[str, str, str], ...] = DEFAULT_CASES) -> tuple[list[dict[str, Any]], list[str]]:
-    """Build the default corpus; return (cases, rejected reasons)."""
+def select(
+    repo: Path, cases: tuple[tuple[str, str, str], ...] | None = None
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Build the configured corpus; return (cases, rejected reasons)."""
+    cases = cases or configured_cases()
     commits = green_commits(repo)
     runs_dir = repo / "swarm" / "runs"
     built: list[dict[str, Any]] = []

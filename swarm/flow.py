@@ -98,6 +98,8 @@ class SwarmState(BaseModel):
     compaction: dict[str, Any] = {}
     # 020 AC-4: which gates the inner loop ran, and the full suite before green.
     gate_selection: dict[str, Any] = {}
+    # 020 AC-9: provenance for a future replay corpus.
+    plan_hash: str = ""
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -608,6 +610,12 @@ def gate_commands(env: dict[str, str] | None = None) -> list[str]:
     return list(DEFAULT_GATE_COMMANDS)
 
 
+def _head_sha() -> str | None:
+    """Current commit, or None when git is unavailable (e.g. an exported tree)."""
+    rc, out = _git(["rev-parse", "HEAD"])
+    return out.strip() if rc == 0 and out.strip() else None
+
+
 def _frontend_test_command() -> str | None:
     """Deprecated shim retained for callers; use `gate_commands()` instead."""
     return None
@@ -981,6 +989,10 @@ class SwarmFlow(Flow[SwarmState]):
         from swarm.tools_guarded import snapshot_worktree
 
         self._baseline = snapshot_worktree()
+        # 020 AC-9: the commit this run started from, so a corpus can be built
+        # from the run instead of re-deriving it from `git log --grep`.
+        _rc, _base = _git(["rev-parse", "HEAD"])
+        self._base_sha = _base.strip() if _rc == 0 else ""
         self.run_dir = _runs_dir() / _unique_run_id()
         self.run_dir.mkdir(parents=True, exist_ok=True)
         (_runs_dir() / "latest").write_text(self.run_dir.name)
@@ -2095,6 +2107,7 @@ class SwarmFlow(Flow[SwarmState]):
         except ValueError:
             max_age = 86400
         plan_hash = hashlib.sha256(plan_text.encode()).hexdigest()
+        self.state.plan_hash = plan_hash
         kwargs = {
             "spec_dir": self.state.spec_dir,
             "task_id": str(task.id),
@@ -2312,6 +2325,7 @@ class SwarmFlow(Flow[SwarmState]):
                 raise SystemExit("planner returned no usable plan (no STEP lines or over step budget)")
             write_cached_plan(cache, plan_text, source_hash)
             plan_hash = hashlib.sha256(plan_text.encode()).hexdigest()
+            self.state.plan_hash = plan_hash
             checkpoint, recovery_note = self._resume_checkpoint(task, plan_text, steps)
             resume_from = int(checkpoint.get("completed") or 0) if checkpoint else 0
             checkpoint_outputs = list(checkpoint.get("step_outputs") or []) if checkpoint else []
@@ -2762,6 +2776,9 @@ class SwarmFlow(Flow[SwarmState]):
             "verifier": self.state.verifier,
             "compaction": self.state.compaction,
             "gate_selection": self.state.gate_selection,
+            "base_sha": getattr(self, "_base_sha", "") or None,
+            "head_sha": _head_sha(),
+            "plan_hash": self.state.plan_hash or None,
             "cache": {
                 "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),
