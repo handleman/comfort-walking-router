@@ -9,6 +9,10 @@ dependencies = [
     "textual",
     "python-dotenv",
     "rich",
+    # The ssh transport fallback (swarm/pyssh.py): an agent shell may be unable
+    # to start /usr/bin/ssh at all, and the harness still has to push.
+    "paramiko",
+    "pynacl",
 ]
 
 [project.optional-dependencies]

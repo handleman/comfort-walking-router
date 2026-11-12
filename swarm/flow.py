@@ -302,6 +302,30 @@ def _git(args: list[str], timeout: int = 120) -> tuple[int, str]:
     return p.returncode, (p.stdout + p.stderr)[-500:]
 
 
+def _git_push(args: list[str], timeout: int = 180) -> tuple[int, str]:
+    """`git push`, falling back to a working ssh transport.
+
+    An agent shell may be unable to start `/usr/bin/ssh` at all ("No user
+    exists for uid N"), so git's own transport never reaches the handshake and
+    the run's push fails. `swarm.gitpush` retries the push with an explicit
+    ssh command, falling back to a paramiko-based client. The first transport
+    that works wins; the repo is left exactly as git left it either way.
+    """
+    rc, out = _git(["push", *args], timeout=timeout)
+    if rc == 0:
+        return rc, out
+    try:
+        from swarm import gitpush
+    except Exception:
+        return rc, out
+    try:
+        if gitpush.push(args=args) == 0:
+            return 0, "ok (fallback ssh transport)"
+    except Exception as e:
+        return rc, f"{out}\n(fallback transport failed: {type(e).__name__}: {e})"
+    return rc, out
+
+
 def _branch_name(spec_id: str, task_id: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", f"{spec_id}-{task_id}").strip("-")
     return f"swarm/{slug or 'task'}"
@@ -439,7 +463,7 @@ def _commit_changes(
             rec["commit"] = f"git commit failed: {out}"
             return rec
         rec["commit"] = msg
-        rc, out = _sh(["git", "push"])
+        rc, out = _git_push([])
         rec["push"] = "ok" if rc == 0 else f"failed: {out}"
         rec["ok"] = "1" if rc == 0 else "0"
         return rec
@@ -474,7 +498,7 @@ def _commit_changes(
         return rec
     rec["commit"] = msg
 
-    rc, out = _git(["push", "-u", "origin", branch])
+    rc, out = _git_push(["-u", "origin", branch])
     if rc != 0:
         rec["push"] = f"failed: {out}"
         rec["rollback"] = f"kept local branch {branch} (base untouched)"
@@ -519,7 +543,7 @@ def _commit_changes(
         rec["merge"] = f"ok (crew resolved: {', '.join(conflicts)})"
         rec["conflict"] = note or "resolved"
 
-    rc, out = _git(["push", "origin", base])
+    rc, out = _git_push(["origin", base])
     if rc != 0:
         rec["push"] = f"failed (merge not pushed): {out}"
         if pre_sha:

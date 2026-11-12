@@ -54,23 +54,36 @@ def _ssh_commands() -> list[str]:
     return commands
 
 
-def push(remote: str = "origin", branch: str = "main", *, cwd: Path | None = None) -> int:
-    """Push `branch` to `remote`. Returns a process exit code."""
+def push(
+    remote: str = "origin",
+    branch: str = "main",
+    *,
+    cwd: Path | None = None,
+    args: list[str] | None = None,
+) -> int:
+    """Push `branch` to `remote`. Returns a process exit code.
+
+    `args` overrides the default `<remote> <branch>` (the harness pushes
+    `origin <branch>` and `origin <base>`).
+    """
     repo = cwd or REPO_ROOT
-    url = _git("remote", "get-url", remote, cwd=repo).strip()
+    target = list(args) if args is not None else [remote, branch]
+    # The remote to look up: the first non-flag argument of the push target.
+    push_remote = next((a for a in target if not a.startswith("-")), remote)
+    url = _git("remote", "get-url", push_remote, cwd=repo).strip()
     if not url.startswith("git@") and not url.startswith("ssh://"):
-        print(f"{remote} is not an ssh remote ({url}); pushing directly")
+        print(f"{push_remote} is not an ssh remote ({url}); pushing directly")
         proc = subprocess.run(
-            ["git", "push", remote, branch], cwd=str(repo), check=False
+            ["git", "push", *target], cwd=str(repo), check=False
         )
         return proc.returncode
 
     last = ""
     for ssh in _ssh_commands():
-        cmd = ["git", "-c", f"core.sshCommand={ssh}", "push", remote, branch]
+        cmd = ["git", "-c", f"core.sshCommand={ssh}", "push", *target]
         proc = subprocess.run(cmd, cwd=str(repo), check=False)
         if proc.returncode == 0:
-            print(f"pushed {branch} to {remote} (ssh: {ssh})")
+            print(f"pushed {' '.join(target)} (ssh: {ssh})")
             return 0
         last = f"ssh={ssh} rc={proc.returncode}"
         print(f"push failed with {last}; trying the next transport")

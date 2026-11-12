@@ -806,6 +806,48 @@ def test_base_push_failure_rolls_back_merge(monkeypatch):
     assert ["reset", "--hard", "abc123def"] in [c[1:] for c in calls]
 
 
+def test_push_falls_back_to_a_working_ssh_transport(monkeypatch):
+    """An agent shell may be unable to start /usr/bin/ssh at all.
+
+    `git push` then dies before the handshake, and the run's push fails even
+    though the key is right there in the agent. The harness retries the push
+    with an explicit ssh command.
+    """
+    from swarm import flow
+
+    attempts: list[list[str]] = []
+
+    def fake_git(args, timeout=120):
+        attempts.append(list(args))
+        return 1, "No user exists for uid 501"
+
+    def fake_fallback(args=None):
+        attempts.append(["fallback", *(args or [])])
+        return 0
+
+    monkeypatch.setattr(flow, "_git", fake_git)
+    monkeypatch.setattr("swarm.gitpush.push", fake_fallback)
+
+    rc, out = flow._git_push(["origin", "main"])
+
+    assert rc == 0
+    assert "fallback" in out
+    assert attempts[0][:2] == ["push", "origin"]
+    assert attempts[1][0] == "fallback"
+
+
+def test_push_reports_the_original_failure_when_the_fallback_also_fails(monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setattr(flow, "_git", lambda args, timeout=120: (1, "no ssh"))
+    monkeypatch.setattr("swarm.gitpush.push", lambda args=None: 1)
+
+    rc, out = flow._git_push(["origin", "main"])
+
+    assert rc == 1
+    assert "no ssh" in out
+
+
 def test_merge_failure_maps_to_merge_failed(tmp_path, monkeypatch):
     status, payload = _save_run_stub(
         tmp_path,
