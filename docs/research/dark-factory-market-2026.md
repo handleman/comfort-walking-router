@@ -284,7 +284,8 @@ Answered by the operator before writing the spec:
    and no event-sourced orchestrator in 020. The durable orchestrator layer
    (append-only journal, replay, resumable nodes, idempotent side effects) is
    recorded as a **good-to-have future option**, revisited after 021/022 prove
-   the flow's limits at higher concurrency.
+   the flow's limits at higher concurrency. Its shape, seams and promotion
+   triggers are pinned in `docs/architecture/adr-012-orchestration-stance.md`.
 3. **Autonomy envelope — earned autonomy by risk.** Class 0/1 (docs, tests,
    mechanical changes) may auto-merge after gates + the 019 verifier; class 2/3
    (core logic, auth, infra, the harness itself) stay human. Expansion and

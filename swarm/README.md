@@ -695,6 +695,35 @@ flowchart TB
 swarm/.venv/bin/python -m pytest swarm/tests -v
 ```
 
+## Replay bench (`make swarm-bench`, 020 T1)
+A frozen corpus of 12 historical green runs (`swarm/bench/corpus/*.json`) plus a
+committed pre-change snapshot (`swarm/bench/baseline.json`). It measures the
+size of what the harness sends, not what a model answers, so it runs in seconds
+with no key and no network:
+
+```bash
+make swarm-bench             # table: task prompt chars, report chars, gates/round, Δ vs baseline
+make swarm-bench-build       # rebuild the corpus from git trailers + run.json (deliberate)
+make swarm-bench-baseline    # re-snapshot after a reviewed change
+make swarm-bench ARGS="--json --case 006-comfort-plus-T3"
+```
+
+- A case pins the run id, the green SHA (and `base_sha = green_sha^`), the
+  brief, the referenced AC paragraphs, the plan lines that name its files, the
+  delta file contents with a SHA-256 each, the recorded gate results, a bounded
+  gate transcript and a deterministic failing-round fixture for the report.
+- `task_prompt_chars` estimates one replay: steps × step prompt + QA rounds × QA
+  prompt + fix rounds × fix prompt + one verifier prompt. It is a stable proxy
+  for tokens, not a bill; `run.json` stays the source of truth for real cost.
+- A case is rejected when its green commit touches none of the files the brief
+  names (014-T2: green without the endpoint). `007/T6`-style trailers are
+  normalised to the spec directory, exactly like the done ledger.
+- Exit codes: `1` = corpus missing or its digest no longer matches the baseline
+  (rebuild and re-snapshot on purpose); `2` = the corpus could not be built.
+- The bench never calls a model, never writes outside `swarm/bench/` and never
+  mutates git. Prompt text is model-independent; crews are built with
+  `ollama/bench` for the duration of a measurement.
+
 ## Traces & logs (all inside the project, never `/tmp`)
 - Pilot runs: `swarm/runs/<ts>-<pid>-<rand>/{run.json,events.jsonl,progress.json}` (+ `latest` pointer).
   `run.json` records brief, `ac_refs`, changed files, gates, reviewer verdict, the

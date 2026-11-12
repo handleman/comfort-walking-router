@@ -1,0 +1,58 @@
+{
+  "ac_refs": [
+    "AC-2"
+  ],
+  "ac_text": [
+    "- [ ] AC-2: Hot toggle prefers shade/greenery; cloudy toggle prefers sun; explanation lists applied factors.",
+    "- AC-2 is **not** satisfied: Overpass lookup is a stub and the scorer is not wired into `POST /route`; the API returns a neutral score and an explicit \"not wired yet\" explanation. Tracked as `T3` (and `T6` stays open until the demo shows comfort behavior)."
+  ],
+  "base_sha": "ab36aa9cab9b4ae6121f9e577f2bc3d61a691ae8^",
+  "brief": "Comfort scorer in `app/scoring.py` (shade/sun/quiet with preference weights) with matrix tests in `tests/test_scoring.py`.",
+  "changed": [
+    "app/scoring.py",
+    "tests/test_scoring.py"
+  ],
+  "files": [
+    {
+      "chars": 1385,
+      "content": "from typing import Any\n\n\ndef score_comfort(features: dict[str, Any], preference: str = \"balanced\") -> float:\n    \"\"\"Score comfort based on features with preference weighting.\n    \n    Preferences:\n    - \"hot\": prefers shade (lower temp, higher humidity, lower wind)\n    - \"cloudy\": prefers sun (higher temp, lower humidity)\n    - \"balanced\": prefers quiet (lower wind, moderate temp/humidity)\n    \"\"\"\n    if not features:\n        return 0.0\n    \n    # Normalize preference\n    if preference not in (\"hot\", \"cloudy\", \"balanced\"):\n        preference = \"balanced\"\n    \n    temp = features.get(\"temp\", 25)\n    humidity = features.get(\"humidity\", 50)\n    wind_speed = features.get(\"wind_speed\", 5)\n    \n    if preference == \"hot\":\n        # Prefers shade: heavily weight cooler temp, moderately weight humidity, lightly weight low wind\n        score = (35 - temp) * 1.5 + humidity * 0.3 + (10 - wind_speed) * 0.2\n    elif preference == \"cloudy\":\n        # Prefers sun: heavily weight warmer temp, moderately weight low humidity, lightly weight low wind\n        score = (temp - 15) * 1.5 + (80 - humidity) * 0.3 + (10 - wind_speed) * 0.2\n    else:  # balanced\n        # Prefers quiet: heavily weight low wind, lightly weight moderate temp/humidity\n        score = (10 - wind_speed) * 3.5 + (30 - abs(temp - 25)) * 0.1 + (80 - abs(humidity - 60)) * 0.05\n    \n    return max(0.0, float(score))",
+      "path": "app/scoring.py",
+      "sha256": "5905a5654264c8886e37b14f2e0f8dc5542b2be1b8c0c6187573559a1b064743",
+      "truncated": false
+    },
+    {
+      "chars": 2016,
+      "content": "import pytest\n\nfrom app.scoring import score_comfort\n\nSHADED = {\"temp\": 25, \"humidity\": 60, \"wind_speed\": 3}\nSUNNY = {\"temp\": 40, \"humidity\": 30, \"wind_speed\": 5}\nQUIET_SHADED = {\"temp\": 28, \"humidity\": 70, \"wind_speed\": 1}\n\n\n@pytest.mark.parametrize(\"feature\", [SHADED, QUIET_SHADED])\ndef test_hot_prefers_shade(feature):\n    assert score_comfort(feature, \"hot\") > score_comfort(SUNNY, \"hot\")\n\n\ndef test_cloudy_prefers_sun():\n    assert score_comfort(SUNNY, \"cloudy\") > score_comfort(SHADED, \"cloudy\")\n\n\ndef test_balanced_prefers_quiet():\n    assert score_comfort(QUIET_SHADED, \"balanced\") > score_comfort(SHADED, \"balanced\")\n\n\n@pytest.mark.parametrize(\"feature,preference\", [\n    (SHADED, \"hot\"),\n    (SUNNY, \"cloudy\"),\n    (QUIET_SHADED, \"balanced\"),\n])\ndef test_matching_preference_gives_max_score(feature, preference):\n    # Assert that the matching preference gives the maximum score across all preferences\n    max_score = -float('inf')\n    for pref in [\"hot\", \"cloudy\", \"balanced\"]:\n        max_score = max(max_score, score_comfort(feature, pref))\n    assert score_comfort(feature, preference) == max_score\n\n\n@pytest.mark.parametrize(\"feature\", [SHADED, SUNNY, QUIET_SHADED])\ndef test_empty_features_returns_zero(feature):\n    # Test that empty features return 0.0\n    assert score_comfort({}, \"hot\") == 0.0\n    assert score_comfort({}, \"cloudy\") == 0.0\n    assert score_comfort({}, \"balanced\") == 0.0\n\n\ndef test_unknown_preference_falls_back_to_balanced():\n    # Test that unknown preference falls back to balanced scoring\n    assert score_comfort(SHADED, \"unknown_pref\") == score_comfort(SHADED, \"balanced\")\n    assert score_comfort(SUNNY, \"unknown_pref\") == score_comfort(SUNNY, \"balanced\")\n\n\ndef test_missing_keys_no_keyerror():\n    # Test that missing keys do not raise KeyError\n    partial_feature = {\"temp\": 25}\n    assert score_comfort(partial_feature, \"hot\") is not None\n    assert score_comfort(partial_feature, \"cloudy\") is not None\n    assert score_comfort(partial_feature, \"balanced\") is not None",
+      "path": "tests/test_scoring.py",
+      "sha256": "fdf3d94b9dfdd4a5d2ce559e247e789865607077c8181fd5764eb41f1292436a",
+      "truncated": false
+    }
+  ],
+  "gates": {
+    "mypy app tests": 0,
+    "pytest -q": 0,
+    "ruff check .": 0,
+    "scope": 0
+  },
+  "green_sha": "ab36aa9cab9b4ae6121f9e577f2bc3d61a691ae8",
+  "id": "001-example-app-T8",
+  "plan_text": [],
+  "reason": "python: comfort scorer + tests",
+  "recorded": {
+    "cost_usd": 0.0,
+    "duration_seconds": 2648,
+    "fix_rounds": 6,
+    "prompt_tokens": 494800,
+    "status": "green"
+  },
+  "report_fixture": "$ pytest -q\nexit=0\n(clean)\n$ mypy app tests\nexit=0\n(clean)\n$ ruff check .\nexit=1\ntail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \napp/scoring.py:12: error: expected value, found no implementation\napp/scoring.py:13: note: context line 13\napp/scoring.py:14: note: context line 14\napp/scoring.py:15: note: context line 15\napp/scoring.py:16: note: context line 16\napp/scoring.py:17: note: context line 17\napp/scoring.py:18: note: context line 18\napp/scoring.py:19: note: context line 19\napp/scoring.py:20: note: context line 20\napp/scoring.py:21: note: context line 21\napp/scoring.py:22: note: context line 22\napp/scoring.py:23: note: context line 23\napp/scoring.py:24: note: context line 24",
+  "run": "20261108-204646-73914-a390",
+  "schema": 1,
+  "spec": "001-example-app",
+  "steps": [
+    "Edit `app/scoring.py` \u2014 satisfy T8 (AC-2) per the plan.",
+    "Edit `tests/test_scoring.py` \u2014 satisfy T8 (AC-2) per the plan."
+  ],
+  "task": "T8",
+  "transcript": "$ pytest -q\nexit=0\n.....................                                                    [100%]\n=============================== warnings summary ===============================\n.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /Users/handleman/projects/spec-driven-learn/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n21 passed, 1 warning in 0.20s\n\n$ ruff check .\nexit=0\nAll checks passed!\n\n$ mypy app tests\nexit=0\nSuccess: no issues found in 15 source files\n\n$ scope\nOK"
+}

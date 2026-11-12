@@ -1,0 +1,65 @@
+{
+  "ac_refs": [
+    "AC-1",
+    "AC-6"
+  ],
+  "ac_text": [
+    "- [ ] AC-1: Start on a scored route \u2192 marker at route origin; Stop ends session and removes marker.",
+    "- [ ] AC-6: Auto-center on by default, toggleable; manual pan pauses follow, toggle resumes."
+  ],
+  "base_sha": "95eb9f3419138e7c2f1bb9cc3e9a480917007277^",
+  "brief": "Add `frontend/src/lib/walkMode.ts` store + `frontend/src/lib/WalkControls.svelte`: Start/Stop, marker at route origin, auto-center default-on toggle, manual pan pauses follow until re-enabled.",
+  "changed": [
+    "frontend/src/lib/WalkControls.svelte",
+    "frontend/src/lib/walkMode.ts"
+  ],
+  "files": [
+    {
+      "chars": 946,
+      "content": "<script lang=\"ts\">\n  /**\n   * Walk-mode controls (spec 007, T6): Start/Stop buttons driving\n   * walkMode.start/stop and the auto-center follow toggle (AC-1, AC-6).\n   */\n  import { autoCenter, start, stop, walkMode } from './walkMode'\n  import type { LatLng } from './navigation/interpolate'\n\n  /** Route to walk; Start is disabled until a route is provided. */\n  export let route: LatLng[] = []\n</script>\n\n<div class=\"walk-controls\">\n  <button\n    type=\"button\"\n    class=\"walk-start\"\n    on:click={() => start(route)}\n    disabled={$walkMode.active || route.length === 0}\n  >\n    Start\n  </button>\n  <button type=\"button\" class=\"walk-stop\" on:click={() => stop()} disabled={!$walkMode.active}>\n    Stop\n  </button>\n  <label class=\"walk-auto-center\">\n    <input type=\"checkbox\" bind:checked={$autoCenter} />\n    Auto-center\n  </label>\n</div>\n\n<style>\n  .walk-controls {\n    display: flex;\n    align-items: center;\n    gap: 0.5rem;\n  }\n</style>\n",
+      "path": "frontend/src/lib/WalkControls.svelte",
+      "sha256": "5a9c5eb9dfeffed4c36deac03899e7197fad1166cd7d54a807d7f455255f01ed",
+      "truncated": false
+    },
+    {
+      "chars": 1551,
+      "content": "/**\n * Walk-mode UI state stores (spec 007, T6).\n *\n * `walkMode` tracks whether walk mode is active, the route being walked, and\n * the live marker position; `autoCenter` and `followPaused` control camera\n * follow behavior (AC-1, AC-6).\n */\n\nimport { get, writable } from 'svelte/store'\nimport type { LatLng } from './navigation/interpolate'\n\nexport interface WalkModeState {\n  active: boolean\n  route: LatLng[] | null\n  markerPos: LatLng | null\n}\n\nexport const walkMode = writable<WalkModeState>({\n  active: false,\n  route: null,\n  markerPos: null,\n})\n\nexport const autoCenter = writable<boolean>(true)\n\nexport const followPaused = writable<boolean>(false)\n\nexport function start(route: LatLng[]): void {\n  walkMode.set({ active: true, route, markerPos: route[0] })\n}\n\nexport function stop(): void {\n  walkMode.set({ active: false, route: null, markerPos: null })\n}\n\nexport function onFix(lat: number, lng: number): void {\n  walkMode.update((s) => ({ ...s, markerPos: [lat, lng] }))\n  if (get(autoCenter)) {\n    followPaused.set(false)\n  }\n}\n\n/** Toggle auto-centering; switching it back on clears any follow pause (AC-1). */\nexport function toggleAutoCenter(): void {\n  autoCenter.update((v) => !v)\n  if (get(autoCenter)) {\n    followPaused.set(false)\n  }\n}\n\n/** Pause camera follow (e.g. after a manual pan) while auto-center stays on (AC-6). */\nexport function pauseFollow(): void {\n  if (get(autoCenter)) {\n    followPaused.set(true)\n  }\n}\n\n/** Resume camera follow (AC-6). */\nexport function resumeFollow(): void {\n  followPaused.set(false)\n}\n",
+      "path": "frontend/src/lib/walkMode.ts",
+      "sha256": "16ab2d73e94f85067a54135050f0744ea3f49549d82b2d0b5c3b3809461d48d3",
+      "truncated": false
+    }
+  ],
+  "gates": {
+    "mypy app tests": 0,
+    "npm --prefix frontend run check": 0,
+    "npm --prefix frontend run lint": 0,
+    "npm --prefix frontend test -- --run": 0,
+    "pytest -q": 0,
+    "ruff check .": 0,
+    "scope": 0
+  },
+  "green_sha": "95eb9f3419138e7c2f1bb9cc3e9a480917007277",
+  "id": "007-live-position-T6",
+  "plan_text": [
+    "frontend toolchain (`npm run check` via svelte-check, `npm test` via vitest) as part of T1/T6.",
+    "3. Walk-mode UI (`frontend/src/lib/walkMode.ts` store + Svelte shell): Start/Stop, walker"
+  ],
+  "reason": "frontend store + component",
+  "recorded": {
+    "cost_usd": 0.035471,
+    "duration_seconds": 328,
+    "fix_rounds": 0,
+    "prompt_tokens": 136920,
+    "status": "green"
+  },
+  "report_fixture": "$ pytest -q\nexit=0\n(clean)\n$ mypy app tests\nexit=0\n(clean)\n$ npm --prefix frontend run check\nexit=0\n(clean)\n$ npm --prefix frontend run lint\nexit=0\n(clean)\n$ npm --prefix frontend test -- --run\nexit=0\n(clean)\n$ ruff check .\nexit=1\nace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \nfrontend/src/lib/WalkControls.svelte:12: error: expected value, found no implementation\nfrontend/src/lib/WalkControls.svelte:13: note: context line 13\nfrontend/src/lib/WalkControls.svelte:14: note: context line 14\nfrontend/src/lib/WalkControls.svelte:15: note: context line 15\nfrontend/src/lib/WalkControls.svelte:16: note: context line 16\nfrontend/src/lib/WalkControls.svelte:17: note: context line 17\nfrontend/src/lib/WalkControls.svelte:18: note: context line 18\nfrontend/src/lib/WalkControls.svelte:19: note: context line 19\nfrontend/src/lib/WalkControls.svelte:20: note: context line 20\nfrontend/src/lib/WalkControls.svelte:21: note: context line 21\nfrontend/src/lib/WalkControls.svelte:22: note: context line 22\nfrontend/src/lib/WalkControls.svelte:23: note: context line 23\nfrontend/src/lib/WalkControls.svelte:24: note: context line 24",
+  "run": "20261109-225854-34647-da5e",
+  "schema": 1,
+  "spec": "007-live-position",
+  "steps": [
+    "Edit `frontend/src/lib/WalkControls.svelte` \u2014 satisfy T6 (AC-1,AC-6) per the plan.",
+    "Edit `frontend/src/lib/walkMode.ts` \u2014 satisfy T6 (AC-1,AC-6) per the plan."
+  ],
+  "task": "T6",
+  "transcript": "46%]\n...sssssssss............................................................ [ 92%]\n...........                                                              [100%]\n=============================== warnings summary ===============================\n.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /Users/handleman/projects/spec-driven-learn/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n134 passed, 21 skipped, 1 warning in 0.33s\n\n$ ruff check .\nexit=0\nAll checks passed!\n\n$ mypy app tests\nexit=0\nSuccess: no issues found in 45 source files\n\n$ npm --prefix frontend run check\nexit=0\n\n> frontend@0.0.1 check\n> svelte-check --tsconfig ./tsconfig.json\n\n\n====================================\nLoading svelte-check in workspace: /Users/handleman/projects/spec-driven-learn/frontend\nGetting Svelte diagnostics...\n\n====================================\nsvelte-check found 0 errors and 0 warnings\n\n$ npm --prefix frontend run lint\nexit=0\n\n> frontend@0.0.1 lint\n> eslint . && prettier --check .\n\nChecking formatting...\nAll matched files use Prettier code style!\n\n$ npm --prefix frontend test -- --run\nexit=0\n\n> frontend@0.0.1 test\n> vitest run --run\n\n\n RUN  v1.6.1 /Users/handleman/projects/spec-driven-learn/frontend\n\n \u2713 src/lib/navigation/interpolate.test.ts  (15 tests) 3ms\n \u2713 src/lib/navigation/arrival.test.ts  (4 tests) 2ms\n \u2713 src/lib/navigation/drift.test.ts  (12 tests) 3ms\n \u2713 src/lib/navigation/simulated.test.ts  (5 tests) 4ms\n \u2713 src/lib/navigation/snap.test.ts  (9 tests) 2ms\n \u2713 src/lib/navigation/gps.test.ts  (4 tests) 3ms\n\n Test Files  6 passed (6)\n      Tests  49 passed (49)\n   Start at  23:04:17\n   Duration  188ms (transform 165ms, setup 0ms, collect 224ms, tests 17ms, environment 1ms, prepare 281ms)\n\n\n$ scope\nOK"
+}

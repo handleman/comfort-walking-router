@@ -4,7 +4,8 @@
 .PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck \
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
-	swarm-supervise swarm-report swarm-log swarm-night
+	swarm-supervise swarm-report swarm-log swarm-night \
+	swarm-bench swarm-bench-build swarm-bench-baseline
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -74,6 +75,15 @@ swarm-log: ## Human-readable "why did this stop?" report [RUN=<run dir>] (defaul
 swarm-night: ## Overnight run: keep the Mac awake (caffeinate) + auto-resume the queue
 	@echo "overnight: caffeinate -is + supervisor; keep the machine on AC power"
 	caffeinate -is swarm/.venv/bin/python -m swarm.supervise
+
+swarm-bench: ## Offline replay bench vs baseline.json (020): prompt/report chars, no model call
+	swarm/.venv/bin/python -m swarm.bench $(ARGS)
+
+swarm-bench-build: ## Rebuild the frozen replay corpus from green runs (git history)
+	swarm/.venv/bin/python -m swarm.bench --build
+
+swarm-bench-baseline: ## Snapshot the current bench score as baseline.json (before a harness change)
+	swarm/.venv/bin/python -m swarm.bench --update-baseline
 
 swarm-test: ## Harness unit tests (no LLM, no network)
 	swarm/.venv/bin/python -m pytest swarm/tests -q

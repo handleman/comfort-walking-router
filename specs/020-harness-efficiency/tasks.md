@@ -2,7 +2,7 @@
 
 Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
 
-- [ ] T1 (AC-1, AC-9): add `swarm/bench/` — build a frozen corpus from green runs (brief, ACs, plan, delta file contents at the green commit, base `green_commit^`), reject a case whose commit does not touch a file the brief names, commit `baseline.json`, and make `make swarm-bench` render per-case prompt/report chars, estimated tokens, prefix hash and a stable digest with no model call and no repo write.
+- [x] T1 (AC-1, AC-9): add `swarm/bench/` — build a frozen corpus from green runs (brief, ACs, plan, delta file contents at the green commit, base `green_commit^`), reject a case whose commit does not touch a file the brief names, commit `baseline.json`, and make `make swarm-bench` render per-case prompt/report chars, estimated tokens and a stable digest with no model call and no repo write.
   Evidence: `swarm/bench/corpus.py`, `swarm/bench/score.py`, `swarm/bench/baseline.json`, `swarm/tests/test_bench.py`.
 - [ ] T2 (AC-2): add `swarm/prompts.py` — one pure assembly point with a byte-stable `stable_prefix(task, spec_dir)` (role, scope, rules, brief, ACs, plan) and volatile `step`/`fix`/`qa`/`verify` prompts; `crew.py` builds descriptions from it. A test asserts the prefix is identical across steps of one task and changes with the brief.
   Evidence: `swarm/prompts.py`, `swarm/crew.py`, `swarm/tests/test_prompts.py`.

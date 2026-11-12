@@ -1,0 +1,55 @@
+{
+  "ac_refs": [
+    "AC-2",
+    "AC-3"
+  ],
+  "ac_text": [
+    "- [ ] AC-2: Every scenario above has at least one test; all tests independent and order-free.",
+    "- [ ] AC-3: Suite proves the walker-visible outcomes (map layer, explanation text, banner, warning), not implementation internals (no selectors on minified class names)."
+  ],
+  "base_sha": "9061ea148bf18999af254e676c9e8a27e84b429b^",
+  "brief": "Add the walk-mode scenario in `frontend/e2e/walk-mode.spec.ts` via the sim provider (Start \u2192 origin marker \u2192 ticks \u2192 drift warning \u2192 tap reroutes \u2192 arrival banner \u2192 Stop).",
+  "changed": [
+    "frontend/e2e/walk-mode.spec.ts"
+  ],
+  "files": [
+    {
+      "chars": 3141,
+      "content": "import { expect, test } from '@playwright/test'\n\nimport { enableFixturesMode, setGeolocation } from './helpers'\n\ntest('walk mode finds a route with fixtures and Munich geolocation', async ({ page }) => {\n  await enableFixturesMode(page)\n  await setGeolocation(page, 48.137, 11.575)\n  await page.goto('/')\n\n  await page.locator('input[placeholder=\"e.g. Marienplatz, Munich\"]').fill('Marienplatz, Munich')\n  await page.locator('input[placeholder=\"e.g. Englischer Garten\"]').fill('Englischer Garten')\n  await page.locator('button:has-text(\"Find route\")').click()\n\n  await expect(page.locator('.result')).toBeVisible()\n})\n\ntest('walk mode shows a marker at the origin after starting navigation', async ({ page }) => {\n  await enableFixturesMode(page)\n  await setGeolocation(page, 48.137, 11.575)\n  await page.goto('/')\n\n  await page.locator('input[placeholder=\"e.g. Marienplatz, Munich\"]').fill('Marienplatz, Munich')\n  await page.locator('input[placeholder=\"e.g. Englischer Garten\"]').fill('Englischer Garten')\n  await page.locator('button:has-text(\"Find route\")').click()\n  await expect(page.locator('.result')).toBeVisible()\n\n  await page.locator('button.walk-start').click()\n  await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()\n})\n\ntest('walk mode shows the reroute warning after drifting off route', async ({ page }) => {\n  await enableFixturesMode(page)\n  await setGeolocation(page, 48.137, 11.575)\n  await page.goto('/')\n\n  await page.locator('input[placeholder=\"e.g. Marienplatz, Munich\"]').fill('Marienplatz, Munich')\n  await page.locator('input[placeholder=\"e.g. Englischer Garten\"]').fill('Englischer Garten')\n  await page.locator('button:has-text(\"Find route\")').click()\n  await expect(page.locator('.result')).toBeVisible()\n\n  await page.locator('button.walk-start').click()\n  await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()\n\n  // Simulate position ticks that drift the marker off the route.\n  await setGeolocation(page, 48.15, 11.6)\n  await setGeolocation(page, 48.16, 11.62)\n\n  await expect(page.locator('.reroute-warning')).toContainText('Off route \u2014 reroute?')\n})\n\ntest('walk mode shows the arrived banner after reaching the destination', async ({ page }) => {\n  await enableFixturesMode(page)\n  await setGeolocation(page, 48.137, 11.575)\n  await page.goto('/')\n\n  await page.locator('input[placeholder=\"e.g. Marienplatz, Munich\"]').fill('Marienplatz, Munich')\n  await page.locator('input[placeholder=\"e.g. Englischer Garten\"]').fill('Englischer Garten')\n  await page.locator('button:has-text(\"Find route\")').click()\n  await expect(page.locator('.result')).toBeVisible()\n\n  await page.locator('button.walk-start').click()\n  await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()\n\n  // Simulate a final position fix at the destination (Englischer Garten).\n  await setGeolocation(page, 48.155, 11.583)\n\n  await expect(page.locator('.walk-arrived-banner')).toContainText('Arrived!')\n\n  await page.locator('button.walk-stop').click()\n  await expect(page.locator('.walk-arrived-banner')).toBeHidden()\n  await expect(page.locator('button.walk-start')).toBeEnabled()\n})\n",
+      "path": "frontend/e2e/walk-mode.spec.ts",
+      "sha256": "13a222d991a0a7e95e1bbd2fc3e07f7a21191f133f196f72c05ca3d707d9f8fa",
+      "truncated": false
+    }
+  ],
+  "gates": {
+    "mypy app tests": 0,
+    "npm --prefix frontend run check": 0,
+    "npm --prefix frontend run lint": 0,
+    "npm --prefix frontend test -- --run": 0,
+    "pytest -q": 0,
+    "ruff check .": 0,
+    "scope": 0
+  },
+  "green_sha": "9061ea148bf18999af254e676c9e8a27e84b429b",
+  "id": "010-e2e-playwright-T5",
+  "plan_text": [
+    "suite is deterministic in CI and needs no live internet. Preconditions: 001 T5 (usable"
+  ],
+  "reason": "e2e: walk-mode scenario",
+  "recorded": {
+    "cost_usd": 0.042647,
+    "duration_seconds": 380,
+    "fix_rounds": 1,
+    "prompt_tokens": 201094,
+    "status": "green"
+  },
+  "report_fixture": "$ pytest -q\nexit=0\n(clean)\n$ mypy app tests\nexit=0\n(clean)\n$ npm --prefix frontend run check\nexit=0\n(clean)\n$ npm --prefix frontend run lint\nexit=0\n(clean)\n$ npm --prefix frontend test -- --run\nexit=0\n(clean)\n$ ruff check .\nexit=1\n detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \n  trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail trace detail \nfrontend/e2e/walk-mode.spec.ts:12: error: expected value, found no implementation\nfrontend/e2e/walk-mode.spec.ts:13: note: context line 13\nfrontend/e2e/walk-mode.spec.ts:14: note: context line 14\nfrontend/e2e/walk-mode.spec.ts:15: note: context line 15\nfrontend/e2e/walk-mode.spec.ts:16: note: context line 16\nfrontend/e2e/walk-mode.spec.ts:17: note: context line 17\nfrontend/e2e/walk-mode.spec.ts:18: note: context line 18\nfrontend/e2e/walk-mode.spec.ts:19: note: context line 19\nfrontend/e2e/walk-mode.spec.ts:20: note: context line 20\nfrontend/e2e/walk-mode.spec.ts:21: note: context line 21\nfrontend/e2e/walk-mode.spec.ts:22: note: context line 22\nfrontend/e2e/walk-mode.spec.ts:23: note: context line 23\nfrontend/e2e/walk-mode.spec.ts:24: note: context line 24",
+  "run": "20261110-014522-43318-51c7",
+  "schema": 1,
+  "spec": "010-e2e-playwright",
+  "steps": [
+    "Edit `frontend/e2e/walk-mode.spec.ts` \u2014 satisfy T5 (AC-2,AC-3) per the plan."
+  ],
+  "task": "T5",
+  "transcript": "43%]\n...............sssssssss................................................ [ 86%]\n.......................                                                  [100%]\n=============================== warnings summary ===============================\n.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /Users/handleman/projects/spec-driven-learn/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n146 passed, 21 skipped, 1 warning in 0.34s\n\n$ ruff check .\nexit=0\nAll checks passed!\n\n$ mypy app tests\nexit=0\nSuccess: no issues found in 53 source files\n\n$ npm --prefix frontend run check\nexit=0\n\n> frontend@0.0.1 check\n> svelte-check --tsconfig ./tsconfig.json\n\n\n====================================\nLoading svelte-check in workspace: /Users/handleman/projects/spec-driven-learn/frontend\nGetting Svelte diagnostics...\n\n====================================\nsvelte-check found 0 errors and 0 warnings\n\n$ npm --prefix frontend run lint\nexit=0\n\n> frontend@0.0.1 lint\n> eslint . && prettier --check .\n\nChecking formatting...\nAll matched files use Prettier code style!\n\n$ npm --prefix frontend test -- --run\nexit=0\n\n> frontend@0.0.1 test\n> vitest run --run\n\n\n RUN  v1.6.1 /Users/handleman/projects/spec-driven-learn/frontend\n\n \u2713 src/lib/navigation/arrival.test.ts  (4 tests) 1ms\n \u2713 src/lib/navigation/interpolate.test.ts  (15 tests) 2ms\n \u2713 src/lib/navigation/drift.test.ts  (12 tests) 3ms\n \u2713 src/lib/navigation/simulated.test.ts  (5 tests) 4ms\n \u2713 src/lib/navigation/gps.test.ts  (4 tests) 4ms\n \u2713 src/lib/navigation/snap.test.ts  (9 tests) 2ms\n\n Test Files  6 passed (6)\n      Tests  49 passed (49)\n   Start at  01:51:25\n   Duration  189ms (transform 174ms, setup 0ms, collect 225ms, tests 16ms, environment 0ms, prepare 290ms)\n\n\n$ scope\nOK"
+}

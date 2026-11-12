@@ -12,7 +12,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 - Stack: `docs/tech-stack.md` — Python + FastAPI + Svelte + TypeScript + Leaflet, OSM/Overpass, SQLite first; swarm: CrewAI + Textual + Ollama + OpenRouter + Zen.
 - Order of work: `docs/roadmap.md`
 - Rules: `.specify/memory/constitution.md`, `AGENTS.md`
-- Decisions: `docs/architecture/` (ADRs 001–011)
+- Decisions: `docs/architecture/` (ADRs 001–012)
 
 ## Specs
 | Spec | State | What |
