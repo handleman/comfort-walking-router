@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -16,7 +17,10 @@ from typing import Any
 
 SHELL_LOG = "shell_log.jsonl"
 DEFAULT_AGENT = "QA Gatekeeper"
-TAIL_CHARS = 4000
+# What the harness keeps of one gate execution. It is the source the report's
+# key lines are extracted from, so it must be big enough to hold the failure
+# header and the summary; it is disk, not prompt (020 T4 spills the prompt side).
+TAIL_CHARS = int(os.getenv("SWARM_GATE_TAIL_CHARS", "20000"))
 REPORT_TAIL_CHARS = 4000
 # A fix round is a prompt, not a log: the failing gate output has to reach the
 # coder intact. 007-T9 (2026-11-10) lost its vitest failure text to the 9000
@@ -133,21 +137,23 @@ def qa_report(
     (`file:line: message`), because the raw tail of `svelte-check` or
     `vitest` is too noisy to act on — and too long to survive a prompt.
     """
-    tail_by_command: dict[str, str] = {}
+    full_by_command: dict[str, str] = {}
     for block in tails:
         head, _, body = block.partition("\n")
         command = head.removeprefix("$ ").strip()
         if command:
-            tail_by_command[command] = body[-REPORT_TAIL_CHARS:]
+            full_by_command[command] = body
     entries = []
     for command, code in gates.items():
-        body = tail_by_command.get(command, "")[-REPORT_TAIL_CHARS:]
+        full = full_by_command.get(command, "")
         entries.append(
             {
                 "command": command,
                 "exit": int(code),
-                "tail": body,
-                "errors": extract_error_lines(body),
+                # The prompt copy is bounded; the key lines are read from the
+                # whole recorded tail so a failure header is not cut away.
+                "tail": full[-REPORT_TAIL_CHARS:],
+                "errors": extract_error_lines(full),
             }
         )
     entries.sort(key=lambda e: (int(e["exit"]) == 0, e["command"]))
@@ -186,6 +192,10 @@ def report_text(report: dict[str, Any]) -> str:
         if errors:
             lines.append("key lines:")
             lines.extend(f"  - {line}" for line in errors)
+        if entry.get("log_path"):
+            # 020 AC-3: the long tail was spilled to a file; the key lines above
+            # are the actionable part, and the path is there when they are not.
+            lines.append(f"full log: {entry['log_path']}")
         body = str(entry.get("tail") or "")
         if body:
             lines.append("output:")

@@ -116,9 +116,23 @@ def prompts(case: dict[str, Any]) -> dict[str, int | str]:
 
 
 def _work_summary(case: dict[str, Any]) -> str:
-    """What QA sees after the steps: the step texts plus their files (bounded)."""
-    lines = list(case.get("steps") or [])
-    return "\n".join(lines)[:6000]
+    """What QA sees after the steps: the compacted step digest (020 T4).
+
+    Writes to a temporary directory, never to the repository: the bench stays
+    read-only. `SWARM_CONTEXT_COMPACT=0` restores the old full concatenation so
+    the two behaviours can be measured with the same command.
+    """
+    import tempfile
+    from pathlib import Path as _Path
+
+    from swarm import compaction
+
+    steps = list(case.get("steps") or [])
+    with tempfile.TemporaryDirectory() as tmp:
+        digest, _ = compaction.compact_steps(
+            steps, _Path(tmp), enabled_flag=compaction.enabled()
+        )
+    return digest[:6000]
 
 
 def _verify_context(case: dict[str, Any]) -> str:
@@ -150,10 +164,19 @@ def report_fixture(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def report_fixture_text(case: dict[str, Any]) -> tuple[str, int]:
-    """Render the report once; return (text, chars)."""
+    """Render the report (with 020 T4 spilling) once; return (text, chars)."""
+    import tempfile
+    from pathlib import Path as _Path
+
+    from swarm import compaction
     from swarm.evidence import report_text
 
-    text = report_text(report_fixture(case))
+    report = report_fixture(case)
+    with tempfile.TemporaryDirectory() as tmp:
+        report, _ = compaction.spill_report(
+            report, _Path(tmp), enabled_flag=compaction.enabled()
+        )
+        text = report_text(report)
     return text, len(text)
 
 

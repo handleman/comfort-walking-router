@@ -93,12 +93,26 @@ def test_score_case_counts_the_loop_it_measured():
     assert row["est_tokens"] == expected // 4
 
 
-def test_report_fixture_carries_the_failing_tail_not_only_key_lines():
+def test_report_fixture_carries_the_failing_tail_not_only_key_lines(tmp_path):
+    from swarm import compaction
+    from swarm.evidence import report_text
+
     case = _case()
-    text, chars = score.report_fixture_text(case)
-    assert chars >= 3000, "the frozen failing round must exercise the real tail budget"
+    report = score.report_fixture(case)
+    unspilled, _ = compaction.spill_report(report, tmp_path, enabled_flag=False)
+    text = report_text(unspilled)
+    assert len(text) >= 3000, "the fixture must exercise the real failure-tail budget"
     assert "FAILING GATES" in text
-    assert "swarm/bench/corpus.py:12" in text or "corpus.py:12" in text
+    assert "corpus.py:12" in text
+
+    spilled, record = compaction.spill_report(
+        score.report_fixture(case), tmp_path, enabled_flag=True
+    )
+    compact = report_text(spilled)
+    assert record["gate_logs"], "a long tail is spilled (020 T4)"
+    assert "corpus.py:12" in compact  # the key line survives
+    assert "full log: gate_logs/" in compact  # and the full text has a locator
+    assert len(compact) < len(text)
 
 
 def test_report_is_renderable_without_a_model_and_identical_twice():

@@ -24,6 +24,8 @@ from typing import Any
 from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
 
+from swarm import compaction
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 with contextlib.suppress(Exception):
     # budgets/merge flags must be visible before SwarmFlow.__init__ reads them
@@ -92,6 +94,8 @@ class SwarmState(BaseModel):
     self_check: dict[str, Any] = {}
     # 019: the scenario verifier's verdict, rounds, findings and correction plan.
     verifier: dict[str, Any] = {}
+    # 020: what context compaction and gate-log spilling moved out of prompts.
+    compaction: dict[str, Any] = {}
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -925,6 +929,8 @@ class SwarmFlow(Flow[SwarmState]):
         # 015 AC-6: a single task cannot eat the whole run.
         self._max_cost_task = env_float("SWARM_MAX_COST_PER_TASK", 0.05)
         self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 1800)
+        # 020 AC-3: step digests + gate-log spilling (SWARM_CONTEXT_COMPACT=0 off).
+        self._compact = compaction.enabled()
         self._task_started = time.monotonic()
         self._task_tokens_start = 0
         self._task_cost_start = 0.0
@@ -1197,9 +1203,10 @@ class SwarmFlow(Flow[SwarmState]):
         missing: list[str],
     ) -> dict[str, Any]:
         """015 AC-3: the bounded report the coder investigates from."""
+        from swarm import compaction
         from swarm.evidence import qa_report, split_tails
 
-        return qa_report(
+        report = qa_report(
             gates=gates,
             tails=split_tails(transcript),
             changed=self._in_scope_paths(changed),
@@ -1207,6 +1214,16 @@ class SwarmFlow(Flow[SwarmState]):
             reason=self.state.review_text,
             missing=missing,
         )
+        # 020 AC-3: a long failing tail goes to gate_logs/, the report keeps the
+        # key lines and the path. The coder still has the evidence, not the noise.
+        report, spill = compaction.spill_report(
+            report,
+            self.run_dir,
+            max_chars=compaction.spill_chars(),
+            enabled_flag=bool(getattr(self, "_compact", True)),
+        )
+        self.state.compaction = compaction.merge_records(self.state.compaction, spill)
+        return report
 
     def _maybe_repair_verdict(self, task: Any, gates: dict[str, int], transcript: str) -> None:
         """One verdict-only retry when QA returned no verdict.
@@ -2342,7 +2359,16 @@ class SwarmFlow(Flow[SwarmState]):
                     _verify_kick,
                 ):
                     break
-                work_summary = "\n".join(step_outs)
+                # 020 AC-3: full step outputs live in <run>/step_outputs/, the
+                # prompt carries a bounded digest (index, files, outcome, path).
+                work_summary, compacted = compaction.compact_steps(
+                    step_outs,
+                    self.run_dir,
+                    enabled_flag=bool(getattr(self, "_compact", True)),
+                )
+                self.state.compaction = compaction.merge_records(
+                    self.state.compaction, compacted
+                )
                 # 015 AC-2/AC-3: QA runs the gates; its recorded executions are
                 # the evidence green is built from.
                 reviewed = _review(task, work_summary)
@@ -2638,6 +2664,7 @@ class SwarmFlow(Flow[SwarmState]):
             "style_autofix": self.state.style_autofix,
             "self_check": self.state.self_check,
             "verifier": self.state.verifier,
+            "compaction": self.state.compaction,
         }
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate

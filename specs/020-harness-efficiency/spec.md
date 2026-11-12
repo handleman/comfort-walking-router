@@ -89,7 +89,8 @@ layer is a future option, not part of 020.
   bounded digest (step index, action, files touched, one-line outcome), not the
   concatenation of full step outputs; the full outputs are written to
   `<run_dir>/step_outputs/` and referenced by path. A failing gate tail larger
-  than `SWARM_GATE_SPILL_CHARS` (default 4000) is written to
+  than `SWARM_GATE_SPILL_CHARS` (default 2000 — the QA transcript
+  already caps a tail at 4000, so a 4000 threshold could never fire) is written to
   `<run_dir>/gate_logs/<gate>.log`; the report carries key lines and the log
   path. `run.json.compaction` records what was spilled and the resulting chars.
   `SWARM_CONTEXT_COMPACT=0` restores the old behaviour.

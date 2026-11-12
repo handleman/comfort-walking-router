@@ -752,6 +752,30 @@ description = stable_prefix(task, spec_dir, kind) + "\n\n" + volatile part
   cacheability and one coherent head per task, not raw characters; T4/T5/T6 do
   the cutting.
 
+## Context compaction and gate-log spilling (`swarm/compaction.py`, 020 T4)
+A fix round is the most expensive round, and it used to re-send everything:
+the concatenation of every step output plus up to 4k chars of raw tail per
+failing gate. Two rules keep it flat (`SWARM_CONTEXT_COMPACT=0` restores 019):
+
+- **Step outputs become a digest.** Full outputs are written to
+  `<run>/step_outputs/step-NNN.txt`; the prompt gets one line per step —
+  index, files touched, the one-line outcome and the path to the rest. The
+  checkpoint still holds the full outputs, so a resumed run loses nothing.
+- **A long failing gate tail is spilled.** Above `SWARM_GATE_SPILL_CHARS`
+  (default 2000) the tail goes to `<run>/gate_logs/<gate>.log`; the report keeps
+  the extracted `file:line: message` key lines plus `full log: <path>`. The
+  threshold is 2000, not the 4000 the spec first proposed, because the QA
+  transcript already caps a tail at 4000 — a 4000 threshold could never fire.
+- `shell_log.jsonl` now keeps up to `SWARM_GATE_TAIL_CHARS` (default 20000) per
+  execution, and the report extracts key lines from that **whole** tail before
+  truncating its prompt copy to 4k. That is what makes the 007-T9 lesson hold:
+  the failure header is no longer cut away before the key lines are read.
+- `run.json.compaction` records the mode, steps spilled, full/digest chars,
+  chars saved, the threshold and every gate log path.
+
+Measured at T4: task prompt **427,725 chars (−7.4%)**, report **5,768 chars
+(−86%)** over the same 12 cases.
+
 ## Traces & logs (all inside the project, never `/tmp`)
 - Pilot runs: `swarm/runs/<ts>-<pid>-<rand>/{run.json,events.jsonl,progress.json}` (+ `latest` pointer).
   `run.json` records brief, `ac_refs`, changed files, gates, reviewer verdict, the
