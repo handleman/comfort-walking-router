@@ -120,6 +120,17 @@ autonomy) judgeable on outcomes rather than on prompt characters.
   `SWARM_STYLE_PRE_QA`, `SWARM_TESTS_FIRST`, `SWARM_CODER_ACS`. Disabling every
   knob restores the 020 behaviour, and `make swarm-test` covers both paths.
 
+- **AC-10 — Coder-prompt strictness A/B.** `SWARM_CODER_LOOSE=1` (default 0)
+  relaxes only the step-crew mechanics: up to 8 tool calls instead of 5,
+  `max_iter` 8 instead of 6, an explicit "continue with `start_line`" rule for a
+  truncated read, and "re-read only when the file changed since your last read"
+  instead of "never read the same file twice". Scope, the real-API rule and the
+  no-gates rule are unchanged. `SWARM_PLAN_MAX_STEPS` (default 8) lets the
+  planner choose the fewest coherent steps for a small task. The outcome suite
+  runs the same cases strict vs loose and with a stronger coder pin, so a result
+  is attributed to the prompt, the plan granularity or the model — not guessed.
+  The default stays strict until the suite shows a win.
+
 - **AC-9 — Measured result.** The outcome suite runs before and after; the
   before/after table lands in `docs/research/fix-loop-2026.md` and `changelog.md`.
   Targets: fix-round rate **59% → ≤35%**, `coder:fix*` prompt tokens **−40%**,

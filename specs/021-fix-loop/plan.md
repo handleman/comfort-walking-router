@@ -162,6 +162,25 @@ Write the table in `docs/research/fix-loop-2026.md` (case, green, wall clock,
 tokens, fix rounds, cause mix) and decide each A/B. A variant that lowers green
 is reverted and recorded as a negative result.
 
+## T10 — coder-prompt strictness A/B
+
+The 020 T8 replay is the motivating case: a one-file task got six fragment steps,
+the final module contained only the constants, and the test was written from
+memory with inverted expectations and a duplicated method. Three causes fit that
+evidence, so measure them instead of picking one:
+
+- `SWARM_CODER_LOOSE=1` (default 0) relaxes only step mechanics: 8 tool calls,
+  `max_iter` 8, "continue with `start_line`" for a truncated read, "re-read only
+  when the file changed", keeping scope/real-API/no-gates intact.
+- `SWARM_PLAN_MAX_STEPS` (default 8): the planner may choose fewer coherent
+  steps; the prompt asks for the fewest that work, not "4–8".
+- A confounder run pins a stronger free coder (`SWARM_BENCH_MODELS=coder=…`) for
+  the same case, so a capability failure is not read as a prompt failure.
+
+The suite compares strict vs loose on the same cases (green, fix rounds, tokens,
+p50). Keep loose only on a win; strict stays the default because it exists to
+stop small-model wandering.
+
 ## T9 — docs and controls
 
 - `HARNESS_SPECS += ("021-fix-loop",)`.

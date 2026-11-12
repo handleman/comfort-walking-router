@@ -18,6 +18,8 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/flow.py`, `swarm/report.py`, `swarm/tests/test_selfcheck.py`, `swarm/tests/test_verify.py`.
 - [ ] T8 (AC-9): measure and decide — run the suite for baseline, mechanical repair, tests-first and AC-prompt variants; write the per-case before/after table into `docs/research/fix-loop-2026.md` and `changelog.md`; keep a variant only if it lowers the fix rate without lowering green, otherwise revert and record the negative result.
   Evidence: `docs/research/fix-loop-2026.md` (results), `changelog.md`, `swarm/bench/replay_baseline.json`.
+- [ ] T10 (AC-10): coder-prompt strictness A/B — `SWARM_CODER_LOOSE=1` (8 tool calls, `max_iter` 8, `start_line` continuation, re-read only on change) and `SWARM_PLAN_MAX_STEPS` (fewest coherent steps); run the same cases strict/loose and with a stronger coder pin, and keep loose only on a measured win.
+  Evidence: `swarm/prompts.py`, `swarm/crew.py`, `swarm/tests/test_prompts.py`, `docs/research/fix-loop-2026.md` (result).
 - [ ] T9 (AC-8): close the loop — add `021-fix-loop` to `HARNESS_SPECS`, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
   Evidence: `swarm/flow.py::HARNESS_SPECS`, `.env.example`, `swarm/README.md`, `AGENTS.md`, `docs/roadmap.md`.
 

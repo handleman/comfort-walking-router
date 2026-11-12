@@ -152,6 +152,17 @@ H > 1 week; risk is "new trust surface" or "gameable check".
 | **R8** | **Contract pinning check** — one source per field, asserted before QA (019 already checks "contract and code agree"; make it a typed finding) | 014-T1's three schemas | Med | M | Medium |
 | **R9** | **Outcome replay suite** — extend 020 T7 from one case to 5–8, on/off A/B, scoring green/cost/time/fix rounds | 020 T8 needed a live run; chars are not outcomes | High (enabler) | M | Low |
 
+### Is the coder prompt too strict?
+
+A fourth hypothesis came out of the 020 T8 replay: the step prompt's hard rules
+("at most 5 tool calls", "never read the same file twice", `max_iter=6`) may
+force a small coder to write from memory. The observed output is consistent with
+it — a six-step plan for one file, a module with only the constants, and a test
+with inverted expectations plus a duplicated method — but also with
+over-decomposition and with model capability. T10 measures all three (loose
+prompt, planner step count, stronger coder pin) instead of relaxing a guard that
+exists to stop Qwen-9B wandering.
+
 ## Proposed 021 scope (`021-fix-loop`)
 
 Measure first, then remove the mechanical class, then test the tests-first bet:
