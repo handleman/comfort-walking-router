@@ -187,7 +187,18 @@ def _read_target(file_path: str, base_dir: str | Path | None = None) -> Path | N
 
 
 class TrimmedFileReadTool(FileReadTool):
-    """FileReadTool with truncated observations + path/secret guard."""
+    """FileReadTool with truncated observations + path/secret guard.
+
+    014-T1 (2026-11-12) burned three fix rounds on one assertion: the coder
+    asked for `start_line=1, line_count=500` of a 178-line file seven times
+    and got the same first 3000 characters every time. The old note ("re-read
+    with start_line/line_count") did not say *where* to resume, so the model
+    re-read from line 1, got the same head of the file, and changed nothing —
+    the run ended `no_progress` with the real defect still there.
+
+    The note now names the exact next line, so a truncated read is a step
+    forward instead of a loop.
+    """
 
     def _run(self, *args: Any, **kwargs: Any) -> str:
         supplied = kwargs.get("file_path")
@@ -202,9 +213,24 @@ class TrimmedFileReadTool(FileReadTool):
             kwargs["file_path"] = str(target)
         else:
             args = (str(target), *args[1:])
+        start_line = kwargs.get("start_line")
+        if start_line is None and len(args) > 1:
+            start_line = args[1]
+        try:
+            start_line = int(start_line or 1)
+        except (TypeError, ValueError):
+            start_line = 1
         out = super()._run(*args, **kwargs)
         if len(out) > MAX_OBSERVATION:
-            return out[:MAX_OBSERVATION] + f"\n…[truncated {len(out) - MAX_OBSERVATION} chars; re-read with start_line/line_count]"
+            head = out[:MAX_OBSERVATION]
+            # The last line fully present in the head: the next read starts there.
+            last_line = start_line + head.count("\n")
+            return (
+                head
+                + f"\n…[truncated {len(out) - MAX_OBSERVATION} chars; "
+                f"showing lines {start_line}-{last_line}. "
+                f"CONTINUE with start_line={last_line + 1} (do not re-read from line {start_line})]"
+            )
         return out
 
 

@@ -1178,8 +1178,16 @@ class SwarmFlow(Flow[SwarmState]):
         )
 
     def _maybe_repair_verdict(self, task: Any, gates: dict[str, int], transcript: str) -> None:
-        """One verdict-only retry when gates are green but QA returned no verdict."""
-        if _gates_green(gates) and self.state.review_verdict == "unknown":
+        """One verdict-only retry when QA returned no verdict.
+
+        014-T1 (2026-11-12): the reviewer ran out of iterations mid-report, so
+        `review_verdict` stayed "unknown" — and the fix rounds then had no
+        grounded reason to work from, which is how a one-line label mismatch
+        survived three fix rounds. The repair used to run only when the gates
+        were green; a *red* run is exactly when a verdict is most needed
+        (it is what tells the coder which gate is failing).
+        """
+        if self.state.review_verdict == "unknown":
             self._repair_verdict(task, transcript)
 
     def _set_review(self, review_out: str) -> None:
@@ -2512,6 +2520,12 @@ class SwarmFlow(Flow[SwarmState]):
             "usage": usage,
         }
         (self.run_dir / "run.json").write_text(json.dumps(payload, indent=2))
+        # 018: a copy-pasteable "why did this stop?" next to the run. The
+        # dashboard shows it (`h`), but a screen is not pasteable.
+        with contextlib.suppress(Exception):
+            from swarm.humanlog import write_human_report
+
+            write_human_report(self.run_dir)
         self._teardown_listener()
         self._cleanup()
         return status
@@ -2534,6 +2548,7 @@ HARNESS_SPECS = (
     "015-dark-factory-economics",
     "016-conflict-recovery",
     "017-coder-selfcheck",
+    "018-operator-readable-runs",
 )
 
 

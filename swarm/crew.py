@@ -181,7 +181,11 @@ def _reviewer() -> Agent:
         verbose=False,
         # 015 tuning: 5 gates + `git status` + the verdict need ~7 calls; the old
         # budget of 5 made the model skip a gate and forced the harness fallback.
-        max_iter=9,
+        # 014-T1 (2026-11-12): 6 gates + `git status` + the verdict + a look at
+        # the failing file is ~9 calls, so a budget of 9 left the reviewer
+        # re-running `pytest` instead of declaring a verdict — `review_verdict`
+        # stayed "unknown" and the run had no grounded reason.
+        max_iter=12,
     )
 
 

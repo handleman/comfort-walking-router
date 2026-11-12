@@ -37,6 +37,10 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, ListItem, ListView, Log, Static
 
+# The token/cost/duration formatters live in `swarm.humanlog` (018) so the
+# dashboard and the written report cannot format a number two different ways.
+from swarm.humanlog import fmt_cost, fmt_duration, fmt_tokens
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PANES = ("crew", "planner", "coder", "reviewer")
 ROLE_VARS = (
@@ -133,37 +137,6 @@ STATUS_MARK = {
 
 
 # ---- pure formatting helpers (kept testable, no widgets) ----
-def fmt_tokens(n: int | None) -> str:
-    if not n:
-        return "0"
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.1f}k"
-    return str(n)
-
-
-def fmt_cost(cost: float | None) -> str:
-    if cost is None:
-        return "unknown"
-    if cost == 0:
-        return "$0"
-    if cost < 0.01:
-        return f"${cost:.4f}"
-    return f"${cost:.2f}"
-
-
-def fmt_duration(seconds: float | None) -> str:
-    if seconds is None:
-        return "-"
-    seconds = max(0, int(seconds))
-    if seconds < 60:
-        return f"{seconds}s"
-    if seconds < 3600:
-        return f"{seconds // 60}m{seconds % 60:02d}s"
-    return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
-
-
 def pct(used: float, limit: float) -> str:
     if limit <= 0:
         return "off"
@@ -269,10 +242,19 @@ def format_metrics(
         out.append("ON — some roles on fallback models\n", style="bold yellow")
 
     out.append("\nbudget\n", style="bold")
-    out.append(f"  tokens  {fmt_tokens(usage.get('total_tokens'))} / {fmt_tokens(limits['tokens'])}", style="")
-    out.append(f"  {pct(usage.get('total_tokens') or 0, limits['tokens'])}\n", style="dim")
-    out.append(f"  cost    {fmt_cost(usage.get('cost_usd', payload.get('cost')))} / ${limits['cost']:.2f}", style="")
-    out.append(f"  {pct(usage.get('cost_usd') or 0, limits['cost'])}\n", style="dim")
+    # A free-local run spends $0, so the dollar/token caps are not enforced
+    # (`_check_budget` skips them). Showing "84% of the token budget" for a cap
+    # that cannot fire is how an operator concludes the budget stopped the run.
+    budget = payload.get("budget") or {}
+    free_local = bool(budget.get("free_local_run"))
+    if free_local:
+        out.append(f"  tokens  {fmt_tokens(usage.get('total_tokens'))}  (no cap: free local run)\n", style="dim")
+        out.append(f"  cost    {fmt_cost(usage.get('cost_usd', payload.get('cost')))}  (no cap: free local run)\n", style="dim")
+    else:
+        out.append(f"  tokens  {fmt_tokens(usage.get('total_tokens'))} / {fmt_tokens(limits['tokens'])}", style="")
+        out.append(f"  {pct(usage.get('total_tokens') or 0, limits['tokens'])}\n", style="dim")
+        out.append(f"  cost    {fmt_cost(usage.get('cost_usd', payload.get('cost')))} / ${limits['cost']:.2f}", style="")
+        out.append(f"  {pct(usage.get('cost_usd') or 0, limits['cost'])}\n", style="dim")
     elapsed = elapsed if elapsed is not None else usage.get("duration_seconds")
     out.append(f"  time    {fmt_duration(elapsed)} / {fmt_duration(limits['seconds'])}", style="")
     out.append(f"  {pct(elapsed or 0, limits['seconds'])}\n", style="dim")
@@ -334,116 +316,30 @@ def format_human_report(
     run_name: str = "",
     event_limit: int = 80,
 ) -> str:
-    """Plain-text 'why did this run stop?' report for the human-log screen."""
-    p = payload or {}
-    spec, task = p.get("spec", "?"), p.get("task", "?")
-    status = p.get("status", "?")
-    lines = [f"{spec} {task} — {status}" + (f"  ({run_name})" if run_name else "")]
-    usage = p.get("usage") or {}
-    bits: list[str] = []
-    if usage.get("total_tokens"):
-        bits.append(f"tok {fmt_tokens(usage.get('total_tokens'))}")
-    if usage.get("cost_usd") is not None:
-        bits.append(f"cost {fmt_cost(usage.get('cost_usd'))}")
-    if usage.get("duration_seconds") is not None:
-        bits.append(f"time {fmt_duration(usage.get('duration_seconds'))}")
-    if bits:
-        lines.append("  ".join(bits))
+    """Plain-text 'why did this run stop?' report for the human-log screen.
 
-    lines += ["", "why"]
-    reasons: list[str] = []
-    verdict = str(p.get("review_verdict") or "")
-    if verdict and verdict != "pass":
-        reasons.append(f"reviewer verdict: {verdict} (PASS required)")
-    for key, label in (
-        ("review_note", "reviewer"),
-        ("vacancy_note", "vacancy"),
-        ("budget_note", "budget"),
-        ("quota_note", "quota"),
-        ("recovery_note", "recovery"),
-        ("approval_error", "approval"),
-        ("evidence_note", "QA evidence"),
-        ("verification_note", "verification"),
-    ):
-        value = p.get(key)
-        if value:
-            reasons.append(f"{label}: {value}")
-    self_check = p.get("self_check") or {}
-    if self_check.get("red"):
-        reasons.append(
-            "self-check red: " + ", ".join(str(command) for command in self_check["red"])
-        )
-    if not reasons:
-        if status == "needs_human":
-            reasons.append("no explicit note — inspect gates/reviewer below")
-        elif status == "green":
-            reasons.append("all gates 0 + reviewer PASS + committed")
-    lines += [f"  - {reason}" for reason in reasons]
+    The renderer lives in `swarm.humanlog` so the screen and the file the
+    harness writes on every run are the same text (018).
+    """
+    from swarm.humanlog import format_human_report as _render
 
-    gates = p.get("gates") or {}
-    if gates:
-        lines += ["", "gates"]
-        lines += [f"  {'✓' if code == 0 else '✗'} {name} {code}" for name, code in gates.items()]
-
-    qa = p.get("qa_report") or {}
-    if qa.get("gates"):
-        lines += ["", f"QA report ({qa.get('verdict') or '?'})"]
-        for gate in qa["gates"][:8]:
-            lines.append(f"  {'✓' if gate.get('exit') == 0 else '✗'} {gate.get('command')} {gate.get('exit')}")
-
-    steps = p.get("steps") or []
-    if steps:
-        lines += ["", "steps"] + [
-            f"  {step.get('index')}. {step.get('model')} ({step.get('routing_reason')})"
-            for step in steps[:12]
-        ]
-
-    for key, label in (("skipped_ac", "unverified ACs"), ("stashed", "stashed"), ("out_of_scope_reverted", "reverted")):
-        if p.get(key):
-            lines.append(f"  {label}: {', '.join(str(v) for v in p[key])}")
-
-    by_role = (p.get("usage") or {}).get("by_role") or {}
-    if by_role:
-        lines += ["", "cost by role"] + [
-            f"  {role:<16} {fmt_tokens(usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)):>8}"
-            f" {fmt_cost(usage.get('cost_usd'))}"
-            for role, usage in sorted(by_role.items())
-        ]
-
-    changed = p.get("changed_files") or []
-    if changed:
-        lines += ["", "changed"] + [f"  {path}" for path in changed[:20]]
-
-    review = str(p.get("review_tail") or "").strip()
-    if review:
-        lines += ["", "reviewer output", review[-2500:]]
-    transcript = str(p.get("gate_transcript_tail") or "").strip()
-    if transcript:
-        lines += ["", "gate transcript", transcript[-2500:]]
-    result = str(p.get("result_tail") or "").strip()
-    if result and not review:
-        lines += ["", "last output", result[-1500:]]
-
-    if events:
-        lines += ["", f"events (last {min(len(events), event_limit)})"]
-        for ev in events[-event_limit:]:
-            etype = str(ev.get("type", "?"))
-            if etype == "chunk":
-                continue
-            agent = str(ev.get("agent", ""))
-            text = " ".join(str(ev.get("text", "")).split())[:240]
-            lines.append(f"  {etype:<14} {agent:<16} {text}".rstrip())
-    return "\n".join(lines)
+    return _render(payload, events, run_name=run_name, event_limit=event_limit)
 
 
 class HumanLogScreen(ModalScreen[None]):
-    """Scrollable 'why did it stop?' view; never owns state."""
+    """Scrollable 'why did it stop?' view; never owns state.
+
+    018: `c` copies the whole report to the clipboard (a screen is not
+    pasteable). The report is also written to `<run_dir>/human_log.txt` on
+    every run, so it survives the terminal.
+    """
 
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("escape", "close", "close"),
         Binding("h", "close", "close"),
         Binding("H", "close", "close"),
         Binding("q", "close", "close"),
+        Binding("c", "copy", "copy"),
     ]
     CSS = "#human-scroll { padding: 1 2; }"
 
@@ -457,6 +353,14 @@ class HumanLogScreen(ModalScreen[None]):
 
     def action_close(self) -> None:
         self.dismiss()
+
+    def action_copy(self) -> None:
+        """Copy the report to the clipboard (Textual OSC52; no-ops silently)."""
+        self.app.copy_to_clipboard(self._body)
+        try:
+            self.app.notify("human log copied to clipboard", title="swarm")
+        except Exception:
+            pass
 
 
 def _same_spec(run_spec: str, spec: str) -> bool:

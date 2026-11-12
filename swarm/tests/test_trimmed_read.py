@@ -15,6 +15,28 @@ def test_passthrough_short_observations(tmp_path):
     assert "hello" in TrimmedFileReadTool(base_dir=str(tmp_path))._run(file_path=str(small))
 
 
+def test_truncated_read_names_the_line_to_continue_from(tmp_path):
+    """014-T1 (2026-11-12) re-read the same head of a file seven times.
+
+    The old note said "re-read with start_line/line_count" without saying
+    where, so the model re-read from line 1 and changed nothing. The note
+    must name the exact next line.
+    """
+    big = tmp_path / "big.txt"
+    big.write_text("".join(f"line {n}\n" for n in range(1, 400)))
+    out = TrimmedFileReadTool(base_dir=str(tmp_path))._run(
+        file_path=str(big), start_line=1, line_count=400
+    )
+    assert "CONTINUE with start_line=" in out
+    resume = int(out.split("CONTINUE with start_line=")[1].split(" ")[0])
+    assert resume > 1
+    # The resumed read must return content the first read did not show.
+    second = TrimmedFileReadTool(base_dir=str(tmp_path))._run(
+        file_path=str(big), start_line=resume, line_count=400
+    )
+    assert second.startswith(f"line {resume}")
+
+
 def test_read_blocks_secrets_and_escapes(tmp_path):
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=secret")
     tool = TrimmedFileReadTool(base_dir=str(tmp_path))

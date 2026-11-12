@@ -1043,6 +1043,60 @@ def test_repair_verdict_does_not_override_blocked(monkeypatch):
     assert stub.state.review_verdict == "blocked"
 
 
+def test_verdict_repair_runs_on_red_gates_too(monkeypatch):
+    """014-T1 (2026-11-12): a red run needs a verdict most of all.
+
+    The repair used to run only when the gates were green, so a run whose
+    reviewer ran out of iterations kept `review_verdict: "unknown"` and the
+    fix rounds had no grounded reason to work from.
+    """
+    import types
+
+    from swarm import flow
+    from swarm.spec_loader import SpecTask
+
+    class LLM:
+        def call(self, prompt):
+            return "VERDICT: BLOCKED"
+
+    monkeypatch.setattr("swarm.llms.reviewer_llm", lambda: LLM())
+    stub = types.SimpleNamespace(
+        state=flow.SwarmState(review_verdict="unknown"),
+        _verdict_retried=False,
+    )
+    stub._repair_verdict = lambda task, transcript: flow.SwarmFlow._repair_verdict(
+        stub, task, transcript
+    )
+    flow.SwarmFlow._maybe_repair_verdict(
+        stub, SpecTask(id="T1", ac_refs=("AC-1",), brief="do x"), {"pytest -q": 1}, "exit=1"
+    )
+    assert stub.state.review_verdict == "blocked"
+
+
+def test_verdict_repair_is_skipped_when_a_verdict_exists(monkeypatch):
+    import types
+
+    from swarm import flow
+    from swarm.spec_loader import SpecTask
+
+    called = []
+
+    class LLM:
+        def call(self, prompt):
+            called.append(prompt)
+            return "VERDICT: PASS"
+
+    monkeypatch.setattr("swarm.llms.reviewer_llm", lambda: LLM())
+    stub = types.SimpleNamespace(
+        state=flow.SwarmState(review_verdict="pass"),
+        _verdict_retried=False,
+    )
+    flow.SwarmFlow._maybe_repair_verdict(
+        stub, SpecTask(id="T1", ac_refs=(), brief="x"), {"pytest -q": 0}, ""
+    )
+    assert not called
+
+
 def test_reviewer_verdict_parses_json():
     from swarm.flow import reviewer_verdict
 

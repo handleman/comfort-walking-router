@@ -81,6 +81,33 @@ def test_format_metrics_marks_unknown_cost_and_fallback():
     assert "fallback  ON" in text.replace("  ", "  ")
 
 
+def test_format_metrics_says_a_free_local_run_has_no_token_or_cost_cap():
+    """014-T1 (2026-11-12): the panel showed "84% of the token budget".
+
+    For a free-local run the dollar/token caps are not enforced, so showing
+    a percentage of a cap that cannot fire is how an operator concludes the
+    budget stopped the run.
+    """
+    payload = {
+        "usage": {"total_tokens": 1_679_352, "cost_usd": 0.0, "duration_seconds": 3040},
+        "budget": {"free_local_run": True, "local_coder": True},
+    }
+    text = format_metrics(payload, models=[("coder", "ollama/swarm-coder:latest")]).plain
+    assert "no cap: free local run" in text
+    assert "84.0%" not in text
+    assert "1.7M" in text
+
+
+def test_format_metrics_still_shows_caps_for_a_paid_run():
+    payload = {
+        "usage": {"total_tokens": 15_000, "cost_usd": 0.02, "duration_seconds": 125},
+        "budget": {"free_local_run": False, "local_coder": False},
+    }
+    text = format_metrics(payload, models=[("coder", "zen/glm-5.3-flash")]).plain
+    assert "no cap" not in text
+    assert "/ 2.0M" in text
+
+
 def test_queue_marks_uses_newest_run_per_task():
     runs = [
         {"spec": "001-example-app", "task": "T1", "status": "needs_human"},

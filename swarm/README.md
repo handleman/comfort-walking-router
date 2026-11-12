@@ -120,6 +120,21 @@ Keys: `a`=approve (run dir + ledger), `r`=retry (live mode), `h`=human log
 for the current run, `p`/`n`=older/newer run, `t`=back to the newest run, `q`=quit.
 History is opt-in, so long runs never flood a newly opened dashboard.
 
+**The human log is take-away (018).** Every run writes the same report to
+`<run_dir>/human_log.txt` — plain text, naming the stop reason, the reason code,
+the failing gates, the reviewer's verdict and the changed files. A terminal screen
+is not copy-pasteable, so the file is the artifact you attach to an issue:
+
+```bash
+make swarm-log              # newest run
+make swarm-log RUN=<run dir>  # a specific run
+cat swarm/runs/<id>/human_log.txt | pbcopy
+```
+
+In the dashboard, `c` on the human-log screen copies the report to the clipboard.
+The screen and the file are the same renderer (`swarm/humanlog.py`), so they cannot
+drift apart.
+
 The dashboard is a read-only view; `run.json`/`events.jsonl` stay the contract
 (ADR-011). For per-call spans when debugging, an optional OpenInference/OTel export
 to a local Phoenix is the recommended add-on — the TUI is not a tracer.
