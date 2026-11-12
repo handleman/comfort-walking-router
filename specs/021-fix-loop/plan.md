@@ -1,6 +1,6 @@
 # 021 Fix Loop — Plan
 
-Status: in progress (T1 suite machinery, T2 fix telemetry done; T3–T7 next, measurement at T8). References `specs/021-fix-loop/spec.md` AC-1–AC-9 and
+Status: in progress (T1–T3 done: suite, telemetry, deterministic repair before QA; T4–T7 next, measurement at T8). References `specs/021-fix-loop/spec.md` AC-1–AC-9 and
 `docs/research/fix-loop-2026.md`.
 
 ## Approach

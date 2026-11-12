@@ -1426,13 +1426,21 @@ class SwarmFlow(Flow[SwarmState]):
         from swarm import style
         from swarm.tools_guarded import ShellTool, _git_changed, run_delta
 
+        commands = style.fix_commands()
+        if not commands:
+            return False
         before = set(_git_changed())
         runner = ShellTool(agent_role="harness-style")
-        output = runner._run(style.fix_command())
+        outputs: list[str] = []
+        for command in commands:
+            outputs.append(runner._run(command))
+        output = "\n".join(outputs)
         after = set(_git_changed())
         touched = sorted(after - before)
-        # The formatter may reach files this run does not own: undo those.
-        mine = set(run_delta(self._baseline)) | before
+        # The formatter may reach files this run does not own: undo those. Only
+        # this run's delta is mine (012 run-delta attribution); a pre-existing
+        # dirty file is the user's, not ours.
+        mine = set(run_delta(self._baseline))
         foreign = [path for path in touched if path not in mine]
         reverted: list[str] = []
         for path in foreign:
@@ -1449,7 +1457,7 @@ class SwarmFlow(Flow[SwarmState]):
                 reverted.append(path)
         self.state.style_autofix = {
             "gate": gate,
-            "command": style.fix_command(),
+            "command": "; ".join(commands),
             "files": touched,
             "reverted": reverted,
             "output": output[-500:],
@@ -1459,6 +1467,24 @@ class SwarmFlow(Flow[SwarmState]):
             flush=True,
         )
         return True
+
+    def _pre_qa_style(self) -> bool:
+        """Run the formatter before QA (021 T3).
+
+        Formatting is mechanical, and the 020 history shows it reaching a model
+        20 times while the sole-style-gate path fired zero times. Running the
+        configured fix commands after the steps and after every repair round
+        removes that class before QA ever sees it; the following gate run
+        re-checks the result, and QA still owns green.
+        """
+        from swarm import style
+        from swarm.tools_guarded import run_delta
+
+        if not style.enabled() or not style.pre_qa_enabled():
+            return False
+        if not run_delta(self._baseline):
+            return False  # nothing this run changed: nothing to format
+        return self._apply_formatter("pre-qa")
 
     def _autofix_style(self, gates: dict[str, int], transcript: str) -> bool:
         """Run the project's formatter when the only red gate is style (016).
@@ -2325,6 +2351,8 @@ class SwarmFlow(Flow[SwarmState]):
             reviewer parks the task as needs_human with real evidence instead of
             throwing away the run (007-T1 ended `crew_error` with empty gates).
             """
+            # 021 T3: formatting is mechanical and never reaches QA.
+            self._pre_qa_style()
             try:
                 _, review_out = _kickoff(
                     lambda work_summary=work_summary: build_review_crew(

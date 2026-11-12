@@ -932,6 +932,21 @@ python -m swarm.bench.replay --update-baseline  # snapshot the first run
 - `004-weather-sun-T2` is deliberately in the set: it is the case the 020 T8
   replay failed on (`verifier_blocked`), so it is the loop's current worst case.
 
+## Deterministic repair before QA (021 T3)
+Formatting is mechanical, so it never reaches a model. `SWARM_STYLE_FIX_COMMAND`
+is a `;`/newline-separated list (this repo can run
+`npm --prefix frontend run lint:fix` and `ruff check --fix .`), and the harness
+runs every command **before each QA round** whenever the run's delta is
+non-empty. It then reverts any file that is not part of the run delta (012
+attribution) and records `run.json.style_autofix` (`gate: "pre-qa"`, commands,
+files, reverted, output). `is_style_failure` now also recognises `--fix`-owned
+ruff codes (I001, F401, whitespace) next to Prettier and the fixable scoped
+ESLint rules; hard failures (syntax, type mismatch, redefinition) stay with the
+coder. The 017 self-check formats its own static failures the same way, and its
+resolved command list is recorded in `run.json.self_check.commands`.
+`SWARM_STYLE_PRE_QA=0` restores the 020 behaviour (format only when a sole style
+gate fails, after QA).
+
 ## Fix telemetry (021 T2)
 Every repair round is labelled mechanically from the report the coder received —
 never from model prose — and recorded in `run.json.fix_rounds_detail`:

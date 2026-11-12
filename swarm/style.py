@@ -48,6 +48,10 @@ _FIXABLE_RULES = frozenset(
     }
 )
 _RULE_RE = re.compile(r"@[\w@/-]+/([\w-]+)")
+# Ruff codes `ruff check --fix` owns (import order, unused import, whitespace).
+# A code outside this set is a code problem and stays with the coder.
+_FIXABLE_CODES = frozenset({"I001", "I002", "F401", "E401", "W291", "W293", "W605"})
+_CODE_RE = re.compile(r"\b([A-Z]{1,2}\d{3,4})\b")
 # Real code problems: a formatter cannot fix them, so the coder must.
 _HARD_MARKERS = (
     "parsing error",
@@ -66,8 +70,26 @@ def fix_command() -> str:
     return os.getenv(FIX_COMMAND_ENV, "").strip()
 
 
+def fix_commands() -> list[str]:
+    """Every configured formatter command (`;`/newline separated).
+
+    A project can need more than one: this repo formats the frontend with
+    `npm --prefix frontend run lint:fix` and the Python side with
+    `ruff check --fix .`. Each runs as its own argv-only shell call.
+    """
+    raw = fix_command()
+    if not raw:
+        return []
+    return [part.strip() for part in re.split(r"[;\n]", raw) if part.strip()]
+
+
 def enabled() -> bool:
     return os.getenv(DISABLE_ENV, "1") != "0" and bool(fix_command())
+
+
+def pre_qa_enabled() -> bool:
+    """021 T3: run the formatter before QA on every round (default on)."""
+    return os.getenv("SWARM_STYLE_PRE_QA", "1") != "0"
 
 
 def is_style_failure(tail: str) -> bool:
@@ -82,6 +104,10 @@ def is_style_failure(tail: str) -> bool:
         return False
     if any(marker in low for marker in _PRETTIER_MARKERS):
         return True
+    codes = set(_CODE_RE.findall(text))
+    if codes:
+        # A ruff/lint code list: only when every code it names is fixable.
+        return codes <= _FIXABLE_CODES
     rules = {match.group(1).lower() for match in _RULE_RE.finditer(text)}
     if not rules:
         return False

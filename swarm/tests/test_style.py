@@ -147,3 +147,59 @@ def test_autofix_style_stays_out_of_a_code_failure(monkeypatch):
     transcript = "$ npm --prefix frontend run check\nexit=1\nError: Cannot find name 'x'.\n"
     assert flow.SwarmFlow._autofix_style(stub, gates, transcript) is False
     assert calls == []
+
+
+# ---- 021 T3: format before QA, and recognise ruff --fix codes ----
+
+
+def test_fix_commands_supports_more_than_one_command(monkeypatch):
+    monkeypatch.setenv("SWARM_STYLE_FIX_COMMAND", "npm --prefix frontend run lint:fix\nruff check --fix .")
+    assert style.fix_commands() == ["npm --prefix frontend run lint:fix", "ruff check --fix ."]
+    monkeypatch.setenv("SWARM_STYLE_FIX_COMMAND", "")
+    assert style.fix_commands() == []
+
+
+def test_pre_qa_style_is_on_by_default_and_has_an_off_switch(monkeypatch):
+    monkeypatch.delenv("SWARM_STYLE_PRE_QA", raising=False)
+    assert style.pre_qa_enabled() is True
+    monkeypatch.setenv("SWARM_STYLE_PRE_QA", "0")
+    assert style.pre_qa_enabled() is False
+
+
+def test_is_style_failure_recognises_fixable_ruff_codes():
+    assert style.is_style_failure("I001 [*] Import block is un-sorted") is True
+    assert style.is_style_failure("F401 [*] `typing.Any` imported but unused") is True
+    assert style.is_style_failure("F811 Redefinition of unused `test_x`") is False
+    assert style.is_style_failure("C901 `f` is too complex") is False
+
+
+def test_pre_qa_style_formats_the_delta_and_skips_an_empty_one(monkeypatch):
+    from swarm import flow, tools_guarded
+
+    monkeypatch.setenv("SWARM_STYLE_FIX", "1")
+    monkeypatch.setenv("SWARM_STYLE_PRE_QA", "1")
+    monkeypatch.setenv("SWARM_STYLE_FIX_COMMAND", "prettier --write .;ruff check --fix .")
+    calls: list[str] = []
+
+    class FakeShell:
+        def __init__(self, agent_role: str = "") -> None:
+            self.agent_role = agent_role
+
+        def _run(self, command: str) -> str:
+            calls.append(command)
+            return "ok"
+
+    monkeypatch.setattr(tools_guarded, "ShellTool", FakeShell)
+    monkeypatch.setattr(tools_guarded, "_git_changed", lambda: ["app/x.py"])
+    monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: ["app/x.py"])
+
+    stub = _Stub()
+    stub._pre_qa_style = __import__("types").MethodType(flow.SwarmFlow._pre_qa_style, stub)
+    assert flow.SwarmFlow._pre_qa_style(stub) is True
+    assert calls == ["prettier --write .", "ruff check --fix ."]
+    assert stub.state.style_autofix["gate"] == "pre-qa"
+
+    calls.clear()
+    monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: [])
+    assert flow.SwarmFlow._pre_qa_style(stub) is False
+    assert calls == []
