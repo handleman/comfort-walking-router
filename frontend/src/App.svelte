@@ -428,7 +428,6 @@
 
   <div id="map" bind:this={mapElement}></div>
 </main>
-tyle>
 
 <style>
   :global(body) {
