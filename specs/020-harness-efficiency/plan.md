@@ -1,6 +1,6 @@
 # 020 Harness Efficiency — Plan
 
-Status: implemented (T1–T9); measurement in T8 is recorded in the results section of `docs/research/dark-factory-market-2026.md`. References `specs/020-harness-efficiency/spec.md` AC-1–AC-9 and
+Status: implemented (T1–T9). T8 measured: offline targets met except prompt chars (−6.6% vs −30%; per-step overhead dominates), live green target missed on the one replayed case (`verifier_blocked`) — recorded, not claimed. Results: `docs/research/dark-factory-market-2026.md`. References `specs/020-harness-efficiency/spec.md` AC-1–AC-9 and
 `docs/research/dark-factory-market-2026.md`.
 
 ## Approach

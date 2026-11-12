@@ -313,6 +313,43 @@ T1 baseline (`swarm/bench/baseline.json`).
 | T5 gate selection | 427,725 (~107k tokens) | −7.4% | 5,768 | −86.1% | **36 (−40%)** |
 | T6 reports + search | 431,359 (~108k tokens) | **−6.6%** | 5,768 | −86.1% | 36 (−40%) |
 
+### Live replay (T8): the offline win is real, the live green target is not met
+
+`make swarm-bench-live CASE=004-weather-sun-T2` on the committed harness
+(2026-11-12), with the operator's `.env` routing (OpenRouter free planner/senior,
+local Ollama coder/QA) and no model pins:
+
+| Metric | Historical green run (2026-11-09) | This replay (current harness) |
+| --- | --- | --- |
+| Status | green | **needs_human / `verifier_blocked`** |
+| Wall clock | 125 s | **1050 s (17.5 min)** |
+| Prompt tokens | 57k | **309k** |
+| QA gate runs | 6 | **0** |
+| Fix rounds (QA) | 0 | 0 |
+| Repair rounds | 0 | **4** (2 self-check + 2 verifier) + 1 correction step |
+
+What the loop produced: a 6-step plan for a one-file task; `app/preferences.py`
+with only the two constants (the `get_preference` function never written); a
+test file that imports the missing function, duplicates `def test_get_preference`,
+and asserts the *opposite* mapping from the AC. The 017 self-check caught it
+(mypy `attr-defined`/`no-redef`, ruff `I001`/`F811`), spent two fix rounds
+(78.5k prompt tokens each) and changed nothing; the 019 verifier then blocked
+with 7 findings, its two correction steps ran (42.7k), and it blocked again
+(3 findings) → `needs_human` after the round budget.
+
+**Verdict for 020 AC-7:** the offline targets hold (prompt −6.6%, report −86.1%,
+gates −40%), but the "same green status on a live replay" target is **missed**
+on this case. This is not a 020 regression: the run never reached QA, so the
+compaction/selection/cache behaviours did not participate. It is the fix-loop
+problem 021 specifies — over-decomposed plan, a coder-written test that encodes
+the wrong behaviour, and repair rounds that cannot fix a missing function. The
+"off" A/B for this case is recorded as **not applicable**: with no QA round and
+no gate evidence, the 020 switches have nothing to change.
+
+The replay is also model-confounded (local coder vs the historical paid/free
+mix), which is why 021's suite pins models and compares per case rather than
+against history.
+
 **T4 reading.** The step digest and the gate-log spilling remove the two
 things that grew with every failed round. The report delta is the large one
 (−86%): a 3k failing tail becomes a handful of `file:line: message` key lines
