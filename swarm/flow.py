@@ -292,6 +292,8 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
     if status != "needs_human":
         return status
     verifier = getattr(state, "verifier", None) or {}
+    if verifier.get("unstable"):
+        return "verifier_unstable"
     if verifier.get("blocked"):
         return "verifier_blocked"
     verdict = str(getattr(state, "review_verdict", "") or "")
@@ -1816,6 +1818,21 @@ class SwarmFlow(Flow[SwarmState]):
             plan = verify.parse_plan(out)[:MAX_STEPS]
             record["plan"] = plan
             history[-1]["plan"] = plan
+            # 021 AC-11: a block after the corrections ran, on the same file,
+            # is the verifier re-litigating its own instruction. Record it so
+            # the stop is honest and the next round is not paid for.
+            files = verify.finding_files(findings)
+            previous = set(record.get("finding_files") or [])
+            record["finding_files"] = sorted(files | previous)
+            if record.get("corrections") and files & previous:
+                record["unstable"] = True
+                record["blocked"] = True
+                record["note"] = "same finding after the correction pass (unstable verdict)"
+                print(
+                    "verifier: same finding after a correction pass → stop (unstable)",
+                    flush=True,
+                )
+                return False
             # 021 AC-7: a grounded block found a scenario defect; whether the
             # correction pass fixes it or the run ends blocked, the phase paid.
             record["hit"] = True
@@ -1859,6 +1876,7 @@ class SwarmFlow(Flow[SwarmState]):
                     record["note"] = f"correction step failed: {e}"[:500]
                     print(f"verifier correction failed: {e}"[:500], flush=True)
                     return False
+            record["corrections"] = True
             self._record_fix_round(
                 cause="scenario",
                 phase="verify",

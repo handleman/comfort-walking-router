@@ -131,6 +131,14 @@ autonomy) judgeable on outcomes rather than on prompt characters.
   is attributed to the prompt, the plan granularity or the model — not guessed.
   The default stays strict until the suite shows a win.
 
+- **AC-11 — Verifier stability.** The 019 verifier may not re-litigate its own
+  correction: when a block arrives *after* a correction pass and names the same
+  file as the earlier finding, the run stops with `reason_code=verifier_unstable`
+  instead of paying for another round and another verifier call. Its prompt
+  forbids prescribing how a test mocks, structures fixtures or names cases — it
+  requires the behaviour the AC names. The stability record (`finding_files`,
+  `corrections`, `unstable`) lands in `run.json.verifier`.
+
 - **AC-9 — Measured result.** The outcome suite runs before and after; the
   before/after table lands in `docs/research/fix-loop-2026.md` and `changelog.md`.
   Targets: fix-round rate **59% → ≤35%**, `coder:fix*` prompt tokens **−40%**,

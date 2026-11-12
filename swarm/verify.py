@@ -87,6 +87,17 @@ _AC_LINE_RE = re.compile(
 )
 
 
+_FINDING_FILE_RE = re.compile(r"`?([\w./-]+\.(?:py|ts|tsx|js|jsx|svelte|json|sql|md))(?::\d+)?")
+
+
+def finding_files(findings: list[str]) -> set[str]:
+    """The files a finding names, for detecting a re-litigated round."""
+    out: set[str] = set()
+    for finding in findings or []:
+        out.update(match.group(1) for match in _FINDING_FILE_RE.finditer(str(finding)))
+    return out
+
+
 def ac_paragraphs(spec_md: str, ac_refs: Iterable[str]) -> list[str]:
     """The acceptance-criteria bullets the task references, continuation included.
 

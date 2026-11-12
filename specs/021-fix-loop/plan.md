@@ -181,6 +181,14 @@ The suite compares strict vs loose on the same cases (green, fix rounds, tokens,
 p50). Keep loose only on a win; strict stays the default because it exists to
 stop small-model wandering.
 
+## T11 — verifier stability
+
+- `verify.finding_files(findings)` extracts the paths a finding names.
+- `_verify_reflation`: if a block arrives after the correction pass and its files
+  overlap the earlier findings, set `unstable` and stop (`verifier_unstable`).
+- Verifier prompt: judge the behaviour, not the test's mocking/fixture/naming
+  choices; after a correction, judge the result, not the same preference again.
+
 ## T9 — docs and controls
 
 - `HARNESS_SPECS += ("021-fix-loop",)`.

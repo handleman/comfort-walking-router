@@ -179,6 +179,33 @@ capability reason), and a truncated/no-test file is a **deterministic defect** t
 harness can name for free (`swarm/artifacts.py`, added in T10) instead of paying
 a verifier round for it.
 
+### The verifier can re-litigate its own correction
+
+The capability run (006, `coder=nemotron-3.5-super-vl:free`) got much further:
+the self-check was green after one real type fix (113k tokens, 109 s), the test
+file was complete, and the verifier still blocked — twice, with **opposite
+instructions**:
+
+| Round | Finding | Correction |
+| --- | --- | --- |
+| 1 | the two tests use identical route properties, so they only test one side of the toggle | use two fixtures, `lit: yes` vs `lit: no` |
+| 2 | the tests now mock different properties per call, so they test different routes instead of the toggle | return **identical** properties for both calls |
+
+Both readings can be defended, and the second directly undoes the first. The
+coder did what it was told and the verifier re-blocked on the consequence. That
+is not "the scenario is broken"; it is a verifier that judged the *test design*
+instead of the AC, and changed its mind about the design. Two rules follow:
+
+- do not prescribe how a test mocks, structures fixtures or names cases — require
+  the behaviour the AC names (021 AC-11, prompt rule);
+- a block after the correction pass on the same file is `verifier_unstable` and
+  stops the run, rather than paying for another round and another verifier call
+  (021 AC-11, `run.json.verifier.unstable`).
+
+This is the "too strict" question answered precisely: the **coder** was not too
+strict (the strong coder completed the work); the **verifier** was too
+prescriptive, and the harness now bounds that.
+
 ### Is the coder prompt too strict?
 
 A fourth hypothesis came out of the 020 T8 replay: the step prompt's hard rules

@@ -516,3 +516,66 @@ def test_a_grounded_verifier_block_is_recorded_as_a_hit(monkeypatch):
     assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
     assert stub.state.verifier["hit"] is True
     assert stub.state.verifier["hit_basis"] == "corrections"
+
+
+# ---- 021 AC-11: the verifier may not re-litigate its own correction ----
+
+def test_finding_files_extracts_the_paths():
+    from swarm.verify import finding_files
+
+    assert finding_files(
+        [
+            "tests/test_route_toggles.py:38 — identical fixture",
+            "`app/main.py` — the route is not mounted",
+            "no file here",
+        ]
+    ) == {"tests/test_route_toggles.py", "app/main.py"}
+
+
+def test_a_second_block_on_the_same_file_is_unstable(monkeypatch):
+    from swarm import flow
+
+    stub = _flow_stub(monkeypatch)
+    rounds = {"n": 0}
+
+    first = (
+        "FINDING: tests/test_route_toggles.py:38 — identical fixture\n"
+        "STEP 1: tests/test_route_toggles.py — use two fixtures\n"
+        "VERDICT: BLOCKED"
+    )
+
+    def kick(build, role):
+        rounds["n"] += 1
+        crew = build()
+        if rounds["n"] == 1:
+            return crew, first
+        # The correction ran; the next verdict names the same file with the
+        # opposite instruction.
+        return crew, (
+            "FINDING: tests/test_route_toggles.py — use one identical fixture\n"
+            "STEP 1: tests/test_route_toggles.py — return the same properties\n"
+            "VERDICT: BLOCKED"
+        )
+
+    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
+    assert stub.state.verifier["unstable"] is True
+    assert stub.state.verifier["corrections"] is True
+
+
+def test_the_unstable_reason_code_is_machine_readable():
+    import types
+
+    from swarm.flow import _reason_code
+
+    state = types.SimpleNamespace(verifier={"blocked": True, "unstable": True})
+    assert _reason_code("needs_human", {"gates": {}}, state) == "verifier_unstable"
+
+
+def test_the_verifier_prompt_does_not_prescribe_test_structure():
+    from swarm import prompts
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T3", ac_refs=("AC-1",), brief="Add toggles.")
+    prefix = prompts.stable_prefix(task, "006-comfort-plus", "verifier")
+    assert "Do NOT prescribe how a test mocks" in prefix
+    assert "do not restate the same design preference" in prefix
