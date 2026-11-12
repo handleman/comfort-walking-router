@@ -2,7 +2,7 @@
 
 Queue order places 007 before 014; T9 requires 007's `frontend/src/lib/navigation/` modules. Start explicitly with `./swarm/run.sh 014 T1` if needed.
 
-- [ ] T1 (AC-8): Add `app/geocoding.py` with `search(q, lat, lng, limit)` and `reverse(lat, lng)` using Mapbox Geocoding v6 when `MAPBOX_TOKEN` is set and Photon otherwise, normalized `Suggestion` results + attribution; add fixture-only `tests/test_geocoding.py` (no live calls).
+- [ ] T1 (AC-8): Add `app/geocoding.py` with `search(q, lat, lng, limit)` and `reverse(lat, lng)` using Mapbox Geocoding v6 when `MAPBOX_TOKEN` is set and Photon otherwise, normalized `Suggestion` results + attribution; add fixture-only `tests/test_geocoding.py` (no live calls). The `Suggestion` shape (`{id, label, lat, lng, type, attribution}`), the provider wire formats and the token variable are pinned in `plan.md` § Backend — read them before writing code.
 - [ ] T2 (AC-4, AC-8): Add `GET /geocode` and `GET /geocode/reverse` in `app/main.py`, `contracts/geocode.json`, 2–120 char/limit/range validation and a 5-minute SQLite cache; extend `tests/test_route_api.py` (or new `tests/test_geocode_api.py`).
 - [ ] T3 (AC-5): Add optional `start_coords`/`end_coords` to `RouteRequest` and `contracts/route.json`; use them instead of re-geocoding in `POST /route`, include rounded coords in the cache key, and extend `tests/test_route_api.py`.
 - [ ] T4 (AC-1, AC-2): Add `frontend/src/lib/map/icons.ts` (Bootstrap Icons `person-walking` MIT inline SVG; blue start/red end pins; accessible labels) and `frontend/src/lib/geo/current.ts` (position state machine), each with a vitest `*.test.ts`.

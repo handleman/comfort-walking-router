@@ -2,12 +2,20 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "contracts/geocode.json",
   "title": "Geocode contract",
-  "description": "Response shapes for forward geocoding (GeocodeResponse) and reverse geocoding (ReverseGeocodeResponse).",
+  "description": "Response shapes for forward geocoding (GeocodeResponse) and reverse geocoding (ReverseGeocodeResponse). Both mirror the `Suggestion` dataclass in `app/geocoding.py` field for field.",
   "definitions": {
-    "coordinates": {
+    "suggestion": {
       "type": "object",
-      "title": "Coordinates",
+      "title": "Suggestion",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Provider feature id (empty when the provider has none)."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
         "lat": {
           "type": "number",
           "minimum": -90,
@@ -17,30 +25,17 @@
           "type": "number",
           "minimum": -180,
           "maximum": 180
-        }
-      },
-      "required": ["lat", "lng"],
-      "additionalProperties": false
-    },
-    "suggestion": {
-      "type": "object",
-      "title": "Suggestion",
-      "properties": {
-        "label": {
-          "type": "string",
-          "minLength": 1
         },
-        "coordinates": {
-          "$ref": "#/definitions/coordinates"
+        "type": {
+          "type": "string",
+          "description": "Provider feature type (e.g. address, poi, place)."
         },
         "attribution": {
-          "type": "string"
-        },
-        "feature_type": {
-          "type": "string"
+          "type": "string",
+          "description": "Attribution for the data this suggestion came from."
         }
       },
-      "required": ["label", "coordinates", "attribution", "feature_type"],
+      "required": ["id", "label", "lat", "lng", "type", "attribution"],
       "additionalProperties": false
     },
     "suggestions": {

@@ -29,16 +29,47 @@ Status: proposed. References `specs/014-walk-guidance-ux/spec.md` AC-1–AC-9. B
 ## Design
 
 ### Backend
-- `app/geocoding.py`:
-  - `search(q, *, lat=None, lng=None, limit=5) -> list[Suggestion]` and `reverse(lat, lng) -> Suggestion`.
-  - `Suggestion` dataclass/dict: `{id, label, lat, lng, type, attribution}`.
-  - Mapbox branch: token from `os.getenv("MAPBOX_TOKEN")`; `requests` with timeout 8 s, no token logging; `proximity` when coordinates known; `language=en`; `types=address,street,place,locality,neighborhood`; `autocomplete=true`.
-  - Photon branch: `lat`/`lon` bias, `limit`, `lang=en`; normalize `features`/legacy `results`.
-  - Fail soft: provider error → try next; all fail → `[]` (suggestions) or coordinate label (reverse).
+- `app/geocoding.py` — the **provider-normalization layer**. It is the single source of
+  truth for the `Suggestion` shape and the provider wire formats; the HTTP layer
+  (`app/main.py`) and the contract (`contracts/geocode.json`) are derived from it.
+  - `Suggestion` dataclass (flat, one field per value — no nested `coordinates`
+    object): `id: str`, `label: str`, `lat: float`, `lng: float`, `type: str`,
+    `attribution: str`.
+  - `search(q, lat=None, lng=None, limit=5) -> list[Suggestion]` and
+    `reverse(lat, lng) -> list[Suggestion]` (a list in both cases, so the two
+    call sites share one shape). `attribution` travels on every `Suggestion`
+    (AC-8: attribution is displayed with the data it describes).
+  - **Provider selection:** Mapbox when `MAPBOX_TOKEN` is set and non-empty
+    (the repo-wide variable name — `app/config.py:get_mapbox_token()` reads
+    `MAPBOX_TOKEN`; do **not** invent `MAPBOX_ACCESS_TOKEN`), Photon otherwise.
+    The provider is decided per call, not at import time, so a test can switch it.
+  - **Mapbox (Geocoding v6)** — `GET https://api.mapbox.com/search/geocode/v6/forward`
+    with `q`, `access_token`, `proximity=lng,lat` (only when both coordinates are
+    known), `types=address,street,place,locality,neighborhood`, `language=en`,
+    `autocomplete=true`, `limit` (≤10); reverse uses `/search/geocode/v6/reverse`
+    with `longitude`, `latitude`, `types`, `language`, `limit=1`.
+    `requests` with an 8 s timeout; the token is never logged.
+    Response (v6): `features[]` each with `id`, `properties.full_address`
+    (the label), `properties.feature_type` (the type), `properties.coordinates`
+    = `{latitude, longitude}` (the position), plus a top-level `attribution`.
+  - **Photon** — `GET https://photon.komoot.io/api` with `q`, `lat`, `lon`,
+    `limit`, `lang=en`; reverse uses `/api/reverse` with `lat`, `lon`, `limit`,
+    `lang=en`.
+    Response: GeoJSON `features[]` with `properties.name` (the label),
+    `properties.type` (the type), `geometry.coordinates` = `[lng, lat]`, plus a
+    top-level `attribution`.
+  - Fail soft: a provider error yields `[]` (never an exception); the reverse
+    caller falls back to a coordinate label.
+- **The wire contract** (`contracts/geocode.json`) mirrors `Suggestion` field for
+  field — `{id, label, lat, lng, type, attribution}` — so there is exactly one
+  shape in the system. The provider payloads are an implementation detail of
+  `app/geocoding.py` and never leak past it.
 - `GET /geocode?q=&limit=&lat=&lng=`:
-  - validate `q` length 2–120, `limit` 1–10; return `{suggestions, attribution}`.
+  - validate `q` length 2–120, `limit` 1–10; return `{suggestions, attribution}`
+    where every suggestion is a `Suggestion` (the shape above).
   - 5-min SQLite cache key `(provider, normalized_q, rounded lat/lng, limit)`; cache stores normalized results only.
-- `GET /geocode/reverse?lat=&lng=`: validate ranges; return `{label, lat, lng, attribution}` (fallback label = coordinates).
+- `GET /geocode/reverse?lat=&lng=`: validate ranges; return `{suggestions, attribution}`
+  (fallback: one suggestion whose label is the rounded coordinates).
 - `POST /route`: `RouteRequest` gains optional `start_coords: {lat,lng}` / `end_coords`; if present use them, else `geocode_place(text)`. Cache key includes rounded coordinates to avoid collisions. Response unchanged.
 - `contracts/geocode.json` (new) and an additive `contracts/route.json` change; `tests/test_geocoding.py` uses recorded fixtures, never the network.
 
@@ -46,7 +77,7 @@ Status: proposed. References `specs/014-walk-guidance-ux/spec.md` AC-1–AC-9. B
 - `frontend/src/lib/map/icons.ts`: `personIcon()`, `startIcon()`, `endIcon()` returning `L.divIcon` HTML; person = white halo + green walking SVG (Bootstrap Icons path; license comment); pins = blue/red SVG with `A`/`B`; `aria-label` via `title`/`alt`.
 - `frontend/src/lib/geo/current.ts`: small state machine (`idle → requesting → granted|denied|unsupported|timeout`), `requestCurrentPosition()`, `watchPosition()`/`stopWatch()` wrappers with injected `navigator.geolocation` for tests.
 - `frontend/src/lib/map/picker.ts`: `PickerState` (`null | 'start' | 'end'`), `enter(role)`, `cancel()`, `handleClick(latlng)`; one active role; cursor class on the map container.
-- `frontend/src/lib/search/suggestions.ts`: `fetchSuggestions()` with `AbortController`, request-id guard, 280 ms debounce, min length 2; normalize backend suggestions; pure unit tests.
+- `frontend/src/lib/search/suggestions.ts`: `fetchSuggestions()` with `AbortController`, request-id guard, 280 ms debounce, min length 2; it calls `GET /geocode?q=...` (the backend path — the app serves its routes unprefixed, like `/route`) and normalizes the response's `suggestions` array into the component's shape; pure unit tests.
 - `frontend/src/lib/components/SearchInput.svelte`: ARIA combobox (`role=combobox`, `aria-expanded`, `aria-activedescendant`, listbox), keyboard/mouse selection, clear-on-edit, error/empty states, attribution line.
 - `frontend/src/lib/components/ArrivalCard.svelte`: congratulation card (distance, duration, comfort, top factors), dismiss + "Plan another walk".
 - `App.svelte` wiring:
