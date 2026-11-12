@@ -2652,7 +2652,14 @@ class SwarmFlow(Flow[SwarmState]):
                             "model": model_kind,
                             "kind": route.kind,
                             "routing_reason": route.reason,
-                            "landed": last_err is None,
+                            "landed": (not target_missing)
+                            or (
+                                bool(target)
+                                and artifacts.step_landed(
+                                    str(target),
+                                    self._in_scope_paths(run_delta(self._baseline)),
+                                )
+                            ),
                         }
                     )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
