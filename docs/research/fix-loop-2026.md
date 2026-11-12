@@ -179,6 +179,30 @@ capability reason), and a truncated/no-test file is a **deterministic defect** t
 harness can name for free (`swarm/artifacts.py`, added in T10) instead of paying
 a verifier round for it.
 
+### The report was lossy, and the coder could not converge
+
+The fourth replay reached QA for the first time. The verifier passed after one
+correction; QA then blocked on two one-line defects:
+
+```
+SIM102 Use a single `if` statement instead of nested `if` statements
+  --> app/scoring.py:43:5
+tests/test_route_toggles.py:119: AssertionError   (assert 8.0 < 8.0)
+```
+
+The loop spent **six fix rounds and 883k prompt tokens** on them and still
+ended `reviewer_blocked`. The reason was in the report: the key-line extractor
+dropped both. Ruff prints `RULE message` and puts the location on the *next*
+line (`--> path:line:col`), and the extractor only kept lines matching
+`error|fail|…`; the pytest line `path:line: AssertionError` was treated as
+"path:line" plus a bare column, and `assert 8.0 < 8.0` matched nothing. The
+coder received a 4k tail instead of two lines, and a free model does not find
+the line in it.
+
+`extract_error_lines` now pairs a ruff rule with its arrow, keeps
+`path:line: message`, and treats `assert …` as a key line. That is the 007-T9
+lesson again in a different format: the report is the loop.
+
 ### The step that never landed
 
 The rerun with T11 made the failure even clearer. The plan's step 6 was
