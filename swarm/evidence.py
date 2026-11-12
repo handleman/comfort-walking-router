@@ -220,7 +220,7 @@ def report_text(report: dict[str, Any]) -> str:
 
 _KEY_LINE_RE = re.compile(
     r"error|err!|ts\d{4}|parsing error|cannot find|not assignable|assertionerror|"
-    r"referenceerror|typeerror|syntaxerror|unexpected|✖|fail|warning",
+    r"\bassert\b|referenceerror|typeerror|syntaxerror|unexpected|✖|fail|warning",
     re.IGNORECASE,
 )
 _PATH_LINE_RE = re.compile(
@@ -249,6 +249,17 @@ def _short_path(path: str) -> str:
     return path.replace("\\", "/").rsplit("/", 1)[-1]
 
 
+# 021: ruff prints `RULE message` and puts the location on the *next* line
+# (`  --> app/scoring.py:43:5`). Without pairing them the coder gets a rule code
+# and no file, which cost six fix rounds on 006-T3.
+_RUFF_HEADER_RE = re.compile(r"^([A-Z]{1,3}\d{3,4})\s+(.+)$")
+_RUFF_ARROW_RE = re.compile(r"^\s*-->\s+([\w./-]+):(\d+):(\d+)")
+# pytest/jest style `path:line: message` (the message may itself contain colons).
+_FILE_LINE_MSG_RE = re.compile(
+    r"^([\w./-]+\.(?:py|ts|tsx|js|jsx|mjs|cjs|svelte|json)):(\d+):\s*(\D.*)$"
+)
+
+
 def extract_error_lines(text: str, limit: int = MAX_KEY_LINES) -> list[str]:
     """The lines that name a problem, as `file:line: message`.
 
@@ -262,9 +273,36 @@ def extract_error_lines(text: str, limit: int = MAX_KEY_LINES) -> list[str]:
     seen: set[str] = set()
     current_file = ""
     current_line = ""
+    pending_rule: tuple[str, str] | None = None
     for raw in (text or "").splitlines():
         line = raw.strip()
         if not line:
+            continue
+        rule = _RUFF_HEADER_RE.match(line)
+        if rule:
+            pending_rule = (rule.group(1), rule.group(2).strip())
+            continue
+        arrow = _RUFF_ARROW_RE.match(line)
+        if arrow:
+            if pending_rule:
+                location = f"{arrow.group(1)}:{arrow.group(2)}:{arrow.group(3)}"
+                message = f"{location} {pending_rule[0]} {pending_rule[1]}"
+                if message not in seen:
+                    seen.add(message)
+                    out.append(message)
+                pending_rule = None
+                if len(out) >= limit:
+                    break
+            continue
+        file_msg = _FILE_LINE_MSG_RE.match(line)
+        if file_msg and not any(noise in line.lower() for noise in _NOISE):
+            location = f"{file_msg.group(1)}:{file_msg.group(2)}"
+            message = f"{location}: {file_msg.group(3).strip()}"
+            if message not in seen:
+                seen.add(message)
+                out.append(message)
+            if len(out) >= limit:
+                break
             continue
         path_match = _PATH_LINE_RE.match(line)
         if path_match:

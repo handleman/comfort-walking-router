@@ -188,3 +188,34 @@ def test_gate_evidence_accepts_multiple_agents():
         agents=("QA Gatekeeper", "harness-fallback"),
     )
     assert missing == [] and gates == {"pytest -q": 0, "ruff check .": 0}
+
+
+# ---- 021: key lines for ruff and pytest formats ----
+
+def test_ruff_rule_and_location_are_paired_into_one_key_line():
+    """`SIM102` + `--> path:line:col` cost six fix rounds on 006-T3."""
+    text = (
+        "SIM102 Use a single `if` statement instead of nested `if` statements\n"
+        "  --> app/scoring.py:43:5\n"
+        "   |\n"
+        "42 |     # prefer_lit\n"
+        "43 | /     if prefer_lit:\n"
+        "   | |________^\n"
+    )
+    keys = evidence.extract_error_lines(text)
+    assert "app/scoring.py:43:5 SIM102 Use a single `if` statement instead of nested `if` statements" in keys
+
+
+def test_a_pytest_path_line_with_a_message_is_kept():
+    keys = evidence.extract_error_lines("tests/test_route_toggles.py:119: AssertionError\n")
+    assert keys == ["tests/test_route_toggles.py:119: AssertionError"]
+
+
+def test_the_assertion_detail_after_the_path_line_is_kept():
+    text = (
+        "tests/test_route_toggles.py:119: AssertionError\n"
+        "assert 8.0 < 8.0\n"
+    )
+    keys = evidence.extract_error_lines(text)
+    assert "tests/test_route_toggles.py:119: AssertionError" in keys
+    assert any("assert 8.0 < 8.0" in key for key in keys)
