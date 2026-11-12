@@ -310,6 +310,7 @@ T1 baseline (`swarm/bench/baseline.json`).
 | T1 baseline | 461,763 (~115k tokens) | — | 41,456 | — | 60 |
 | T2 prompt assembly | 488,177 (~122k tokens) | **+5.7%** | 41,456 | 0% | 60 |
 | T4 compaction + spilling | 427,725 (~107k tokens) | **−7.4%** | 5,768 | **−86.1%** | 60 |
+| T5 gate selection | 427,725 (~107k tokens) | −7.4% | 5,768 | −86.1% | **36 (−40%)** |
 
 **T4 reading.** The step digest and the gate-log spilling remove the two
 things that grew with every failed round. The report delta is the large one
@@ -318,6 +319,13 @@ plus a path, and the full text is still in `<run>/gate_logs/`. Task prompts
 fall 7.4% net, but unevenly: a case with one step and zero fix rounds is still
 slightly above baseline (the T2 brief cost) because compaction has nothing to
 remove there. Gate count is untouched — that is T5.
+
+**T5 reading.** Selection is measured on the same cases: every one resolves
+to a single area (backend or frontend), so the inner loop asks for 3 commands
+instead of 6. The full suite still gates green, so the saving is latency and
+not correctness: QA runs it once, at the final delta, and the harness refuses a
+green whose last round was the selected subset. The metric is inner-loop gates
+per round; the end-to-end wall-clock effect needs T7's live replay.
 
 **T2 reading.** Prompts are now byte-stable per task and role: the brief and
 fixed rules form one cacheable head, and the volatile step/report/summary comes

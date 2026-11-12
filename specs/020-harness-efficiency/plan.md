@@ -1,6 +1,6 @@
 # 020 Harness Efficiency — Plan
 
-Status: in progress (T1 corpus + baseline; T2 prompt assembly; T4 compaction done). References `specs/020-harness-efficiency/spec.md` AC-1–AC-9 and
+Status: in progress (T1 corpus + baseline; T2 prompts; T4 compaction; T5 gate selection). References `specs/020-harness-efficiency/spec.md` AC-1–AC-9 and
 `docs/research/dark-factory-market-2026.md`.
 
 ## Approach

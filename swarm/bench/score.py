@@ -192,12 +192,18 @@ def score_case(case: dict[str, Any]) -> dict[str, Any]:
         + fix_rounds * p["fix_prompt_chars"]
         + p["verify_prompt_chars"]
     )
-    gates = [g for g in (case.get("gates") or {}) if g != "scope"]
+    from swarm import gates as gate_selection
+
+    commands = [g for g in (case.get("gates") or {}) if g != "scope"]
+    selected, _skipped = gate_selection.select_gates(
+        list(case.get("changed") or []), commands, enabled_flag=gate_selection.enabled()
+    )
     return {
         "id": str(case.get("id") or ""),
         "steps": steps,
         "fix_rounds": fix_rounds,
-        "gates_per_round": len(gates),
+        "gates_per_round": len(selected),
+        "gates_full": len(commands),
         **p,
         "report_chars": report_chars,
         "task_prompt_chars": task_chars,

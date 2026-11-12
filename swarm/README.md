@@ -812,3 +812,31 @@ Measured at T4: task prompt **427,725 chars (−7.4%)**, report **5,768 chars
   means it was rejected (read `stash_conflict_note`) and the old side is in the
   archived ref. Inspect with `git show <ref>:<path>` or
   `swarm/runs/orphan_stashes.json`; this is not a branch-merge conflict.
+
+## Gate selection (`swarm/gates.py`, 020 T5)
+A frontend-only delta does not need `pytest`; a Python delta does not need
+`svelte-check`. The inner loop now runs only what the delta can affect:
+
+```
+app/**=pytest -q;ruff check .;mypy app tests
+tests/**=pytest -q;ruff check .;mypy app tests
+contracts/**=pytest -q
+frontend/**=npm --prefix frontend run check;npm --prefix frontend run lint;npm --prefix frontend test -- --run
+```
+
+- `SWARM_GATE_MAP` overrides the map (newline separated `glob=cmd;cmd`).
+  An **unmapped** path selects every command: fail-open is the only safe
+  direction for a new area.
+- Selection is inner-loop only. The first QA round runs the full suite, and a
+  fix round that is green on the selected subset must pass a final
+  `qa:full-suite` round before the run can be green; a failure there re-enters
+  the fix loop with the full-suite report.
+- QA remains the only gate executor. `flow.gate_scope()` narrows
+  `SWARM_GATE_COMMANDS` for the duration of a round, so the QA prompt's gate
+  hint and the evidence collector can never disagree.
+- `run.json.gate_selection` records `mode`, `selected`, `skipped`, the last
+  rounds and `affected_gates`/`full_gates`; the `gate` listener marks a run
+  `needs_human` if the last round is still `affected`.
+- `SWARM_GATE_SELECT=0` disables selection (always full).
+
+Measured at T5: **36 gate runs/round vs 60 (−40%)** on the frozen corpus.

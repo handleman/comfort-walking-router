@@ -96,6 +96,8 @@ class SwarmState(BaseModel):
     verifier: dict[str, Any] = {}
     # 020: what context compaction and gate-log spilling moved out of prompts.
     compaction: dict[str, Any] = {}
+    # 020 AC-4: which gates the inner loop ran, and the full suite before green.
+    gate_selection: dict[str, Any] = {}
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -568,6 +570,28 @@ def _commit_changes(
     return rec
 
 
+@contextlib.contextmanager
+def gate_scope(commands: list[str] | None):
+    """Run this block with `SWARM_GATE_COMMANDS` narrowed to `commands`.
+
+    One source for both sides of the loop: the QA prompt's gate hint and the
+    evidence collector read the same env var, so a selected round cannot ask QA
+    for one set and then look for another. `None` leaves the configured full
+    suite in place.
+    """
+    saved = os.environ.get("SWARM_GATE_COMMANDS")
+    if commands is not None:
+        os.environ["SWARM_GATE_COMMANDS"] = ";".join(commands)
+    try:
+        yield
+    finally:
+        if commands is not None:
+            if saved is None:
+                os.environ.pop("SWARM_GATE_COMMANDS", None)
+            else:
+                os.environ["SWARM_GATE_COMMANDS"] = saved
+
+
 DEFAULT_GATE_COMMANDS = ("pytest -q", "ruff check .", "mypy app tests")
 
 
@@ -931,6 +955,10 @@ class SwarmFlow(Flow[SwarmState]):
         self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 1800)
         # 020 AC-3: step digests + gate-log spilling (SWARM_CONTEXT_COMPACT=0 off).
         self._compact = compaction.enabled()
+        # 020 AC-4: inner-loop gate selection (SWARM_GATE_SELECT=0 off).
+        from swarm import gates as gate_selection
+
+        self._gate_select = gate_selection.enabled()
         self._task_started = time.monotonic()
         self._task_tokens_start = 0
         self._task_cost_start = 0.0
@@ -1194,6 +1222,29 @@ class SwarmFlow(Flow[SwarmState]):
         gates["scope"] = 0 if not bad else 1
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
+
+    def _record_gate_selection(
+        self,
+        mode: str,
+        selected: list[str],
+        skipped: list[str],
+        gates: dict[str, int] | None = None,
+    ) -> None:
+        from swarm import gates as gate_selection
+
+        record = gate_selection.record(mode, selected, skipped, gates)
+        previous = dict(self.state.gate_selection or {})
+        previous.setdefault("rounds", [])
+        previous["rounds"] = (previous["rounds"] + [record])[-6:]
+        previous.update({k: v for k, v in record.items() if k != "rounds"})
+        self.state.gate_selection = previous
+
+    def _selection(self, changed: list[str]) -> tuple[list[str], list[str]]:
+        from swarm import gates as gate_selection
+
+        return gate_selection.select_gates(
+            changed, gate_commands(), enabled_flag=bool(getattr(self, "_gate_select", True))
+        )
 
     def _qa_report(
         self,
@@ -2274,6 +2325,7 @@ class SwarmFlow(Flow[SwarmState]):
             gates: dict[str, int] = {}
             transcript = ""
             missing: list[str] = []
+            skipped: list[str] = []
             work_summary = ""
             self._task_tokens_start = self.state.total_tokens
             cost_at_task_start = self._run_cost()
@@ -2375,6 +2427,7 @@ class SwarmFlow(Flow[SwarmState]):
                 self.state.result = f"{work_summary}\n--- review ---\n{self.state.review_text}"[:8000]
                 changed = run_delta(self._baseline)
                 gates, transcript, missing = self._gates_or_evidence(changed)
+                self._record_gate_selection("full", gate_commands(), [], gates)
                 self._maybe_repair_verdict(task, gates, transcript)
                 if not reviewed and self.state.review_verdict == "unknown":
                     break
@@ -2407,12 +2460,26 @@ class SwarmFlow(Flow[SwarmState]):
                         self.state.result = str(e)[:4000]
                         break
                     changed = run_delta(self._baseline)
-                    # Same round continues with QA re-verification (it runs the gates).
-                    reviewed = _review(task, work_summary)
-                    gates, transcript, missing = self._gates_or_evidence(changed)
+                    # 020 AC-4: a fix round re-runs only the gates this delta can
+                    # affect. QA still runs them and the evidence still decides.
+                    selected, skipped = self._selection(changed)
+                    with gate_scope(selected):
+                        reviewed = _review(task, work_summary)
+                        gates, transcript, missing = self._gates_or_evidence(changed)
+                    self._record_gate_selection(
+                        "affected" if skipped else "full", selected, skipped, gates
+                    )
                     self._maybe_repair_verdict(task, gates, transcript)
                     if not reviewed and self.state.review_verdict == "unknown":
                         break
+                    if skipped and _gates_green(gates) and self.state.review_verdict == "pass":
+                        # A green subset is not green: the full configured suite has
+                        # to pass at the final delta before the run can be called so.
+                        _review(task, work_summary, role="qa:full-suite")
+                        gates, transcript, missing = self._gates_or_evidence(changed)
+                        self._record_gate_selection("full", gate_commands(), [], gates)
+                        self._maybe_repair_verdict(task, gates, transcript)
+                        skipped = []
                     if self._delta_signature() == round_start:
                         # The fix round changed nothing (007-T9: five rounds of
                         # re-reading the same file). Another identical round
@@ -2480,11 +2547,26 @@ class SwarmFlow(Flow[SwarmState]):
                         self.state.result = str(e)[:4000]
                         break
                     changed = run_delta(self._baseline)
-                    reviewed = _review(task, work_summary)
-                    gates, transcript, missing = self._gates_or_evidence(changed)
+                    selected, skipped = self._selection(changed)
+                    with gate_scope(selected):
+                        reviewed = _review(task, work_summary)
+                        gates, transcript, missing = self._gates_or_evidence(changed)
+                    self._record_gate_selection(
+                        "affected" if skipped else "full", selected, skipped, gates
+                    )
                     self._maybe_repair_verdict(task, gates, transcript)
                     if not reviewed and self.state.review_verdict == "unknown":
                         break
+            if (
+                self.state.gate_selection.get("mode") == "affected"
+                and _gates_green(gates)
+                and self.state.review_verdict == "pass"
+            ):
+                # 020 AC-4: whatever path reached here, green needs the full suite.
+                _review(task, work_summary, role="qa:full-suite")
+                gates, transcript, missing = self._gates_or_evidence(changed)
+                self._record_gate_selection("full", gate_commands(), [], gates)
+                self._maybe_repair_verdict(task, gates, transcript)
             if (
                 _gates_green(gates)
                 and self.state.review_verdict == "pass"
@@ -2542,6 +2624,14 @@ class SwarmFlow(Flow[SwarmState]):
         elif self.state.verifier.get("blocked"):
             # 019: the scenario was verifiably not implemented; QA's gates cannot
             # turn that into green, no matter how many of them exit 0.
+            self.state.status = "needs_human"
+        elif self.state.gate_selection.get("mode") == "affected":
+            # 020 AC-4: a selected subset cannot make a run green. If the full
+            # suite never confirmed the final delta, this is not green.
+            self.state.evidence_note = (
+                self.state.evidence_note
+                or "green was never confirmed by the full gate suite"
+            )
             self.state.status = "needs_human"
         elif (
             not self.state.gates
@@ -2665,6 +2755,7 @@ class SwarmFlow(Flow[SwarmState]):
             "self_check": self.state.self_check,
             "verifier": self.state.verifier,
             "compaction": self.state.compaction,
+            "gate_selection": self.state.gate_selection,
         }
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate

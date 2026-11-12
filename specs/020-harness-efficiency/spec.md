@@ -99,8 +99,11 @@ layer is a future option, not part of 020.
   the gates that can be affected (`SWARM_GATE_MAP`, with a safe default: an
   unmapped path selects every gate). The fix loop runs only the selected gates;
   before a run can be green, the **full** `SWARM_GATE_COMMANDS` suite runs once
-  at the final delta. `run.json.gates` records `mode` (`affected`/`full`),
-  `selected`, `skipped` and the full-suite result. QA remains the only gate
+  at the final delta. `run.json.gate_selection` records `mode` (`affected`/`full`),
+  `selected`, `skipped`, the last rounds and the gate results (`affected_gates`
+  / `full_gates`); `run.json.gates` stays the evidence map the dashboard and
+  `human_log.txt` already read. A run whose last round is `affected` can never
+  be green. QA remains the only gate
   executor: selection changes *which* gates QA is asked to run, never who
   records the evidence. `SWARM_GATE_SELECT=0` disables selection.
 
