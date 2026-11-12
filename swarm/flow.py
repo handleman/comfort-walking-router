@@ -2592,6 +2592,8 @@ class SwarmFlow(Flow[SwarmState]):
                 for i, step in enumerate(steps, 1):
                     if i <= len(step_outs):
                         continue
+                    target = artifacts.step_target(step)
+                    target_missing = bool(target) and not (REPO_ROOT / str(target)).exists()
                     route = classify_step(
                         step,
                         repo_root=REPO_ROOT,
@@ -2614,8 +2616,7 @@ class SwarmFlow(Flow[SwarmState]):
                                 step=i,
                             )
                             last_err = None
-                            target = artifacts.step_target(step)
-                            if target and not artifacts.step_landed(
+                            if target_missing and target and not artifacts.step_landed(
                                 target, self._in_scope_paths(run_delta(self._baseline))
                             ):
                                 last_err = SystemExit(
