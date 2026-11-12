@@ -19,11 +19,14 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
 - [ ] T3 (AC-4, AC-7): add `build_verify_crew` in `swarm/crew.py` — the
   "Scenario Verifier" agent with `FullFileReadTool` +
   `ShellTool(allow_gates=False, agent_role="verifier")` and **no** write
-  tools; its prompt asks whether every element the brief names exists, whether
-  the pieces connect (the endpoint is mounted, the real module is imported,
-  the contract and the code agree) and whether the referenced ACs are
-  addressed. Add `verifier_llm()` + `SWARM_VERIFIER_MODEL` /
-  `SWARM_VERIFIER_FALLBACK_MODEL` in `swarm/llms.py`.
+  tools, so it cannot change the repository; its correction plan is the
+  crew's final answer (text), parsed by the harness like the planner's
+  `STEP n:` lines and QA's `VERDICT:` line. The prompt asks whether every
+  element the brief names exists, whether the pieces connect (the endpoint
+  is mounted, the real module is imported, the contract and the code agree)
+  and whether the referenced ACs are addressed. Add `verifier_llm()` +
+  `SWARM_VERIFIER_MODEL` / `SWARM_VERIFIER_FALLBACK_MODEL` in
+  `swarm/llms.py`.
   Evidence: `swarm/crew.py`, `swarm/llms.py`, `.env.example`.
 - [ ] T4 (AC-5): parse the verifier's answer — `VERDICT: PASS|BLOCKED`, one
   `FINDING:` line per problem, and the correction steps in the planner's own

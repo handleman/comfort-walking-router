@@ -44,6 +44,20 @@ a proof. It is what lets the verifier see a duplicate implementation
 (`frontend/src/lib/navigation/walkMode.ts` next to the real
 `frontend/src/lib/walkMode.ts`) or a contract that the code drifted away from.
 
+### What the verifier may and may not do
+
+| | the verifier | the coder crews |
+| --- | --- | --- |
+| read files | yes, whole files (`FullFileReadTool`) | yes, trimmed to 3000 chars |
+| write files | **never** (no `Repo Create`/`Repo Edit`) | yes, in scope |
+| run gates | **never** (`allow_gates=False`) | never either — QA owns the gates |
+| commit / push | never | never — the harness does that |
+| produce text | verdict + findings + correction plan | the diff summary |
+
+The correction plan is the crew's **final answer**, parsed by the harness —
+exactly like the planner's `STEP n:` lines and QA's `VERDICT:` line. No
+verifier output is ever written into the repository by the verifier itself.
+
 ## Modules
 
 ### `swarm/verify.py` (new)
@@ -85,7 +99,8 @@ a proof. It is what lets the verifier see a duplicate implementation
   exist? do the pieces connect? are the ACs addressed?) and fixes the output
   format: `FINDING: <file/lines> — <what is wrong>` lines, then `STEP n: <file>
   — <one precise action>` correction steps, then `VERDICT: PASS` or
-  `VERDICT: BLOCKED`.
+  `VERDICT: BLOCKED`. That final answer *is* the deliverable — the crew
+  writes nothing else.
 
 ### `swarm/llms.py`
 

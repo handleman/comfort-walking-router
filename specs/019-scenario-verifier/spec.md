@@ -55,9 +55,18 @@ content of every file the run touched and the import connections around them,
 and answers one question: *does the implemented scenario do what the brief
 says, end to end?*
 
-If the answer is no, it does not fix anything itself — it writes a correction
+If the answer is no, it does not fix anything itself — it *emits* a correction
 plan in the planner's own `STEP n:` format, and the flow feeds that plan back
 into the coder loop, exactly like a QA-driven fix round.
+
+**"Read-only" means the repository is read-only.** The verifier never writes a
+file: no `Repo Create`, no `Repo Edit`, no gate execution, no commit, no
+push. What it produces is *text* — its final answer, which the harness parses.
+That is not a special case: the planner emits `STEP n:` lines as text (it has
+no write tools either) and QA emits `VERDICT: PASS|BLOCKED` as text. The
+verifier's plan is the same kind of artefact — a proposal, not an edit. The
+coder crews apply it; the working tree changes only because the coder wrote
+to it.
 
 ## Acceptance criteria
 
@@ -93,10 +102,12 @@ into the coder loop, exactly like a QA-driven fix round.
   `MAX_VERIFY_ROUNDS` (2). A verifier that does not converge ends the run as
   `verifier_blocked` (non-green, `needs_human`) with a copyable reason — it
   never loops.
-- **AC-7** — The verifier is read-only and gate-free: no write tools, no gate
-  execution, its own agent role (`verifier`), so its shell records are never
-  QA evidence and a verifier `PASS` can never make a run green. QA still owns
-  the gates.
+- **AC-7** — The verifier cannot change the repository: no write tools
+  (`Repo Create`/`Repo Edit`), no gate execution, its own agent role
+  (`verifier`), so its shell records are never QA evidence and a verifier
+  `PASS` can never make a run green. Its only output is text — the verdict
+  and, when blocked, the correction plan the coder crews execute. QA still
+  owns the gates.
 - **AC-8** — Every round is recorded and visible: `run.json.verifier` holds
   the verdict, the rounds, the findings, the correction plan, the files read
   and the model; `human_log.txt` and the dashboard show the verifier's
