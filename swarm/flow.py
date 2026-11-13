@@ -1021,6 +1021,7 @@ class SwarmFlow(Flow[SwarmState]):
         self._failure_sigs: set[tuple[str, str]] = set()
         self._stash_ref = ""
         self._stash_sha = ""
+        self._state_lock = threading.Lock()
         self._lock = RunLock(_runs_dir() / ".lock")
         if not self._lock.acquire():
             raise SystemExit("another swarm run is active (lock: swarm/runs/.lock)")
@@ -1104,11 +1105,14 @@ class SwarmFlow(Flow[SwarmState]):
             except (TypeError, ValueError):
                 return 0
 
-        self.state.prompt_tokens += _n("prompt_tokens")
-        self.state.completion_tokens += _n("completion_tokens")
-        self.state.cached_prompt_tokens += _n("cached_prompt_tokens")
-        self.state.total_tokens += _n("total_tokens")
-        self.state.llm_calls += _n("successful_requests")
+        prompt_now = _n("prompt_tokens")
+        completion_now = _n("completion_tokens")
+        with self._state_lock:
+            self.state.prompt_tokens += prompt_now
+            self.state.completion_tokens += completion_now
+            self.state.cached_prompt_tokens += _n("cached_prompt_tokens")
+            self.state.total_tokens += _n("total_tokens")
+            self.state.llm_calls += _n("successful_requests")
         models: list[str] = []
         for agent in getattr(crew, "agents", None) or []:
             model = getattr(getattr(agent, "llm", None), "model", "")
@@ -1116,9 +1120,11 @@ class SwarmFlow(Flow[SwarmState]):
                 models.append(str(model))
                 if model not in self.state.models_used:
                     self.state.models_used.append(model)
-        # 015 AC-6: attribute this call to its role/step (deltas, not totals).
-        prompt = self.state.prompt_tokens - int(before[0])
-        completion = self.state.completion_tokens - int(before[1])
+        # 015 AC-6: attribute this call to its role/step. Use this crew's own
+        # token_usage, not a before/after diff: with concurrent crews (022 AC-3)
+        # a diff would count the other crew's tokens too.
+        prompt = prompt_now
+        completion = completion_now
         if role or step is not None:
             from swarm.usage import estimate_cost
 

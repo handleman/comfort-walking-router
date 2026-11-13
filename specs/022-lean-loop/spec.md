@@ -66,11 +66,14 @@ timeout.
   completed row, not a timeout.
 
 - **AC-3 — Concurrent verification.** `SWARM_VERIFY_CONCURRENT=1` (default `0`
-  until measured) runs the 019 verifier and the first QA round concurrently on
-  the same delta. Both must pass for green; a verifier block after QA green
-  still blocks. Event writes stay append-only and are serialised through the
-  existing listener; the two crews never write the same file (the verifier is
-  read-only and runs no gate). `=0` restores the sequential order.
+  until measured) runs the **first, read-only verifier pass** and the first QA
+  round concurrently on the same delta. The verifier's correction steps never
+  run while QA is executing gates: if the concurrent pass blocks, corrections
+  and the re-verification run **after** QA, sequentially. Both must pass for
+  green. Event writes are append-only and serialised; roles are thread-local, so
+  each crew's phase is attributed to itself; usage is taken from the crew's own
+  `token_usage`, never a shared counter diff. `=0` restores the sequential
+  order.
 
 - **AC-4 — Lean path for low-risk diffs.** `SWARM_VERIFY_LEAN=1` (default `0`)
   skips the scenario verifier when the run delta is low-risk: only docs/tests/

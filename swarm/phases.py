@@ -25,7 +25,11 @@ def _seconds(start: Any, end: Any) -> float:
 
 
 def derive(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Pair crew start/end events into phases (a stack handles nesting)."""
+    """Pair crew start/end events into phases.
+
+    Match by role first (concurrent crews can finish out of order), then fall
+    back to the stack for events that carry no role.
+    """
     open_phases: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
     for event in events or []:
@@ -41,7 +45,12 @@ def derive(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif kind in {"crew_done", "crew_failed"}:
             if not open_phases:
                 continue
-            started = open_phases.pop()
+            role = str(event.get("role") or "")
+            match = next(
+                (i for i in range(len(open_phases) - 1, -1, -1) if open_phases[i]["phase"] == role),
+                None,
+            )
+            started = open_phases.pop(match if match is not None else -1)
             out.append(
                 {
                     "phase": started["phase"],

@@ -98,3 +98,70 @@ def test_run_json_records_phases_and_report_aggregates_them():
     text = report.render(summary)
     assert "phases (p50/p90, seconds):" in text
     assert "planner" in text and "qa" in text
+
+
+# ---- 022 review fixes: concurrency-safe attribution ----
+
+
+def test_out_of_order_completion_pairs_by_role():
+    events = [
+        _ev("crew_started", "2026-11-14T10:00:00.000", "verifier"),
+        _ev("crew_started", "2026-11-14T10:00:01.000", "qa"),
+        _ev("crew_done", "2026-11-14T10:00:30.000", "verifier"),
+        _ev("crew_done", "2026-11-14T10:00:21.000", "qa"),
+    ]
+    out = {p["phase"]: p["duration_seconds"] for p in phases.derive(events)}
+    assert out == {"verifier": 30.0, "qa": 20.0}
+
+
+def test_the_listener_role_is_thread_local(tmp_path: Path):
+    import threading
+
+    from swarm.events import SwarmListener
+
+    listener = SwarmListener(tmp_path)
+    barrier = threading.Barrier(2)
+
+    def worker(role: str) -> None:
+        listener.current_role = role
+        barrier.wait()
+        listener._append({"type": "crew_started"})
+        listener.current_role = ""
+
+    threads = [threading.Thread(target=worker, args=(role,)) for role in ("verifier", "qa")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    listener.teardown()
+    lines = (tmp_path / "events.jsonl").read_text().splitlines()
+    assert any('"role": "verifier"' in line for line in lines)
+    assert any('"role": "qa"' in line for line in lines)
+
+
+def test_usage_attribution_uses_the_crew_own_tokens_not_a_shared_diff():
+    import types
+
+    from swarm.flow import SwarmFlow
+
+    class Out:
+        token_usage = types.SimpleNamespace(
+            prompt_tokens=10, completion_tokens=2, cached_prompt_tokens=1,
+            total_tokens=12, successful_requests=1,
+        )
+
+    class Crew:
+        agents = ()
+        usage_metrics = None
+
+    stub = types.SimpleNamespace(
+        state=types.SimpleNamespace(
+            prompt_tokens=1000, completion_tokens=100, cached_prompt_tokens=0,
+            total_tokens=1100, llm_calls=5, models_used=[],
+        ),
+        _usage_by_role={}, _usage_by_step={}, _state_lock=__import__("threading").Lock(),
+    )
+    stub._record_usage = types.MethodType(SwarmFlow._record_usage, stub)
+    SwarmFlow._record_usage(stub, Crew(), Out(), role="verifier", step=None, before=(0, 0))
+    assert stub._usage_by_role["verifier"]["prompt_tokens"] == 10
+    assert stub.state.prompt_tokens == 1010

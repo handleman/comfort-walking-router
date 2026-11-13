@@ -63,18 +63,31 @@ budget is a row with `wall_budget`, not a missing case.
 - This is the run-4 lesson: a 90 s Zen timeout caused a `task_failed` and a retry
   that doubled the wall clock.
 
-## T4 — verifier ∥ QA
+## T4 — verifier ∥ QA (first pass only)
 
-- When `SWARM_VERIFY_CONCURRENT=1` and the verifier is enabled, run the 019
-  verifier and the first QA round in two threads against the same delta.
-  - The verifier is read-only and runs no gate; QA runs gates and appends to
-    `shell_log.jsonl`. The event listener is the only shared writer: guard it
-    with a lock (`SwarmListener`) so events cannot interleave mid-line.
-- Both must pass. If QA green and the verifier blocks, the run is not green;
-  the verifier's corrections run afterwards as today.
-- If the verifier is disabled or `=0`, keep the sequential order.
-- Tests: a fake verifier/QA pair with sleeps asserts both results are combined
-  and the wall clock is `max`, not `sum`.
+The review found three sharing hazards before this could be a simple thread:
+the listener role was a single attribute, phase pairing assumed LIFO, and usage
+attribution diffed shared counters. Those are fixed (thread-local role, locked
+writes, role-first pairing, per-crew `token_usage`).
+
+The remaining rule is safety: **only the read-only first verifier pass may run
+while QA runs gates.** The verifier's correction steps write files, and QA's
+gates must see a still tree.
+
+- Extract `_verify_once(task, kick, record)` from `_verify_phase`: one verifier
+  crew + parse, no corrections.
+- With `SWARM_VERIFY_CONCURRENT=1`: start `_verify_once` in a thread, run the
+  first `_review`, join. Merge the record into `state.verifier`.
+  - If it passed, continue (QA's evidence decides green as usual).
+  - If it blocked with a plan, run the corrections **after** QA and re-verify
+    sequentially through the existing `_verify_phase`.
+- `=0` (default) keeps the exact 021 order: verify, then QA.
+- Tests: a fake verifier/QA pair with sleeps asserts both results are combined,
+  corrections never run during the QA window, and wall clock is `max`, not
+  `sum`.
+
+The expected saving is one verifier call (~30–90 s) out of a 10–25 min task; T6
+decides whether it ships.
 
 ## T5 — lean verifier path
 

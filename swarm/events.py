@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import queue
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -62,8 +63,10 @@ class SwarmListener:
         self.events: queue.Queue[dict[str, Any]] = queue.Queue()
         self._handlers: list[tuple[Any, Any]] = []
         # Set by the flow around a kickoff: a crew event without a role cannot
-        # be attributed to a phase (022 AC-1).
-        self.current_role: str = ""
+        # be attributed to a phase (022 AC-1). Thread-local, because the
+        # verifier and QA may run concurrently (022 AC-3).
+        self._role_local = threading.local()
+        self._write_lock = threading.Lock()
         outer = self
 
         class _L(BaseEventListener):
@@ -174,15 +177,24 @@ class SwarmListener:
                 pass
         self._handlers.clear()
 
+    @property
+    def current_role(self) -> str:
+        return str(getattr(self._role_local, "value", "") or "")
+
+    @current_role.setter
+    def current_role(self, value: str) -> None:
+        self._role_local.value = str(value or "")
+
     def _append(self, payload: dict[str, Any]) -> None:
         # Wall-clock stamps make a stalled call visible after the fact; without
         # them a 30-minute run cannot be attributed to one slow request.
         payload.setdefault("at", datetime.now().isoformat(timespec="milliseconds"))
         if self.current_role and "role" not in payload:
             payload["role"] = self.current_role
-        self.events.put(payload)
-        try:
-            with (self.run_dir / "events.jsonl").open("a") as f:
-                f.write(json.dumps(payload) + "\n")
-        except Exception:
-            pass
+        with self._write_lock:
+            self.events.put(payload)
+            try:
+                with (self.run_dir / "events.jsonl").open("a") as f:
+                    f.write(json.dumps(payload) + "\n")
+            except Exception:
+                pass
