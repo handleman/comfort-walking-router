@@ -205,3 +205,13 @@ def test_the_planner_step_budget_is_a_knob(monkeypatch):
     monkeypatch.setenv("SWARM_PLAN_MAX_STEPS", "nonsense")
     assert prompts.plan_max_steps() == prompts.MAX_STEPS
     monkeypatch.delenv("SWARM_PLAN_MAX_STEPS")
+
+
+def test_the_verifier_prefix_carries_the_task_scope_line():
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T1", ac_refs=("AC-1",), brief="Add `swarm/bench/corpus.py`.")
+    prefix = prompts.stable_prefix(task, "020-harness-efficiency", "verifier")
+    assert "TASK SCOPE (what this task owns): - [x] T1" in prefix
+    assert "Judge THIS task only" in prefix
+    assert "out of scope" in prefix

@@ -98,6 +98,21 @@ def finding_files(findings: list[str]) -> set[str]:
     return out
 
 
+def task_line(spec_dir: str, task_id: str) -> str:
+    """The task's own queue line from `tasks.md` (its brief), or empty."""
+    from swarm import prompts
+
+    try:
+        text = (prompts.REPO_ROOT / "specs" / spec_dir / "tasks.md").read_text()
+    except OSError:
+        return ""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("- [ ] ", "- [x] ")) and f" {task_id} " in stripped + " ":
+            return stripped
+    return ""
+
+
 def ac_paragraphs(spec_md: str, ac_refs: Iterable[str]) -> list[str]:
     """The acceptance-criteria bullets the task references, continuation included.
 

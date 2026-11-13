@@ -245,7 +245,12 @@ VERIFIER_RULES = (
     "Do NOT prescribe how a test mocks, structures its fixtures or names its "
     "cases: require the behaviour the acceptance criterion names. If a "
     "correction step was already applied, judge the resulting scenario; do not "
-    "restate the same design preference in different words.\n\n"
+    "restate the same design preference in different words. "
+    "Judge THIS task only: the brief and the referenced acceptance criteria. A "
+    "requirement that belongs to a later task in tasks.md (wiring, UI, consumers, "
+    "e2e, a future AC) is out of scope even when a spec-level AC mentions it. "
+    "Do not require an algorithm, precision or structure the brief does not "
+    "state; a working implementation of the named behaviour passes.\n\n"
     "Output format (exact, no other prose):\n"
     "FINDING: <file:line or file> — <what is wrong, precisely>\n"
     "… one line per problem …\n"
@@ -402,7 +407,12 @@ def _read_artifacts(spec_dir: str) -> tuple[str, str]:
 
 
 def task_block(
-    task: SpecTask, spec_dir: str, *, ac: bool = False, plan: bool = False
+    task: SpecTask,
+    spec_dir: str,
+    *,
+    ac: bool = False,
+    plan: bool = False,
+    scope_line: str = "",
 ) -> str:
     """Spec/task/AC ids and brief; AC paragraphs and plan lines where a crew uses them.
 
@@ -433,6 +443,8 @@ def task_block(
         if kept:
             lines.append("ACCEPTANCE CRITERIA (what this task must satisfy):")
             lines.extend(kept)
+    if scope_line:
+        lines.append("TASK SCOPE (what this task owns): " + scope_line)
     if plan and plan_md:
         from swarm.verify import plan_lines
 
@@ -497,8 +509,16 @@ def stable_prefix(task: SpecTask, spec_dir: str = "", kind: str = "step") -> str
     scenario = kind == "verifier"
     coder = kind in {"step", "fix", "selfcheck", "senior", "senior_step"}
     ac = scenario or (coder and coder_acs_enabled())
+    scope_line = ""
+    if scenario:
+        from swarm.verify import task_line
+
+        scope_line = task_line(spec_dir, task.id)
     return "\n".join(
-        [role_rules(kind), task_block(task, spec_dir, ac=ac, plan=scenario)]
+        [
+            role_rules(kind),
+            task_block(task, spec_dir, ac=ac, plan=scenario, scope_line=scope_line),
+        ]
     )
 
 
