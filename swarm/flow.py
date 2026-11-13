@@ -109,6 +109,8 @@ class SwarmState(BaseModel):
     best_delta: dict[str, Any] = {}
     # 022 AC-2: which phase consumed the wall budget, when it fires.
     wall_budget_note: str = ""
+    # 022 AC-5: retries actually spent (attempts after the first).
+    retries: int = 0
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -2504,6 +2506,8 @@ class SwarmFlow(Flow[SwarmState]):
             prompt_before = self.state.prompt_tokens
             completion_before = self.state.completion_tokens
             for attempt in (1, 2, 3):
+                if attempt > 1:
+                    self.state.retries += 1
                 try:
                     # 015 AC-6: never abort between a green verdict and its commit —
                     # budgets are checked before spending, not after a result.
@@ -3173,6 +3177,7 @@ class SwarmFlow(Flow[SwarmState]):
             "tests_first": self.state.tests_first,
             "best_delta": self.state.best_delta,
             "wall_budget_note": self.state.wall_budget_note,
+            "retries": self.state.retries,
             "cache": {
                 "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),

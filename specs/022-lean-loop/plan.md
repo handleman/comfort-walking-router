@@ -1,6 +1,6 @@
 # 022 Lean Loop — Plan
 
-Status: in progress (T1 phase timing, T2 wall budget done). References `specs/022-lean-loop/spec.md` AC-1–AC-8 and
+Status: in progress (T1 phase timing, T2 wall budget, T3 timeouts done). References `specs/022-lean-loop/spec.md` AC-1–AC-8 and
 `docs/research/fix-loop-2026.md` (the paid bake-off that measured ~10 sequential
 phases and four capped runs).
 

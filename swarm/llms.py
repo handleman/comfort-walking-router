@@ -236,7 +236,22 @@ def _timeout_seconds() -> int:
         return 180
 
 
-def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
+def _fix_timeout() -> int:
+    """Timeout for fix/senior/verifier calls (022 AC-5).
+
+    A fix generation is not a 1–7 s chat call: 90 s cut real fixes off (the
+    007-T5 lesson), and the bake-off showed a 90 s Zen timeout causing a retry
+    that doubled the task. Chat-like calls keep the shorter default.
+    """
+    try:
+        return max(30, int(os.getenv("SWARM_LLM_FIX_TIMEOUT_SECONDS", "180") or 180))
+    except ValueError:
+        return 180
+
+
+def _build(
+    model: str, *, temperature: float, allow_paid: bool, timeout: int | None = None
+) -> LLM:
     _guard(model, allow_paid=allow_paid)
     support = cache_support(model)
     # The harness owns retries (backoff + fallback models); SDK-level retries of a
@@ -268,7 +283,7 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
             base_url=os.getenv("SWARM_ZEN_BASE_URL", DEFAULT_ZEN),
             api_key=os.environ.get("OPENCODE_API_KEY", ""),
             temperature=temperature,
-            timeout=_timeout_seconds(),
+            timeout=timeout or _timeout_seconds(),
             max_retries=sdk_retries,
         )
     if support == "hint":
@@ -278,7 +293,7 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
                 base_url=OPENROUTER_BASE,
                 api_key=os.environ.get("OPENROUTER_API_KEY", ""),
                 temperature=temperature,
-                timeout=_timeout_seconds(),
+                timeout=timeout or _timeout_seconds(),
                 max_retries=sdk_retries,
                 extra_body={"cache_control": {"type": "ephemeral"}},
             )
@@ -295,20 +310,27 @@ def _build(model: str, *, temperature: float, allow_paid: bool) -> LLM:
         base_url=OPENROUTER_BASE,
         api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         temperature=temperature,
-        timeout=_timeout_seconds(),
+        timeout=timeout or _timeout_seconds(),
         max_retries=sdk_retries,
     )
 
 
-def _for_role(env_var: str, *, temperature: float, allow_paid: bool) -> LLM:
+def _for_role(
+    env_var: str, *, temperature: float, allow_paid: bool, timeout: int | None = None
+) -> LLM:
     model = _model(env_var)
     if fallbacks_active(env_var):
         model = fallback_model(env_var, allow_paid=allow_paid) or model
-    return _build(model, temperature=temperature, allow_paid=allow_paid)
+    return _build(model, temperature=temperature, allow_paid=allow_paid, timeout=timeout)
 
 
-def coder_llm() -> LLM:
-    return _for_role("SWARM_CODER_MODEL", temperature=0, allow_paid=True)
+def coder_llm(*, fix: bool = False) -> LLM:
+    return _for_role(
+        "SWARM_CODER_MODEL",
+        temperature=0,
+        allow_paid=True,
+        timeout=_fix_timeout() if fix else None,
+    )
 
 
 def local_coder_llm() -> LLM:
@@ -327,7 +349,9 @@ def reviewer_llm(*, allow_paid: bool = False) -> LLM:
 
 def senior_llm(*, allow_paid: bool = False) -> LLM:
     """Escalation brain: strong free-tier model (OpenRouter :free, tool-capable)."""
-    return _for_role("SWARM_SENIOR_MODEL", temperature=0, allow_paid=allow_paid)
+    return _for_role(
+        "SWARM_SENIOR_MODEL", temperature=0, allow_paid=allow_paid, timeout=_fix_timeout()
+    )
 
 
 def verifier_llm(*, allow_paid: bool = False) -> LLM:
@@ -345,7 +369,7 @@ def verifier_llm(*, allow_paid: bool = False) -> LLM:
         )
     if fallbacks_active("SWARM_VERIFIER_MODEL"):
         model = fallback_model("SWARM_VERIFIER_MODEL", allow_paid=allow_paid) or model
-    return _build(model, temperature=0, allow_paid=allow_paid)
+    return _build(model, temperature=0, allow_paid=allow_paid, timeout=_fix_timeout())
 
 
 def conflict_llm(*, allow_paid: bool = True) -> LLM:
@@ -358,7 +382,7 @@ def conflict_llm(*, allow_paid: bool = True) -> LLM:
     model = configured or os.getenv("SWARM_CODER_MODEL", "").strip()
     if fallbacks_active("SWARM_CONFLICT_MODEL"):
         model = fallback_model("SWARM_CONFLICT_MODEL", allow_paid=allow_paid) or model
-    return _build(model, temperature=0, allow_paid=allow_paid)
+    return _build(model, temperature=0, allow_paid=allow_paid, timeout=_fix_timeout())
 
 
 def verdict_fallback_llm() -> LLM:

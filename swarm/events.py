@@ -34,6 +34,12 @@ def _event_error(event: Any, limit: int = 500) -> str:
     return text[:limit]
 
 
+def llm_failure_type(text: str) -> str:
+    """`llm_timeout` for a timed-out call, `llm_failed` otherwise (022 AC-5)."""
+    low = str(text or "").lower()
+    return "llm_timeout" if "timed out" in low or "timeout" in low else "llm_failed"
+
+
 def pane_for(name: str) -> str:
     n = name.lower()
     if "plan" in n:
@@ -136,7 +142,8 @@ class SwarmListener:
 
                 @_listen(LLMCallFailedEvent)
                 def _lf(source: Any, event: Any) -> None:
-                    outer._append({"type": "llm_failed", "text": _event_error(event, 300)})
+                    text = _event_error(event, 300)
+                    outer._append({"type": llm_failure_type(text), "text": text})
 
                 @_listen(LLMStreamChunkEvent)
                 def _chunk(source: Any, event: Any) -> None:

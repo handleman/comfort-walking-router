@@ -92,7 +92,11 @@ def _coder(
     from swarm.llms import local_coder_llm
 
     copy = prompts.agent_copy(task, kind)
-    llm = local_coder_llm() if model_kind == "local" else coder_llm()
+    llm = (
+        local_coder_llm()
+        if model_kind == "local"
+        else coder_llm(fix=kind in {"fix", "selfcheck"})
+    )
     return Agent(
         role=copy["role"],
         goal=copy["goal"],

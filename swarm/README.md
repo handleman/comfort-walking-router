@@ -1029,3 +1029,10 @@ finishes and the budget decides. On breach the run stops as `needs_human` with
 `reason_code=wall_budget`, `run.json.wall_budget_note` and `human_log.txt`
 naming the phase and the elapsed/total (`qa: 901s of 900s`). The run record is
 written, so `make swarm-replay` gets a row instead of a timeout.
+
+## Timeout economics (022 T3)
+`SWARM_LLM_FIX_TIMEOUT_SECONDS` (default 180) applies to fix, self-check, senior
+and verifier crews; chat-like planner/QA calls keep `SWARM_LLM_TIMEOUT_SECONDS`
+(default 90). A timed-out call is its own event (`llm_timeout`), retries are
+counted in `run.json.retries`, and a retry is only started after the wall budget
+check (T2) — so a 90 s timeout cannot quietly double the task.

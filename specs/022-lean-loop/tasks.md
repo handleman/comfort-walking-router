@@ -6,7 +6,7 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/flow.py`, `swarm/events.py`, `swarm/report.py`, `swarm/tests/test_phases.py`.
 - [x] T2 (AC-2): enforce `SWARM_TASK_WALL_BUDGET` (default 900 s, 0 off) between phases and before a retry; on breach stop as `needs_human` / `reason_code=wall_budget` with the phase and elapsed in `human_log.txt`, never mid-crew.
   Evidence: `swarm/flow.py`, `swarm/humanlog.py`, `swarm/tests/test_autoloop.py`.
-- [ ] T3 (AC-5): split timeouts — `SWARM_LLM_FIX_TIMEOUT_SECONDS` (default 180) for fix/senior/verifier/correction crews, keep the chat timeout for planner/QA — and record `llm_timeout` events plus `run.json.retries`; skip a retry whose worst case cannot fit the remaining wall budget.
+- [x] T3 (AC-5): split timeouts — `SWARM_LLM_FIX_TIMEOUT_SECONDS` (default 180) for fix/senior/verifier/correction crews, keep the chat timeout for planner/QA — and record `llm_timeout` events plus `run.json.retries`; skip a retry whose worst case cannot fit the remaining wall budget.
   Evidence: `swarm/llms.py`, `swarm/flow.py`, `swarm/tests/test_cache.py`, `swarm/tests/test_autoloop.py`.
 - [ ] T4 (AC-3): run the 019 verifier and the first QA round concurrently when `SWARM_VERIFY_CONCURRENT=1` (default 0): read-only verifier, QA runs gates, both must pass, listener writes serialised by a lock, sequential fallback when off.
   Evidence: `swarm/flow.py`, `swarm/events.py`, `swarm/tests/test_concurrent_verify.py`.
