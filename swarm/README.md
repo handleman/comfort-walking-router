@@ -924,7 +924,8 @@ make swarm-replay-one CASE=004-weather-sun-T2   # one case, JSON details
 python -m swarm.bench.replay --update-baseline  # snapshot the first run
 ```
 
-- `SWARM_REPLAY_CASES=case,case` overrides the selection.
+- `SWARM_REPLAY_CASES=case,case` overrides the selection;
+  `SWARM_REPLAY_TIMEOUT` (default 2400 s) or `--timeout` bounds one case.
 - The suite is opt-in (models required, ~60 min for five cases) and never part of
   `make swarm-test`; the bookkeeping is tested with a fake runner.
 - `swarm/bench/replay_baseline.json` stores the first run: case list, per-case
@@ -992,3 +993,13 @@ Each entry also carries `phase` (`fix`/`senior`/`verify`/`selfcheck`), the
 failing gates, `changed`, `tokens` and `seconds`. `make swarm-report` prints the
 cause distribution, how many rounds changed nothing, and the 017/019 hit rates —
 the last two are what 021 T8 uses to decide what to keep.
+
+## Coder strictness and plan size (021 T10)
+Two A/Bs, both off/at the strict default until the suite shows a win:
+
+- `SWARM_CODER_LOOSE=1` relaxes **only** step mechanics: 8 tool calls instead of
+  5, `max_iter` 8 instead of 6, "continue with the `start_line` the note names"
+  instead of "never read the same file twice", and re-read only when the file
+  changed. Scope, the real-API rule and the no-gates rule are unchanged.
+- `SWARM_PLAN_MAX_STEPS` (≤ 8) asks the planner for that many micro-steps and to
+  use the fewest coherent steps for a small task. `steps_usable` still caps at 8.

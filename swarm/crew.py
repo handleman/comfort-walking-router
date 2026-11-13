@@ -132,7 +132,12 @@ def build_step_crew(
     model_kind: str = "paid",
 ) -> Crew:
     """One coder, one micro-step, fresh message history (bounds context)."""
-    coder = _coder(task, "step", model_kind=model_kind)
+    coder = _coder(
+        task,
+        "step",
+        model_kind=model_kind,
+        max_iter=8 if prompts.coder_loose() else 6,
+    )
     t_step = Task(
         description=prompts.step_prompt(task, spec_dir, step_text, idx, total),
         expected_output=f"Step {idx} diff summary: files changed + one line each.",
@@ -261,7 +266,9 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
     )
     t_plan = Task(
         description=prompts.plan_prompt(task, spec_dir),
-        expected_output=f"STEP 1: ...\nSTEP 2: ... (4-{MAX_STEPS} lines, nothing else)",
+        expected_output=(
+            f"STEP 1: ...\nSTEP 2: ... (4-{prompts.plan_max_steps()} lines, nothing else)"
+        ),
         agent=planner,
     )
     return Crew(agents=[planner], tasks=[t_plan], process=Process.sequential, verbose=False)

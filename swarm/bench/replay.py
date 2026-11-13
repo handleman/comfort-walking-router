@@ -87,7 +87,7 @@ def run_suite(
     repo: Path = REPO_ROOT,
     off: bool = False,
     runner: Any = None,
-    timeout: int = live.DEFAULT_TIMEOUT_SECONDS,
+    timeout: int | None = None,
     keep_failures: bool = False,
     on_row: Any = None,
 ) -> dict[str, Any]:
@@ -97,6 +97,7 @@ def run_suite(
     model. The real runner is `live.run_case`.
     """
     chosen = list(cases or selected_cases())
+    timeout = timeout or live.timeout_seconds()
     run = runner or (lambda case, **kw: live.run_case(case, **kw))
     overrides = off_env(off)
     rows: list[dict[str, Any]] = []
@@ -227,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--keep", action="store_true", help="keep failed worktrees for inspection")
+    parser.add_argument("--timeout", type=int, default=0, help="per-case timeout (seconds)")
     args = parser.parse_args(argv)
     repo = Path(args.repo)
     cases = [args.case] if args.case else (
@@ -242,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         repo=repo,
         off=args.off,
         keep_failures=args.keep,
+        timeout=args.timeout or None,
         on_row=save_partial,
     )
     if args.update_baseline:

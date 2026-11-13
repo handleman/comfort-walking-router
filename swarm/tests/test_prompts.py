@@ -161,3 +161,47 @@ def test_coder_backstory_says_qa_owns_the_gates_once():
     copy = prompts.agent_copy(_task(), "fix")
     assert copy["backstory"].count("QA is the only role that runs the gates") == 1
     assert "gates" in copy["backstory"]
+
+
+# ---- 021 T10: strict vs loose step mechanics, planner step budget ----
+
+def test_loose_step_rules_are_an_opt_in_ab(monkeypatch):
+    task = _task()
+    monkeypatch.delenv("SWARM_CODER_LOOSE", raising=False)
+    strict = prompts.stable_prefix(task, "001-example-app", "step")
+    assert "at most 5 tool calls" in strict and "never read the same file twice" in strict
+    monkeypatch.setenv("SWARM_CODER_LOOSE", "1")
+    loose = prompts.stable_prefix(task, "001-example-app", "step")
+    assert "at most 8 tool calls" in loose
+    assert "CONTINUE with the start_line" in loose
+    assert "never read the same file twice" not in loose
+    assert loose != strict
+    # scope and the real-API rule survive in both
+    for text in (strict, loose):
+        assert "Touch ONLY files" in text
+        assert "REAL exported API" in text
+    monkeypatch.delenv("SWARM_CODER_LOOSE")
+
+
+def test_the_loose_step_crew_gets_more_iterations(monkeypatch):
+    from swarm.crew import build_step_crew
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T2", ac_refs=("AC-2",), brief="Add `app/scoring.py`.")
+    monkeypatch.delenv("SWARM_CODER_LOOSE", raising=False)
+    assert build_step_crew("001", task, "Edit `app/scoring.py`.", 1, 1).agents[0].max_iter == 6
+    monkeypatch.setenv("SWARM_CODER_LOOSE", "1")
+    assert build_step_crew("001", task, "Edit `app/scoring.py`.", 1, 1).agents[0].max_iter == 8
+    monkeypatch.delenv("SWARM_CODER_LOOSE")
+
+
+def test_the_planner_step_budget_is_a_knob(monkeypatch):
+    monkeypatch.delenv("SWARM_PLAN_MAX_STEPS", raising=False)
+    assert prompts.plan_max_steps() == prompts.MAX_STEPS
+    monkeypatch.setenv("SWARM_PLAN_MAX_STEPS", "5")
+    assert prompts.plan_max_steps() == 5
+    rules = prompts.role_rules("plan")
+    assert "4–5 steps" in rules and "fewest coherent steps" in rules
+    monkeypatch.setenv("SWARM_PLAN_MAX_STEPS", "nonsense")
+    assert prompts.plan_max_steps() == prompts.MAX_STEPS
+    monkeypatch.delenv("SWARM_PLAN_MAX_STEPS")

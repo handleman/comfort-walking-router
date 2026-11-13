@@ -132,6 +132,28 @@ QA_IS_THE_GATEKEEPER = (
     "failure output: investigate from that evidence."
 )
 
+LOOSE_ENV = "SWARM_CODER_LOOSE"
+
+
+def coder_loose(env: dict[str, str] | None = None) -> bool:
+    """021 T10: relax only the step mechanics (an A/B, default strict)."""
+    source = os.environ if env is None else env
+    return str(source.get(LOOSE_ENV, "0")).strip().lower() in {"1", "true", "yes"}
+
+
+LOOSE_STEP_RULES = (
+    "Before you write code for an existing module, read that module once and use "
+    "its REAL exported API — never invent a function, store or field. If the API "
+    "you need does not exist, add it in this task's scope instead of calling "
+    "something imaginary. "
+    "When the step writes a test, IMPORT the module under test and call its real "
+    "exports. Never re-declare or stub the code under test. "
+    "Use Repo Create for new files, Repo Edit for existing ones. "
+    "Loop rules: at most 8 tool calls. If a read was truncated, CONTINUE with the "
+    "start_line the note names; never re-read the same range twice. You may re-read "
+    "a file only when it changed since your last read. Then write the result."
+)
+
 STEP_RULES = (
     "Before you write code for an existing module, read that module once and use "
     "its REAL exported API — never invent a function, store or field. If the API "
@@ -441,9 +463,25 @@ _RULES: dict[str, str] = {
 }
 
 
+def plan_max_steps(env: dict[str, str] | None = None) -> int:
+    """021 T10: how many micro-steps the planner should aim for (hard cap 8)."""
+    source = os.environ if env is None else env
+    try:
+        return max(1, min(MAX_STEPS, int(source.get("SWARM_PLAN_MAX_STEPS", str(MAX_STEPS)))))
+    except (TypeError, ValueError):
+        return MAX_STEPS
+
+
 def role_rules(kind: str) -> str:
     """Fixed instructions for a crew kind, identical on every round."""
+    if kind in {"step", "senior_step"} and coder_loose():
+        return LOOSE_STEP_RULES + " " + SCOPE_RULE
     rules = _RULES[kind]
+    if kind == "plan":
+        rules = rules.replace(
+            f"4–{MAX_STEPS} steps",
+            f"4–{plan_max_steps()} steps (use the fewest coherent steps for a small task)",
+        )
     if kind == "verifier":
         # Read-only by contract; the scope rule is about writes, which it cannot do.
         return rules

@@ -267,6 +267,45 @@ over-decomposition and with model capability. T10 measures all three (loose
 prompt, planner step count, stronger coder pin) instead of relaxing a guard that
 exists to stop Qwen-9B wandering.
 
+## 021 measurement: what the suite could and could not show
+
+The outcome suite was attempted with the operator's `.env` routing plus a
+capable coder pin (`nemotron-3.5-super-vl:free` for coder and QA). It did not
+complete:
+
+| Case | Result |
+| --- | --- |
+| 004-weather-sun-T2 | **timed out at 2400 s** (per-case timeout) |
+| 005-saved-routes-T2 | `needs_human` / `verifier_blocked`, 747 s |
+| 006-comfort-plus-T3 | **timed out at 2400 s** |
+| 007 / 010 | not reached (the tool session died mid-suite) |
+
+`swarm/bench/replay_baseline.json` records this as `complete: false`, with the
+partial rows and the reason, rather than a claimed baseline.
+
+The 021 behaviours themselves were exercised by the repeated 006 runs:
+
+| Configuration | Result |
+| --- | --- |
+| local 9.7B coder | truncated test file, verifier blocked, ~180–404k tokens |
+| strong coder | complete file; verifier blocked twice **contradictorily** (T11) |
+| + T11/T12 | verifier **PASS** after one correction; step landing enforced |
+| + key-line fix | QA reached; blocked on `SIM102` + one assertion after **6 rounds / 883k tokens / 1365 s** |
+
+So the harness correctness fixes are validated — the loop now reaches QA and the
+verifier no longer re-litigates — but the **efficiency targets cannot be
+evaluated against a green baseline**: the loop does not converge on these cases
+within a practical wall clock, and the 020 loop (the A/B's other side) times out
+before finishing. The per-task cost (0.5–0.9M prompt tokens, 20–40 min) is the
+blocking problem, and it is dominated by repair rounds on one-line defects, not
+by prompt characters.
+
+Decisions recorded: T4 (tests-first), T5 (AC-aware coder prompt) and T10
+(loose prompt / planner step count) stay off/strict because no measured win
+exists; `SWARM_REPLAY_TIMEOUT` and `--timeout` were added so an operator can run
+the suite with a realistic bound; the next measurement needs a model bake-off
+and a faster case set before it can serve as an A/B.
+
 ## Proposed 021 scope (`021-fix-loop`)
 
 Measure first, then remove the mechanical class, then test the tests-first bet:

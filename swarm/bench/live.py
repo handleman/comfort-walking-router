@@ -33,6 +33,17 @@ COPY_IGNORE = {".venv", "venv", "__pycache__", "runs", ".mypy_cache", ".ruff_cac
 DEFAULT_TIMEOUT_SECONDS = 2400
 
 
+def timeout_seconds(env: dict[str, str] | None = None) -> int:
+    """Per-case live-replay timeout (`SWARM_REPLAY_TIMEOUT`, default 2400s)."""
+    import os
+
+    source = os.environ if env is None else env
+    try:
+        return max(120, int(source.get("SWARM_REPLAY_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS))))
+    except (TypeError, ValueError):
+        return DEFAULT_TIMEOUT_SECONDS
+
+
 def _git(repo: Path, *args: str) -> tuple[int, str]:
     return corpus.git(repo, *args)
 

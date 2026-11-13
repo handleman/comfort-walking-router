@@ -1,0 +1,70 @@
+{
+  "cases": [
+    "004-weather-sun-T2",
+    "005-saved-routes-T2",
+    "006-comfort-plus-T3",
+    "007-live-position-T2",
+    "010-e2e-playwright-T5"
+  ],
+  "complete": false,
+  "created": "2026-11-13T10:31:09",
+  "note": "first baseline attempt: the loop did not complete the five cases. 005 finished needs_human/verifier_blocked; 004 and 006 exceeded the 2400s per-case timeout; 007/010 were not reached when the tool session died. Recorded as incomplete rather than claimed.",
+  "off": true,
+  "rows": [
+    {
+      "cached_prompt_tokens": 0,
+      "case": "004-weather-sun-T2",
+      "changed_files": [],
+      "cost_usd": 0.0,
+      "duration_seconds": 0,
+      "error": "timed out after 2400s",
+      "fix_rounds": 0,
+      "gates": [],
+      "ok": false,
+      "prompt_tokens": 0,
+      "status": "failed"
+    },
+    {
+      "cached_prompt_tokens": 56704,
+      "case": "005-saved-routes-T2",
+      "changed_files": [
+        "app/alembic.ini",
+        "app/migrations/__init__.py",
+        "app/migrations/env.py",
+        "app/migrations/versions/__init__.py"
+      ],
+      "cost_usd": 0.0,
+      "duration_seconds": 747,
+      "error": "verifier_blocked",
+      "fix_rounds": 0,
+      "gates": [],
+      "ok": false,
+      "prompt_tokens": 348905,
+      "status": "needs_human"
+    },
+    {
+      "cached_prompt_tokens": 0,
+      "case": "006-comfort-plus-T3",
+      "changed_files": [],
+      "cost_usd": 0.0,
+      "duration_seconds": 0,
+      "error": "timed out after 2400s",
+      "fix_rounds": 0,
+      "gates": [],
+      "ok": false,
+      "prompt_tokens": 0,
+      "status": "failed"
+    }
+  ],
+  "totals": {
+    "cached_prompt_tokens": 56704,
+    "cases": 3,
+    "cost_usd": 0.0,
+    "duration_p50": 0,
+    "duration_total": 747,
+    "fix_rounds": 0,
+    "green": 0,
+    "green_rate": 0.0,
+    "prompt_tokens": 348905
+  }
+}
