@@ -1060,3 +1060,12 @@ changed lines, with all gates green. Test files are deliberately **not**
 low-risk — a test with the wrong expectation is the 014-T7 class the verifier
 exists for — and implementation paths always verify. The decision is recorded as
 `verifier.verdict=skipped` + `skipped_reason`, so a skipped check is visible.
+
+## 022 knobs
+| Knob | Default | Effect |
+| --- | --- | --- |
+| `SWARM_TASK_WALL_BUDGET` | `900` | per-task wall clock, checked between phases and before retries (`0` off) |
+| `SWARM_LLM_FIX_TIMEOUT_SECONDS` | `180` | timeout for fix/self-check/senior/verifier calls (planner/QA keep `SWARM_LLM_TIMEOUT_SECONDS`) |
+| `SWARM_VERIFY_CONCURRENT` | `0` | first read-only verifier pass runs beside QA (A/B) |
+| `SWARM_VERIFY_LEAN` | `0` | skip the verifier for a docs-only small delta (A/B) |
+| `SWARM_LEAN_MAX_PATHS` / `SWARM_LEAN_MAX_LINES` | `4` / `200` | the lean-path bound |
