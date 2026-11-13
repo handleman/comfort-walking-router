@@ -288,6 +288,17 @@ scope rule — judge the brief and the referenced ACs; later tasks own their
 wiring, UI, consumers and e2e; do not require an algorithm or precision the
 brief does not state.
 
+### Paid coder bake-off: the coder works, the local QA hangs
+
+With `coder=zen/glm-5.3-flash` (paid, ~$0.15/M in) on `007-live-position-T2`:
+
+| Run | What happened |
+| --- | --- |
+| 1 (2400 s cap) | 2 steps at 22:52–22:53, QA ran six gates **all green** at 22:55, a fix crew started at 22:57 and **hung on the Zen call** until the cap |
+| 2 (900 s cap, 60 s LLM timeout) | 6 steps, QA ran the gates (`npm test` red), then the **local 9.7B QA model hung ~9 min** writing its verdict |
+
+So the paid coder produces gate-green work quickly; the bottleneck moved to the **verdict/fix call**, and in run 2 specifically to the local QA model. That is a routing problem, not a coding problem: QA should not be a slow 9.7B model on a long report.
+
 ### Bake-off: the models are not the whole story
 
 Two cases, `lightning` as coder and QA, 900 s per case:
