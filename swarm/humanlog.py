@@ -110,6 +110,7 @@ def format_human_report(
         ("review_note", "reviewer"),
         ("vacancy_note", "vacancy"),
         ("budget_note", "budget"),
+        ("wall_budget_note", "wall budget"),
         ("quota_note", "quota"),
         ("recovery_note", "recovery"),
         ("approval_error", "approval"),

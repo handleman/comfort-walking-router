@@ -1021,3 +1021,11 @@ with the role the flow set around the kickoff, and `swarm/phases.py` pairs them
 `{phase, started_at, ended_at, duration_seconds, failed, model}`. `make
 swarm-report` prints p50/p90 per phase and the slowest one, so a 20-minute task
 can be attributed to the call that ate it. No second timer, no second write path.
+
+## Wall budget (022 T2)
+`SWARM_TASK_WALL_BUDGET` (default 900 s, `0` disables) is checked **between
+phases and before every retry** — never mid-call, so a running generation
+finishes and the budget decides. On breach the run stops as `needs_human` with
+`reason_code=wall_budget`, `run.json.wall_budget_note` and `human_log.txt`
+naming the phase and the elapsed/total (`qa: 901s of 900s`). The run record is
+written, so `make swarm-replay` gets a row instead of a timeout.

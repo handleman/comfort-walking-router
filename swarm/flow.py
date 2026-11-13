@@ -107,12 +107,18 @@ class SwarmState(BaseModel):
     # 021 AC-6: the best verified delta seen, so a later round cannot hide a
     # regression of a gate that once passed.
     best_delta: dict[str, Any] = {}
+    # 022 AC-2: which phase consumed the wall budget, when it fires.
+    wall_budget_note: str = ""
     no_progress: bool = False
     ungrounded_block: bool = False
 
 
 class _QuotaExhausted(SystemExit):
     """Daily free-model quota hit: stop the pilot, do not retry or escalate."""
+
+
+class _WallBudget(Exception):
+    """Per-task wall-clock budget hit (022 AC-2). Never retried."""
 
 
 class _BudgetExhausted(Exception):
@@ -291,6 +297,8 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
         return "green"
     if status != "needs_human":
         return status
+    if getattr(state, "wall_budget_note", ""):
+        return "wall_budget"
     verifier = getattr(state, "verifier", None) or {}
     if verifier.get("unstable"):
         return "verifier_unstable"
@@ -995,6 +1003,8 @@ class SwarmFlow(Flow[SwarmState]):
         self._gate_select = gate_selection.enabled()
         # 020 T3: provider cache hints (SWARM_PROMPT_CACHE=0 off).
         self._prompt_cache = llms.prompt_cache_enabled()
+        # 022 AC-2: a task cannot outlive its wall budget (0 disables).
+        self._wall_budget = env_int("SWARM_TASK_WALL_BUDGET", 900)
         # 021 AC-6: the code-round budget is a knob (the suite tests 3 vs 4);
         # verdict/evidence rounds have their own small cap.
         from swarm.crew import MAX_FIX_ROUNDS
@@ -1270,6 +1280,21 @@ class SwarmFlow(Flow[SwarmState]):
         gates["scope"] = 0 if not bad else 1
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
+
+    def _check_wall_budget(self, phase: str = "") -> None:
+        """Stop between phases when the task's wall budget is spent (022 AC-2).
+
+        Checked before every crew (and therefore before every retry), never
+        mid-call: a running generation finishes, then the budget decides.
+        """
+        budget = int(getattr(self, "_wall_budget", 0) or 0)
+        if budget <= 0:
+            return
+        elapsed = time.monotonic() - self._task_started
+        if elapsed >= budget:
+            note = f"{phase or 'task'}: {int(elapsed)}s of {budget}s"
+            self.state.wall_budget_note = note
+            raise _WallBudget(note)
 
     def _record_best_delta(self, gates: dict[str, int]) -> None:
         """Keep the delta that passed the most gates (021 AC-6)."""
@@ -2484,6 +2509,7 @@ class SwarmFlow(Flow[SwarmState]):
                     # budgets are checked before spending, not after a result.
                     if guard_budget:
                         self._check_budget()
+                    self._check_wall_budget(role or "crew")
                     crew = build()
                     if self.listener is not None:
                         self.listener.current_role = role or ""
@@ -2492,7 +2518,7 @@ class SwarmFlow(Flow[SwarmState]):
                     finally:
                         if self.listener is not None:
                             self.listener.current_role = ""
-                except _BudgetExhausted:
+                except (_BudgetExhausted, _WallBudget):
                     # A budget stop is terminal: retrying it cannot help, and
                     # swallowing it here turned "out of money" into
                     # `reviewer_no_verdict` (007-T5, 40 minutes of paid work).
@@ -2965,6 +2991,12 @@ class SwarmFlow(Flow[SwarmState]):
             print(f"QUOTA EXHAUSTED: {self.state.quota_note} — pilot stopped, resume after reset", flush=True)
             self.save_run("quota_exhausted")
             return self.state.result
+        except _WallBudget as e:
+            self.state.result = f"wall budget: {e}"[:4000]
+            self.state.status = "needs_human"
+            print(f"WALL BUDGET: {e} — stopping", flush=True)
+            self.save_run("needs_human")
+            return self.state.result
         except _BudgetExhausted as e:
             self.state.result = str(e)[:4000]
             self.state.budget_note = str(e)[:500]
@@ -3140,6 +3172,7 @@ class SwarmFlow(Flow[SwarmState]):
             "fix_rounds_detail": self.state.fix_rounds_detail,
             "tests_first": self.state.tests_first,
             "best_delta": self.state.best_delta,
+            "wall_budget_note": self.state.wall_budget_note,
             "cache": {
                 "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),
