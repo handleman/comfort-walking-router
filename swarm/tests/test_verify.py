@@ -262,7 +262,7 @@ def test_verifier_role_has_its_own_fallback_key():
     from swarm.flow import _fallback_key
 
     assert _fallback_key("verifier:1") == "SWARM_VERIFIER_MODEL"
-    assert _fallback_key("coder:verify1") == "SWARM_CODER_MODEL"
+    assert _fallback_key("senior:verify1") == "SWARM_SENIOR_MODEL"
 
 
 # ---- the flow phase ----
@@ -311,12 +311,12 @@ def test_verify_phase_feeds_the_correction_plan_back_to_the_coder(monkeypatch):
         kicked.append((role, role))
         if role.startswith("verifier:1"):
             return None, _blocked()
-        if role.startswith("coder:verify1"):
+        if role.startswith("senior:verify1"):
             return None, "step done"
         return None, "VERDICT: PASS"
 
     assert stub._verify_phase(_task(), kick) is True
-    assert [role for role, _ in kicked] == ["verifier:1", "coder:verify1", "verifier:2"]
+    assert [role for role, _ in kicked] == ["verifier:1", "senior:verify1", "verifier:2"]
     record = stub.state.verifier
     assert record["verdict"] == "pass"
     assert record["rounds"] == 2
@@ -336,7 +336,7 @@ def test_verify_phase_does_not_loop_forever(monkeypatch):
         return None, "still wrong"
 
     assert stub._verify_phase(_task(), kick) is False
-    assert kicked == ["verifier:1", "coder:verify1", "verifier:2"]
+    assert kicked == ["verifier:1", "senior:verify1", "verifier:2"]
     record = stub.state.verifier
     assert record["blocked"] is True
     assert record["rounds"] == verify.MAX_VERIFY_ROUNDS
@@ -547,7 +547,7 @@ def test_a_landed_correction_still_blocked_on_the_same_file_is_unstable(monkeypa
     )
 
     def kick(build, role):
-        if role.startswith("coder:verify"):
+        if role.startswith("senior:verify"):
             sig["v"] = "b"  # the correction landed
             return build(), "done"
         rounds["n"] += 1

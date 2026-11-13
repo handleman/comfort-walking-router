@@ -1003,3 +1003,13 @@ Two A/Bs, both off/at the strict default until the suite shows a win:
   changed. Scope, the real-API rule and the no-gates rule are unchanged.
 - `SWARM_PLAN_MAX_STEPS` (≤ 8) asks the planner for that many micro-steps and to
   use the fewest coherent steps for a small task. `steps_usable` still caps at 8.
+
+## Repair routing (021 T14)
+- The first code fix round uses the coder model. A **second** round is a stuck
+  loop, so it runs on the senior crew (`senior:fixN`, `build_senior_crew`).
+- Every 019 verifier correction runs on the senior step crew
+  (`senior:verifyN`, `build_senior_step_crew`) with the findings as the error
+  context: the scenario is already stuck, so a stronger one-shot pass is cheaper
+  than another coder round.
+- Role prefixes drive fallback mapping, so `senior:*` roles degrade to the
+  senior fallback, never the coder's.

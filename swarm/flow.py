@@ -1763,7 +1763,11 @@ class SwarmFlow(Flow[SwarmState]):
         QA still owns the gates: this phase can never make a run green.
         """
         from swarm import verify
-        from swarm.crew import MAX_STEPS, build_step_crew, build_verify_crew
+        from swarm.crew import (
+            MAX_STEPS,
+            build_senior_step_crew,
+            build_verify_crew,
+        )
         from swarm.tools_guarded import run_delta
 
         self.state.verifier = {}
@@ -1897,10 +1901,15 @@ class SwarmFlow(Flow[SwarmState]):
             for idx, step in enumerate(plan, 1):
                 try:
                     kick(
-                        lambda step=step, idx=idx, plan=plan: build_step_crew(
-                            self._spec_dir, task, step, idx, len(plan)
+                        lambda step=step, idx=idx, plan=plan, findings=findings: build_senior_step_crew(
+                            self._spec_dir,
+                            task,
+                            step,
+                            idx,
+                            len(plan),
+                            "The scenario verifier blocked with: " + "; ".join(findings),
                         ),
-                        f"coder:verify{round_no + 1}",
+                        f"senior:verify{round_no + 1}",
                     )
                 except SystemExit as e:
                     record["blocked"] = True
@@ -2758,12 +2767,20 @@ class SwarmFlow(Flow[SwarmState]):
                     else:
                         code_rounds += 1
                         self.state.fix_rounds += 1
+                    # 021 T14: the first code round is coder work; a second one is
+                    # a stuck loop, so it goes to the senior model.
+                    fix_builder = build_senior_crew if code_rounds > 1 else build_fix_crew
+                    fix_role = (
+                        f"senior:fix{self.state.fix_rounds}"
+                        if code_rounds > 1
+                        else f"coder:fix{self.state.fix_rounds}"
+                    )
                     try:
                         _kickoff(
-                            lambda report_block=report_block, qa_note=qa_note: build_fix_crew(
+                            lambda report_block=report_block, qa_note=qa_note, fix_builder=fix_builder: fix_builder(
                                 self._spec_dir, task, report_block, qa_note
                             ),
-                            role=f"coder:fix{self.state.fix_rounds}",
+                            role=fix_role,
                             step=f"fix{self.state.fix_rounds}",
                         )
                     except SystemExit as e:

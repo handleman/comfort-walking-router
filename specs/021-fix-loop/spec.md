@@ -160,6 +160,14 @@ autonomy) judgeable on outcomes rather than on prompt characters.
   named behaviour passes. `run.json.verifier` keeps the findings that remain, so
   an over-reach is visible instead of silently blocking.
 
+- **AC-14 — Repair routing.** A second code round is a stuck loop, so it is
+  handed to the **senior model** (`senior:fixN`, `build_senior_crew`); the first
+  round stays coder work. The 019 verifier's corrections likewise run on the
+  senior step crew (`senior:verifyN`, `build_senior_step_crew`) with the findings
+  as the error context. Fallback mapping follows the role prefix, so a senior
+  correction degrades to `SWARM_SENIOR_MODEL`'s fallback, never the coder's.
+  `fix_rounds_detail` keeps the round; `usage.by_role` attributes the model.
+
 - **AC-9 — Measured result.** The outcome suite runs before and after; the
   before/after table lands in `docs/research/fix-loop-2026.md` and `changelog.md`.
   Targets: fix-round rate **59% → ≤35%**, `coder:fix*` prompt tokens **−40%**,

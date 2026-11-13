@@ -1371,3 +1371,15 @@ def test_ollama_timeout_defaults_to_30_minutes(monkeypatch):
     monkeypatch.delenv("SWARM_OLLAMA_TIMEOUT_SECONDS", raising=False)
     model = llms._build("ollama/swarm-qa:latest", temperature=0, allow_paid=False)
     assert model.timeout == 1800
+
+
+# ---- 021 T14: repair routing ----
+
+def test_repair_routing_to_the_senior_model_is_in_the_loop():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
+    assert "fix_builder = build_senior_crew if code_rounds > 1 else build_fix_crew" in source
+    assert "senior:verify" in source
+    # verifier corrections use the senior step crew (a stuck step, not a new step)
+    assert "build_senior_step_crew(" in source

@@ -26,6 +26,8 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/artifacts.py`, `swarm/flow.py`, `swarm/tests/test_artifacts.py`, `swarm/tests/test_verify.py`.
 - [x] T13 (AC-13): verifier task scope — include the task's `tasks.md` line in the verifier prefix and forbid requiring later tasks' wiring or an unstated algorithm/precision.
   Evidence: `swarm/verify.py`, `swarm/prompts.py`, `swarm/tests/test_prompts.py`.
+- [x] T14 (AC-14): repair routing — the first code round stays coder work, a second round and every verifier correction use the senior model (`senior:fixN`, `senior:verifyN`), with the role prefix driving fallback mapping.
+  Evidence: `swarm/flow.py`, `swarm/tests/test_verify.py`, `swarm/tests/test_autoloop.py`.
 - [x] T9 (AC-8): close the loop — add `021-fix-loop` to `HARNESS_SPECS`, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
   Evidence: `swarm/flow.py::HARNESS_SPECS`, `.env.example`, `swarm/README.md`, `AGENTS.md`, `docs/roadmap.md`.
 
