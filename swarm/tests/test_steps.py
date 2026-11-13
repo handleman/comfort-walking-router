@@ -24,3 +24,10 @@ def test_parse_steps_empty():
 def test_steps_usable_rejects_tiny_steps():
     assert steps_usable(["ok"]) is False
     assert steps_usable(["app/x.py — add endpoint"]) is True
+
+
+def test_a_verbose_but_valid_step_is_usable():
+    """A 600-char step is still one file + one action; 500 rejected it."""
+    step = "app/main.py — " + ("wire the toggle through the cache key and the scorer. " * 10)
+    assert 500 < len(step) < 1200
+    assert steps_usable([step]) is True

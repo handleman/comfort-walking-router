@@ -652,9 +652,15 @@ def parse_steps(plan_text: str) -> list[str]:
     return [m.group(2).strip() for m in STEP_RE.finditer(plan_text) if m.group(2).strip()]
 
 
+# A planner step is one file + one exact action; verbose free models write
+# 600-900 characters for that. The coder truncates at 2000, so 1200 is a sanity
+# bound, not a style limit (500 killed a valid plan with `crew_error`).
+MAX_STEP_CHARS = 1200
+
+
 def steps_usable(steps: list[str]) -> bool:
     """A plan is usable only when it fits the micro-step budget and each step is sane."""
-    return 1 <= len(steps) <= MAX_STEPS and all(3 <= len(s) <= 500 for s in steps)
+    return 1 <= len(steps) <= MAX_STEPS and all(3 <= len(s) <= MAX_STEP_CHARS for s in steps)
 
 
 def step_count(plan_text: str) -> int:
