@@ -1051,3 +1051,12 @@ verifier pass beside the first QA round:
 
 `=0` restores the 021 order (verify, then QA). The flag ships on only if T6
 measures a wall-clock win with no green loss.
+
+## Lean verifier path (022 T5)
+`SWARM_VERIFY_LEAN=1` (default `0`) skips the scenario verifier only when the run
+delta is **docs-only and small**: every changed path under `docs/` or ending
+`.md`, at most `SWARM_LEAN_MAX_PATHS` (4) paths and `SWARM_LEAN_MAX_LINES` (200)
+changed lines, with all gates green. Test files are deliberately **not**
+low-risk — a test with the wrong expectation is the 014-T7 class the verifier
+exists for — and implementation paths always verify. The decision is recorded as
+`verifier.verdict=skipped` + `skipped_reason`, so a skipped check is visible.

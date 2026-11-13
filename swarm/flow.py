@@ -1796,6 +1796,29 @@ class SwarmFlow(Flow[SwarmState]):
                 started=check_started,
             )
 
+    def _lean_delta(self) -> bool:
+        """022 AC-4: is this delta docs-only and small enough to skip the verifier?"""
+        from swarm import verify
+        from swarm.tools_guarded import run_delta
+
+        changed = self._in_scope_paths(run_delta(self._baseline))
+        if not changed:
+            return False
+        rc, numstat = _git(["diff", "--numstat", "--", *changed])
+
+        def _int(name: str, default: int) -> int:
+            try:
+                return int(os.getenv(name, str(default)) or default)
+            except ValueError:
+                return default
+
+        return verify.low_risk(
+            changed,
+            numstat if rc == 0 else "",
+            max_paths=_int("SWARM_LEAN_MAX_PATHS", 4),
+            max_lines=_int("SWARM_LEAN_MAX_LINES", 200),
+        )
+
     def _verifier_record(self) -> dict[str, Any]:
         from swarm import verify
 
@@ -1923,6 +1946,14 @@ class SwarmFlow(Flow[SwarmState]):
 
         self.state.verifier = {}
         if not verify.enabled():
+            return True
+        if verify.lean_enabled() and self._lean_delta():
+            self.state.verifier = {
+                "verdict": "skipped",
+                "blocked": False,
+                "skipped_reason": "low-risk delta: docs-only, small",
+            }
+            print("verifier: skipped (low-risk docs-only delta)", flush=True)
             return True
 
         record = self._verifier_record()

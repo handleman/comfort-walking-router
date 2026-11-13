@@ -50,6 +50,43 @@ MAX_REPORT_CHARS = 14000
 # ---------------------------------------------------------------------------
 
 
+def lean_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """022 AC-4: skip the verifier for a low-risk delta (default off)."""
+    source: Mapping[str, str] = os.environ if env is None else env
+    return str(source.get("SWARM_VERIFY_LEAN", "0")).strip().lower() in {"1", "true", "yes"}
+
+
+def low_risk(
+    changed: list[str],
+    numstat: str = "",
+    *,
+    max_paths: int = 4,
+    max_lines: int = 200,
+) -> bool:
+    """True only for a docs-only, small delta: nothing that can hide 014-T2.
+
+    Test files are deliberately **not** low-risk: a test with the wrong
+    expectation is exactly the 014-T7 class the verifier exists for.
+    """
+    paths = [str(p).replace("\\", "/").lstrip("./") for p in changed or []]
+    if not paths or len(paths) > max_paths:
+        return False
+    for path in paths:
+        docs = path.startswith("docs/") or path.endswith(".md")
+        if not docs:
+            return False
+    lines = 0
+    for row in (numstat or "").splitlines():
+        parts = row.split()
+        if len(parts) < 2:
+            continue
+        try:
+            lines += int(parts[0]) + int(parts[1])
+        except ValueError:
+            continue
+    return lines <= max_lines
+
+
 def concurrent_enabled(env: Mapping[str, str] | None = None) -> bool:
     """022 AC-3: run the first read-only verifier pass with QA (default off)."""
     source: Mapping[str, str] = os.environ if env is None else env

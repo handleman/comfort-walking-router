@@ -10,7 +10,7 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/llms.py`, `swarm/flow.py`, `swarm/tests/test_cache.py`, `swarm/tests/test_autoloop.py`.
 - [x] T4 (AC-3): run the 019 verifier and the first QA round concurrently when `SWARM_VERIFY_CONCURRENT=1` (default 0): read-only verifier, QA runs gates, both must pass, listener writes serialised by a lock, sequential fallback when off.
   Evidence: `swarm/flow.py`, `swarm/events.py`, `swarm/tests/test_concurrent_verify.py`.
-- [ ] T5 (AC-4): add the lean verifier path — `SWARM_VERIFY_LEAN=1` (default 0) skips the scenario verifier only for a low-risk delta (docs/tests/mechanical under `SWARM_LEAN_MAX_LINES`/`SWARM_LEAN_MAX_PATHS`) with all gates green; record `verifier.skipped_reason`; implementation paths always verify.
+- [x] T5 (AC-4): add the lean verifier path — `SWARM_VERIFY_LEAN=1` (default 0) skips the scenario verifier only for a low-risk delta (docs/tests/mechanical under `SWARM_LEAN_MAX_LINES`/`SWARM_LEAN_MAX_PATHS`) with all gates green; record `verifier.skipped_reason`; implementation paths always verify.
   Evidence: `swarm/verify.py`, `swarm/flow.py`, `swarm/tests/test_verify_lean.py`.
 - [ ] T6 (AC-6): run the outcome suite with the budget and the paid/fast pin for baseline, concurrent and lean arms; record green, wall clock, per-phase p50, retries and cost in `docs/research/fix-loop-2026.md`; targets p50 ≤ 10 min for a two-file case and ≤ 45 min for five cases, green not lower than 021.
   Evidence: `docs/research/fix-loop-2026.md` (results), `swarm/bench/replay_baseline.json`.
