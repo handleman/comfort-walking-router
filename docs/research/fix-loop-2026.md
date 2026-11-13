@@ -301,8 +301,15 @@ So the paid coder produces gate-green work quickly; the bottleneck moved to the 
 
 A third run with a fast cloud QA (`lightning`) and a 900 s cap removed the hang
 (no 9-minute silence) but ran out of wall clock in the fix loop after `npm test`
-came back red. The loop was working, not stuck — the cap was too small for a
-two-step task plus one repair round.
+came back red. A fourth run with a 1500 s cap got further — QA, a harness
+fallback, two crews, one `task_failed`/`crew_failed` and a retry — and still hit
+the cap. The loop was working, not stuck; the cap was too small for a two-step
+task plus one repair round plus a retry.
+
+That is the real measurement: **the loop has ~10 sequential model phases**
+(planner, steps, self-check, verifier, QA, fix/retry), and at 30–90 s per call
+that is 10–25 minutes before a failure is even decided. A paid coder removes the
+capability problem; it does not remove the wall clock.
 
 ### Bake-off: the models are not the whole story
 
