@@ -267,6 +267,27 @@ over-decomposition and with model capability. T10 measures all three (loose
 prompt, planner step count, stronger coder pin) instead of relaxing a guard that
 exists to stop Qwen-9B wandering.
 
+### The verifier judged the spec, not the task
+
+The lightning bake-off run on `007-live-position-T2` made the remaining
+verifier problem explicit. That task is "add `snap.ts` and `snap.test.ts`". The
+verifier blocked it on:
+
+1. using planar projection instead of spherical trigonometry (no AC asks for
+   that precision), and
+2. not being imported by a consumer — which is **T7/T8's** work in the same
+   spec.
+
+So the verifier was applying a senior-engineer quality bar to a unit task and
+pulling a spec-level AC that a later task owns. That is the same class as
+006-T3's test-design fight, and it explains why capable models still end
+`verifier_blocked`.
+
+Fix (T13): the verifier prefix now carries the task's own `tasks.md` line and a
+scope rule — judge the brief and the referenced ACs; later tasks own their
+wiring, UI, consumers and e2e; do not require an algorithm or precision the
+brief does not state.
+
 ## 021 measurement: what the suite could and could not show
 
 The outcome suite was attempted with the operator's `.env` routing plus a

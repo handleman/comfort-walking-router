@@ -152,6 +152,14 @@ autonomy) judgeable on outcomes rather than on prompt characters.
   correction pass follows the same rule: a correction that changes nothing is
   `stalled` (a coder failure), not `unstable` (a verifier contradiction).
 
+- **AC-13 — Verifier task scope.** The verifier judges **this task**, not the
+  whole spec: its prefix carries the task's own line from `tasks.md`, and the
+  prompt says that wiring, UI, consumers and e2e belong to later tasks even when
+  a spec-level AC mentions them, and that an algorithm, precision or structure
+  the brief does not state is not required. A working implementation of the
+  named behaviour passes. `run.json.verifier` keeps the findings that remain, so
+  an over-reach is visible instead of silently blocking.
+
 - **AC-9 — Measured result.** The outcome suite runs before and after; the
   before/after table lands in `docs/research/fix-loop-2026.md` and `changelog.md`.
   Targets: fix-round rate **59% → ≤35%**, `coder:fix*` prompt tokens **−40%**,

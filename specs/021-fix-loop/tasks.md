@@ -24,6 +24,8 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/verify.py`, `swarm/flow.py`, `swarm/prompts.py`, `swarm/tests/test_verify.py`.
 - [x] T12 (AC-12): a step must land its file — `artifacts.step_target` / `step_landed`; a step whose target is absent from the run delta is a failed attempt (retry, then senior), `run.json.steps[].landed` records it, and a verifier correction that changes nothing is `stalled` (coder failure) rather than `unstable`.
   Evidence: `swarm/artifacts.py`, `swarm/flow.py`, `swarm/tests/test_artifacts.py`, `swarm/tests/test_verify.py`.
+- [x] T13 (AC-13): verifier task scope — include the task's `tasks.md` line in the verifier prefix and forbid requiring later tasks' wiring or an unstated algorithm/precision.
+  Evidence: `swarm/verify.py`, `swarm/prompts.py`, `swarm/tests/test_prompts.py`.
 - [x] T9 (AC-8): close the loop — add `021-fix-loop` to `HARNESS_SPECS`, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
   Evidence: `swarm/flow.py::HARNESS_SPECS`, `.env.example`, `swarm/README.md`, `AGENTS.md`, `docs/roadmap.md`.
 
