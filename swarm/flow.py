@@ -3257,6 +3257,7 @@ HARNESS_SPECS = (
     "019-scenario-verifier",
     "020-harness-efficiency",
     "021-fix-loop",
+    "022-lean-loop",
 )
 
 
