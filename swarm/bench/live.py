@@ -284,11 +284,14 @@ def run_case(
             result["tail"] = (proc.stdout or proc.stderr or "")[-4000:]
         return result
     except subprocess.TimeoutExpired:
+        # Keep the tree: a timeout is exactly when the run record is needed.
+        added = False
         return {
             "ok": False,
             "error": f"timed out after {timeout}s",
             "case": case_id,
             "worktree": str(worktree),
+            "kept": True,
         }
     finally:
         if added:

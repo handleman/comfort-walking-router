@@ -297,6 +297,12 @@ Two cases, `lightning` as coder and QA, 900 s per case:
 | 007-live-position-T2 | `needs_human` / `verifier_blocked` (stalled), 1274 s, **826k tokens** |
 | 010-e2e-playwright-T5 | timed out at 900 s |
 
+A later validation run of 007 with the base-compatible formatter and the
+senior-repair routing also **timed out at 2400 s**. The planner fix worked (the
+run got past planning), but the loop did not finish; the worktree is now kept on
+a timeout so the run record survives (it was removed before, which cost the
+evidence for this attempt).
+
 The 007 run is instructive. The self-check was red on Prettier, and the
 formatter could not fix it because the **base commit predates the `lint:fix`
 script** — `npm error Missing script: "lint:fix"` — which the harness did not
