@@ -1013,3 +1013,11 @@ Two A/Bs, both off/at the strict default until the suite shows a win:
   than another coder round.
 - Role prefixes drive fallback mapping, so `senior:*` roles degrade to the
   senior fallback, never the coder's.
+
+## Phase timing (022 T1)
+`events.jsonl` is the only clock. Every crew records `crew_started`/`crew_done`
+with the role the flow set around the kickoff, and `swarm/phases.py` pairs them
+(a stack, so nesting is safe) into `run.json.phases`:
+`{phase, started_at, ended_at, duration_seconds, failed, model}`. `make
+swarm-report` prints p50/p90 per phase and the slowest one, so a 20-minute task
+can be attributed to the call that ate it. No second timer, no second write path.

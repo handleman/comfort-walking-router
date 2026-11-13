@@ -619,6 +619,23 @@ def gate_commands(env: dict[str, str] | None = None) -> list[str]:
     return list(DEFAULT_GATE_COMMANDS)
 
 
+def _phase_records(run_dir: Path) -> list[dict[str, Any]]:
+    """Derive per-phase wall clock from this run's event stream (022 AC-1)."""
+    import json as _json
+
+    from swarm import phases as _phases
+
+    events: list[dict[str, Any]] = []
+    try:
+        for line in (Path(run_dir) / "events.jsonl").read_text().splitlines():
+            line = line.strip()
+            if line:
+                events.append(_json.loads(line))
+    except (OSError, ValueError):
+        return []
+    return _phases.derive(events)
+
+
 def _head_sha() -> str | None:
     """Current commit, or None when git is unavailable (e.g. an exported tree)."""
     rc, out = _git(["rev-parse", "HEAD"])
@@ -2468,7 +2485,13 @@ class SwarmFlow(Flow[SwarmState]):
                     if guard_budget:
                         self._check_budget()
                     crew = build()
-                    out = crew.kickoff()
+                    if self.listener is not None:
+                        self.listener.current_role = role or ""
+                    try:
+                        out = crew.kickoff()
+                    finally:
+                        if self.listener is not None:
+                            self.listener.current_role = ""
                 except _BudgetExhausted:
                     # A budget stop is terminal: retrying it cannot help, and
                     # swallowing it here turned "out of money" into
@@ -3111,6 +3134,7 @@ class SwarmFlow(Flow[SwarmState]):
             "compaction": self.state.compaction,
             "gate_selection": self.state.gate_selection,
             "base_sha": getattr(self, "_base_sha", "") or None,
+            "phases": _phase_records(self.run_dir),
             "head_sha": _head_sha(),
             "plan_hash": self.state.plan_hash or None,
             "fix_rounds_detail": self.state.fix_rounds_detail,

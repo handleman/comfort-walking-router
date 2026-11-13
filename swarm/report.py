@@ -69,6 +69,20 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             phases[phase] = phases.get(phase, 0) + 1
             if entry.get("changed"):
                 changed_rounds += 1
+    # 022 AC-1: wall clock per phase, derived from each run's events.
+    phase_durations: dict[str, list[float]] = {}
+    for row in rows:
+        for phase in row.get("phases") or []:
+            name = str(phase.get("phase") or "crew")
+            phase_durations.setdefault(name, []).append(float(phase.get("duration_seconds") or 0))
+    phases_summary: dict[str, dict[str, float]] = {}
+    for name, values in phase_durations.items():
+        values = sorted(values)
+        phases_summary[name] = {
+            "n": len(values),
+            "p50": round(statistics.median(values), 1),
+            "p90": round(values[max(0, int(len(values) * 0.9) - 1)], 1),
+        }
     # 021 AC-7: does each verification phase catch anything?
     selfcheck_runs = [r for r in rows if r.get("self_check")]
     verifier_runs = [r for r in rows if r.get("verifier")]
@@ -95,6 +109,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "self_check_hits": sum(1 for r in selfcheck_runs if (r.get("self_check") or {}).get("hit")),
         "verifier_runs": len(verifier_runs),
         "verifier_hits": sum(1 for r in verifier_runs if (r.get("verifier") or {}).get("hit")),
+        "phases": dict(sorted(phases_summary.items(), key=lambda kv: -kv[1]["p50"])),
     }
 
 
@@ -131,6 +146,10 @@ def render(summary: dict[str, Any]) -> str:
             f"verification: self-check {summary['self_check_hits']}/{sc} hit, "
             f"verifier {summary['verifier_hits']}/{vr} hit"
         )
+    if summary.get("phases"):
+        lines.append("phases (p50/p90, seconds):")
+        for name, stats in summary["phases"].items():
+            lines.append(f"  {name:<18} p50 {stats['p50']:>7}  p90 {stats['p90']:>7}  n={int(stats['n'])}")
     if summary["by_role"]:
         lines.append("tokens by role:")
         for role, bucket in sorted(summary["by_role"].items()):

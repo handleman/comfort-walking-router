@@ -55,6 +55,9 @@ class SwarmListener:
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.events: queue.Queue[dict[str, Any]] = queue.Queue()
         self._handlers: list[tuple[Any, Any]] = []
+        # Set by the flow around a kickoff: a crew event without a role cannot
+        # be attributed to a phase (022 AC-1).
+        self.current_role: str = ""
         outer = self
 
         class _L(BaseEventListener):
@@ -168,6 +171,8 @@ class SwarmListener:
         # Wall-clock stamps make a stalled call visible after the fact; without
         # them a 30-minute run cannot be attributed to one slow request.
         payload.setdefault("at", datetime.now().isoformat(timespec="milliseconds"))
+        if self.current_role and "role" not in payload:
+            payload["role"] = self.current_role
         self.events.put(payload)
         try:
             with (self.run_dir / "events.jsonl").open("a") as f:

@@ -2,7 +2,7 @@
 
 Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
 
-- [ ] T1 (AC-1): derive per-phase timing from `events.jsonl` into `run.json.phases` (phase, role, model, started_at, ended_at, duration_seconds) with no second clock, and add p50/p90 per phase plus the slowest-phase share to `make swarm-report`.
+- [x] T1 (AC-1): derive per-phase timing from `events.jsonl` into `run.json.phases` (phase, role, model, started_at, ended_at, duration_seconds) with no second clock, and add p50/p90 per phase plus the slowest-phase share to `make swarm-report`.
   Evidence: `swarm/flow.py`, `swarm/events.py`, `swarm/report.py`, `swarm/tests/test_phases.py`.
 - [ ] T2 (AC-2): enforce `SWARM_TASK_WALL_BUDGET` (default 900 s, 0 off) between phases and before a retry; on breach stop as `needs_human` / `reason_code=wall_budget` with the phase and elapsed in `human_log.txt`, never mid-crew.
   Evidence: `swarm/flow.py`, `swarm/humanlog.py`, `swarm/tests/test_autoloop.py`.
