@@ -288,6 +288,25 @@ scope rule — judge the brief and the referenced ACs; later tasks own their
 wiring, UI, consumers and e2e; do not require an algorithm or precision the
 brief does not state.
 
+### Bake-off: the models are not the whole story
+
+Two cases, `lightning` as coder and QA, 900 s per case:
+
+| Case | Result |
+| --- | --- |
+| 007-live-position-T2 | `needs_human` / `verifier_blocked` (stalled), 1274 s, **826k tokens** |
+| 010-e2e-playwright-T5 | timed out at 900 s |
+
+The 007 run is instructive. The self-check was red on Prettier, and the
+formatter could not fix it because the **base commit predates the `lint:fix`
+script** — `npm error Missing script: "lint:fix"` — which the harness did not
+surface. The verifier then blocked on a legitimate finding (`distanceMeters`
+returns degrees, though the name and the 30 m threshold imply meters), and the
+correction step changed nothing (`stalled`). So the failure was three things at
+once: a replay/tooling mismatch, a real semantic finding, and a repair crew that
+could not act on it. Fixing the formatter to report its exit code is done; the
+other two are the next phase's problem.
+
 ## 021 measurement: what the suite could and could not show
 
 The outcome suite was attempted with the operator's `.env` routing plus a

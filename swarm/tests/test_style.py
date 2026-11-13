@@ -203,3 +203,26 @@ def test_pre_qa_style_formats_the_delta_and_skips_an_empty_one(monkeypatch):
     monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: [])
     assert flow.SwarmFlow._pre_qa_style(stub) is False
     assert calls == []
+
+
+def test_a_formatter_that_cannot_run_is_reported_not_called_success(monkeypatch):
+    from swarm import flow, tools_guarded
+
+    monkeypatch.setenv("SWARM_STYLE_FIX", "1")
+    monkeypatch.setenv("SWARM_STYLE_FIX_COMMAND", "npm --prefix frontend run lint:fix")
+    monkeypatch.setattr(tools_guarded, "ShellTool", lambda agent_role="": _FailingShell())
+    monkeypatch.setattr(tools_guarded, "_git_changed", lambda: ["frontend/src/lib/x.ts"])
+    monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: ["frontend/src/lib/x.ts"])
+
+    stub = _Stub()
+    assert flow.SwarmFlow._apply_formatter(stub, "pre-qa") is False
+    assert stub.state.style_autofix["failed"] == ["npm --prefix frontend run lint:fix"]
+    assert "Missing script" in stub.state.style_autofix["output"]
+
+
+class _FailingShell:
+    def __init__(self, agent_role: str = "") -> None:
+        self.agent_role = agent_role
+
+    def _run(self, command: str) -> str:
+        return 'exit=1\nnpm error Missing script: "lint:fix"\n'

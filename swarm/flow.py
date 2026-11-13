@@ -1462,8 +1462,16 @@ class SwarmFlow(Flow[SwarmState]):
         before = set(_git_changed())
         runner = ShellTool(agent_role="harness-style")
         outputs: list[str] = []
+        failed: list[str] = []
         for command in commands:
-            outputs.append(runner._run(command))
+            result = runner._run(command)
+            outputs.append(result)
+            try:
+                code = int(result.split("exit=")[1].split()[0])
+            except (IndexError, ValueError):
+                code = 0
+            if code != 0:
+                failed.append(command)
         output = "\n".join(outputs)
         after = set(_git_changed())
         touched = sorted(after - before)
@@ -1490,10 +1498,16 @@ class SwarmFlow(Flow[SwarmState]):
             "command": "; ".join(commands),
             "files": touched,
             "reverted": reverted,
-            "output": output[-500:],
+            "failed": failed,
+            "output": output[-800:],
         }
+        if failed:
+            # A formatter that cannot run must not look like a clean repair
+            # (a replay at an older base may not have the script yet).
+            print(f"style autofix FAILED: {failed} — {output[-300:]}", flush=True)
+            return False
         print(
-            f"style autofix: {gate} -> {style.fix_command()} ({touched or 'no change'})",
+            f"style autofix: {gate} -> {'; '.join(commands)} ({touched or 'no change'})",
             flush=True,
         )
         return True
