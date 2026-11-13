@@ -1796,6 +1796,107 @@ class SwarmFlow(Flow[SwarmState]):
                 started=check_started,
             )
 
+    def _verifier_record(self) -> dict[str, Any]:
+        from swarm import verify
+
+        return {
+            "verdict": "",
+            "rounds": 0,
+            "findings": [],
+            "plan": [],
+            "files": [],
+            "skipped": [],
+            "model": verify.model_name(),
+            "delta": "",
+            "blocked": False,
+            "corrections": False,
+        }
+
+    def _verify_precheck(self, task: Any, kick: Any) -> dict[str, Any]:
+        """One read-only verifier pass, no corrections (022 AC-3).
+
+        This is the only part that may run while QA executes gates: it reads the
+        tree and runs no tool that can write. Corrections are applied by
+        `_verify_phase` afterwards, sequentially.
+        """
+        from swarm import verify
+        from swarm.crew import MAX_STEPS, build_verify_crew
+        from swarm.tools_guarded import run_delta
+
+        record = self._verifier_record()
+        changed = self._in_scope_paths(run_delta(self._baseline))
+        record["delta"] = self._delta_signature()
+        context = verify.scenario_context(REPO_ROOT, self._spec_dir, task, changed)
+        record["files"] = list(context.get("files") or [])
+        record["skipped"] = list(context.get("skipped") or [])
+        context_text = verify.render_context(context)
+        try:
+            crew, out = kick(
+                lambda context_text=context_text: build_verify_crew(
+                    self._spec_dir, task, context_text
+                ),
+                "verifier:1",
+            )
+        except SystemExit as e:
+            record.update(verdict="error", note=str(e)[:500], blocked=False)
+            print(f"verifier unavailable: {e}"[:500], flush=True)
+            return record
+        agents = getattr(crew, "agents", None) or []
+        if agents:
+            model = str(getattr(getattr(agents[0], "llm", None), "model", "") or "")
+            if model:
+                record["model"] = model
+        verdict, findings = verify.parse_verdict(out)
+        plan = verify.parse_plan(out)[:MAX_STEPS] if verdict == "blocked" else []
+        record.update(
+            verdict=verdict,
+            rounds=1,
+            findings=findings,
+            plan=plan,
+            output=str(out)[-2000:],
+            history=[{"round": 1, "verdict": verdict, "findings": findings, "plan": plan}],
+            blocked=verdict == "blocked",
+        )
+        if verdict == "blocked":
+            record["hit"] = True
+            record["hit_basis"] = "corrections" if plan else "blocked"
+        return record
+
+    def _verify_concurrently(self, task: Any, kick: Any, review: Any) -> tuple[bool, bool]:
+        """First verifier pass in a thread, QA in the main one (022 AC-3).
+
+        Formatting runs *before* the thread starts, so no file changes while the
+        verifier reads. A block is handled after QA by the sequential phase: a
+        correction step must never write while QA is running gates.
+        """
+        import threading
+
+        holder: dict[str, Any] = {}
+
+        def _pre() -> None:
+            try:
+                holder["record"] = self._verify_precheck(task, kick)
+            except BaseException as e:  # advisory: never lose a run QA can decide
+                holder["error"] = e
+
+        self._pre_qa_style()
+        thread = threading.Thread(target=_pre, name="verifier", daemon=True)
+        thread.start()
+        reviewed = review()
+        thread.join()
+        record = holder.get("record")
+        if not record:
+            self.state.verifier = {
+                "verdict": "error",
+                "note": str(holder.get("error"))[:500],
+                "blocked": False,
+            }
+            return reviewed, True
+        self.state.verifier = record
+        if record.get("blocked"):
+            return reviewed, self._verify_phase(task, kick)
+        return reviewed, True
+
     def _verify_phase(self, task: Any, kick: Any) -> bool:
         """Scenario verification between the 017 self-check and QA (019).
 
@@ -1824,18 +1925,7 @@ class SwarmFlow(Flow[SwarmState]):
         if not verify.enabled():
             return True
 
-        record: dict[str, Any] = {
-            "verdict": "",
-            "rounds": 0,
-            "findings": [],
-            "plan": [],
-            "files": [],
-            "skipped": [],
-            "model": verify.model_name(),
-            "delta": "",
-            "blocked": False,
-            "corrections": False,
-        }
+        record = self._verifier_record()
         self.state.verifier = record
         for round_no in range(verify.MAX_VERIFY_ROUNDS):
             changed = self._in_scope_paths(run_delta(self._baseline))
@@ -2758,15 +2848,6 @@ class SwarmFlow(Flow[SwarmState]):
                     task,
                     lambda build, role: _kickoff(build, role=role, step="selfcheck"),
                 )
-                # 019: does the implemented scenario do what the brief says? The
-                # gates test what exists, so a missing endpoint or an unwired
-                # component passes them; this phase reads the whole scenario.
-                # Read-only and advisory: QA still owns the gates and green.
-                if not self._verify_phase(
-                    task,
-                    _verify_kick,
-                ):
-                    break
                 # 020 AC-3: full step outputs live in <run>/step_outputs/, the
                 # prompt carries a bounded digest (index, files, outcome, path).
                 work_summary, compacted = compaction.compact_steps(
@@ -2777,9 +2858,26 @@ class SwarmFlow(Flow[SwarmState]):
                 self.state.compaction = compaction.merge_records(
                     self.state.compaction, compacted
                 )
-                # 015 AC-2/AC-3: QA runs the gates; its recorded executions are
-                # the evidence green is built from.
-                reviewed = _review(task, work_summary)
+                # 019: does the implemented scenario do what the brief says? The
+                # gates test what exists, so a missing endpoint or an unwired
+                # component passes them; this phase reads the whole scenario.
+                # Read-only and advisory: QA still owns the gates and green.
+                # 022 AC-3: with SWARM_VERIFY_CONCURRENT=1 the first read-only
+                # pass runs beside QA; corrections always run after it.
+                from swarm import verify as _verify
+
+                if _verify.enabled() and _verify.concurrent_enabled():
+                    reviewed, verify_ok = self._verify_concurrently(
+                        task, _verify_kick, lambda ws=work_summary: _review(task, ws)
+                    )
+                    if not verify_ok:
+                        break
+                else:
+                    if not self._verify_phase(task, _verify_kick):
+                        break
+                    # 015 AC-2/AC-3: QA runs the gates; its recorded executions
+                    # are the evidence green is built from.
+                    reviewed = _review(task, work_summary)
                 self.state.result = f"{work_summary}\n--- review ---\n{self.state.review_text}"[:8000]
                 changed = run_delta(self._baseline)
                 gates, transcript, missing = self._gates_or_evidence(changed)

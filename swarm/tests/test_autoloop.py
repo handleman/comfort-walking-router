@@ -635,6 +635,7 @@ def test_gate_passes_preflight_failure_through():
 
 
 def test_record_usage_accumulates_tokens_and_models():
+    import threading
     import types
     from typing import ClassVar
 
@@ -651,7 +652,12 @@ def test_record_usage_accumulates_tokens_and_models():
             types.SimpleNamespace(llm=types.SimpleNamespace(model="ollama/x"))
         ]
 
-    stub = types.SimpleNamespace(state=SwarmState())
+    stub = types.SimpleNamespace(
+        state=SwarmState(),
+        _state_lock=threading.Lock(),
+        _usage_by_role={},
+        _usage_by_step={},
+    )
     SwarmFlow._record_usage(stub, Crew(), Out())
     SwarmFlow._record_usage(stub, Crew(), Out())
     assert stub.state.prompt_tokens == 20

@@ -50,6 +50,12 @@ MAX_REPORT_CHARS = 14000
 # ---------------------------------------------------------------------------
 
 
+def concurrent_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """022 AC-3: run the first read-only verifier pass with QA (default off)."""
+    source: Mapping[str, str] = os.environ if env is None else env
+    return str(source.get("SWARM_VERIFY_CONCURRENT", "0")).strip().lower() in {"1", "true", "yes"}
+
+
 def enabled(env: Mapping[str, str] | None = None) -> bool:
     """True unless the phase is switched off (`SWARM_VERIFY=0`)."""
     source: Mapping[str, str] = os.environ if env is None else env

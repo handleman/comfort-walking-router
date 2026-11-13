@@ -8,7 +8,7 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/flow.py`, `swarm/humanlog.py`, `swarm/tests/test_autoloop.py`.
 - [x] T3 (AC-5): split timeouts — `SWARM_LLM_FIX_TIMEOUT_SECONDS` (default 180) for fix/senior/verifier/correction crews, keep the chat timeout for planner/QA — and record `llm_timeout` events plus `run.json.retries`; skip a retry whose worst case cannot fit the remaining wall budget.
   Evidence: `swarm/llms.py`, `swarm/flow.py`, `swarm/tests/test_cache.py`, `swarm/tests/test_autoloop.py`.
-- [ ] T4 (AC-3): run the 019 verifier and the first QA round concurrently when `SWARM_VERIFY_CONCURRENT=1` (default 0): read-only verifier, QA runs gates, both must pass, listener writes serialised by a lock, sequential fallback when off.
+- [x] T4 (AC-3): run the 019 verifier and the first QA round concurrently when `SWARM_VERIFY_CONCURRENT=1` (default 0): read-only verifier, QA runs gates, both must pass, listener writes serialised by a lock, sequential fallback when off.
   Evidence: `swarm/flow.py`, `swarm/events.py`, `swarm/tests/test_concurrent_verify.py`.
 - [ ] T5 (AC-4): add the lean verifier path — `SWARM_VERIFY_LEAN=1` (default 0) skips the scenario verifier only for a low-risk delta (docs/tests/mechanical under `SWARM_LEAN_MAX_LINES`/`SWARM_LEAN_MAX_PATHS`) with all gates green; record `verifier.skipped_reason`; implementation paths always verify.
   Evidence: `swarm/verify.py`, `swarm/flow.py`, `swarm/tests/test_verify_lean.py`.

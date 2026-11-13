@@ -1036,3 +1036,18 @@ and verifier crews; chat-like planner/QA calls keep `SWARM_LLM_TIMEOUT_SECONDS`
 (default 90). A timed-out call is its own event (`llm_timeout`), retries are
 counted in `run.json.retries`, and a retry is only started after the wall budget
 check (T2) — so a 90 s timeout cannot quietly double the task.
+
+## Concurrent verification (022 T4)
+`SWARM_VERIFY_CONCURRENT=1` (default `0`) runs the **first, read-only** 019
+verifier pass beside the first QA round:
+- formatting runs *before* the thread starts, so no file changes while the
+  verifier reads; the verifier runs no gate and writes nothing;
+- both must pass for green;
+- if the concurrent pass blocks, its corrections run **after** QA and the
+  scenario is re-verified sequentially — a correction must never write while QA
+  is running gates;
+- roles are thread-local and usage comes from each crew's own `token_usage`, so
+  the two phases stay attributed correctly; event writes are serialised.
+
+`=0` restores the 021 order (verify, then QA). The flag ships on only if T6
+measures a wall-clock win with no green loss.
