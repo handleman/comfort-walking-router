@@ -299,6 +299,11 @@ With `coder=zen/glm-5.3-flash` (paid, ~$0.15/M in) on `007-live-position-T2`:
 
 So the paid coder produces gate-green work quickly; the bottleneck moved to the **verdict/fix call**, and in run 2 specifically to the local QA model. That is a routing problem, not a coding problem: QA should not be a slow 9.7B model on a long report.
 
+A third run with a fast cloud QA (`lightning`) and a 900 s cap removed the hang
+(no 9-minute silence) but ran out of wall clock in the fix loop after `npm test`
+came back red. The loop was working, not stuck — the cap was too small for a
+two-step task plus one repair round.
+
 ### Bake-off: the models are not the whole story
 
 Two cases, `lightning` as coder and QA, 900 s per case:
