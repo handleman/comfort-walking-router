@@ -24,7 +24,7 @@ from typing import Any
 from crewai.flow.flow import Flow, listen, start
 from pydantic import BaseModel
 
-from swarm import artifacts, compaction, fixcause, llms
+from swarm import artifacts, compaction, fixcause, journal, llms
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 with contextlib.suppress(Exception):
@@ -1047,6 +1047,10 @@ class SwarmFlow(Flow[SwarmState]):
         self._base_sha = _base.strip() if _rc == 0 else ""
         self.run_dir = _runs_dir() / _unique_run_id()
         self.run_dir.mkdir(parents=True, exist_ok=True)
+        # ADR-012 option C: the run journal is the durable record (steps,
+        # leases, effect keys); run.json remains the operator view.
+        self._journal = journal.Journal(self.run_dir / "journal.db")
+        self._journal.append(self.run_dir.name, "run_started", key="run-started")
         (_runs_dir() / "latest").write_text(self.run_dir.name)
         (_runs_dir() / "swarm.pid").write_text(str(os.getpid()))
         meta = {
@@ -1077,6 +1081,8 @@ class SwarmFlow(Flow[SwarmState]):
         # Never kick a crew from a signal/atexit path: see save_run for the
         # run-end restore, where a conflict can be resolved and recorded.
         self._restore_stash(allow_crew=False)
+        with contextlib.suppress(Exception):
+            self._journal.close()
         with contextlib.suppress(Exception):
             self._lock.release()
         pid = _runs_dir() / "swarm.pid"
@@ -2150,7 +2156,14 @@ class SwarmFlow(Flow[SwarmState]):
         allow_empty: bool = False,
     ) -> dict[str, str]:
         """Commit + push run-delta in-scope changes after a green run."""
-        return _commit_changes(
+        # ADR-012: the commit is an idempotent effect. A restart after a crash
+        # between commit and run.json must not create a second commit.
+        _journal = getattr(self, "_journal", None)
+        effect_key = f"commit:{self.run_dir.name}:{self._delta_signature()}"
+        existing = _journal.effect(effect_key) if _journal is not None else None
+        if existing is not None:
+            return existing
+        record = _commit_changes(
             self.state.spec_dir,
             self.state.task_id,
             brief,
@@ -2161,6 +2174,9 @@ class SwarmFlow(Flow[SwarmState]):
             allow_empty=allow_empty,
             resolver=self._resolve_conflict,
         )
+        if _journal is not None:
+            _journal.record_effect(effect_key, self.run_dir.name, "commit", record)
+        return record
 
     def _stash_unrelated(self, task: Any) -> None:
         """015 AC-10: park unrelated dirty in-scope files so they never block a run."""
@@ -2801,6 +2817,12 @@ class SwarmFlow(Flow[SwarmState]):
             checkpoint, recovery_note = self._resume_checkpoint(task, plan_text, steps)
             resume_from = int(checkpoint.get("completed") or 0) if checkpoint else 0
             checkpoint_outputs = list(checkpoint.get("step_outputs") or []) if checkpoint else []
+            # ADR-012: the journal's completed prefix is an authority for resume,
+            # not only the per-step progress.json snapshot.
+            journal_outputs = self._journal.completed_outputs(self.run_dir.name)
+            if len(journal_outputs) > len(checkpoint_outputs):
+                checkpoint_outputs = journal_outputs
+                self.state.recovery = self.state.recovery or "journal"
             if checkpoint:
                 self.state.resumed_from_step = resume_from
                 self.state.recovery = "checkpoint-last-step" if recovery_note else "checkpoint"
@@ -2828,6 +2850,7 @@ class SwarmFlow(Flow[SwarmState]):
             # 015 AC-7: step outputs survive a dev retry — a second attempt must
             # not re-execute work the first attempt already finished.
             step_outs: list[str] = list(checkpoint_outputs)
+            self._journal.seed_steps(self.run_dir.name, len(steps))
             # 021 T4: tests-first, once per task, before the implementation.
             self._tests_first_phase(task, _kickoff)
             while True:
@@ -2907,6 +2930,7 @@ class SwarmFlow(Flow[SwarmState]):
                         }
                     )
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
+                    self._journal.complete_step(self.run_dir.name, i, step_out)
                     self._write_progress(plan_hash, steps, i, step_outs)
                 # 017: the coder checks types/lint before the work is passed on.
                 # QA is still the only gate executor; this is early feedback, not
@@ -3363,12 +3387,20 @@ class SwarmFlow(Flow[SwarmState]):
             "wall_budget_note": self.state.wall_budget_note,
             "retries": self.state.retries,
             "plan_trimmed": self.state.plan_trimmed,
+            "journal": (
+                self._journal.fold(self.run_dir.name)
+                if getattr(self, "_journal", None) is not None
+                else {}
+            ),
             "cache": {
                 "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),
                 "cached_prompt_tokens": self.state.cached_prompt_tokens,
             },
         }
+        _journal = getattr(self, "_journal", None)
+        if _journal is not None:
+            _journal.append(self.run_dir.name, "run_status", payload={"status": status})
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate
             if not in_scope:
@@ -3519,6 +3551,7 @@ HARNESS_SPECS = (
     "022-lean-loop",
     "023-parallel-factory",
     "024-earned-autonomy",
+    "025-durable-journal",
 )
 
 
