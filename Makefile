@@ -6,7 +6,7 @@
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
 	swarm-supervise swarm-report swarm-log swarm-night \
 	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live swarm-parallel \
-	swarm-replay swarm-replay-off swarm-replay-one
+	swarm-replay swarm-replay-off swarm-replay-one swarm-replay-paid
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -89,6 +89,11 @@ swarm-bench-build: ## Rebuild the frozen replay corpus from green runs (git hist
 
 swarm-bench-baseline: ## Snapshot the current bench score as baseline.json (before a harness change)
 	swarm/.venv/bin/python -m swarm.bench --update-baseline
+
+swarm-replay-paid: ## Replay suite with the agreed paid coder + fast QA and a base-compatible formatter
+	SWARM_BENCH_MODELS="coder=zen/glm-5.3-flash,qa=openrouter/nvidia/nemotron-3.5-lightning:free" \
+	SWARM_STYLE_FIX_COMMAND="npm --prefix frontend run format" \
+	swarm/.venv/bin/python -m swarm.bench.replay $(ARGS)
 
 swarm-replay: ## Outcome replay suite (5–8 cases, models required; compares to replay_baseline.json)
 	swarm/.venv/bin/python -m swarm.bench.replay $(ARGS)

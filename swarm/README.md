@@ -1023,7 +1023,7 @@ swarm-report` prints p50/p90 per phase and the slowest one, so a 20-minute task
 can be attributed to the call that ate it. No second timer, no second write path.
 
 ## Wall budget (022 T2)
-`SWARM_TASK_WALL_BUDGET` (default 900 s, `0` disables) is checked **between
+`SWARM_TASK_WALL_BUDGET` (default 1800 s, `0` disables) is checked **between
 phases and before every retry** — never mid-call, so a running generation
 finishes and the budget decides. On breach the run stops as `needs_human` with
 `reason_code=wall_budget`, `run.json.wall_budget_note` and `human_log.txt`
@@ -1064,7 +1064,7 @@ exists for — and implementation paths always verify. The decision is recorded 
 ## 022 knobs
 | Knob | Default | Effect |
 | --- | --- | --- |
-| `SWARM_TASK_WALL_BUDGET` | `900` | per-task wall clock, checked between phases and before retries (`0` off) |
+| `SWARM_TASK_WALL_BUDGET` | `1800` | per-task wall clock, checked between phases and before retries (`0` off) |
 | `SWARM_LLM_FIX_TIMEOUT_SECONDS` | `180` | timeout for fix/self-check/senior/verifier calls (planner/QA keep `SWARM_LLM_TIMEOUT_SECONDS`) |
 | `SWARM_VERIFY_CONCURRENT` | `0` | first read-only verifier pass runs beside QA (A/B) |
 | `SWARM_VERIFY_LEAN` | `0` | skip the verifier for a docs-only small delta (A/B) |

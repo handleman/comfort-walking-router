@@ -59,7 +59,7 @@ timeout.
   derived from `events.jsonl`, not from a second clock. `make swarm-report`
   prints p50/p90 per phase and the share of the task wall clock.
 
-- **AC-2 — Wall budget.** `SWARM_TASK_WALL_BUDGET` (default 900 s; `0` disables)
+- **AC-2 — Wall budget.** `SWARM_TASK_WALL_BUDGET` (default 1800 s; `0` disables)
   is checked between phases and before a retry. On breach the run stops as
   `needs_human` with `reason_code=wall_budget`, `human_log.txt` naming the phase
   that consumed the budget, and the run record intact. The replay runner sees a

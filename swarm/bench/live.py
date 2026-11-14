@@ -268,6 +268,9 @@ def run_case(
             str(case["task"]),
             "--no-commit",
             "--no-tui",
+            # one case = one task: without --single the queue advances on green
+            # and the run dir (and the reported task) becomes the next task's.
+            "--single",
         ]
         # Write the child's output to files, not pipes: a leaked gate process
         # can keep a pipe open after the flow exits, and then `communicate`

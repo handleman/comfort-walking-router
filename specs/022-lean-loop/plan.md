@@ -44,7 +44,7 @@ budget is a row with `wall_budget`, not a missing case.
 
 ## T2 — wall budget
 
-- `SWARM_TASK_WALL_BUDGET` (default 900 s, `0` off), checked by the flow
+- `SWARM_TASK_WALL_BUDGET` (default 1800 s, `0` off), checked by the flow
   **between phases** and before a retry (`_check_task_budget` already exists for
   seconds; extend it with the wall clock and a per-phase message).
 - On breach: `status=needs_human`, `reason_code=wall_budget`, `human_log.txt`
