@@ -21,3 +21,27 @@ def test_local_override_uses_litellm_transport(monkeypatch):
     llm = planner_llm()
     assert llm.is_litellm is True
     assert llm.additional_params.get("extra_body") == {"think": False}
+
+
+def test_a_paid_planner_needs_the_global_opt_in(monkeypatch):
+    """014-T6: a paid planner id was blocked at build time and the run died in 2 s.
+
+    `SWARM_ALLOW_PAID=1` alone is not enough: the caller must opt in, which the
+    plan crew now does. Without the global flag the same call stays blocked.
+    """
+    import pytest
+
+    monkeypatch.setenv("SWARM_PLANNER_MODEL", "openrouter/deepseek/deepseek-v4.1-flash-1017")
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "0")
+    with pytest.raises(PermissionError):
+        planner_llm(allow_paid=True)
+
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "1")
+    assert planner_llm(allow_paid=True).model == "deepseek/deepseek-v4.1-flash-1017"
+
+
+def test_the_plan_crew_passes_the_paid_opt_in():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "crew.py").read_text()
+    assert "llm=planner_llm(allow_paid=True)" in source

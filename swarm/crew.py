@@ -265,7 +265,7 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
         role=copy["role"],
         goal=copy["goal"],
         backstory=copy["backstory"],
-        llm=planner_llm(),
+        llm=planner_llm(allow_paid=True),
         tools=[TrimmedFileReadTool(), ShellTool()],
         verbose=False,
         max_iter=10,
