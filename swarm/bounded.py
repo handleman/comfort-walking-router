@@ -17,12 +17,18 @@ from collections.abc import Callable
 from typing import Any
 
 
-def run_bounded(fn: Callable[[], Any], timeout: float, *, name: str = "crew") -> tuple[bool, Any]:
+def run_bounded(
+    fn: Callable[[], Any], timeout: float | None, *, name: str = "crew"
+) -> tuple[bool, Any]:
     """Run `fn` for at most `timeout` seconds. Returns (finished, value), or raises.
 
-    A `timeout <= 0` means no bound.
+    `timeout is None` means no bound. A zero or negative timeout means the budget
+    is already spent, so the call is not started at all — treating it as
+    "unbounded" hung a 007 run for 2.7 hours past its 1800 s wall budget.
     """
-    if timeout <= 0:
+    if timeout is not None and timeout <= 0:
+        return False, None
+    if timeout is None:
         return True, fn()
     box: dict[str, Any] = {}
 

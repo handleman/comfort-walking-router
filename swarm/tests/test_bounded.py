@@ -29,8 +29,16 @@ def test_an_exception_propagates():
         bounded.run_bounded(boom, 1.0)
 
 
-def test_zero_means_no_bound():
-    assert bounded.run_bounded(lambda: "ok", 0) == (True, "ok")
+def test_zero_or_negative_means_expired_not_unbounded():
+    """A spent budget must not become an unbounded call (007 hung 2.7 h)."""
+    started = time.monotonic()
+    assert bounded.run_bounded(lambda: time.sleep(2), 0) == (False, None)
+    assert bounded.run_bounded(lambda: time.sleep(2), -5) == (False, None)
+    assert time.monotonic() - started < 1.0
+
+
+def test_none_means_no_bound():
+    assert bounded.run_bounded(lambda: "ok", None) == (True, "ok")
 
 
 def test_the_flow_bounds_a_crew_call():

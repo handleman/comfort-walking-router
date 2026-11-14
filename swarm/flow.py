@@ -2796,6 +2796,14 @@ class SwarmFlow(Flow[SwarmState]):
                         if budget > 0
                         else float(os.getenv("SWARM_CREW_TIMEOUT_SECONDS", "1800") or 1800)
                     )
+                    if budget > 0 and remaining <= 0:
+                        # Spent budget is a stop, not an unbounded call: a
+                        # negative timeout used to mean "no bound" and hung a
+                        # 007 run 2.7 h past its 1800 s wall.
+                        self.state.wall_budget_note = (
+                            f"{role or 'crew'}: wall budget spent before the call"
+                        )
+                        raise _WallBudget(self.state.wall_budget_note)
                     try:
                         finished, out = bounded.run_bounded(
                             lambda c=crew: c.kickoff(), remaining, name=role or "crew"
