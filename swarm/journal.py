@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +61,16 @@ CREATE TABLE IF NOT EXISTS effects(
 """
 
 
+def _serialised(fn: Any) -> Any:
+    """Run a journal method under the connection lock."""
+
+    def wrapper(self: Journal, *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return fn(self, *args, **kwargs)
+
+    return wrapper
+
+
 @dataclass(frozen=True)
 class Step:
     idx: int
@@ -72,16 +83,21 @@ class Journal:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self._db = sqlite3.connect(path, timeout=30)
+        # CrewAI runs flow listeners in a worker thread (asyncio.to_thread), so
+        # the connection must cross threads; an RLock serialises use.
+        self._db = sqlite3.connect(path, timeout=30, check_same_thread=False)
+        self._lock = threading.RLock()
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(SCHEMA)
         self._db.commit()
 
+    @_serialised
     def close(self) -> None:
         self._db.close()
 
     # ---- events (append-only, idempotent by key) ----
 
+    @_serialised
     def append(
         self,
         run_id: str,
@@ -104,6 +120,7 @@ class Journal:
         except sqlite3.IntegrityError:
             return False
 
+    @_serialised
     def events(self, run_id: str) -> list[dict[str, Any]]:
         rows = self._db.execute(
             "SELECT seq, at, type, step, attempt, key, payload FROM events "
@@ -120,6 +137,7 @@ class Journal:
 
     # ---- steps (claim, complete, expire) ----
 
+    @_serialised
     def seed_steps(self, run_id: str, count: int) -> None:
         for idx in range(1, count + 1):
             self._db.execute(
@@ -127,6 +145,7 @@ class Journal:
             )
         self._db.commit()
 
+    @_serialised
     def claim_step(self, run_id: str, idx: int, owner: str, ttl: float = 300.0) -> bool:
         now = time.time()
         cur = self._db.execute(
@@ -138,6 +157,7 @@ class Journal:
         self._db.commit()
         return cur.rowcount == 1
 
+    @_serialised
     def heartbeat(self, run_id: str, idx: int, owner: str, ttl: float = 300.0) -> bool:
         cur = self._db.execute(
             "UPDATE steps SET lease_until=? WHERE run_id=? AND idx=? AND lease_owner=?",
@@ -146,6 +166,7 @@ class Journal:
         self._db.commit()
         return cur.rowcount == 1
 
+    @_serialised
     def complete_step(self, run_id: str, idx: int, output: str) -> None:
         digest = __import__("hashlib").sha256(output.encode()).hexdigest()
         self._db.execute(
@@ -162,6 +183,7 @@ class Journal:
             payload={"output": output[-2000:], "digest": digest},
         )
 
+    @_serialised
     def steps(self, run_id: str) -> list[Step]:
         rows = self._db.execute(
             "SELECT idx, status, attempt, output_digest FROM steps WHERE run_id=? ORDER BY idx",
@@ -173,6 +195,7 @@ class Journal:
             for r in rows
         ]
 
+    @_serialised
     def completed_outputs(self, run_id: str) -> list[str]:
         """Outputs of the contiguous completed prefix (for resume)."""
         out: list[str] = []
@@ -184,10 +207,12 @@ class Journal:
 
     # ---- effects (idempotent side effects) ----
 
+    @_serialised
     def effect(self, key: str) -> dict[str, Any] | None:
         row = self._db.execute("SELECT result FROM effects WHERE key=?", (key,)).fetchone()
         return json.loads(row[0]) if row else None
 
+    @_serialised
     def record_effect(self, key: str, run_id: str, kind: str, result: dict[str, Any]) -> None:
         self._db.execute(
             "INSERT OR REPLACE INTO effects(key, run_id, kind, result, at) VALUES (?, ?, ?, ?, ?)",
@@ -197,6 +222,7 @@ class Journal:
 
     # ---- projection ----
 
+    @_serialised
     def fold(self, run_id: str) -> dict[str, Any]:
         events = self.events(run_id)
         status = "init"

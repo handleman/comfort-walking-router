@@ -180,8 +180,13 @@ def render(summary: dict[str, Any]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from swarm import escape
+
     rows = collect()
     print(render(summarize(rows)))
+    result = escape.rate(rows)
+    if result["auto_merged"]:
+        print(escape.render(result))
     return 0
 
 

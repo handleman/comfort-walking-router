@@ -72,3 +72,22 @@ def test_the_flow_uses_the_journal_for_steps_and_commit_effects():
     assert "complete_step(" in source
     assert "commit:" in source  # effect key
     assert "record_effect(" in source
+
+
+def test_the_journal_crosses_threads(tmp_path: Path):
+    """CrewAI runs flow listeners in a worker thread; SQLite must not refuse it."""
+    import threading
+
+    j = _journal(tmp_path)
+    j.seed_steps("r1", 1)
+    j.complete_step("r1", 1, "a")
+    out: list[list[str]] = []
+
+    def worker() -> None:
+        out.append(j.completed_outputs("r1"))
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join()
+    assert out == [["a"]]
+    j.close()
