@@ -622,6 +622,12 @@
     height: 100vh;
   }
 
+  /* 014 T6: the picker toggles this class on the Leaflet container at runtime.
+     `:global` keeps Svelte from pruning a selector it cannot see in markup. */
+  :global(#map.crosshair) {
+    cursor: crosshair;
+  }
+
   .locate-notice {
     position: absolute;
     top: 0.75rem;
