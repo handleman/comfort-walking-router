@@ -22,7 +22,18 @@ export default defineConfig({
   webServer: [
     {
       command: 'uvicorn app.main:app --port 8000',
-      url: 'http://localhost:8000',
+      // `/` has no route (404), so the readiness probe must hit the docs page.
+      url: 'http://localhost:8000/docs',
+      // The config lives in frontend/, the FastAPI app in the repo root; and
+      // without ROUTE_FIXTURES the suite makes live Nominatim/OSRM calls.
+      cwd: '..',
+      env: {
+        ...(process.env as Record<string, string>),
+        ROUTE_FIXTURES: '1',
+        // The app builds the Mapbox provider at import; fixtures mode never
+        // calls it, so a placeholder keeps the suite hermetic.
+        MAPBOX_TOKEN: process.env.MAPBOX_TOKEN ?? 'e2e-fixtures-token',
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

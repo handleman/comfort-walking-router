@@ -12,6 +12,9 @@ def route_fixtures_enabled() -> bool:
 _RECORDED_GEOCODE: dict[str, tuple[float, float]] = {
     "central park": (40.7829, -73.9654),
     "times square": (40.7580, -73.9855),
+    # The UI placeholders are Munich and the 010/014 e2e specs use them.
+    "marienplatz, munich": (48.1374, 11.5755),
+    "englischer garten": (48.1642, 11.6056),
 }
 
 
@@ -39,13 +42,40 @@ _RECORDED_ROUTE: dict = {
 }
 
 
+def _haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
+    import math
+
+    lat1, lon1 = map(math.radians, a)
+    lat2, lon2 = map(math.radians, b)
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 2 * 6_371_000 * math.asin(math.sqrt(h))
+
+
 def recorded_route(
     start: tuple[float, float],
     end: tuple[float, float],
     preference: str | None = None,
 ) -> dict:
-    """Return the recorded route FeatureCollection for ``start`` -> ``end``."""
-    return _RECORDED_ROUTE
+    """Return a FeatureCollection for ``start`` -> ``end`` built from both points.
+
+    The geometry used to be one hardcoded NYC line, so a Munich scenario drew a
+    route at the wrong place and walk-mode placed its marker off the map.
+    """
+    distance = _haversine_m(start, end)
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"distance": round(distance, 1), "duration": round(distance / 1.4, 1)},
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[start[1], start[0]], [end[1], end[0]]],
+                },
+            }
+        ],
+    }
 
 
 # Recorded Overpass results: list of GeoJSON feature dicts (POIs along the route).

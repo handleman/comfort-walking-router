@@ -10,7 +10,7 @@ export async function setGeolocation(
   longitude: number,
 ): Promise<void> {
   await page.context().setGeolocation({ latitude, longitude, accuracy: 10 })
-  await page.context().overridePermissions(['geolocation'])
+  await page.context().grantPermissions(['geolocation'])
 }
 
 /**
