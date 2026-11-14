@@ -68,6 +68,24 @@ Last verified 2026-11-08: 5 app tests + 174 harness tests pass, ruff/mypy/svelte
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
+## Geocoding (spec 014)
+
+Address autocomplete and reverse geocoding are served by `GET /geocode?q=…` and
+`GET /geocode/reverse?lat=…&lng=…`, returning the normalized `Suggestion` shape from
+`contracts/geocode.json` (`id`, `label`, `lat`, `lng`, `type`, `attribution`).
+
+**Setup (optional, backend-only):** the provider chain is free-first. With no extra config the
+backend uses [Photon](https://photon.komoot.io) (OSM-based, no key). To use Mapbox Geocoding v6
+instead, set `MAPBOX_TOKEN` in `.env` (copy `.env.example` → `.env`; the token is read only by the
+backend, never shipped to the frontend, and is gitignored per ADR-006). No other setup is needed;
+results are cached in SQLite for 5 minutes to stay well inside provider rate limits.
+
+**Attribution / credit (required, do not remove):** geocoding results must keep their
+`attribution` string visible wherever suggestions are shown. Mapbox results: "© Mapbox ©
+OpenStreetMap" plus any listed data providers. Photon/OSM results: "© OpenStreetMap contributors",
+with Photon/Komoot credited as the geocoder. If you display a map alongside suggestions, keep the
+map's own attribution control intact (Leaflet's, plus Mapbox's when a Mapbox token is used).
+
 ## CrewAI swarm (learning goal 2)
 
 The swarm implements unchecked tasks from `specs/NNN-*/tasks.md`, one task at a time:

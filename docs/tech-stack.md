@@ -24,6 +24,27 @@
 > The app venv (`.venv`) and the swarm venv (`swarm/.venv`, CrewAI) are separate on purpose —
 > do not install harness deps into the app environment or vice versa.
 
+## Geocoding (014, AC-8/AC-9 — implemented)
+- Provider chain (ADR-013): Mapbox Geocoding v6 when `MAPBOX_TOKEN` is set and non-empty
+  (the repo-wide variable name, backend-only, see `app/config.py` and ADR-006), Photon
+  (`photon.komoot.io`, tokenless, OpenStreetMap-based) otherwise. The choice is made per
+  call, both providers are hit with `requests` and an 8-second timeout, and any transport
+  or parse failure degrades to an empty suggestion list — never a 500.
+- Endpoints: `GET /geocode?q=…` (forward search) and `GET /geocode/reverse?lat=…&lng=…`
+  (reverse geocoding); both return `{"suggestions": [Suggestion, ...]}`.
+- Normalized shape: every provider result is normalized in `app/geocoding.py` into one
+  frozen dataclass — `Suggestion(id, label, lat, lng, type, attribution)` — so Mapbox v6
+  and Photon payload differences never leak into the HTTP contract or the frontend.
+- Cache: SQLite TTL cache in `app/geocode_cache.py` with `TTL_SECONDS = 300` (5 minutes).
+  Keys are `fwd:{q}:{lat}:{lng}:{limit}` and `rev:{lat}:{lng}`; rows are upserted on write,
+  deleted lazily on expired read, and served before any provider call. The database is
+  overridable via `GEOCODE_CACHE_DB` (in-memory by default), the connection is shared across
+  threads behind a reentrant lock, and the cache is best-effort: any SQLite error falls
+  through to the provider.
+- Attribution: Mapbox results carry `© Mapbox © OpenStreetMap`, Photon results
+  `© OpenStreetMap contributors`; the `attribution` field travels with every suggestion and
+  is displayed by the frontend. Setup (`MAPBOX_TOKEN`) and credit obligations: see README.md.
+
 ## Swarm harness (009, learning goal #2 — implemented)
 - Orchestration: CrewAI 1.15.27 (Flows + sequential Planner→Coder→Reviewer, `crewai[litellm]` + `crewai-tools`), Python 3.12 venv (`swarm/.venv`; system Python 3.14+ unsupported by CrewAI).
 - Models (prefix-routed in `swarm/llms.py`): `ollama/*` → local Ollama, `zen/*` → OpenCode Zen (`custom_openai` gateway; base URL stops at `/v1`), else OpenRouter. Operator profile since 2026-11-14 is **cloud-only** (`SWARM_LOCAL_FIRST=0`): planner `openrouter/deepseek/deepseek-v4.1-flash-1017`, coder `zen/glm-5.3-flash`, reviewer/verifier/senior `zen/glm-5.3-flash` (the free Nvidia tier hit its daily 1000-request quota on 2026-11-14, so those roles are paid and every one has a `zen/deepseek-v4.1-flash` fallback). The 2026-11-08 free-first pair (local coder `ollama/swarm-coder:latest` + reviewer `ollama/swarm-qa:latest`, Qwen3.5 9B, `extra_body={"think": False}` required — thinking blocks break LiteLLM tool parsing) stays available via `make swarm-local`. Paid hard-blocked unless `SWARM_ALLOW_PAID=1`; `make swarm-preflight` validates ids/keys/Ollama/gates before the first LLM call (`preflight_failed`).
