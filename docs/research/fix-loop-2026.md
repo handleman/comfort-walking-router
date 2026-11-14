@@ -336,6 +336,15 @@ once: a replay/tooling mismatch, a real semantic finding, and a repair crew that
 could not act on it. Fixing the formatter to report its exit code is done; the
 other two are the next phase's problem.
 
+### The last red gate was the runner's own log
+
+After the evidence fix, `004-weather-sun-T2` came back with **four gates green
+and a QA pass**, and `scope: 1` as the only red gate. The scope violation was the
+replay runner itself: it wrote `.swarm-replay.out/.err` **inside the worktree**,
+which the harness correctly counted as out-of-scope changes. The logs now live in
+a temp dir outside the tree. That is the difference between "the code is wrong"
+and "the harness dirtied its own tree".
+
 ### QA can pass and the loop can still keep fixing
 
 `004-weather-sun-T2` (one file) with the paid coder reached
