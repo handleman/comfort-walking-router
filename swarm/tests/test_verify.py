@@ -533,6 +533,15 @@ def test_finding_files_extracts_the_paths():
     ) == {"tests/test_route_toggles.py", "app/main.py"}
 
 
+def test_finding_key_ignores_a_shifted_line_number_and_spacing():
+    from swarm.verify import finding_key
+
+    first = finding_key("tests/test_route_toggles.py:38 — identical fixture")
+    moved = finding_key("tests/test_route_toggles.py:41-44 —  Identical fixture.")
+    assert first == moved
+    assert finding_key("tests/test_route_toggles.py — a different defect") != first
+
+
 def test_a_landed_correction_still_blocked_on_the_same_file_is_unstable(monkeypatch):
     from swarm import flow
 
@@ -555,9 +564,11 @@ def test_a_landed_correction_still_blocked_on_the_same_file_is_unstable(monkeypa
         crew = build()
         if rounds["n"] == 1:
             return crew, first
+        # The same finding, re-rendered with a shifted line number: this is the
+        # verifier re-litigating its own correction, not a new defect.
         return crew, (
-            "FINDING: tests/test_route_toggles.py — use one identical fixture\n"
-            "STEP 1: tests/test_route_toggles.py — return the same properties\n"
+            "FINDING: tests/test_route_toggles.py:41 — identical fixture\n"
+            "STEP 1: tests/test_route_toggles.py — use one identical fixture\n"
             "VERDICT: BLOCKED"
         )
 
@@ -568,6 +579,44 @@ def test_a_landed_correction_still_blocked_on_the_same_file_is_unstable(monkeypa
     assert stub.state.verifier["blocked"] is False
     assert stub.state.verifier["corrections"] is True
     assert stub.state.verifier["corrected"] is True
+
+
+def test_a_new_defect_in_the_same_file_is_not_an_unstable_verdict(monkeypatch):
+    """014-T6: round 2 found a *different* defect in App.svelte and was waived.
+
+    Only a repeated finding is re-litigation. A new one has to stop the run so a
+    human sees it, even though the previous correction landed in the same file.
+    """
+    from swarm import flow
+
+    stub = _flow_stub(monkeypatch)
+    sig = {"v": "a"}
+    stub._delta_signature = lambda: sig["v"]
+    rounds = {"n": 0}
+
+    def kick(build, role):
+        if role.startswith("senior:verify"):
+            sig["v"] = "b"  # the correction landed
+            return build(), "done"
+        rounds["n"] += 1
+        crew = build()
+        if rounds["n"] == 1:
+            return crew, (
+                "FINDING: frontend/src/App.svelte — the Start input has no pick button\n"
+                "STEP 1: frontend/src/App.svelte — add a Start pick button\n"
+                "VERDICT: BLOCKED"
+            )
+        return crew, (
+            "FINDING: frontend/src/App.svelte — no CSS rule makes the crosshair cursor visible\n"
+            "STEP 1: frontend/src/App.svelte — add the crosshair rule\n"
+            "VERDICT: BLOCKED"
+        )
+
+    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
+    record = stub.state.verifier
+    assert record["blocked"] is True
+    assert "overridden" not in record
+    assert "unstable" not in record
 
 
 def test_a_correction_that_changes_nothing_is_a_coder_failure_not_unstable(monkeypatch):

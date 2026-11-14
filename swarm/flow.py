@@ -71,6 +71,9 @@ class SwarmState(BaseModel):
     total_tokens: int = 0
     llm_calls: int = 0
     models_used: list[str] = []
+    # Tokens per model: two paid roles (coder + planner) must not make the run
+    # cost "unknown", or the per-task dollar cap silently stops applying.
+    tokens_by_model: dict[str, dict[str, int]] = {}
     started_at: str = ""
     finished_at: str = ""
     resumed_from_step: int = 0
@@ -999,7 +1002,7 @@ class SwarmFlow(Flow[SwarmState]):
         self._max_cost = env_float("SWARM_MAX_COST_USD", 0.05)
         self._max_seconds = env_int("SWARM_MAX_RUNTIME_SECONDS", 14400)
         # 015 AC-6: a single task cannot eat the whole run.
-        self._max_cost_task = env_float("SWARM_MAX_COST_PER_TASK", 0.25)
+        self._max_cost_task = env_float("SWARM_MAX_COST_PER_TASK", 1.00)
         self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 2400)
         # 020 AC-3: step digests + gate-log spilling (SWARM_CONTEXT_COMPACT=0 off).
         self._compact = compaction.enabled()
@@ -1138,6 +1141,13 @@ class SwarmFlow(Flow[SwarmState]):
         # a diff would count the other crew's tokens too.
         prompt = prompt_now
         completion = completion_now
+        if models:
+            with self._state_lock:
+                per_model = self.state.tokens_by_model.setdefault(
+                    models[0], {"prompt_tokens": 0, "completion_tokens": 0}
+                )
+                per_model["prompt_tokens"] += prompt
+                per_model["completion_tokens"] += completion
         if role or step is not None:
             from swarm.usage import estimate_cost
 
@@ -1171,8 +1181,21 @@ class SwarmFlow(Flow[SwarmState]):
                     entry["cost_usd"] += cost
 
     def _run_cost(self) -> float | None:
-        from swarm.usage import estimate_run_cost
+        from swarm.usage import estimate_cost, estimate_run_cost
 
+        # Preferred: price each model's own tokens. With two paid models the
+        # aggregate estimate returned None, which silently disabled the per-task
+        # cost cap (014-T6: DeepSeek planner + glm coder).
+        by_model = getattr(self.state, "tokens_by_model", None)
+        if by_model:
+            cost = estimate_cost(
+                {
+                    model: (int(tokens.get("prompt_tokens", 0)), int(tokens.get("completion_tokens", 0)))
+                    for model, tokens in by_model.items()
+                }
+            )
+            if cost is not None:
+                return cost
         return estimate_run_cost(
             self.state.models_used, self.state.prompt_tokens, self.state.completion_tokens
         )
@@ -1186,6 +1209,7 @@ class SwarmFlow(Flow[SwarmState]):
             "total_tokens": self.state.total_tokens,
             "llm_calls": self.state.llm_calls,
             "models": list(self.state.models_used),
+            "by_model": {k: dict(v) for k, v in self.state.tokens_by_model.items()},
             "fallback_roles": _fallback_role_names(),
             "cost_usd": cost,
             "started_at": self.state.started_at,
@@ -2038,13 +2062,18 @@ class SwarmFlow(Flow[SwarmState]):
             plan = verify.parse_plan(out)[:MAX_STEPS]
             record["plan"] = plan
             history[-1]["plan"] = plan
-            # 021 AC-11: a block after the corrections ran, on the same file,
-            # is the verifier re-litigating its own instruction. Record it so
-            # the stop is honest and the next round is not paid for.
+            # 021 AC-11: a block after the corrections ran, on the *same
+            # finding*, is the verifier re-litigating its own instruction. A new
+            # defect in the same file is not: the file was only a proxy, and it
+            # waived a real finding (014-T6: missing crosshair CSS) because the
+            # earlier round had touched App.svelte. Record the finding identity.
             files = verify.finding_files(findings)
-            previous = set(record.get("finding_files") or [])
-            record["finding_files"] = sorted(files | previous)
-            if record.get("corrections") and files & previous:
+            keys = verify.finding_keys(findings)
+            previous_files = set(record.get("finding_files") or [])
+            previous_keys = set(record.get("finding_keys") or [])
+            record["finding_files"] = sorted(files | previous_files)
+            record["finding_keys"] = sorted(keys | previous_keys)
+            if record.get("corrections") and keys & previous_keys:
                 record["blocked"] = True
                 if record.get("corrected"):
                     # The correction landed and the same file is still wrong in a

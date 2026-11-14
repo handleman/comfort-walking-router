@@ -76,3 +76,47 @@ def test_env_parsing_is_forgiving(monkeypatch):
     assert env_float("X_FLOAT", 1.0) == 0.25
     assert env_int("X_BAD", 3) == 3
     assert env_float("X_MISSING", 1.5) == 1.5
+
+
+def test_run_cost_prices_each_paid_model_from_its_own_tokens():
+    """014-T6: coder (glm) + planner (DeepSeek) made the aggregate cost None.
+
+    None silently disabled the per-task dollar cap; per-model pricing keeps the
+    number real whenever the roles ran on known models.
+    """
+    import types
+
+    from swarm.flow import SwarmFlow
+
+    stub = types.SimpleNamespace(
+        state=types.SimpleNamespace(
+            models_used=["glm-5.3-flash", "deepseek/deepseek-v4.1-flash-1017"],
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            tokens_by_model={
+                "glm-5.3-flash": {"prompt_tokens": 1_000_000, "completion_tokens": 0},
+                "deepseek/deepseek-v4.1-flash-1017": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 1_000_000,
+                },
+            },
+        )
+    )
+    # $0.15 glm input + $0.50 DeepSeek output.
+    assert SwarmFlow._run_cost(stub) == 0.65
+
+
+def test_run_cost_falls_back_to_the_aggregate_without_per_model_data():
+    import types
+
+    from swarm.flow import SwarmFlow
+
+    stub = types.SimpleNamespace(
+        state=types.SimpleNamespace(
+            models_used=["zen/glm-5.3-flash"],
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            tokens_by_model={},
+        )
+    )
+    assert SwarmFlow._run_cost(stub) == 0.65

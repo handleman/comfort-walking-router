@@ -141,6 +141,27 @@ def finding_files(findings: list[str]) -> set[str]:
     return out
 
 
+_LINE_SUFFIX_RE = re.compile(r":\d+(?:-\d+)?\b")
+
+
+def finding_key(finding: str) -> str:
+    """Stable identity of one finding: its file plus the sentence asserting it.
+
+    A re-litigated round repeats *the same finding*; a new defect in the same
+    file is not a repeat. The line number is dropped because a landed
+    correction shifts it, and whitespace/case are normalised because the
+    verifier re-renders its own text.
+    """
+    text = _LINE_SUFFIX_RE.sub("", " ".join(str(finding).split()))
+    return text.lower().rstrip(".")
+
+
+def finding_keys(findings: list[str]) -> set[str]:
+    """The findings' identities, for the re-litigation check."""
+    return {finding_key(finding) for finding in findings or []}
+
+
+
 def task_line(spec_dir: str, task_id: str) -> str:
     """The task's own queue line from `tasks.md` (its brief), or empty."""
     from swarm import prompts
