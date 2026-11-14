@@ -34,6 +34,8 @@
   import { onMount } from 'svelte'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
+  import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
+  import type { PickRole } from './lib/map/picker'
   import {
     deleteRoute,
     ensureToken,
@@ -47,6 +49,9 @@
 
   let mapElement: HTMLDivElement
   let map: L.Map | null = null
+  let activePick: PickRole | null = null
+  let pickBusy = false
+  let pickError = ''
   let routeLayer: L.LayerGroup | null = null
 
   let start = ''
@@ -67,6 +72,19 @@
   let endCoords: [number, number] | null = null
   let startMarker: L.Marker | null = null
   let endMarker: L.Marker | null = null
+
+  function beginPick(role: PickRole) {
+    activePick = togglePickRole(activePick, role)
+    pickError = ''
+    if (map) map.getContainer().classList.toggle('crosshair', activePick !== null)
+  }
+
+  function cancelPick() {
+    activePick = null
+    pickBusy = false
+    pickError = ''
+    if (map) map.getContainer().classList.remove('crosshair')
+  }
 
   onMount(() => {
     map = L.map(mapElement).setView([48.137, 11.575], 12)
@@ -124,12 +142,30 @@
     map?.locate({ setView: true, maxZoom: 16 })
   }
 
-  function onMapClick(e: L.LeafletMouseEvent) {
-    const { lat, lng } = e.latlng
-    if (!startCoords) {
-      setStartCoords([lat, lng])
-    } else {
-      setEndCoords([lat, lng])
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && activePick) {
+      e.preventDefault()
+      cancelPick()
+    }
+  }
+
+  async function onMapClick(e: L.LeafletMouseEvent) {
+    if (!activePick) return
+    pickBusy = true
+    try {
+      const label = await reverseLabel(e.latlng.lat, e.latlng.lng)
+      const coords: [number, number] = [e.latlng.lat, e.latlng.lng]
+      if (activePick === 'start') {
+        start = label
+        setStartCoords(coords)
+      } else {
+        end = label
+        setEndCoords(coords)
+      }
+      cancelPick()
+    } catch (err) {
+      pickBusy = false
+      pickError = err instanceof Error ? err.message : String(err)
     }
   }
 
@@ -312,6 +348,8 @@
   <title>Comfort Walking Router</title>
 </svelte:head>
 
+<svelte:window on:keydown={onKeydown} />
+
 <main>
   <aside>
     <h1>Comfort Walking Router</h1>
@@ -346,22 +384,48 @@
     <form on:submit|preventDefault={submitRoute}>
       <label>
         Start
-        <input
-          bind:value={start}
-          on:input={clearStartCoords}
-          placeholder="e.g. Marienplatz, Munich"
-          required
-        />
+        <span class="pick-row">
+          <input
+            bind:value={start}
+            on:input={clearStartCoords}
+            placeholder="e.g. Marienplatz, Munich"
+            required
+          />
+          <button
+            type="button"
+            class="pick-btn"
+            aria-pressed={activePick === 'start'}
+            aria-label="Pick start on map"
+            on:click={() => beginPick('start')}>⌖</button
+          >
+        </span>
       </label>
       <label>
         End
-        <input
-          bind:value={end}
-          on:input={clearEndCoords}
-          placeholder="e.g. Englischer Garten"
-          required
-        />
+        <span class="pick-row">
+          <input
+            bind:value={end}
+            on:input={clearEndCoords}
+            placeholder="e.g. Englischer Garten"
+            required
+          />
+          <button
+            type="button"
+            class="pick-btn"
+            aria-pressed={activePick === 'end'}
+            aria-label="Pick end on map"
+            on:click={() => beginPick('end')}>⌖</button
+          >
+        </span>
       </label>
+      {#if activePick}
+        <p class="pick-hint" role="status">
+          {pickHint(activePick)}{pickBusy ? ' (locating…)' : ' — Esc to cancel'}
+        </p>
+      {/if}
+      {#if pickError}
+        <p class="error" role="alert">{pickError}</p>
+      {/if}
       <label>
         Preference
         <select bind:value={preference}>
