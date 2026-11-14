@@ -118,6 +118,8 @@ class SwarmState(BaseModel):
     plan_trimmed: list[str] = []
     # S1: brief-named paths added to the coder scope for this task (docs tasks).
     scope_extra: list[str] = []
+    # 026: the deterministic delta guard's record (empty delta / missing files).
+    delta_guard: dict[str, Any] = {}
     # Out-of-scope writes archived before reverting (operator edits are kept).
     reverted_archive: list[str] = []
     no_progress: bool = False
@@ -130,6 +132,15 @@ class _QuotaExhausted(SystemExit):
 
 class _WallBudget(Exception):
     """Per-task wall-clock budget hit (022 AC-2). Never retried."""
+
+
+class _DeltaStop(Exception):
+    """026 AC-1/AC-2: the coding phase produced no usable delta."""
+
+    def __init__(self, reason: str, record: dict[str, Any]) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.record = record
 
 
 class _BudgetExhausted(Exception):
@@ -310,6 +321,9 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
         return status
     if getattr(state, "wall_budget_note", ""):
         return "wall_budget"
+    guard = getattr(state, "delta_guard", None) or {}
+    if guard.get("reason"):
+        return str(guard["reason"])
     verifier = getattr(state, "verifier", None) or {}
     if verifier.get("unstable"):
         return "verifier_unstable"
@@ -3061,6 +3075,18 @@ class SwarmFlow(Flow[SwarmState]):
                     step_outs.append(f"--- step {i}/{len(steps)} ---\n{step_out}")
                     self._journal.complete_step(self.run_dir.name, i, step_out)
                     self._write_progress(plan_hash, steps, i, step_outs)
+                # 026 AC-1/AC-2: deterministic guard before any judge is paid.
+                # Two 014-T10 runs spent 21/28 min on an empty delta and then paid
+                # the verifier to name the missing files.
+                from swarm import guards as _guards
+
+                if _guards.enabled():
+                    delta_now = self._in_scope_paths(run_delta(self._baseline))
+                    record = _guards.delta_record(task.brief, delta_now, REPO_ROOT)
+                    self.state.delta_guard = record
+                    print(_guards.summary(record), flush=True)
+                    if record["reason"]:
+                        raise _DeltaStop(str(record["reason"]), record)
                 # 017: the coder checks types/lint before the work is passed on.
                 # QA is still the only gate executor; this is early feedback, not
                 # a gate, and it can never make a run green.
@@ -3332,6 +3358,15 @@ class SwarmFlow(Flow[SwarmState]):
             print(f"QUOTA EXHAUSTED: {self.state.quota_note} — pilot stopped, resume after reset", flush=True)
             self.save_run("quota_exhausted")
             return self.state.result
+        except _DeltaStop as e:
+            from swarm import guards as _guards
+
+            self.state.result = _guards.summary(e.record)[:4000]
+            self.state.status = "needs_human"
+            self.state.delta_guard["reason"] = e.reason
+            print(f"DELTA GUARD: {self.state.result} — stopping", flush=True)
+            self.save_run("needs_human")
+            return self.state.result
         except _WallBudget as e:
             self.state.result = f"wall budget: {e}"[:4000]
             self.state.status = "needs_human"
@@ -3517,6 +3552,7 @@ class SwarmFlow(Flow[SwarmState]):
             "retries": self.state.retries,
             "plan_trimmed": self.state.plan_trimmed,
             "scope_extra": self.state.scope_extra,
+            "delta_guard": self.state.delta_guard,
             "reverted_archive": self.state.reverted_archive,
             "journal": (
                 self._journal.fold(self.run_dir.name)
