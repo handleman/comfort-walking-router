@@ -10,5 +10,7 @@
 - [x] T9 (AC-2): Wire the scorer into `POST /route` in `app/main.py` (real `comfort_score` + factor explanation, contract shape unchanged) and extend `tests/test_route_api.py`.
 - [x] T10 (AC-2): Show the score and each applied factor in `frontend/src/App.svelte`; keep `npm run check` green.
 
+- [ ] T11 (AC-2): Add `tests/test_route_contract.py` asserting the pinned request contract with `TestClient`: an unknown `preference` and a missing `start` both return 422 (FastAPI validation) and a valid request returns the contract keys `geometry`/`comfort_score`/`explanation`. Do not call the network; use the existing fixtures/patches in `tests/test_route_api.py` if needed.
+
 <!-- Human gate, not queued (no code change): after T3/T7–T10 run `make test`, `make lint`,
      `make typecheck`, `cd frontend && npm run check`, then a live demo and tick 001 AC-2. -->
