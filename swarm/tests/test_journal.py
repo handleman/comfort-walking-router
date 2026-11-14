@@ -69,6 +69,17 @@ def test_fold_after_close_is_a_view_not_a_crash(tmp_path: Path):
     assert fold["steps"] == []
 
 
+def test_writes_after_close_are_no_ops(tmp_path: Path):
+    """The run_end save_run listener runs after _cleanup closed the journal."""
+    j = _journal(tmp_path)
+    j.seed_steps("r1", 1)
+    j.close()
+    assert j.closed is True
+    assert j.append("r1", "run_status", payload={"status": "green"}) is False
+    j.record_effect("commit:r1:x", "r1", "commit", {"ok": "1"})
+    assert j.fold("r1")["status"] == "closed"
+
+
 def test_runs_are_isolated(tmp_path: Path):
     j = _journal(tmp_path)
     j.seed_steps("r1", 1)

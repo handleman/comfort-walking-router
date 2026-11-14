@@ -3566,7 +3566,7 @@ class SwarmFlow(Flow[SwarmState]):
             },
         }
         _journal = getattr(self, "_journal", None)
-        if _journal is not None:
+        if _journal is not None and not _journal.closed:
             _journal.append(self.run_dir.name, "run_status", payload={"status": status})
         allow_empty = False
         if status == "green":  # noqa: SIM102 - recovery block is intentionally separate

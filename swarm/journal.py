@@ -92,6 +92,10 @@ class Journal:
         self._db.executescript(SCHEMA)
         self._db.commit()
 
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
     @_serialised
     def close(self) -> None:
         self._closed = True
@@ -111,6 +115,8 @@ class Journal:
         payload: dict[str, Any] | None = None,
     ) -> bool:
         """Append one event; a repeated `key` is a no-op. Returns whether it wrote."""
+        if self._closed:
+            return False
         try:
             self._db.execute(
                 "INSERT INTO events(run_id, at, type, step, attempt, key, payload) "
@@ -216,6 +222,8 @@ class Journal:
 
     @_serialised
     def record_effect(self, key: str, run_id: str, kind: str, result: dict[str, Any]) -> None:
+        if self._closed:
+            return
         self._db.execute(
             "INSERT OR REPLACE INTO effects(key, run_id, kind, result, at) VALUES (?, ?, ?, ?, ?)",
             (key, run_id, kind, json.dumps(result), time.time()),
