@@ -13,10 +13,17 @@
   /** Base URL for the geocode/suggest endpoint. */
   export let baseUrl = ''
 
+  /** Placeholder text for the combobox input. */
+  export let placeholder = 'Search destination'
+
+  /** Whether the input is required for native form validation. */
+  export let required = false
+
   /** Currently selected suggestion; bind to read the user's choice. */
   export let selected: Suggestion | null = null
 
-  let query = ''
+  /** Current query text; bindable so the host form stays in sync. */
+  export let query = ''
   let suggestions: Suggestion[] = []
   let open = false
   let activeIndex = -1
@@ -86,7 +93,8 @@
     aria-controls="search-suggestions"
     aria-expanded={open}
     aria-activedescendant={activeIndex >= 0 ? `search-option-${activeIndex}` : undefined}
-    placeholder="Search destination"
+    {placeholder}
+    {required}
     bind:value={query}
     on:keydown={onKeydown}
     on:focus={() => {

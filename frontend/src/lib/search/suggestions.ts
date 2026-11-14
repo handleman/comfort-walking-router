@@ -7,6 +7,8 @@ export interface Suggestion {
   value: string
   lat: number
   lng: number
+  /** Provider credit for this suggestion (e.g. '© Mapbox'); may be absent. */
+  attribution?: string
 }
 
 const DEBOUNCE_MS = 280
@@ -51,8 +53,14 @@ export function createSuggestionFetcher(baseUrl: string): (q: string) => Promise
 }
 
 /** Coerce an API payload into the normalized Suggestion shape. */
-function normalizeSuggestions(data: { results?: unknown }): Suggestion[] {
-  const results = Array.isArray(data?.results) ? data.results : []
+function normalizeSuggestions(data: { results?: unknown; suggestions?: unknown }): Suggestion[] {
+  // The /geocode contract returns its items under `suggestions`;
+  // accept `results` as a legacy alias.
+  const results = Array.isArray(data?.suggestions)
+    ? data.suggestions
+    : Array.isArray(data?.results)
+      ? data.results
+      : []
   const out: Suggestion[] = []
   for (const raw of results) {
     if (typeof raw !== 'object' || raw === null) continue
@@ -61,8 +69,9 @@ function normalizeSuggestions(data: { results?: unknown }): Suggestion[] {
     const value = typeof r.value === 'string' ? r.value : label
     const lat = typeof r.lat === 'number' ? r.lat : Number(r.lat)
     const lng = typeof r.lng === 'number' ? r.lng : Number(r.lng)
+    const attribution = typeof r.attribution === 'string' ? r.attribution : undefined
     if (!label || !Number.isFinite(lat) || !Number.isFinite(lng)) continue
-    out.push({ label, value, lat, lng })
+    out.push({ label, value, lat, lng, attribution })
   }
   return out
 }

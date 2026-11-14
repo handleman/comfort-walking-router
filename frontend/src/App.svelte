@@ -29,6 +29,7 @@
     applied_preference: string
     preference_source: 'auto' | 'manual'
     weather: Weather
+    attribution?: string
   }
 
   import { onMount } from 'svelte'
@@ -38,6 +39,9 @@
   import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
   import type { LatLng } from './lib/navigation/interpolate'
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
+  import Attribution from './lib/components/Attribution.svelte'
+  import SearchInput from './lib/components/SearchInput.svelte'
+  import type { Suggestion } from './lib/search/suggestions'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
   import type { PickRole } from './lib/map/picker'
   import {
@@ -62,6 +66,7 @@
   let end = ''
   let preference = ''
   let route: Route | null = null
+  let suggestionAttribution = ''
   let error = ''
   let loading = false
   let manualOverride = false
@@ -76,6 +81,27 @@
   let endCoords: [number, number] | null = null
   let startMarker: L.Marker | null = null
   let endMarker: L.Marker | null = null
+  let startSuggestion: Suggestion | null = null
+  let endSuggestion: Suggestion | null = null
+
+  // Keep the pinned waypoint coordinates and the attribution credit in sync
+  // with the selected geocode suggestion (AC-8/AC-9): pin on selection, and
+  // drop the pin when the text no longer matches the selection.
+  $: if (startSuggestion && start === startSuggestion.label) {
+    setStartCoords([startSuggestion.lat, startSuggestion.lng])
+    suggestionAttribution = startSuggestion.attribution ?? ''
+  } else if (startSuggestion) {
+    startSuggestion = null
+    clearStartCoords()
+  }
+
+  $: if (endSuggestion && end === endSuggestion.label) {
+    setEndCoords([endSuggestion.lat, endSuggestion.lng])
+    suggestionAttribution = endSuggestion.attribution ?? ''
+  } else if (endSuggestion) {
+    endSuggestion = null
+    clearEndCoords()
+  }
 
   let arrival: ArrivalStatus | null = null
   let arrivalDismissed = false
@@ -257,9 +283,11 @@
         throw new Error(data.message || data.detail || `Route request failed (${response.status})`)
       }
       route = data
+      suggestionAttribution = data.attribution ?? suggestionAttribution
       drawRoute()
     } catch (err) {
       route = null
+      suggestionAttribution = ''
       error = err instanceof Error ? err.message : String(err)
     } finally {
       loading = false
@@ -415,11 +443,11 @@
       <label>
         Start
         <span class="pick-row">
-          <input
-            bind:value={start}
-            on:input={clearStartCoords}
+          <SearchInput
             placeholder="e.g. Marienplatz, Munich"
             required
+            bind:query={start}
+            bind:selected={startSuggestion}
           />
           <button
             type="button"
@@ -433,11 +461,11 @@
       <label>
         End
         <span class="pick-row">
-          <input
-            bind:value={end}
-            on:input={clearEndCoords}
+          <SearchInput
             placeholder="e.g. Englischer Garten"
             required
+            bind:query={end}
+            bind:selected={endSuggestion}
           />
           <button
             type="button"
@@ -510,6 +538,7 @@
           {Math.round(route.duration_s / 60)} min
         </p>
         <p class="score">comfort {route.comfort_score}/100</p>
+        <Attribution text={route.attribution ?? suggestionAttribution} />
         <h3>Comfort factors</h3>
         <ul class="factors">
           {#each route.explanation as line, index (index)}
