@@ -607,3 +607,23 @@ def test_the_verifier_prompt_does_not_prescribe_test_structure():
     prefix = prompts.stable_prefix(task, "006-comfort-plus", "verifier")
     assert "Do NOT prescribe how a test mocks" in prefix
     assert "do not restate the same design preference" in prefix
+
+
+# ---- 022: the verifier must not re-read what the prompt already contains ----
+
+def test_the_verifier_prompt_says_the_delta_is_already_included():
+    from swarm import prompts
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T2", ac_refs=("AC-4",), brief="Add `frontend/src/lib/x.ts`.")
+    prefix = prompts.stable_prefix(task, "007-live-position", "verifier")
+    assert "already included below in full" in prefix
+    assert "read one with the tool only when it is not in the delta" in prefix
+
+
+def test_the_verifier_crew_has_a_bounded_iteration_budget():
+    from swarm.crew import build_verify_crew
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(id="T2", ac_refs=("AC-4",), brief="Add `frontend/src/lib/x.ts`.")
+    assert build_verify_crew("007-live-position", task, "ctx").agents[0].max_iter == 6

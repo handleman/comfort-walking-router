@@ -188,7 +188,9 @@ def build_verify_crew(spec_dir: str, task: SpecTask, context_text: str) -> Crew:
         llm=verifier_llm(),
         tools=[FullFileReadTool(), ShellTool(allow_gates=False, agent_role="verifier")],
         verbose=False,
-        max_iter=12,
+        # 022: the delta files are already in the prompt; 12 iterations at ~60 s
+        # per call let the verifier eat a whole 900 s task budget on 007-T2.
+        max_iter=6,
     )
     t_verify = Task(
         description=prompts.verify_prompt(task, spec_dir, context_text),
