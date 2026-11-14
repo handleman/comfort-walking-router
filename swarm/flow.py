@@ -111,6 +111,8 @@ class SwarmState(BaseModel):
     wall_budget_note: str = ""
     # 022 AC-5: retries actually spent (attempts after the first).
     retries: int = 0
+    # Plan-scope guard: steps dropped because another task owns their file.
+    plan_trimmed: list[str] = []
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -2780,6 +2782,17 @@ class SwarmFlow(Flow[SwarmState]):
                 plan_crew, _ = _kickoff(lambda: build_plan_crew(self._spec_dir, task))
                 plan_text = _plan_text(plan_crew)
             steps = _resolve_steps(plan_text)
+            from swarm import plan_scope
+
+            steps, trimmed_steps = plan_scope.scope_steps(
+                REPO_ROOT, self._spec_dir, str(task.id), steps
+            )
+            if trimmed_steps:
+                print(
+                    f"plan scope: dropped {len(trimmed_steps)} step(s) owned by another task",
+                    flush=True,
+                )
+                self.state.plan_trimmed = trimmed_steps
             if not steps:
                 raise SystemExit("planner returned no usable plan (no STEP lines or over step budget)")
             write_cached_plan(cache, plan_text, source_hash)
@@ -3349,6 +3362,7 @@ class SwarmFlow(Flow[SwarmState]):
             "best_delta": self.state.best_delta,
             "wall_budget_note": self.state.wall_budget_note,
             "retries": self.state.retries,
+            "plan_trimmed": self.state.plan_trimmed,
             "cache": {
                 "prompt_cache": bool(getattr(self, "_prompt_cache", True)),
                 "modes": llms.cache_modes(),
