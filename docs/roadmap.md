@@ -16,7 +16,7 @@
 - `007-live-position` (spec drafted): walk-mode marker, no voiceover. Sim + GPS providers, snap + sustained-drift (>30 m, ~10 s/3 fixes) tap-to-reroute warning, auto-center toggle, arrival banner + Stop. No auto-rerouting.
 - `008-mapbox-routing` (spec drafted, post-MVP): swap OSRM interim → Mapbox free tier behind provider interface. Accept: contract unchanged, token backend-only, cache-hit skips Mapbox, no live calls in tests.
 - `010-e2e-playwright` (spec drafted): chromium E2E for all user scenarios. `011-dev-run` is done — `make dev`, contract alignment, headless smoke verified manually.
-- `014-walk-guidance-ux` (spec drafted): geolocation on load, green walker glyph, map-pick start/end, address autocomplete, moving person, arrival congratulation. Depends on 007; optional 008.
+- `014-walk-guidance-ux` (spec drafted; geocoding documented in ADR-013): geolocation on load, green walker glyph, map-pick start/end, address autocomplete, moving person, arrival congratulation. Geocoding decision: Mapbox Geocoding v6 when `MAPBOX_TOKEN` is set, Photon otherwise, reverse via `GET /geocode/reverse`; normalized `Suggestion` shape with a 5-minute SQLite cache/TTL — see `docs/architecture/adr-013-geocoding.md` (ADR-012 remains the orchestration stance). Depends on 007; optional 008.
 
 ## 3 — 009 Swarm harness: learn agentic autonomous loops (in progress)
 - Pure CrewAI coder swarm + Textual console dashboard implementing specs task-by-task, free-first routing (local Ollama Qwen drafts → OpenRouter `:free` planner/reviewer → Zen free fallback, paid opt-in only).
