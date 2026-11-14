@@ -269,15 +269,27 @@ def run_case(
             "--no-commit",
             "--no-tui",
         ]
-        proc = subprocess.run(
-            cmd,
-            cwd=worktree,
-            env=env,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        # Write the child's output to files, not pipes: a leaked gate process
+        # can keep a pipe open after the flow exits, and then `communicate`
+        # never returns (one replay hung 57 minutes with a 1300 s timeout).
+        out_path = worktree / ".swarm-replay.out"
+        err_path = worktree / ".swarm-replay.err"
+        with out_path.open("w") as out_f, err_path.open("w") as err_f:
+            proc = subprocess.run(
+                cmd,
+                cwd=worktree,
+                env=env,
+                check=False,
+                stdout=out_f,
+                stderr=err_f,
+                text=True,
+                timeout=timeout,
+            )
+        try:
+            stdout_text = out_path.read_text(errors="ignore")
+            stderr_text = err_path.read_text(errors="ignore")
+        except OSError:
+            stdout_text = stderr_text = ""
         run_dir = _run_dir(worktree)
         payload: dict[str, Any] = {}
         if run_dir is not None:
@@ -296,10 +308,10 @@ def run_case(
         failed = proc.returncode != 0 or summary.get("status") != "green"
         if summary and (keep_on_success or (failed and keep_on_failure)):
             result["kept"] = True
-            result["tail"] = (proc.stdout or proc.stderr or "")[-4000:]
+            result["tail"] = (stdout_text or stderr_text or "")[-4000:]
             added = False  # keep the worktree for inspection
         elif failed:
-            result["tail"] = (proc.stdout or proc.stderr or "")[-4000:]
+            result["tail"] = (stdout_text or stderr_text or "")[-4000:]
         return result
     except subprocess.TimeoutExpired:
         # Keep the tree: a timeout is exactly when the run record is needed.

@@ -363,6 +363,12 @@ and the listener resolves by object id.
 no case reached QA or green. The loop is still bounded by the paid model's
 latency and the self-check/verifier phases, not by an unbounded hang.
 
+A later verifier-bound rerun of 007 hung for **57 minutes with a 1300 s
+timeout**. The cause was the runner's use of pipes: a leaked gate process kept
+the pipe open after the flow exited, so `communicate` never returned even though
+the flow was done. The replay child now writes to files instead of pipes, and
+the timeout is a real bound again.
+
 ## 021 measurement: what the suite could and could not show
 
 The outcome suite was attempted with the operator's `.env` routing plus a

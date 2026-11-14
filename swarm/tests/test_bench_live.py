@@ -166,3 +166,10 @@ def test_a_timeout_record_is_explicit():
     source = (Path(__file__).resolve().parents[1] / "bench" / "live.py").read_text()
     assert '"status": "timeout"' in source
     assert '"last_phase": last.get("phase", "")' in source
+
+
+def test_the_replay_child_writes_to_files_not_pipes():
+    """A leaked gate process must not be able to block the replay on a pipe."""
+    source = (Path(__file__).resolve().parents[1] / "bench" / "live.py").read_text()
+    assert "stdout=out_f" in source and "stderr=err_f" in source
+    assert "capture_output=True" not in source
