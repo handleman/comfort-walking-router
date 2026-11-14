@@ -47,6 +47,17 @@ _BARE_PATH_RE = re.compile(
 )
 
 
+# A dotted token in a brief is usually a path, but `route.waypoints` is code.
+# Without a slash, only a known file suffix counts as a path.
+_PATH_SUFFIXES = frozenset(
+    {
+        ".py", ".ts", ".tsx", ".js", ".jsx", ".svelte", ".md", ".json", ".txt",
+        ".toml", ".yml", ".yaml", ".css", ".html", ".sql", ".sh", ".ini", ".cfg",
+        ".env", ".lock", ".csv", ".svg", ".png",
+    }
+)
+
+
 def brief_paths(brief: str) -> list[str]:
     """Files the brief names, in first-mention order, de-duplicated."""
     found = [m.group(1) for m in _BACKTICK_PATH_RE.finditer(brief or "")]
@@ -55,6 +66,10 @@ def brief_paths(brief: str) -> list[str]:
     seen: set[str] = set()
     for raw in found:
         path = raw.removeprefix("./").strip()
+        name = path.rsplit("/", 1)[-1]
+        suffix = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        if "/" not in path and suffix not in _PATH_SUFFIXES:
+            continue
         if path and path not in seen:
             seen.add(path)
             out.append(path)

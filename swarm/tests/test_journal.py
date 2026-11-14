@@ -58,6 +58,17 @@ def test_effects_are_idempotent_and_folded(tmp_path: Path):
     j.close()
 
 
+def test_fold_after_close_is_a_view_not_a_crash(tmp_path: Path):
+    """save_run can run after _cleanup closed the journal (a terminal stop)."""
+    j = _journal(tmp_path)
+    j.seed_steps("r1", 1)
+    j.complete_step("r1", 1, "a")
+    j.close()
+    fold = j.fold("r1")
+    assert fold["status"] == "closed"
+    assert fold["steps"] == []
+
+
 def test_runs_are_isolated(tmp_path: Path):
     j = _journal(tmp_path)
     j.seed_steps("r1", 1)

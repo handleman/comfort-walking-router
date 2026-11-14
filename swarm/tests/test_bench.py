@@ -50,6 +50,13 @@ def test_brief_paths_ignores_directories_and_command_text():
     assert corpus.brief_paths("no paths here") == []
 
 
+def test_brief_paths_ignores_dotted_code_expressions():
+    """`route.waypoints` is code, not a file (014/007 delta guard false positive)."""
+    brief = "Render `WalkControls` in `frontend/src/App.svelte` with `route.waypoints`."
+    assert corpus.brief_paths(brief) == ["frontend/src/App.svelte"]
+    assert corpus.brief_paths("update `README.md`") == ["README.md"]
+
+
 def test_case_ids_are_path_safe():
     assert corpus.case_id("007-live-position", "T2") == "007-live-position-T2"
 

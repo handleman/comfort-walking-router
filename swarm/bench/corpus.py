@@ -97,24 +97,13 @@ def git(repo: Path, *args: str) -> tuple[int, str]:
 def brief_paths(brief: str) -> list[str]:
     """Paths the brief names, in first-mention order, de-duplicated.
 
-    Briefs use both shapes: a backticked path and a bare `app/main.py`. Only
-    things that look like files are kept; a directory is not evidence that the
-    commit did the work.
+    One implementation: `swarm.prompts.brief_paths` also drives scope widening
+    and the 026 delta guard, so the bench must not drift from it. Dotted code
+    expressions (`route.waypoints`) are not paths.
     """
-    found: list[str] = []
-    for match in _BACKTICK_PATH_RE.finditer(brief or ""):
-        found.append(match.group(1))
-    for match in _BARE_PATH_RE.finditer(brief or ""):
-        found.append(match.group(1))
-    out: list[str] = []
-    seen: set[str] = set()
-    for raw in found:
-        path = raw.removeprefix("./").strip()
-        if not path or path in seen:
-            continue
-        seen.add(path)
-        out.append(path)
-    return out
+    from swarm.prompts import brief_paths as _brief_paths
+
+    return _brief_paths(brief)
 
 
 def green_commits(repo: Path) -> dict[str, str]:

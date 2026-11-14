@@ -87,12 +87,14 @@ class Journal:
         # the connection must cross threads; an RLock serialises use.
         self._db = sqlite3.connect(path, timeout=30, check_same_thread=False)
         self._lock = threading.RLock()
+        self._closed = False
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(SCHEMA)
         self._db.commit()
 
     @_serialised
     def close(self) -> None:
+        self._closed = True
         self._db.close()
 
     # ---- events (append-only, idempotent by key) ----
@@ -224,6 +226,12 @@ class Journal:
 
     @_serialised
     def fold(self, run_id: str) -> dict[str, Any]:
+        if self._closed:
+            # The flow's save_run listener can run after _cleanup closed the
+            # connection (a terminal stop inside run_crew). The journal is only
+            # the view at that point; the run record is already written.
+            return {"status": "closed", "events": 0, "steps": [], "effects": []}
+
         events = self.events(run_id)
         status = "init"
         for event in events:
