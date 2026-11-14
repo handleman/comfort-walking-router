@@ -2785,7 +2785,7 @@ class SwarmFlow(Flow[SwarmState]):
             from swarm import plan_scope
 
             steps, trimmed_steps = plan_scope.scope_steps(
-                REPO_ROOT, self._spec_dir, str(task.id), steps
+                REPO_ROOT, self._spec_dir, str(task.id), steps, task.brief
             )
             if trimmed_steps:
                 print(

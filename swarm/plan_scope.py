@@ -33,8 +33,16 @@ def task_files(repo: Path, spec_dir: str) -> dict[str, set[str]]:
     return {task.id: set(prompts.brief_paths(task.brief)) for task in parse_tasks_md(text)}
 
 
-def scope_steps(repo: Path, spec_dir: str, task_id: str, steps: list[str]) -> tuple[list[str], list[str]]:
-    """Drop steps that target a file another task owns; return (steps, trimmed)."""
+def scope_steps(
+    repo: Path, spec_dir: str, task_id: str, steps: list[str], brief: str = ""
+) -> tuple[list[str], list[str]]:
+    """Drop steps that target a file another task owns; return (steps, trimmed).
+
+    If the plan is **entirely** another task's work (the plan cache can hand a
+    task its neighbour's plan), replace it with one step on the task's own files
+    instead of running the wrong scope. A brief that names no files is left
+    alone: there is no safe synthetic step.
+    """
     owned = task_files(repo, spec_dir)
     mine = owned.get(task_id, set())
     foreign: set[str] = set()
@@ -54,5 +62,8 @@ def scope_steps(repo: Path, spec_dir: str, task_id: str, steps: list[str]) -> tu
         else:
             kept.append(step)
     if not kept:
-        return steps, []  # never empty a plan on a heuristic
+        if not mine:
+            return steps, []  # the brief names no files: nothing to scope against
+        own = ", ".join(sorted(mine))
+        return [f"{own} — {brief or 'implement the brief'}"[:500]], trimmed
     return kept, trimmed

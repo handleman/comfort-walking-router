@@ -36,10 +36,24 @@ def test_own_steps_are_never_trimmed(tmp_path):
     assert plan_scope.scope_steps(repo, "004-weather-sun", "T2", steps) == (steps, [])
 
 
-def test_a_plan_with_only_foreign_steps_is_left_intact(tmp_path):
+def test_a_plan_that_is_entirely_another_tasks_becomes_one_own_step(tmp_path):
+    """The plan cache handed T2 the T4 plan; never run the wrong scope."""
+    repo = _spec(tmp_path)
+    steps = ["app/main.py — wire it", "contracts/route.json — add fields"]
+    kept, trimmed = plan_scope.scope_steps(
+        repo, "004-weather-sun", "T2", steps, "Auto-rule in `app/preferences.py` with tests."
+    )
+    assert len(kept) == 1
+    assert "app/preferences.py" in kept[0]
+    assert "tests/test_preferences.py" in kept[0]
+    assert trimmed == steps
+
+
+def test_a_task_without_named_files_keeps_a_foreign_plan(tmp_path):
     repo = _spec(tmp_path)
     steps = ["app/main.py — wire it"]
-    kept, trimmed = plan_scope.scope_steps(repo, "004-weather-sun", "T2", steps)
+    # T9 is not in tasks.md, so there are no own files to synthesize from.
+    kept, trimmed = plan_scope.scope_steps(repo, "004-weather-sun", "T9", steps, "do the thing")
     assert kept == steps and trimmed == []
 
 
