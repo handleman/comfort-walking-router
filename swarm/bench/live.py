@@ -165,6 +165,24 @@ def link_venvs(repo: Path, worktree: Path) -> list[str]:
     return linked
 
 
+def _last_phase(worktree: Path) -> dict[str, Any]:
+    """The last completed/observed phase from a killed run's event stream."""
+    from swarm import phases
+
+    run_dir = _run_dir(worktree)
+    if run_dir is None:
+        return {}
+    events: list[dict[str, Any]] = []
+    try:
+        for line in (Path(run_dir) / "events.jsonl").read_text().splitlines():
+            if line.strip():
+                events.append(json.loads(line))
+    except (OSError, ValueError):
+        return {}
+    derived = phases.derive(events)
+    return derived[-1] if derived else {}
+
+
 def _run_dir(worktree: Path) -> Path | None:
     latest = worktree / "swarm" / "runs" / "latest"
     try:
@@ -286,12 +304,16 @@ def run_case(
     except subprocess.TimeoutExpired:
         # Keep the tree: a timeout is exactly when the run record is needed.
         added = False
+        last = _last_phase(worktree)
         return {
             "ok": False,
+            "status": "timeout",
             "error": f"timed out after {timeout}s",
             "case": case_id,
             "worktree": str(worktree),
             "kept": True,
+            "last_phase": last.get("phase", ""),
+            "last_phase_seconds": last.get("duration_seconds", 0),
         }
     finally:
         if added:

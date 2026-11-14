@@ -1289,6 +1289,19 @@ class SwarmFlow(Flow[SwarmState]):
         tails.append("$ scope\nOK" if not bad else f"$ scope\nVIOLATIONS: {bad}")
         return gates, "\n".join(tails)
 
+    def _apply_wall_cap(self, crew: Any) -> None:
+        """Cap each agent of this crew at the task's remaining wall budget."""
+        budget = int(getattr(self, "_wall_budget", 0) or 0)
+        if budget <= 0:
+            return
+        remaining = max(5, int(budget - (time.monotonic() - self._task_started)))
+        for agent in getattr(crew, "agents", None) or []:
+            if hasattr(agent, "max_execution_time"):
+                try:
+                    agent.max_execution_time = remaining
+                except (AttributeError, TypeError):
+                    pass
+
     def _check_wall_budget(self, phase: str = "") -> None:
         """Stop between phases when the task's wall budget is spent (022 AC-2).
 
@@ -2642,6 +2655,11 @@ class SwarmFlow(Flow[SwarmState]):
                         self._check_budget()
                     self._check_wall_budget(role or "crew")
                     crew = build()
+                    # 022 AC-2/AC-5: a crew's agent loop can outlive a single
+                    # call (retries × max_iter). Give each agent the remaining
+                    # wall budget, so the phase itself stops instead of the
+                    # runner killing a run that has no record yet.
+                    self._apply_wall_cap(crew)
                     if self.listener is not None:
                         self.listener.current_role = role or ""
                     try:

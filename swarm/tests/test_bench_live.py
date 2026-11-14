@@ -147,3 +147,22 @@ def test_live_replay_is_not_part_of_the_test_suite():
 def test_makefile_has_the_live_target():
     makefile = (Path(__file__).resolve().parents[2] / "Makefile").read_text()
     assert "swarm-bench-live:" in makefile and "--live $(CASE)" in makefile
+
+
+def test_a_killed_run_reports_its_last_phase(tmp_path: Path):
+    run_dir = tmp_path / "swarm" / "runs" / "r1"
+    run_dir.mkdir(parents=True)
+    (tmp_path / "swarm" / "runs" / "latest").write_text("r1")
+    (run_dir / "events.jsonl").write_text(
+        '{"type": "crew_started", "at": "2026-11-14T10:00:00.000", "role": "verifier"}\n'
+        '{"type": "crew_done", "at": "2026-11-14T10:01:30.000", "role": "verifier"}\n'
+    )
+    last = live._last_phase(tmp_path)
+    assert last["phase"] == "verifier"
+    assert last["duration_seconds"] == 90.0
+
+
+def test_a_timeout_record_is_explicit():
+    source = (Path(__file__).resolve().parents[1] / "bench" / "live.py").read_text()
+    assert '"status": "timeout"' in source
+    assert '"last_phase": last.get("phase", "")' in source

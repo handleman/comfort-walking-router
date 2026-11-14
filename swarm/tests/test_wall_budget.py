@@ -63,3 +63,21 @@ def test_the_human_log_names_the_phase():
     }
     text = format_human_report(payload, [])
     assert "wall budget: qa: 901s of 900s" in text
+
+
+def test_each_agent_is_capped_at_the_remaining_wall_budget():
+    stub = _stub(budget=900, started_ago=100)
+    agents = [types.SimpleNamespace(max_execution_time=None) for _ in range(2)]
+    crew = types.SimpleNamespace(agents=agents)
+    stub._apply_wall_cap = types.MethodType(flow.SwarmFlow._apply_wall_cap, stub)
+    stub._apply_wall_cap(crew)
+    assert all(agent.max_execution_time is not None for agent in agents)
+    assert all(5 <= agent.max_execution_time <= 900 for agent in agents)
+
+
+def test_no_cap_without_a_budget():
+    stub = _stub(budget=0, started_ago=10_000)
+    agent = types.SimpleNamespace(max_execution_time=None)
+    stub._apply_wall_cap = types.MethodType(flow.SwarmFlow._apply_wall_cap, stub)
+    stub._apply_wall_cap(types.SimpleNamespace(agents=[agent]))
+    assert agent.max_execution_time is None
