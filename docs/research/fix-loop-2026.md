@@ -336,6 +336,20 @@ once: a replay/tooling mismatch, a real semantic finding, and a repair crew that
 could not act on it. Fixing the formatter to report its exit code is done; the
 other two are the next phase's problem.
 
+### The plan can contain another task
+
+`004-weather-sun-T2` is "auto-rule in `app/preferences.py`". The planner produced
+six steps: four for the rule and its tests, then two that edited `app/main.py`
+and `contracts/route.json` — files the **next** task's brief owns. The coder
+implemented the extra scope, and the verifier blocked on its defects (a contract
+enum mismatch, a non-nullable weather field, a missing cache test): 541 s / $0.05
+and no QA, on a task that needed four small steps.
+
+The harness now trims a plan step whose target is named in another task's brief
+and not in this task's (`plan_scope.scope_steps`, recorded in
+`run.json.plan_trimmed`), never emptying a plan. The plan is the task's scope; a
+later task's file is not this task's work.
+
 ### The last red gate was the runner's own log
 
 After the evidence fix, `004-weather-sun-T2` came back with **four gates green
