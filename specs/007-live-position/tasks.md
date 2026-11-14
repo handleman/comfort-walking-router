@@ -10,5 +10,7 @@
 - [ ] T8 (AC-7): Arrival within 25 m shows the arrived banner and stops tracking; Stop ends the session anytime and removes the marker.
 - [ ] T9 (AC-2, AC-8): Add `frontend/src/lib/navigation/walk.integration.test.ts`: drive the session with an injected `SimulatedProvider` (manual ticks) — origin marker → ticks along the route → sustained drift shows the reroute warning → tapped reroute replaces the route from the current position → arrival within 25 m shows the banner and stops tracking — plus Stop ending the session, with `fetch` stubbed for `POST /route`.
 
+- [ ] T10 (AC-1, AC-4, AC-6, AC-7): Wire walk mode into the page. `frontend/src/lib/WalkControls.svelte` and the `walkMode` store exist but `frontend/src/App.svelte` never imports or renders them, so `button.walk-start` is absent (found by running `frontend/e2e/walk-mode.spec.ts`). Import and render `WalkControls` inside the `{#if route}` result section with `route.waypoints` mapped to `LatLng[]`; subscribe to `$walkMode.markerPos` and draw the walker with `personIcon()` (remove it on stop or arrival). Acceptance: the existing e2e spec — Start enabled after a route, a `.leaflet-marker-icon` after Start, the reroute warning after drift, the arrived banner at the destination — and `npm run check` stays green.
+
 <!-- Human gate, not queued (no code change): one real-GPS smoke off-CI plus a manual sim-walk
      demo; then run `npm run check` + `npm test` + `make test`/`lint`/`typecheck` and tick 007 AC-8. -->
