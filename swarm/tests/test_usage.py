@@ -31,6 +31,17 @@ def test_unknown_paid_price_is_none_not_fake_zero():
     assert estimate_cost({"openrouter/vendor/mystery": (100, 100)}) is None
 
 
+def test_openrouter_deepseek_planner_is_priced():
+    """The planner runs on OpenRouter DeepSeek; cost must not be unknown.
+
+    An unpriceable paid model would make `run.json.cost` None and silently
+    disable `SWARM_MAX_COST_PER_TASK`.
+    """
+    assert estimate_cost({"openrouter/deepseek/deepseek-v4.1-flash-1017": (1_000_000, 0)}) == 0.038
+    # CrewAI drops the routing prefix; the lookup must still find the row.
+    assert estimate_cost({"deepseek/deepseek-v4.1-flash-1017": (0, 1_000_000)}) == 0.50
+
+
 def test_run_cost_handles_mixed_models():
     assert estimate_run_cost([], 0, 0) == 0.0
     assert estimate_run_cost(["ollama/x", "openrouter/y:free"], 1000, 500) == 0.0

@@ -17,6 +17,11 @@ PRICES_USD_PER_M: dict[str, tuple[float, float]] = {
     # → $0.15/M in, $0.50/M out. The earlier (0.10, 0.30) under-reported by ~50%.
     "zen/glm-5.3-flash": (0.15, 0.50),
     "zen/deepseek-v4.1-flash": (0.25, 1.00),
+    # OpenRouter list price (2026-11-14). The planner uses this id because the
+    # free Nvidia planner 503s on its safety screener; an unknown price would
+    # silently disable the per-task cost cap.
+    "openrouter/deepseek/deepseek-v4.1-flash-1017": (0.038, 0.50),
+    "openrouter/~deepseek/deepseek-v4-flash-latest": (0.0434, 0.30),
 }
 
 
