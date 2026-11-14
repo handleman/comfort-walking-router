@@ -34,6 +34,10 @@
   import { onMount } from 'svelte'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
+  import { checkArrival } from './lib/navigation/arrival'
+  import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
+  import type { LatLng } from './lib/navigation/interpolate'
+  import ArrivalCard from './lib/components/ArrivalCard.svelte'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
   import type { PickRole } from './lib/map/picker'
   import {
@@ -72,6 +76,27 @@
   let endCoords: [number, number] | null = null
   let startMarker: L.Marker | null = null
   let endMarker: L.Marker | null = null
+
+  let arrival: ArrivalStatus | null = null
+  let arrivalDismissed = false
+
+  function evaluateArrival(sample: ArrivalSample) {
+    if (!endCoords) return
+    const destination: LatLng = [endCoords[0], endCoords[1]]
+    arrival = checkArrival(sample, destination)
+    if (arrival.arrived) arrivalDismissed = false
+  }
+
+  function dismissArrival() {
+    arrivalDismissed = true
+  }
+
+  function planAnotherWalk() {
+    arrivalDismissed = true
+    arrival = null
+    clearEndCoords()
+    end = ''
+  }
 
   function beginPick(role: PickRole) {
     activePick = togglePickRole(activePick, role)
@@ -131,6 +156,11 @@
         icon: L.divIcon(personIcon()),
       }).addTo(map)
     }
+    evaluateArrival({
+      position: [lat, lng],
+      accuracyMeters: e.accuracy,
+      timestampMs: e.timestamp,
+    })
   }
 
   function onLocationError(e: L.ErrorEvent) {
@@ -487,6 +517,17 @@
           {/each}
         </ul>
       </section>
+    {/if}
+
+    {#if arrival?.arrived && !arrivalDismissed}
+      <ArrivalCard
+        distanceMeters={arrival.distanceMeters}
+        durationMinutes={route ? route.duration_s / 60 : 0}
+        comfortScore={route ? route.comfort_score : 0}
+        topFactors={route ? route.explanation.slice(0, 3) : []}
+        onDismiss={dismissArrival}
+        onPlanAnother={planAnotherWalk}
+      />
     {/if}
   </aside>
 
