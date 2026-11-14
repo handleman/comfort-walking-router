@@ -100,6 +100,13 @@ def format_human_report(
         lines.append("  ".join(bits))
     if p.get("reason_code"):
         lines.append(f"reason_code: {p['reason_code']}")
+    autonomy = p.get("autonomy") or {}
+    if autonomy:
+        verb = "auto-merged" if autonomy.get("auto_merge") else "human merge"
+        lines.append(
+            f"risk class {autonomy.get('class')} ({autonomy.get('label')}): {verb}"
+            f" — {autonomy.get('reason')}"
+        )
 
     lines += ["", "why"]
     reasons: list[str] = []

@@ -1069,3 +1069,34 @@ exists for — and implementation paths always verify. The decision is recorded 
 | `SWARM_VERIFY_CONCURRENT` | `0` | first read-only verifier pass runs beside QA (A/B) |
 | `SWARM_VERIFY_LEAN` | `0` | skip the verifier for a docs-only small delta (A/B) |
 | `SWARM_LEAN_MAX_PATHS` / `SWARM_LEAN_MAX_LINES` | `4` / `200` | the lean-path bound |
+
+## Parallel task attempts (`make swarm-parallel`, 023 phase 1)
+```bash
+make swarm-parallel BATCH="007-live-position:T2,004-weather-sun:T2" WORKERS=2
+```
+- Each worker runs `swarm.flow --no-commit` in a detached worktree with the
+  current harness copy; it never writes the main tree.
+- Tasks run together only when the files their briefs name are disjoint.
+- Only a **green** worker is integrated, one at a time: `git apply --check` →
+  apply → the full `SWARM_GATE_COMMANDS` suite on main → commit with the
+  standard trailers → best-effort push.
+- A conflict or a failed main-tree gate reverses the patch (`git apply -R`),
+  leaves the task open and the tree clean. The main tree has one writer.
+- Phase 1 is a race, not a scheduler: the first green wins, the rest stay open.
+  Durable queues/leases are ADR-012's future option.
+
+## Earned autonomy (`SWARM_AUTONOMY`, 024)
+| Class | Paths | Merge |
+| --- | --- | --- |
+| 0 docs | `docs/**`, `*.md` | auto after gates + reviewer + verifier, when autonomy is on |
+| 1 tests | `tests/**`, `frontend/e2e/**` | auto (same conditions) |
+| 2 logic | `app/**`, `frontend/src/**`, `contracts/**` | human |
+| 3 control | `swarm/**`, `specs/**`, migrations, auth/payments/infra, config, unknown | human |
+
+`SWARM_AUTONOMY=1` (default `0`) + `SWARM_AUTONOMY_MAX_CLASS=1` lets a class 0/1
+green run skip the `awaiting_approval` hold; the commit still uses the branch,
+merge queue and trailers, and QA's evidence is unchanged. Class 2/3 and any
+sensitive brief (auth/payment/migration/infra/secret) always wait. The decision
+lands in `run.json.autonomy` with its reason; `human_log.txt` and
+`make swarm-report` show the class and the auto-merged count. Autonomy is not
+claimed to be safe until a green baseline and an escape-rate measurement exist.

@@ -1005,6 +1005,9 @@ class SwarmFlow(Flow[SwarmState]):
         self._gate_select = gate_selection.enabled()
         # 020 T3: provider cache hints (SWARM_PROMPT_CACHE=0 off).
         self._prompt_cache = llms.prompt_cache_enabled()
+        # 024: earned autonomy by risk class (off by default).
+        self._autonomy = os.getenv("SWARM_AUTONOMY", "0") == "1"
+        self._autonomy_max = env_int("SWARM_AUTONOMY_MAX_CLASS", 1)
         # 022 AC-2: a task cannot outlive its wall budget (0 disables).
         self._wall_budget = env_int("SWARM_TASK_WALL_BUDGET", 900)
         # 021 AC-6: the code-round budget is a knob (the suite tests 3 vs 4);
@@ -3355,10 +3358,22 @@ class SwarmFlow(Flow[SwarmState]):
                         f"{dirty_in_scope}"
                     )
         if status == "green":
+            from swarm import risk
+
+            autonomy = risk.decision(
+                changed=changed,
+                brief=brief,
+                gates=self.state.gates,
+                review_verdict=self.state.review_verdict,
+                verifier_blocked=bool(self.state.verifier.get("blocked")),
+                autonomy=bool(getattr(self, "_autonomy", False)),
+                max_class=int(getattr(self, "_autonomy_max", 1)),
+            )
+            payload["autonomy"] = autonomy
             if self.state.review_verdict != "pass":
                 status = "needs_human"
                 payload["review_note"] = f"reviewer verdict was {self.state.review_verdict!r}, not PASS"
-            elif self._require_approval and not approved:
+            elif self._require_approval and not approved and not autonomy["auto_merge"]:
                 status = "awaiting_approval"
                 payload["delta_hashes"] = in_scope_hashes
                 payload["head"] = head
@@ -3476,6 +3491,7 @@ HARNESS_SPECS = (
     "021-fix-loop",
     "022-lean-loop",
     "023-parallel-factory",
+    "024-earned-autonomy",
 )
 
 

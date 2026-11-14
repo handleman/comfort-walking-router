@@ -69,6 +69,17 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             phases[phase] = phases.get(phase, 0) + 1
             if entry.get("changed"):
                 changed_rounds += 1
+    # 024: auto-merge decisions by risk class (escape-rate input).
+    autonomy: dict[str, int] = {}
+    auto_merged = 0
+    for row in rows:
+        info = row.get("autonomy") or {}
+        if not info:
+            continue
+        key = f"class {info.get('class')}"
+        autonomy[key] = autonomy.get(key, 0) + 1
+        if info.get("auto_merge"):
+            auto_merged += 1
     # 022 AC-1: wall clock per phase, derived from each run's events.
     phase_durations: dict[str, list[float]] = {}
     for row in rows:
@@ -110,6 +121,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "verifier_runs": len(verifier_runs),
         "verifier_hits": sum(1 for r in verifier_runs if (r.get("verifier") or {}).get("hit")),
         "phases": dict(sorted(phases_summary.items(), key=lambda kv: -kv[1]["p50"])),
+        "autonomy": dict(sorted(autonomy.items())),
+        "auto_merged": auto_merged,
     }
 
 
@@ -145,6 +158,11 @@ def render(summary: dict[str, Any]) -> str:
         lines.append(
             f"verification: self-check {summary['self_check_hits']}/{sc} hit, "
             f"verifier {summary['verifier_hits']}/{vr} hit"
+        )
+    if summary.get("autonomy"):
+        lines.append(
+            "autonomy: " + ", ".join(f"{k}={v}" for k, v in summary["autonomy"].items())
+            + f" (auto-merged {summary['auto_merged']})"
         )
     if summary.get("phases"):
         lines.append("phases (p50/p90, seconds):")
