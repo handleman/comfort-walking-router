@@ -1926,6 +1926,7 @@ class SwarmFlow(Flow[SwarmState]):
                 record["model"] = model
         verdict, findings = verify.parse_verdict(out)
         plan = verify.parse_plan(out)[:MAX_STEPS] if verdict == "blocked" else []
+        note = "" if verdict in {"pass", "blocked"} else "verifier returned no verdict"
         record.update(
             verdict=verdict,
             rounds=1,
@@ -1933,8 +1934,12 @@ class SwarmFlow(Flow[SwarmState]):
             plan=plan,
             output=str(out)[-2000:],
             history=[{"round": 1, "verdict": verdict, "findings": findings, "plan": plan}],
-            blocked=verdict == "blocked",
+            # An unknown verdict forces the sequential phase (which re-asks once)
+            # instead of being read as a pass.
+            blocked=verdict != "pass",
         )
+        if note:
+            record["note"] = note
         if verdict == "blocked":
             record["hit"] = True
             record["hit_basis"] = "corrections" if plan else "blocked"
@@ -2051,6 +2056,39 @@ class SwarmFlow(Flow[SwarmState]):
             history.append(
                 {"round": round_no + 1, "verdict": verdict, "findings": findings, "plan": []}
             )
+            if verdict not in {"pass", "blocked"}:
+                # 014-T10: the verifier spent its turn on tool calls and never
+                # emitted a verdict. `unknown` used to fall through as a pass, so
+                # a task with three missing deliverables was committed green.
+                print("verifier: no verdict — one re-ask", flush=True)
+                try:
+                    crew, out = kick(
+                        lambda context_text=context_text: build_verify_crew(
+                            self._spec_dir, task, context_text
+                        ),
+                        f"verifier:{round_no + 1}b",
+                    )
+                except SystemExit as e:
+                    record["note"] = f"verdict re-ask failed: {e}"[:500]
+                    record["blocked"] = True
+                    return False
+                record["repaired"] = True
+                verdict, findings = verify.parse_verdict(out)
+                record["verdict"] = verdict
+                record["output"] = str(out)[-2000:]
+                history[-1]["verdict"] = verdict
+                if findings:
+                    record["findings"] = findings
+                agents = getattr(crew, "agents", None) or []
+                if agents:
+                    record["model"] = str(
+                        getattr(getattr(agents[0], "llm", None), "model", "") or ""
+                    ) or record.get("model", "")
+            if verdict not in {"pass", "blocked"}:
+                record["blocked"] = True
+                record["note"] = "verifier returned no verdict after a re-ask"
+                print("verifier: still no verdict → needs a human", flush=True)
+                return False
             if verdict != "blocked":
                 record["blocked"] = False
                 record.setdefault("hit", False)

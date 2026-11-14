@@ -676,3 +676,55 @@ def test_the_verifier_crew_has_a_bounded_iteration_budget():
 
     task = SpecTask(id="T2", ac_refs=("AC-4",), brief="Add `frontend/src/lib/x.ts`.")
     assert build_verify_crew("007-live-position", task, "ctx").agents[0].max_iter == 6
+
+
+# ---- 014-T10: an unknown verdict is not a pass ----
+
+def test_a_verifier_with_no_verdict_is_re_asked_not_passed(monkeypatch):
+    from swarm import flow
+
+    stub = _flow_stub(monkeypatch)
+    calls: list[str] = []
+
+    def kick(build, role):
+        calls.append(role)
+        crew = build()
+        if len(calls) == 1:
+            # The model spent its turn on tool calls and never said VERDICT.
+            return crew, "<tool_call>read README.md</tool_call>"
+        return crew, "VERDICT: PASS"
+
+    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is True
+    assert calls == ["verifier:1", "verifier:1b"]
+    record = stub.state.verifier
+    assert record["repaired"] is True
+    assert record["verdict"] == "pass"
+    assert record["blocked"] is False
+
+
+def test_a_verifier_with_no_verdict_twice_needs_a_human(monkeypatch):
+    from swarm import flow
+
+    stub = _flow_stub(monkeypatch)
+
+    def kick(build, role):
+        return build(), "I read the files but will not state a verdict."
+
+    assert flow.SwarmFlow._verify_phase(stub, _task(), kick) is False
+    record = stub.state.verifier
+    assert record["blocked"] is True
+    assert "no verdict" in record["note"]
+
+
+def test_the_verifier_precheck_does_not_read_unknown_as_pass(monkeypatch):
+    from swarm import flow
+
+    stub = _flow_stub(monkeypatch)
+    stub._verify_precheck = types.MethodType(flow.SwarmFlow._verify_precheck, stub)
+
+    def kick(build, role):
+        return build(), "no verdict here"
+
+    record = stub._verify_precheck(_task(), kick)
+    assert record["verdict"] == "unknown"
+    assert record["blocked"] is True

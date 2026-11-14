@@ -4,7 +4,20 @@ from swarm import llms
 
 
 @pytest.fixture(autouse=True)
-def _reset():
+def _reset(monkeypatch):
+    # The operator `.env` is loaded by `swarm.flow`, so a cloud-only profile would
+    # otherwise leak into these default-chain tests. Clear the fallback knobs so
+    # each test sees the code defaults unless it sets them itself.
+    for var in (
+        "SWARM_PLANNER_FALLBACK_MODEL",
+        "SWARM_CODER_FALLBACK_MODEL",
+        "SWARM_REVIEWER_FALLBACK_MODEL",
+        "SWARM_SENIOR_FALLBACK_MODEL",
+        "SWARM_VERIFIER_FALLBACK_MODEL",
+        "SWARM_LOCAL_FALLBACK_MODEL",
+        "SWARM_ALLOW_PAID",
+    ):
+        monkeypatch.delenv(var, raising=False)
     llms.reset_fallbacks()
     yield
     llms.reset_fallbacks()
