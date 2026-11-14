@@ -3475,6 +3475,7 @@ HARNESS_SPECS = (
     "020-harness-efficiency",
     "021-fix-loop",
     "022-lean-loop",
+    "023-parallel-factory",
 )
 
 

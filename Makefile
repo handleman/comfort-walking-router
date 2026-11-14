@@ -5,7 +5,7 @@
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
 	swarm-supervise swarm-report swarm-log swarm-night \
-	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live \
+	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live swarm-parallel \
 	swarm-replay swarm-replay-off swarm-replay-one
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
@@ -76,6 +76,10 @@ swarm-log: ## Human-readable "why did this stop?" report [RUN=<run dir>] (defaul
 swarm-night: ## Overnight run: keep the Mac awake (caffeinate) + auto-resume the queue
 	@echo "overnight: caffeinate -is + supervisor; keep the machine on AC power"
 	caffeinate -is swarm/.venv/bin/python -m swarm.supervise
+
+swarm-parallel: ## Race independent tasks in worktrees, integrate greens serially: BATCH="spec:task,..." WORKERS=2
+	@test -n "$(BATCH)" || { echo 'BATCH="spec:task,spec:task" is required'; exit 2; }
+	swarm/.venv/bin/python -m swarm.parallel --batch "$(BATCH)" --workers $${WORKERS:-2}
 
 swarm-bench: ## Offline replay bench vs baseline.json (020): prompt/report chars, no model call
 	swarm/.venv/bin/python -m swarm.bench $(ARGS)
