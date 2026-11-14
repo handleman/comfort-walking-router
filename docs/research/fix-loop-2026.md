@@ -336,6 +336,19 @@ once: a replay/tooling mismatch, a real semantic finding, and a repair crew that
 could not act on it. Fixing the formatter to report its exit code is done; the
 other two are the next phase's problem.
 
+### The plan cache can hand a task its neighbour's plan
+
+The next 004-T2 rerun executed **six steps that were entirely T4's work** —
+`app/main.py`, `contracts/route.json`, `tests/test_route_weather.py`. The plan
+cache returned the neighbour's plan for T2, and the scope guard's "never empty a
+plan" rule kept it because every step was foreign. The run did the wrong task and
+the verifier blocked.
+
+The guard now distinguishes the two cases: a plan that is **entirely** another
+task's work becomes one synthetic step on the task's own files (when the task
+names them); a task with no named files keeps the plan. Executing another task's
+plan is never the right fallback.
+
 ### The plan can contain another task
 
 `004-weather-sun-T2` is "auto-rule in `app/preferences.py`". The planner produced
