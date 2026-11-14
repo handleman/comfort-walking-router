@@ -336,6 +336,20 @@ once: a replay/tooling mismatch, a real semantic finding, and a repair crew that
 could not act on it. Fixing the formatter to report its exit code is done; the
 other two are the next phase's problem.
 
+### QA can pass and the loop can still keep fixing
+
+`004-weather-sun-T2` (one file) with the paid coder reached
+`review_verdict=pass` and **four gates green at exit 0**, then started
+`coder:fix1`, `senior:fix1/2` rounds until the wall budget: **731k prompt
+tokens, $0.14** on a one-file task. The reason: the harness's gate map was not
+green (stale/incomplete evidence) while QA's verdict was pass, and
+`fixcause.classify` called that `other` — i.e. coder work. A coder round cannot
+create a missing gate execution.
+
+The loop now classifies "pass + no failing gate" as `evidence`: it re-runs the
+evidence once and stops with a note, never a coder round. That is the difference
+between a red-but-explained stop and a quarter-dollar loop.
+
 ## 022 measurement: the budget has to reach inside a crew
 
 The first 022 suite run (three cases, paid coder + fast QA, `SWARM_TASK_WALL_BUDGET=900`, 1100 s runner cap) reproduced the old shape: **all three timed out, with no `run.json`**. The event logs showed why — the budget is checked *between* crews, but one crew's agent loop (`max_iter` × retries) can outlive it, so the runner killed a run that had no record.
