@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 import requests
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import fixtures, saved_routes
+from . import fixtures, geocode_cache, geocoding, saved_routes
 from .cache import Cache
 from .config import get_mapbox_token
 from .geocoder import geocode_place
@@ -208,6 +208,36 @@ def _build_response(
         preference_source=preference_source,
         weather=weather,
     )
+
+
+@app.get("/geocode")
+def geocode_endpoint(
+    q: str = Query(min_length=2, max_length=120),
+    lat: float | None = Query(None, ge=-90, le=90),
+    lng: float | None = Query(None, ge=-180, le=180),
+    limit: int = Query(5, ge=1, le=10),
+):
+    key = f"fwd:{q.strip().lower()}:{lat}:{lng}:{limit}"
+    cached = geocode_cache.get(key)
+    if cached is not None:
+        return {"suggestions": cached}
+    results = geocoding.search(q, lat, lng, limit)
+    geocode_cache.set(key, results)
+    return {"suggestions": results}
+
+
+@app.get("/geocode/reverse")
+def reverse_geocode_endpoint(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+):
+    key = f"rev:{lat}:{lng}"
+    cached = geocode_cache.get(key)
+    if cached is not None:
+        return {"suggestions": cached}
+    results = geocoding.reverse(lat, lng)
+    geocode_cache.set(key, results)
+    return {"suggestions": results}
 
 
 @app.post("/route", response_model=RouteResponse)
