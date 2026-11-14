@@ -27,21 +27,28 @@ flow works; only the guard *implementation* (`swarm/tools_guarded.py` path/secre
 rules) is repo-specific.
 
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
-Verified 2026-11-08 (tool calls + latency): free unless noted.
 
-| Role | Default | Cost |
+Current operator profile (**cloud-only**, 2026-11-14): local Ollama is off
+(`SWARM_LOCAL_FIRST=0`) and every role has an explicit cloud fallback.
+
+| Role | Model | Cost |
 | --- | --- | --- |
-| Coder | `SWARM_CODER_MODEL=ollama/swarm-coder:latest` (Qwen3.5 9B, `make swarm-coder-image`) | $0 local, ~6–13 s |
-| Planner | `SWARM_PLANNER_MODEL=openrouter/nvidia/nemotron-3.5-super-vl:free` | $0, 1M ctx, ~1 s |
-| Reviewer | `SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest` (Qwen3.5 9B, 64k ctx, QA prompt) | $0 local |
-| Verifier | `SWARM_VERIFIER_MODEL`, default `SWARM_SENIOR_MODEL` (free, tool-capable) — the scenario verifier (019) | $0 |
-| Verdict fallback | the senior model (`SWARM_SENIOR_MODEL`, free, tool-capable) — used only when local QA gives no verdict | $0 |
-| Trivial-step coder | `SWARM_LOCAL_CODER_MODEL=ollama/swarm-coder:latest` (mechanical steps only; 015 D2) | $0 local |
-| Senior | `SWARM_SENIOR_MODEL=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0, 550B, tools OK |
+| Planner | `openrouter/deepseek/deepseek-v4.1-flash-1017` (fallback `zen/deepseek-v4.1-flash`) | ~$0.001/task |
+| Coder | `zen/glm-5.3-flash` (fallback `nvidia/nemotron-3-ultra-550b-a55b:free`) | $0.15/$0.50 per M |
+| Reviewer | `openrouter/nvidia/nemotron-3.5-lightning:free` (fallback `zen/glm-5.3-flash`) | $0 |
+| Verifier | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0 |
+| Senior / verdict fallback | same free ultra | $0 |
 
-All-local variant (no keys, slowest): `make swarm-local` sets every role to Ollama.
-On a quota/429 the flow switches every subsequent crew to `SWARM_<ROLE>_FALLBACK_MODEL`
-(default `SWARM_LOCAL_FALLBACK_MODEL=ollama/swarm-coder:latest`, one knob for every role; senior prefers cheap Zen when `SWARM_ALLOW_PAID=1`), then retries.
+Offline variant (no keys, slowest): `make swarm-local` sets every role to Ollama —
+coder `swarm-coder`, reviewer `swarm-qa` (Qwen3.5 9B, 262k ctx). The 2026-11-08
+free-first defaults were planner `nemotron-3.5-super-vl:free`, local coder/QA and
+the free ultra senior. The free Nvidia planner returned 503 "content safety
+screening is temporarily unavailable" for ~7 minutes (2026-11-14, 014-T6), which
+is why the planner is now paid DeepSeek.
+
+On a quota/429 the flow switches that role to `SWARM_<ROLE>_FALLBACK_MODEL`
+(default `SWARM_LOCAL_FALLBACK_MODEL`, still `ollama/swarm-coder:latest` in code;
+the operator `.env` points it at `zen/glm-5.3-flash` because local is off), then retries.
 
 Free/cheap menu (re-checked live with a tool-call probe; ids churn, so run
 `make swarm-preflight` before trusting them):

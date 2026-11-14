@@ -309,8 +309,10 @@ def main() -> int:
         print(f"{var:<24} {model or '<missing>':<58} {provider(model) if model else '-'}")
 
     # Reuse the factory so a broken factory (not just a broken id) is caught.
+    # The planner may be a paid model: the flag matches `build_plan_crew`, and
+    # `SWARM_ALLOW_PAID` is still the gate that decides.
     for name, factory in (
-        ("planner", llms.planner_llm),
+        ("planner", lambda: llms.planner_llm(allow_paid=True)),
         ("coder", llms.coder_llm),
         ("reviewer", llms.reviewer_llm),
         ("senior", llms.senior_llm),
