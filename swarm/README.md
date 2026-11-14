@@ -1100,3 +1100,13 @@ sensitive brief (auth/payment/migration/infra/secret) always wait. The decision
 lands in `run.json.autonomy` with its reason; `human_log.txt` and
 `make swarm-report` show the class and the auto-merged count. Autonomy is not
 claimed to be safe until a green baseline and an escape-rate measurement exist.
+
+## Escape rate (024)
+`make swarm-report` joins `run.json.autonomy` (which runs auto-merged) with git:
+for every auto-merged run it looks up the task's commit and counts an escape when
+a later commit says `This reverts commit <sha>`. The line reads
+`autonomy escapes: E/M (P%) — class 1 …`, per class.
+
+A hand-fixed regression is not a detected escape, so the ratio is a **floor**.
+That is the number that decides whether class 2 may join class 0/1; autonomy
+stays at max class 1 until it exists.

@@ -113,6 +113,8 @@ class SwarmState(BaseModel):
     retries: int = 0
     # Plan-scope guard: steps dropped because another task owns their file.
     plan_trimmed: list[str] = []
+    # Out-of-scope writes archived before reverting (operator edits are kept).
+    reverted_archive: list[str] = []
     no_progress: bool = False
     ungrounded_block: bool = False
 
@@ -1482,6 +1484,11 @@ class SwarmFlow(Flow[SwarmState]):
 
     def _gates_or_evidence(self, changed: list[str]) -> tuple[dict[str, int], str, list[str]]:
         """Evidence is authoritative; `SWARM_TRUST_QA_EVIDENCE=0` restores 012 behaviour."""
+        from swarm.tools_guarded import run_delta
+        # Operator edits made during a run are not the coder's delta: archive and
+        # revert them before the scope gate, then re-read the delta.
+        if self._revert_out_of_scope(run_delta(self._baseline)):
+            changed = run_delta(self._baseline)
         if os.getenv("SWARM_TRUST_QA_EVIDENCE", "1") == "0":
             gates, transcript = self._run_gates(changed)
             return gates, transcript, []
@@ -2382,6 +2389,18 @@ class SwarmFlow(Flow[SwarmState]):
         reverted: list[str] = []
         for path in bad:
             target = REPO_ROOT / path
+            # An operator editing the tree during a run is attributed to the run;
+            # keep their content before reverting it instead of deleting it.
+            if target.is_file():
+                try:
+                    import shutil
+
+                    dest = self.run_dir / "reverted" / path
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(target, dest)
+                    self.state.reverted_archive.append(f"reverted/{path}")
+                except OSError:
+                    pass
             listed = _git(["ls-files", "--error-unmatch", path])[0] == 0
             if listed:
                 rc, _ = _git(["checkout", "--", path])
@@ -2684,12 +2703,29 @@ class SwarmFlow(Flow[SwarmState]):
                     if self.listener is not None:
                         self.listener.register_crew(crew, role or "")
                         self.listener.current_role = role or ""
+                    from swarm import bounded
+
+                    budget = int(getattr(self, "_wall_budget", 0) or 0)
+                    remaining = (
+                        budget - (time.monotonic() - self._task_started)
+                        if budget > 0
+                        else float(os.getenv("SWARM_CREW_TIMEOUT_SECONDS", "1800") or 1800)
+                    )
                     try:
-                        out = crew.kickoff()
+                        finished, out = bounded.run_bounded(
+                            lambda c=crew: c.kickoff(), remaining, name=role or "crew"
+                        )
                     finally:
                         if self.listener is not None:
                             self.listener.current_role = ""
                             self.listener.forget_crew(crew)
+                    if not finished:
+                        # 022: a hung provider call must not eat the task. The
+                        # abandoned thread is a daemon; the run records the stop.
+                        self.state.wall_budget_note = (
+                            f"{role or 'crew'}: crew exceeded {int(remaining)}s"
+                        )
+                        raise _WallBudget(self.state.wall_budget_note)
                 except (_BudgetExhausted, _WallBudget):
                     # A budget stop is terminal: retrying it cannot help, and
                     # swallowing it here turned "out of money" into
@@ -3387,6 +3423,7 @@ class SwarmFlow(Flow[SwarmState]):
             "wall_budget_note": self.state.wall_budget_note,
             "retries": self.state.retries,
             "plan_trimmed": self.state.plan_trimmed,
+            "reverted_archive": self.state.reverted_archive,
             "journal": (
                 self._journal.fold(self.run_dir.name)
                 if getattr(self, "_journal", None) is not None
