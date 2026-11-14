@@ -352,9 +352,11 @@ Two things follow:
 - the plan-scope guards stay as a safety net, but they were not the cause of the
   T4-plan readings — the queue advance was.
 
-**First live green:** `004-weather-sun-T2`, 433 s, 176k prompt tokens (78k
-cached), **$0.0414**, 1 fix round, gates `mypy`/`npm check`/`pytest`/`ruff` +
-scope, changed `app/preferences.py` and `tests/test_preferences.py`. That is the
+**First live green (clean `--single` replay):** `004-weather-sun-T2`, **152 s,
+58,674 prompt tokens, $0.0126, zero fix rounds**, all gates + scope, changed
+exactly `app/preferences.py` and `tests/test_preferences.py`. An earlier run
+without `--single` also ran T3 (315.6 s) and reported T4; its T2 took 433 s with
+one fix round. That is the
 baseline the 021/022/023/024 measurements were missing. `replay_baseline.json`
 records it (`complete: false`: the five-case suite is still not run).
 

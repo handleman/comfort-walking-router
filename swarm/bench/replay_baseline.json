@@ -3,21 +3,21 @@
     "004-weather-sun-T2"
   ],
   "complete": false,
-  "created": "2026-11-14T17:55:19",
-  "note": "first green live replay: 004-weather-sun-T2, 433.9 s, $0.041. The same worktree also ran T3 green (315.6 s, $0.029) before T4 hung - the replay was missing --single, so the queue advanced. The five-case suite is not complete; this row is the first real baseline.",
+  "created": "2026-11-14T17:58:33",
+  "note": "clean --single replay: 004-weather-sun-T2 green in 152 s, 58,674 prompt tokens, $0.0126, no fix rounds. An earlier run without --single advanced the queue (T2 433 s, T3 315 s) and reported T4; this row is the reproducible benchmark. The five-case suite is still not run.",
   "off": false,
   "rows": [
     {
-      "cached_prompt_tokens": 77944,
+      "cached_prompt_tokens": 18620,
       "case": "004-weather-sun-T2",
       "changed_files": [
         "app/preferences.py",
         "tests/test_preferences.py"
       ],
-      "cost_usd": 0.04137,
-      "duration_seconds": 433,
-      "error": "",
-      "fix_rounds": 1,
+      "cost_usd": 0.012564,
+      "duration_seconds": 152,
+      "error": "green",
+      "fix_rounds": 0,
       "gates": [
         "mypy app tests",
         "npm --prefix frontend run check",
@@ -26,19 +26,19 @@
         "scope"
       ],
       "ok": true,
-      "prompt_tokens": 176257,
+      "prompt_tokens": 58674,
       "status": "green"
     }
   ],
   "totals": {
-    "cached_prompt_tokens": 77944,
+    "cached_prompt_tokens": 18620,
     "cases": 1,
-    "cost_usd": 0.0414,
-    "duration_p50": 433,
-    "duration_total": 433,
-    "fix_rounds": 1,
+    "cost_usd": 0.0126,
+    "duration_p50": 152,
+    "duration_total": 152,
+    "fix_rounds": 0,
     "green": 1,
     "green_rate": 100.0,
-    "prompt_tokens": 176257
+    "prompt_tokens": 58674
   }
 }
