@@ -173,3 +173,6 @@ def test_the_replay_child_writes_to_files_not_pipes():
     source = (Path(__file__).resolve().parents[1] / "bench" / "live.py").read_text()
     assert "stdout=out_f" in source and "stderr=err_f" in source
     assert "capture_output=True" not in source
+    # the logs must not live inside the worktree (scope gate)
+    assert "mkdtemp(prefix=\"swarm-replay-logs-\")" in source
+    assert "worktree / \".swarm-replay" not in source

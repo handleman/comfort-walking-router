@@ -272,8 +272,11 @@ def run_case(
         # Write the child's output to files, not pipes: a leaked gate process
         # can keep a pipe open after the flow exits, and then `communicate`
         # never returns (one replay hung 57 minutes with a 1300 s timeout).
-        out_path = worktree / ".swarm-replay.out"
-        err_path = worktree / ".swarm-replay.err"
+        # Logs live outside the worktree: a file inside it is an out-of-scope
+        # change and the scope gate correctly fails the run.
+        log_dir = Path(tempfile.mkdtemp(prefix="swarm-replay-logs-"))
+        out_path = log_dir / "out.txt"
+        err_path = log_dir / "err.txt"
         with out_path.open("w") as out_f, err_path.open("w") as err_f:
             proc = subprocess.run(
                 cmd,
@@ -290,6 +293,7 @@ def run_case(
             stderr_text = err_path.read_text(errors="ignore")
         except OSError:
             stdout_text = stderr_text = ""
+        __import__("shutil").rmtree(log_dir, ignore_errors=True)
         run_dir = _run_dir(worktree)
         payload: dict[str, Any] = {}
         if run_dir is not None:
