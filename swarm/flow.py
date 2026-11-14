@@ -2968,6 +2968,19 @@ class SwarmFlow(Flow[SwarmState]):
                     )
                     tokens_before = int(getattr(self.state, "total_tokens", 0))
                     round_started = time.monotonic()
+                    if cause["cause"] == "evidence" and self.state.review_verdict == "pass":
+                        # QA passed but the gate evidence is incomplete/stale: a
+                        # coder round cannot fix that. Re-run the evidence once and
+                        # stop if it is still not green, instead of burning rounds.
+                        changed = run_delta(self._baseline)
+                        gates, transcript, missing = self._gates_or_evidence(changed)
+                        if _gates_green(gates) and self.state.review_verdict == "pass":
+                            break
+                        self.state.evidence_note = (
+                            self.state.evidence_note
+                            or "QA passed but the recorded gate evidence is incomplete"
+                        )
+                        break
                     if cause["cause"] in {"verdict", "evidence"}:
                         # 021 AC-6: a round with no grounded verdict (or no
                         # change) is not code work; it gets its own small cap.

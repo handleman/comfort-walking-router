@@ -108,3 +108,19 @@ def test_report_aggregates_causes_phases_and_changed_rounds():
     assert "repair rounds: 3 (2 changed the delta, 1 changed nothing)" in text
     assert "causes: lint=1, evidence=1, type=1" in text
     assert "verification: self-check 1/1 hit, verifier 0/1 hit" in text
+
+
+def test_qa_pass_with_incomplete_evidence_is_not_a_code_round():
+    """004-T2: pass + not-green evidence burned 731k tokens on senior fixes."""
+    assert fixcause.classify(gates={"scope": 0}, verdict="pass")["cause"] == "evidence"
+    assert fixcause.classify(gates={}, verdict="pass")["cause"] == "evidence"
+    # a real failing gate still wins over the pass verdict
+    assert fixcause.classify(gates={"pytest -q": 1}, verdict="pass")["cause"] == "test"
+
+
+def test_the_loop_does_not_spend_a_fix_round_on_an_evidence_gap():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
+    assert 'cause["cause"] == "evidence" and self.state.review_verdict == "pass"' in source
+    assert "QA passed but the recorded gate evidence is incomplete" in source

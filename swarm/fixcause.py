@@ -108,6 +108,11 @@ def classify(
         cause = "evidence"
     elif not failed and str(verdict or "").lower() == "blocked":
         cause = "verdict"
+    elif not failed and str(verdict or "").lower() == "pass":
+        # QA passed but the harness's gate map is not green (incomplete/stale
+        # evidence). That is not coder work: a fix round cannot create a gate
+        # execution (004-T2 burned 731k tokens on this).
+        cause = "evidence"
     else:
         kinds = {command_kind(command) for command in failed}
         if "type" in kinds:
