@@ -336,6 +336,15 @@ once: a replay/tooling mismatch, a real semantic finding, and a repair crew that
 could not act on it. Fixing the formatter to report its exit code is done; the
 other two are the next phase's problem.
 
+## 022 measurement: the budget has to reach inside a crew
+
+The first 022 suite run (three cases, paid coder + fast QA, `SWARM_TASK_WALL_BUDGET=900`, 1100 s runner cap) reproduced the old shape: **all three timed out, with no `run.json`**. The event logs showed why — the budget is checked *between* crews, but one crew's agent loop (`max_iter` × retries) can outlive it, so the runner killed a run that had no record.
+
+Two fixes: every agent gets the remaining budget as `max_execution_time`
+(`_apply_wall_cap`), and a killed replay derives `last_phase` from
+`events.jsonl` and records `status=timeout` instead of an anonymous failure.
+A single-case rerun then decides whether the budget is actually reachable.
+
 ## 021 measurement: what the suite could and could not show
 
 The outcome suite was attempted with the operator's `.env` routing plus a
