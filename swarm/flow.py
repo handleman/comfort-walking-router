@@ -2661,12 +2661,14 @@ class SwarmFlow(Flow[SwarmState]):
                     # runner killing a run that has no record yet.
                     self._apply_wall_cap(crew)
                     if self.listener is not None:
+                        self.listener.register_crew(crew, role or "")
                         self.listener.current_role = role or ""
                     try:
                         out = crew.kickoff()
                     finally:
                         if self.listener is not None:
                             self.listener.current_role = ""
+                            self.listener.forget_crew(crew)
                 except (_BudgetExhausted, _WallBudget):
                     # A budget stop is terminal: retrying it cannot help, and
                     # swallowing it here turned "out of money" into

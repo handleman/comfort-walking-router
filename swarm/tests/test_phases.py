@@ -165,3 +165,41 @@ def test_usage_attribution_uses_the_crew_own_tokens_not_a_shared_diff():
     SwarmFlow._record_usage(stub, Crew(), Out(), role="verifier", step=None, before=(0, 0))
     assert stub._usage_by_role["verifier"]["prompt_tokens"] == 10
     assert stub.state.prompt_tokens == 1010
+
+
+# ---- 022 T6 findings: clock jumps and CrewAI's cross-thread events ----
+
+
+def test_monotonic_stamps_win_over_a_wall_clock_jump():
+    events = [
+        {"type": "crew_started", "at": "2026-11-14T08:23:00.000", "mono": 10.0, "role": "qa"},
+        {"type": "crew_done", "at": "2026-11-14T09:19:00.000", "mono": 40.0, "role": "qa"},
+    ]
+    out = phases.derive(events)
+    assert out[0]["duration_seconds"] == 30.0  # not the 56-minute clock jump
+
+
+def test_a_crew_object_maps_to_the_role_the_flow_started():
+    import types
+
+    from swarm.events import SwarmListener
+
+    listener = SwarmListener.__new__(SwarmListener)  # no bus registration needed
+    listener._crew_roles = {}
+    listener._role_local = __import__("threading").local()
+    crew = types.SimpleNamespace()
+    listener.register_crew(crew, "verifier:1")
+    event = types.SimpleNamespace(crew=crew)
+    assert listener.crew_role(event, None) == "verifier:1"
+    listener.forget_crew(crew)
+    assert listener.crew_role(event, None) == ""
+
+
+def test_the_listener_stamps_monotonic_time(tmp_path: Path):
+    from swarm.events import SwarmListener
+
+    listener = SwarmListener(tmp_path)
+    listener._append({"type": "crew_started"})
+    listener.teardown()
+    line = (tmp_path / "events.jsonl").read_text().strip()
+    assert '"mono"' in line

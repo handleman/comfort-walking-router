@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import queue
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -67,6 +68,10 @@ class SwarmListener:
         # verifier and QA may run concurrently (022 AC-3).
         self._role_local = threading.local()
         self._write_lock = threading.Lock()
+        # CrewAI emits crew events from its own thread, so a thread-local role
+        # is not enough; map the crew object to the role the flow started it
+        # with (022 AC-1).
+        self._crew_roles: dict[int, str] = {}
         outer = self
 
         class _L(BaseEventListener):
@@ -98,15 +103,21 @@ class SwarmListener:
 
                 @_listen(CrewKickoffStartedEvent)
                 def _cs(source: Any, event: Any) -> None:
-                    outer._append({"type": "crew_started"})
+                    outer._append({"type": "crew_started", "role": outer.crew_role(event, source)})
 
                 @_listen(CrewKickoffCompletedEvent)
                 def _cc(source: Any, event: Any) -> None:
-                    outer._append({"type": "crew_done"})
+                    outer._append({"type": "crew_done", "role": outer.crew_role(event, source)})
 
                 @_listen(CrewKickoffFailedEvent)
                 def _cf(source: Any, event: Any) -> None:
-                    outer._append({"type": "crew_failed", "text": _event_error(event)})
+                    outer._append(
+                        {
+                            "type": "crew_failed",
+                            "role": outer.crew_role(event, source),
+                            "text": _event_error(event),
+                        }
+                    )
 
                 @_listen(TaskStartedEvent)
                 def _ts(source: Any, event: Any) -> None:
@@ -177,6 +188,21 @@ class SwarmListener:
                 pass
         self._handlers.clear()
 
+    def register_crew(self, crew: Any, role: str) -> None:
+        self._crew_roles[id(crew)] = str(role or "")
+
+    def forget_crew(self, crew: Any) -> None:
+        self._crew_roles.pop(id(crew), None)
+
+    def crew_role(self, event: Any, source: Any) -> str:
+        for candidate in (getattr(event, "crew", None), source, getattr(source, "crew", None)):
+            if candidate is None:
+                continue
+            role = self._crew_roles.get(id(candidate))
+            if role:
+                return role
+        return self.current_role
+
     @property
     def current_role(self) -> str:
         return str(getattr(self._role_local, "value", "") or "")
@@ -189,6 +215,9 @@ class SwarmListener:
         # Wall-clock stamps make a stalled call visible after the fact; without
         # them a 30-minute run cannot be attributed to one slow request.
         payload.setdefault("at", datetime.now().isoformat(timespec="milliseconds"))
+        # Monotonic elapsed survives a clock jump (the sandbox changed the wall
+        # clock mid-run and made phase durations nonsense).
+        payload.setdefault("mono", round(time.monotonic(), 3))
         if self.current_role and "role" not in payload:
             payload["role"] = self.current_role
         with self._write_lock:

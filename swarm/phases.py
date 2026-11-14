@@ -15,7 +15,17 @@ from datetime import datetime
 from typing import Any
 
 
-def _seconds(start: Any, end: Any) -> float:
+def _seconds(start: Any, end: Any, start_mono: Any = None, end_mono: Any = None) -> float:
+    """Duration from monotonic stamps when present, wall clock otherwise.
+
+    A sandbox clock jump made a 954 s run report a 6270 s phase; monotonic
+    elapsed cannot do that.
+    """
+    try:
+        if start_mono is not None and end_mono is not None:
+            return round(max(0.0, float(end_mono) - float(start_mono)), 1)
+    except (TypeError, ValueError):
+        pass
     try:
         a = datetime.fromisoformat(str(start))
         b = datetime.fromisoformat(str(end))
@@ -39,6 +49,7 @@ def derive(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "phase": str(event.get("role") or event.get("agent") or "crew"),
                     "started_at": event.get("at"),
+                    "mono": event.get("mono"),
                     "model": event.get("model") or "",
                 }
             )
@@ -56,7 +67,9 @@ def derive(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "phase": started["phase"],
                     "started_at": started["started_at"],
                     "ended_at": event.get("at"),
-                    "duration_seconds": _seconds(started["started_at"], event.get("at")),
+                    "duration_seconds": _seconds(
+                        started["started_at"], event.get("at"), started.get("mono"), event.get("mono")
+                    ),
                     "failed": kind == "crew_failed",
                     "model": started.get("model") or "",
                 }
