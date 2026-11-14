@@ -336,32 +336,27 @@ once: a replay/tooling mismatch, a real semantic finding, and a repair crew that
 could not act on it. Fixing the formatter to report its exit code is done; the
 other two are the next phase's problem.
 
-### The plan cache can hand a task its neighbour's plan
+### The replay ran the whole queue
 
-The next 004-T2 rerun executed **six steps that were entirely T4's work** —
-`app/main.py`, `contracts/route.json`, `tests/test_route_weather.py`. The plan
-cache returned the neighbour's plan for T2, and the scope guard's "never empty a
-plan" rule kept it because every step was foreign. The run did the wrong task and
-the verifier blocked.
+The repeated "the plan is another task's" diagnosis was wrong, and the run dirs
+proved it: `004-weather-sun-T2` was **green** (433.9 s, $0.041), `004-weather-sun-T3`
+was **green** (315.6 s, $0.029), and the run then advanced to T4 and hung. The
+replay runner never passed `--single`, so `run_tasks` moved through the queue on
+each green and the `latest` pointer (run dir, plan, budget note) belonged to the
+next task. The replay reported T4's failure against a T2 case.
 
-The guard now distinguishes the two cases: a plan that is **entirely** another
-task's work becomes one synthetic step on the task's own files (when the task
-names them); a task with no named files keeps the plan. Executing another task's
-plan is never the right fallback.
+Two things follow:
 
-### The plan can contain another task
+- **the replay runs one task now** (`--single` in `live.run_case`), so a case's
+  row describes the case that was asked for;
+- the plan-scope guards stay as a safety net, but they were not the cause of the
+  T4-plan readings — the queue advance was.
 
-`004-weather-sun-T2` is "auto-rule in `app/preferences.py`". The planner produced
-six steps: four for the rule and its tests, then two that edited `app/main.py`
-and `contracts/route.json` — files the **next** task's brief owns. The coder
-implemented the extra scope, and the verifier blocked on its defects (a contract
-enum mismatch, a non-nullable weather field, a missing cache test): 541 s / $0.05
-and no QA, on a task that needed four small steps.
-
-The harness now trims a plan step whose target is named in another task's brief
-and not in this task's (`plan_scope.scope_steps`, recorded in
-`run.json.plan_trimmed`), never emptying a plan. The plan is the task's scope; a
-later task's file is not this task's work.
+**First live green:** `004-weather-sun-T2`, 433 s, 176k prompt tokens (78k
+cached), **$0.0414**, 1 fix round, gates `mypy`/`npm check`/`pytest`/`ruff` +
+scope, changed `app/preferences.py` and `tests/test_preferences.py`. That is the
+baseline the 021/022/023/024 measurements were missing. `replay_baseline.json`
+records it (`complete: false`: the five-case suite is still not run).
 
 ### The last red gate was the runner's own log
 

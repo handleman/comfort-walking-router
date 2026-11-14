@@ -44,7 +44,7 @@ def test_the_reason_code_is_machine_readable():
 
 def test_the_budget_is_checked_before_every_crew_and_retry():
     source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
-    assert 'self._wall_budget = env_int("SWARM_TASK_WALL_BUDGET", 900)' in source
+    assert 'self._wall_budget = env_int("SWARM_TASK_WALL_BUDGET", 1800)' in source
     assert 'self._check_wall_budget(role or "crew")' in source
     # the stop is terminal: it is re-raised, not retried
     assert "except (_BudgetExhausted, _WallBudget):" in source

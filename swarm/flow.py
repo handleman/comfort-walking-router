@@ -997,8 +997,8 @@ class SwarmFlow(Flow[SwarmState]):
         self._max_cost = env_float("SWARM_MAX_COST_USD", 0.05)
         self._max_seconds = env_int("SWARM_MAX_RUNTIME_SECONDS", 14400)
         # 015 AC-6: a single task cannot eat the whole run.
-        self._max_cost_task = env_float("SWARM_MAX_COST_PER_TASK", 0.05)
-        self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 1800)
+        self._max_cost_task = env_float("SWARM_MAX_COST_PER_TASK", 0.25)
+        self._max_seconds_task = env_int("SWARM_MAX_SECONDS_PER_TASK", 2400)
         # 020 AC-3: step digests + gate-log spilling (SWARM_CONTEXT_COMPACT=0 off).
         self._compact = compaction.enabled()
         # 020 AC-4: inner-loop gate selection (SWARM_GATE_SELECT=0 off).
@@ -1011,7 +1011,7 @@ class SwarmFlow(Flow[SwarmState]):
         self._autonomy = os.getenv("SWARM_AUTONOMY", "0") == "1"
         self._autonomy_max = env_int("SWARM_AUTONOMY_MAX_CLASS", 1)
         # 022 AC-2: a task cannot outlive its wall budget (0 disables).
-        self._wall_budget = env_int("SWARM_TASK_WALL_BUDGET", 900)
+        self._wall_budget = env_int("SWARM_TASK_WALL_BUDGET", 1800)
         # 021 AC-6: the code-round budget is a knob (the suite tests 3 vs 4);
         # verdict/evidence rounds have their own small cap.
         from swarm.crew import MAX_FIX_ROUNDS
