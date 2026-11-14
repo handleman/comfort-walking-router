@@ -236,8 +236,9 @@ def test_verifier_model_defaults_to_the_senior_brain(monkeypatch):
 
     monkeypatch.delenv("SWARM_VERIFIER_MODEL", raising=False)
     senior = os.environ["SWARM_SENIOR_MODEL"]
-    expected = senior.removeprefix("openrouter/") if senior.startswith("openrouter/") else senior
-    assert verifier_llm().model == expected  # the senior/free brain, provider prefix off
+    # CrewAI drops the routing prefix the client adds back at call time.
+    expected = senior.removeprefix("openrouter/").removeprefix("zen/")
+    assert verifier_llm().model == expected  # the senior brain, provider prefix off
 
 
 def test_verifier_model_can_have_its_own_role(monkeypatch):

@@ -343,18 +343,31 @@ def planner_llm(*, allow_paid: bool = False) -> LLM:
     return _for_role("SWARM_PLANNER_MODEL", temperature=0.2, allow_paid=allow_paid)
 
 
-def reviewer_llm(*, allow_paid: bool = False) -> LLM:
-    return _for_role("SWARM_REVIEWER_MODEL", temperature=0, allow_paid=allow_paid)
+def _paid_ok(allow_paid: bool | None) -> bool:
+    """Explicit flag wins; `None` follows the global SWARM_ALLOW_PAID opt-in.
+
+    The QA reviewer, senior and verifier default to free models, but a daily
+    free-tier quota wall leaves them with no usable free fallback. An operator
+    who has set SWARM_ALLOW_PAID=1 and named a paid id may run them paid.
+    """
+    return _allow_paid() if allow_paid is None else allow_paid
 
 
-def senior_llm(*, allow_paid: bool = False) -> LLM:
-    """Escalation brain: strong free-tier model (OpenRouter :free, tool-capable)."""
+def reviewer_llm(*, allow_paid: bool | None = None) -> LLM:
+    return _for_role("SWARM_REVIEWER_MODEL", temperature=0, allow_paid=_paid_ok(allow_paid))
+
+
+def senior_llm(*, allow_paid: bool | None = None) -> LLM:
+    """Escalation brain; free by default, paid only with SWARM_ALLOW_PAID=1."""
     return _for_role(
-        "SWARM_SENIOR_MODEL", temperature=0, allow_paid=allow_paid, timeout=_fix_timeout()
+        "SWARM_SENIOR_MODEL",
+        temperature=0,
+        allow_paid=_paid_ok(allow_paid),
+        timeout=_fix_timeout(),
     )
 
 
-def verifier_llm(*, allow_paid: bool = False) -> LLM:
+def verifier_llm(*, allow_paid: bool | None = None) -> LLM:
     """Scenario verifier (019): read the whole scenario and judge, not count.
 
     `SWARM_VERIFIER_MODEL` wins; without it the senior/free brain is used, so
@@ -368,8 +381,8 @@ def verifier_llm(*, allow_paid: bool = False) -> LLM:
             "to enable the scenario verifier."
         )
     if fallbacks_active("SWARM_VERIFIER_MODEL"):
-        model = fallback_model("SWARM_VERIFIER_MODEL", allow_paid=allow_paid) or model
-    return _build(model, temperature=0, allow_paid=allow_paid, timeout=_fix_timeout())
+        model = fallback_model("SWARM_VERIFIER_MODEL", allow_paid=_paid_ok(allow_paid)) or model
+    return _build(model, temperature=0, allow_paid=_paid_ok(allow_paid), timeout=_fix_timeout())
 
 
 def conflict_llm(*, allow_paid: bool = True) -> LLM:
@@ -388,9 +401,8 @@ def conflict_llm(*, allow_paid: bool = True) -> LLM:
 def verdict_fallback_llm() -> LLM:
     """Verdict-only reviewer, used when the local QA model returns no verdict.
 
-    It is the senior model: the strongest free tool-capable brain we already
-    configure, so a missing verdict is decided by the same model that reasons
-    about hard fixes instead of a second, separately-maintained id. Free only:
-    a paid model must never become the reviewer of record.
+    It is the senior model, so a missing verdict is decided by the same brain
+    that reasons about hard fixes instead of a second id. Free by default; a
+    paid senior needs SWARM_ALLOW_PAID=1 (the free quota can be walled).
     """
-    return _for_role("SWARM_SENIOR_MODEL", temperature=0, allow_paid=False)
+    return _for_role("SWARM_SENIOR_MODEL", temperature=0, allow_paid=_paid_ok(None))

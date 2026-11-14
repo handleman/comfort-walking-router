@@ -34,10 +34,17 @@ Current operator profile (**cloud-only**, 2026-11-14): local Ollama is off
 | Role | Model | Cost |
 | --- | --- | --- |
 | Planner | `openrouter/deepseek/deepseek-v4.1-flash-1017` (fallback `zen/deepseek-v4.1-flash`) | ~$0.001/task |
-| Coder | `zen/glm-5.3-flash` (fallback `nvidia/nemotron-3-ultra-550b-a55b:free`) | $0.15/$0.50 per M |
-| Reviewer | `openrouter/nvidia/nemotron-3.5-lightning:free` (fallback `zen/glm-5.3-flash`) | $0 |
-| Verifier | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | $0 |
-| Senior / verdict fallback | same free ultra | $0 |
+| Coder | `zen/glm-5.3-flash` | $0.15/$0.50 per M |
+| Reviewer / QA | `zen/glm-5.3-flash` (fallback `zen/deepseek-v4.1-flash`) | $0.15/$0.50 per M |
+| Verifier | `zen/glm-5.3-flash` | $0.15/$0.50 per M |
+| Senior / verdict fallback | `zen/glm-5.3-flash` | $0.15/$0.50 per M |
+
+The free Nvidia roles worked all day until OpenRouter's **1000 free requests/day**
+limit hit (`429 free-models-per-day-high-balance`). With no free fallback left,
+the operator pointed reviewer/verifier/senior at the paid Zen model instead of
+waiting for the reset; `SWARM_ALLOW_PAID=1` now also covers those roles (an
+explicit `allow_paid` argument still wins). With a healthy free tier, set them
+back to `:free` ids — the code defaults are free-only.
 
 Offline variant (no keys, slowest): `make swarm-local` sets every role to Ollama —
 coder `swarm-coder`, reviewer `swarm-qa` (Qwen3.5 9B, 262k ctx). The 2026-11-08
