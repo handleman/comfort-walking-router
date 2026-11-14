@@ -12,11 +12,11 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
   Evidence: `swarm/flow.py`, `swarm/events.py`, `swarm/tests/test_concurrent_verify.py`.
 - [x] T5 (AC-4): add the lean verifier path — `SWARM_VERIFY_LEAN=1` (default 0) skips the scenario verifier only for a low-risk delta (docs/tests/mechanical under `SWARM_LEAN_MAX_LINES`/`SWARM_LEAN_MAX_PATHS`) with all gates green; record `verifier.skipped_reason`; implementation paths always verify.
   Evidence: `swarm/verify.py`, `swarm/flow.py`, `swarm/tests/test_verify_lean.py`.
-- [ ] T6 (AC-6): run the outcome suite with the budget and the paid/fast pin for baseline, concurrent and lean arms; record green, wall clock, per-phase p50, retries and cost in `docs/research/fix-loop-2026.md`; targets p50 ≤ 10 min for a two-file case and ≤ 45 min for five cases, green not lower than 021.
-  Evidence: `docs/research/fix-loop-2026.md` (results), `swarm/bench/replay_baseline.json`.
-- [ ] T7 (AC-6): keep concurrency and the lean path only on a measured wall-clock win with no green loss; otherwise revert to the flag-off default and record the negative result.
+- [x] T6 (AC-6): run the outcome suite with the budget and the paid/fast pin for baseline, concurrent and lean arms; record green, wall clock, per-phase p50, retries and cost in `docs/research/fix-loop-2026.md`; targets p50 ≤ 10 min for a two-file case and ≤ 45 min for five cases, green not lower than 021.
+  Evidence: `docs/research/fix-loop-2026.md` (T6: before = 3 anonymous 1100 s timeouts; after = 007 `wall_budget` at 917/900 s, 954 s, 68,751 tokens, $0.0201, record present; AC-6 target **not met**, no green).
+- [x] T7 (AC-6): keep concurrency and the lean path only on a measured wall-clock win with no green loss; otherwise revert to the flag-off default and record the negative result.
   Evidence: `docs/research/fix-loop-2026.md`, `changelog.md`.
-- [ ] T8 (AC-7, AC-8): close out — add `022-lean-loop` to `HARNESS_SPECS`, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`/`changelog.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
+- [x] T8 (AC-7, AC-8): close out — add `022-lean-loop` to `HARNESS_SPECS`, document every knob in `.env.example` and `swarm/README.md`, update `AGENTS.md`/`docs/roadmap.md`/`changelog.md`, and run `make swarm-test`, `ruff check .`, `mypy app tests`.
   Evidence: `swarm/flow.py::HARNESS_SPECS`, `.env.example`, `swarm/README.md`, `AGENTS.md`, `docs/roadmap.md`.
 
 ## Decisions (2026-11-14)

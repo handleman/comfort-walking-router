@@ -343,7 +343,25 @@ The first 022 suite run (three cases, paid coder + fast QA, `SWARM_TASK_WALL_BUD
 Two fixes: every agent gets the remaining budget as `max_execution_time`
 (`_apply_wall_cap`), and a killed replay derives `last_phase` from
 `events.jsonl` and records `status=timeout` instead of an anonymous failure.
-A single-case rerun then decides whether the budget is actually reachable.
+
+The single-case rerun (007, paid coder + fast QA, budget 900 s):
+
+| Run | Result |
+| --- | --- |
+| before | timeout at 1100 s, **no `run.json`** |
+| after | `needs_human` / **`wall_budget` at 917 s of 900 s**, 954 s total, 68,751 prompt tokens, **$0.0201**, 0 retries, `run.json` present |
+
+So the budget is reachable and the record survives. The run also exposed two
+attribution defects, both fixed: the sandbox clock jumped mid-run (a 954 s task
+reported 3224 s / 6270 s phases), so events now carry a monotonic stamp that
+phase durations prefer; and `crew_started` carried no role because CrewAI emits
+it from its own thread, so the flow now registers the crew object with its role
+and the listener resolves by object id.
+
+**T6 verdict:** the wall budget and timing work; the AC-6 wall-clock target is
+**not met** — 954 s (15.9 min) for a two-file case against a 10 min target, and
+no case reached QA or green. The loop is still bounded by the paid model's
+latency and the self-check/verifier phases, not by an unbounded hang.
 
 ## 021 measurement: what the suite could and could not show
 

@@ -1,6 +1,6 @@
 # 022 Lean Loop — Plan
 
-Status: in progress (T1–T5 done; measurement at T6). References `specs/022-lean-loop/spec.md` AC-1–AC-8 and
+Status: implemented (T1–T8). Measurement partial: budget/timing validated, AC-6 wall-clock target not met; concurrency and lean stay opt-in. References `specs/022-lean-loop/spec.md` AC-1–AC-8 and
 `docs/research/fix-loop-2026.md` (the paid bake-off that measured ~10 sequential
 phases and four capped runs).
 
