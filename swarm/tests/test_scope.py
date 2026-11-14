@@ -65,3 +65,36 @@ def test_the_gates_revert_operator_edits_before_scoring_scope():
     source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
     assert "self._revert_out_of_scope(run_delta(self._baseline))" in source
     assert '"reverted_archive": self.state.reverted_archive' in source
+
+
+# ---- S1: a docs task must be able to write its own deliverable ----
+
+def test_task_scope_adds_the_brief_paths_outside_the_default_scope():
+    from swarm.tools_guarded import DEFAULT_SCOPE, in_scope, task_scope
+
+    brief = (
+        "Create `docs/architecture/adr-013-geocoding.md`, update `README.md` "
+        "and `docs/roadmap.md`."
+    )
+    scope = task_scope(DEFAULT_SCOPE, brief)
+    assert in_scope("docs/architecture/adr-013-geocoding.md", scope)
+    assert in_scope("README.md", scope)
+    assert in_scope("docs/roadmap.md", scope)
+    # The default code scope is unchanged.
+    assert in_scope("app/main.py", scope)
+    assert not in_scope("secrets/prod.env", scope)
+
+
+def test_task_scope_does_not_duplicate_paths_already_in_scope():
+    from swarm.tools_guarded import DEFAULT_SCOPE, task_scope
+
+    scope = task_scope(DEFAULT_SCOPE, "Edit `app/main.py`.")
+    assert scope == DEFAULT_SCOPE
+
+
+def test_the_flow_widens_scope_from_the_brief():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
+    assert "task_scope(base, tasks[0].brief)" in source
+    assert 'os.environ["SWARM_SCOPE"] = ",".join(widened)' in source

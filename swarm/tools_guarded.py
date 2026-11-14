@@ -102,6 +102,20 @@ def resolve_scope() -> tuple[str, ...]:
     return tuple(s for s in os.getenv("SWARM_SCOPE", "").split(",") if s) or DEFAULT_SCOPE
 
 
+def task_scope(base: tuple[str, ...], brief: str) -> tuple[str, ...]:
+    """The base scope plus the files the task brief itself names.
+
+    DEFAULT_SCOPE covers code, not documentation: a docs-only task (an ADR, a
+    README section) could never write its own deliverable, so two 014-T10 runs
+    ended with an empty delta while the verifier correctly blocked. The brief's
+    own paths are the smallest honest widening — the task already declares them.
+    """
+    from swarm.prompts import brief_paths
+
+    extra = [path for path in brief_paths(brief) if not in_scope(path, base)]
+    return tuple(base) + tuple(extra)
+
+
 def in_scope(path: str, scope: tuple[str, ...] | None = None) -> bool:
     """True when `path` is inside an allowed directory prefix or exact file."""
     norm = _safe_rel(path)

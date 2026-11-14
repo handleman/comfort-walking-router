@@ -116,6 +116,8 @@ class SwarmState(BaseModel):
     retries: int = 0
     # Plan-scope guard: steps dropped because another task owns their file.
     plan_trimmed: list[str] = []
+    # S1: brief-named paths added to the coder scope for this task (docs tasks).
+    scope_extra: list[str] = []
     # Out-of-scope writes archived before reverting (operator edits are kept).
     reverted_archive: list[str] = []
     no_progress: bool = False
@@ -1303,6 +1305,22 @@ class SwarmFlow(Flow[SwarmState]):
         if not tasks:
             raise SystemExit(f"No task {self._task_id} in {self._spec_dir}")
         self.state.spec_dir, self.state.task_id = self._spec_dir, tasks[0].id
+        # A brief that names a doc or another path outside DEFAULT_SCOPE must be
+        # writable, or the task can never produce its own deliverable (014-T10:
+        # two runs, empty delta, verifier right every time). Extend the scope with
+        # this task's own paths; the base scope is captured once so a queue run
+        # does not inherit the previous task's extras.
+        import os as _os
+
+        from swarm.tools_guarded import resolve_scope, task_scope
+
+        base = getattr(self, "_base_scope", None)
+        if base is None:
+            base = self._base_scope = resolve_scope()
+        widened = task_scope(base, tasks[0].brief)
+        if widened != base:
+            _os.environ["SWARM_SCOPE"] = ",".join(widened)
+            self.state.scope_extra = [p for p in widened if p not in base]
         return {"spec_path": str(spec_path), "task": tasks[0].id, "brief": tasks[0].brief}
 
     def _run_gates(self, changed: list[str]) -> tuple[dict[str, int], str]:
@@ -3490,6 +3508,7 @@ class SwarmFlow(Flow[SwarmState]):
             "wall_budget_note": self.state.wall_budget_note,
             "retries": self.state.retries,
             "plan_trimmed": self.state.plan_trimmed,
+            "scope_extra": self.state.scope_extra,
             "reverted_archive": self.state.reverted_archive,
             "journal": (
                 self._journal.fold(self.run_dir.name)
