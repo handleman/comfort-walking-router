@@ -18,6 +18,19 @@ _REQUEST = {"origin": [52.52, 13.405], "destination": [48.135, 11.582]}
 _RESPONSE = {"distance_km": 585.0, "duration_h": 6.0}
 
 
+@pytest.fixture(autouse=True)
+def _holders():
+    """005: routes/prefs have an FK to holders; the API registers on first use."""
+    if not os.getenv("DATABASE_URL"):
+        yield
+        return
+    from app.repositories import holders
+
+    for holder in ('holder-a', 'holder-b'):
+        holders.ensure_holder(holder)
+    yield
+
+
 def _unique_route_id() -> str:
     return str(uuid.uuid4())
 

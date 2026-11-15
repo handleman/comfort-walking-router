@@ -12,7 +12,7 @@ test('preferences panel shows the default_preference select', async ({ page }) =
   await page.goto('/')
 
   await page.getByRole('button', { name: 'Edit preferences' }).click()
-  await expect(page.locator('select')).toBeVisible()
+  await expect(page.locator('.prefs select')).toBeVisible()
 })
 
 test('saved cloudy default_preference is applied to the routed result', async ({ page }) => {

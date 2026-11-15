@@ -7,7 +7,7 @@
 - [x] T5 (AC-2): Prefs repository in `app/repositories/prefs.py` (one row per holder, get/update survives restart) with tests in `tests/test_prefs_repo.py`.
 - [x] T6 (AC-1, AC-2, AC-6): Add save/list/recall/delete + prefs API endpoints with bearer dependency in `app/saved_routes.py`, mounted from `app/main.py`, with API tests in `tests/test_saved_routes_api.py`.
 - [x] T7 (AC-7): Add the 90-day TTL sweep in `app/retention.py` (recall refreshes `last_accessed_at`, prefs persist) with tests in `tests/test_retention.py`.
-- [ ] T8 (AC-1, AC-2): Add Svelte save/list/recall/delete + prefs editor + invisible token bootstrap in `frontend/src/App.svelte` and `frontend/src/lib/savedRoutes.ts`; keep `npm run check` green.
+- [x] T8 (AC-1, AC-2): Add Svelte save/list/recall/delete + prefs editor + invisible token bootstrap in `frontend/src/App.svelte` and `frontend/src/lib/savedRoutes.ts`; keep `npm run check` green.
 - [x] T9 (AC-4, AC-5): Add the SQLite cache regression test in `tests/test_cache_regression.py` and confirm the full app gates stay green.
 
 <!-- Human/infra gate, not queued: provision Postgres + set DATABASE_URL for live repo tests;

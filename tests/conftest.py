@@ -44,3 +44,19 @@ def real_corridor(monkeypatch):
     """Opt back into the real `corridor_factors` (still network-free when stubbed)."""
     monkeypatch.setattr(_comfort, "corridor_factors", _REAL_CORRIDOR)
     return _REAL_CORRIDOR
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _db_schema():
+    """A live database starts at head; skipped entirely without DATABASE_URL.
+
+    The repositories assume the tables exist, and the migration tests move the
+    schema around; one upgrade here keeps the two stories compatible.
+    """
+    if not os.getenv("DATABASE_URL"):
+        yield
+        return
+    from app import db
+
+    db.run_migrations()
+    yield

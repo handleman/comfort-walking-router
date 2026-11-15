@@ -39,7 +39,7 @@ def _expected_tables():
 def _inspector():
     from sqlalchemy import create_engine, inspect
 
-    return inspect(create_engine(app.db.DATABASE_URL))
+    return inspect(create_engine(app.db.sqlalchemy_url()))
 
 
 def _user_tables(inspector):
@@ -51,17 +51,25 @@ def _alembic_config():
 
     cfg = Config()
     cfg.set_main_option("script_location", str(VERSIONS_DIR.parent))
-    cfg.set_main_option("sqlalchemy.url", app.db.DATABASE_URL)
+    cfg.set_main_option("sqlalchemy.url", app.db.sqlalchemy_url())
     return cfg
 
 
 @pytest.fixture()
 def clean_db():
+    """Empty schema for one test, then back to head.
+
+    Leaving the database at `base` after the test broke every repository test
+    that ran later in the same session (15 `UndefinedTable` failures the first
+    time the suite met a live Postgres, 2026-11-15). The schema is not this
+    fixture's to leave empty.
+    """
     from alembic import command
 
-    command.downgrade(_alembic_config(), "base")
+    cfg = _alembic_config()
+    command.downgrade(cfg, "base")
     yield
-    command.downgrade(_alembic_config(), "base")
+    command.upgrade(cfg, "head")
 
 
 @skipif_no_db

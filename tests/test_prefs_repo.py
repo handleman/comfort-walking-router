@@ -15,6 +15,19 @@ _HOLDER_A = "holder-a"
 _HOLDER_B = "holder-b"
 
 
+@pytest.fixture(autouse=True)
+def _holders():
+    """005: routes/prefs have an FK to holders; the API registers on first use."""
+    if not os.getenv("DATABASE_URL"):
+        yield
+        return
+    from app.repositories import holders
+
+    for holder in ('holder-a', 'holder-b'):
+        holders.ensure_holder(holder)
+    yield
+
+
 @skipif_no_db
 def test_get_prefs_returns_none_when_missing():
     assert prefs_repo.get_prefs(_HOLDER_B) is None

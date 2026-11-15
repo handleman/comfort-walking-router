@@ -165,6 +165,21 @@ def _build_response(
         preference_note,
         "Comfort factor: applied based on preference and route properties.",
     ]
+    if weather:
+        # The weather is a factor of every score, whatever chose the preference,
+        # so the explanation states it once (004 AC-2).
+        explanation.append(
+            f"Weather: {weather.get('temperature')}°C, "
+            f"cloud cover {weather.get('cloud_cover')}%."
+        )
+    if preference_source == "auto" and weather:
+        # 004 AC-2: an automatic preference must show its reason, not just its
+        # name — the e2e asserts the factor that decided it.
+        explanation.append(
+            "Auto preference: cloud cover "
+            f"{weather.get('cloud_cover')}% and {weather.get('temperature')}°C "
+            f"→ {applied_preference}."
+        )
     data = comfort_data or {}
     shade_value = data.get("shade_factor")
     quiet_value = data.get("quiet_factor")
@@ -327,9 +342,10 @@ def route(body: RouteRequest) -> RouteResponse:
         preference_source = "manual"
     elif weather is not None:
         auto = auto_preference(weather, body.preference)
-        if auto is not None:
-            applied_preference = auto
-            preference_source = "auto"
+        # 004/005: when the weather matches neither rule, the honest answer is
+        # "balanced", not null — the UI rendered "Auto: null 6.6°C" (2026-11-15).
+        applied_preference = auto or "balanced"
+        preference_source = "auto"
     else:
         # Total failure (no caller preference, no weather): fall back to balanced.
         applied_preference = "balanced"

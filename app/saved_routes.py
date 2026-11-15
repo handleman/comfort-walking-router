@@ -8,14 +8,12 @@ see and mutate their own saved routes (AC-1, AC-2, AC-6).
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
 from app.auth import hash_token
-from app.db import get_connection
 from app.repositories import routes as routes_repo
 
 router = APIRouter(prefix="/saved-routes", tags=["saved-routes"])
@@ -34,22 +32,17 @@ _TOKEN_RESOLVERS: tuple[str, ...] = (
     "get_holder_id",
 )
 
-_LOOKUP_SQL = "SELECT holder_id FROM tokens WHERE token_hash = %s"
-
-
 def _lookup_holder_id(token_hash: str) -> str | None:
-    """Resolve holder_id for a token hash via repositories, else direct lookup."""
-    for name in _TOKEN_RESOLVERS:
-        candidate: Callable[[str], Any] | None = getattr(
-            routes_repo, name, None
-        ) or getattr(_prefs_repo(), name, None)
-        if candidate is not None:
-            holder_id = candidate(token_hash)
-            return str(holder_id) if holder_id else None
-    with get_connection() as conn, conn.cursor() as cur:
-        cur.execute(_LOOKUP_SQL, (token_hash,))
-        row = cur.fetchone()
-    return str(row[0]) if row else None
+    """Resolve the holder for a token hash, registering it on first use.
+
+    ADR-007 has no accounts: a bearer token's hash *is* the holder id, and the
+    `holders` row is what the route/prefs foreign keys point at. A lookup-only
+    path (and a `tokens` table that no migration creates) meant every first
+    request 401'd against a live database (2026-11-15).
+    """
+    from app.repositories import holders
+
+    return holders.ensure_holder(token_hash)
 
 
 def _prefs_repo() -> Any:

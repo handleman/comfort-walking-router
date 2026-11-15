@@ -317,8 +317,17 @@
   /** WalkControls route as `[lat, lng]` pairs; empty until a route exists. */
   $: walkRoute = route ? route.waypoints.map((w): LatLng => [w.lat, w.lng]) : []
 
+  // The last request that produced the route on screen, so an identical repeat
+  // renders the cached result instead of a second external call (005 AC-3).
+  let lastQuery = ''
+
   async function submitRoute() {
     error = ''
+    const appliedPreference = manualOverride
+      ? preference || null
+      : prefs?.default_preference || null
+    const query = JSON.stringify([start, end, appliedPreference, startCoords, endCoords])
+    if (route && query === lastQuery) return
     loading = true
     try {
       const response = await fetch('/route', {
@@ -327,7 +336,7 @@
         body: JSON.stringify({
           start,
           end,
-          preference: manualOverride ? preference || null : null,
+          preference: appliedPreference,
           prefer_lit: prefs?.prefer_lit ?? false,
           avoid_traffic: prefs?.avoid_traffic ?? false,
           ...(startCoords ? { start_coords: startCoords } : {}),
@@ -339,6 +348,7 @@
         throw new Error(data.message || data.detail || `Route request failed (${response.status})`)
       }
       route = data
+      lastQuery = query
       suggestionAttribution = data.attribution ?? suggestionAttribution
       drawRoute()
     } catch (err) {
@@ -584,7 +594,7 @@
       <section class="result">
         <div class="chip">
           {route.preference_source === 'manual'
-            ? 'Manual'
+            ? `Manual: ${route.applied_preference}`
             : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
         </div>
         <button type="button" on:click={handleSaveRoute}>Save route</button>

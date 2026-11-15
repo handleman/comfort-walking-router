@@ -11,10 +11,14 @@ from app.db import get_connection
 _UPSERT = """
 INSERT INTO routes (id, holder_id, request, response)
 VALUES (%s, %s, %s, %s)
-ON CONFLICT (holder_id, id) DO UPDATE
+ON CONFLICT (id) DO UPDATE
 SET request = EXCLUDED.request,
     response = EXCLUDED.response,
     last_accessed_at = NOW()
+-- A route id may only be re-saved by the holder that owns it; another holder's
+-- insert would otherwise overwrite it (the migration has PK(id), not a
+-- composite unique, so the conflict target must be the primary key).
+WHERE routes.holder_id = EXCLUDED.holder_id
 RETURNING id, holder_id, request, response, created_at, last_accessed_at
 """
 

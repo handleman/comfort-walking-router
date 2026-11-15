@@ -11,6 +11,21 @@ from app.repositories.prefs import get_prefs, update_prefs
 from app.repositories.routes import delete_route, list_routes, save_route
 from app.retention import sweep_expired_routes
 
+_HOLDERS = ("holder-a", "holder-b", "holder-count")
+
+
+@pytest.fixture(autouse=True)
+def _holders():
+    """005: routes/prefs have an FK to holders; the API registers on first use."""
+    if not os.getenv("DATABASE_URL"):
+        yield
+        return
+    from app.repositories import holders
+
+    for holder in _HOLDERS:
+        holders.ensure_holder(holder)
+    yield
+
 skipif_no_db = pytest.mark.skipif(
     os.getenv("DATABASE_URL") is None, reason="DATABASE_URL not set"
 )

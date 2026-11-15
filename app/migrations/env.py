@@ -28,17 +28,27 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations against the database using a psycopg connection."""
-    import psycopg  # type: ignore[import-not-found]
+    """Run migrations against the database using a SQLAlchemy connection.
 
-    with psycopg.connect(_get_url()) as connection:
+    Alembic needs a SQLAlchemy `Connection` (it reads `connection.dialect`); a raw
+    psycopg connection raised `'Connection' object has no attribute 'dialect'` the
+    first time this ran against a real database (2026-11-15).
+    """
+    from sqlalchemy import create_engine  # type: ignore[import-not-found]
+
+    from app.db import sqlalchemy_url
+
+    engine = create_engine(sqlalchemy_url())
+    # `engine.begin()`, not `connect()`: SQLAlchemy 2 does not commit a plain
+    # connection on exit, so the DDL (and the version row) were rolled back and
+    # `upgrade head` reported success with zero tables (2026-11-15).
+    with engine.begin() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
             version_table="alembic_version",
         )
-        with context.begin_transaction():
-            context.run_migrations()
+        context.run_migrations()
 
 
 if context.is_offline_mode():

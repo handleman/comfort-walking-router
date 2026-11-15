@@ -23,3 +23,8 @@ Persist scored routes and prefs in Postgres for recall and reuse. No accounts â€
 - [ ] AC-5: `pytest` + `ruff check .` + `mypy .` + `npm run check` clean; repo layer unit-tested with transactional fixtures.
 - [ ] AC-6: Cross-holder access impossible â€” recalling another holder's route id returns 404; no token in logs/URLs.
 - [ ] AC-7: Routes untouched for 90 days expire (sweep); prefs persist; recall refreshes `last_accessed_at`.
+
+
+## Status (2026-11-15)
+
+Run against a live PostgreSQL 16: 204 app tests + 11 e2e scenarios green.
