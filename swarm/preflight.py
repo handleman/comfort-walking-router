@@ -401,6 +401,32 @@ def check(
     return problems
 
 
+def spec_kind_notes(repo_root: Path | None = None) -> list[str]:
+    """Informational drift between the `kind` files and HARNESS_SPECS (032)."""
+    from swarm.flow import HARNESS_SPECS
+    from swarm.spec_loader import spec_kind
+
+    root = Path(repo_root or REPO_ROOT)
+    specs = root / "specs"
+    if not specs.is_dir():
+        return []
+    notes: list[str] = []
+    for path in sorted(p for p in specs.iterdir() if p.is_dir()):
+        if not (path / "tasks.md").is_file():
+            continue
+        kind = spec_kind(root, path.name)
+        if kind == "control-plane" and path.name not in HARNESS_SPECS:
+            notes.append(
+                f"{path.name} is control-plane but not in HARNESS_SPECS "
+                "(the queue still skips it by kind)"
+            )
+        if path.name in HARNESS_SPECS and kind != "control-plane":
+            notes.append(
+                f"{path.name} is in HARNESS_SPECS but declares no control-plane kind"
+            )
+    return notes
+
+
 def database_note() -> str:
     """One informational line about the local Postgres (never a failure).
 
@@ -440,6 +466,8 @@ def main() -> int:
     # One 1-token call per role: a wall fails here, not after the first task.
     if not args.offline:
         print(database_note())
+    for note in spec_kind_notes():
+        print(f"spec-kind: {note}")
     problems += probe_roles(offline=args.offline)
     problems += check(offline=args.offline)
     for p in problems:

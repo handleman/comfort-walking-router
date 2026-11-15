@@ -4232,6 +4232,15 @@ def _next_after(ids: list[str], current: str) -> str | None:
 
 
 # The harness never implements itself: pilots stay out of harness specs.
+def _runnable_spec(name: str) -> bool:
+    """Should the queue consider this spec? (032: the spec says what it is.)"""
+    from swarm.spec_loader import spec_kind
+
+    if name in HARNESS_SPECS:
+        return False
+    return spec_kind(REPO_ROOT, name) != "control-plane"
+
+
 HARNESS_SPECS = (
     "009-swarm-harness",
     "012-dark-factory-harness",
@@ -4249,6 +4258,9 @@ HARNESS_SPECS = (
     "025-durable-journal",
     "026-run-guards",
     "027-e2e-self-heal",
+    "031-dashboard-update",
+    "032-spec-kind",
+    "033-planner-coder-chain",
 )
 
 
@@ -4258,7 +4270,7 @@ def _spec_after(repo_root: Path, current_dir: str) -> str | None:
     names = sorted(
         p.name
         for p in specs.iterdir()
-        if p.is_dir() and (p / "tasks.md").is_file() and p.name not in HARNESS_SPECS
+        if p.is_dir() and (p / "tasks.md").is_file() and _runnable_spec(p.name)
     )
     return _next_after(names, current_dir)
 
@@ -4392,7 +4404,7 @@ def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tu
     for name in sorted(
         p.name
         for p in specs.iterdir()
-        if p.is_dir() and (p / "tasks.md").is_file() and p.name not in HARNESS_SPECS
+        if p.is_dir() and (p / "tasks.md").is_file() and _runnable_spec(p.name)
     ):
         try:
             spec_path, tasks = load_spec_tasks(repo_root, name, None)

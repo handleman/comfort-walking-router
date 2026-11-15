@@ -33,6 +33,22 @@ def parse_tasks_md(text: str, *, include_done: bool = False) -> list[SpecTask]:
     return out
 
 
+def spec_kind(repo_root: Path, spec: str) -> str:
+    """`product` | `control-plane`, from `specs/<dir>/kind` (032).
+
+    A spec that does not say it is control-plane is a product spec: the queue
+    must never digest the harness, but defaulting the unknown to control-plane
+    would silently stop running real work. The file is a sidecar on purpose — it
+    is outside `spec_plan_hash`, so adding it cannot reopen a green task.
+    """
+    name = spec_dir_name(repo_root, spec)
+    try:
+        text = (Path(repo_root) / "specs" / name / "kind").read_text().strip()
+    except OSError:
+        return "product"
+    return "control-plane" if text == "control-plane" else "product"
+
+
 def spec_dir_name(repo_root: Path, spec: str) -> str:
     """Canonical spec directory name; a unique prefix (`007`) → `007-live-position`.
 

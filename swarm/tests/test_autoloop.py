@@ -1446,3 +1446,24 @@ def test_the_qa_fail_closed_rule_is_one_repair_only(monkeypatch):
     # A second round for the same run must not spend another call.
     flow.SwarmFlow._repair_verdict(stub, task, "exit=0")
     assert len(calls) == 1
+
+
+def test_the_queue_skips_a_control_plane_spec_by_kind(tmp_path, monkeypatch):
+    """032: the spec says what it is; HARNESS_SPECS is only the backstop."""
+    from swarm import flow
+
+    specs = tmp_path / "specs"
+    for name, kind in (("001-product", "product"), ("002-harness", "control-plane")):
+        d = specs / name
+        d.mkdir(parents=True)
+        (d / "spec.md").write_text("# s\n")
+        (d / "plan.md").write_text("# p\n")
+        (d / "tasks.md").write_text("- [ ] T1 (AC-1): do x\n")
+        (d / "kind").write_text(kind + "\n")
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(flow, "HARNESS_SPECS", ())
+    assert flow._runnable_spec("001-product") is True
+    assert flow._runnable_spec("002-harness") is False
+    # And the backstop still works without a marker.
+    monkeypatch.setattr(flow, "HARNESS_SPECS", ("001-product",))
+    assert flow._runnable_spec("001-product") is False
