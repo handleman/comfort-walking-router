@@ -92,3 +92,16 @@ factory that produces a number nobody can see is not a product).
 A walker can look at the route and point at the sunny 200 m, and the number on
 the page is the average of what the map shows — or the page says it does not
 know, and why.
+
+## Status (2026-11-15)
+
+All six tasks are green and merged through the swarm (T1, T4, T5, T6 by the
+queue; T2 and T3 by hand after typed stops — `no_progress` on a real design gap
+and `delta_incomplete` on a context reference the coder could never write).
+Verified evidence: `comfort_profile` covers the route contiguously and is scaled
+to the provider distance; `comfort_score` is its distance-weighted mean; the
+fixture route reports 7 shaded / 12 sunny segments; `contracts/route.json`
+documents the field and 5 contract tests assert it; the map draws tercile bands
+with a legend and a visible segment list; `make e2e` is **12 passed** (the new
+scenario included), `make test` 214 with the live Postgres, svelte-check and lint
+clean. `CACHE_VERSION` v6.

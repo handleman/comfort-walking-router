@@ -236,3 +236,44 @@ def test_the_queue_logs_the_reason_it_ran_a_task(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "001-x/T1" not in out, "a done task is not noise in the queue log"
     assert "open task 001-x/T2" in out
+
+
+def test_the_commit_trailer_uses_the_spec_directory_not_the_prefix(tmp_path, monkeypatch):
+    """028-T4 was recorded as `028/T4`, so the ledger thought it was open.
+
+    The queue keys entries by `<directory name>/<task>` (`spec_dir_name`); a
+    commit made from `run.sh 028 T4` must normalise before writing the trailer.
+    """
+    from swarm import flow
+
+    repo = tmp_path / "repo"
+    (repo / "specs" / "028-x").mkdir(parents=True)
+    (repo / "a.txt").write_text("x\n")
+    monkeypatch.setattr(flow, "REPO_ROOT", repo)
+
+    calls: list[list[str]] = []
+
+    def fake_git(args, timeout=120):
+        calls.append(list(args))
+        return 0, "ok"
+
+    monkeypatch.setattr(flow, "_git", fake_git)
+    flow._commit_changes(
+        "028",
+        "T4",
+        "do the thing",
+        ["a.txt"],
+        ("a.txt",),
+        task_hash_value="a" * 64,
+        run_id="r1",
+    )
+    message = next(args[args.index("-m") + 1] for args in calls if "-m" in args)
+    assert "Swarm-Task: 028-x/T4" in message
+    assert "Swarm-Task: 028/T4" not in message
+
+
+def _real_git(repo, args):
+    import subprocess
+
+    p = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=False)
+    return p.returncode, (p.stdout + p.stderr)[-500:]

@@ -33,7 +33,7 @@ def test_commit_adds_only_scope_files(monkeypatch):
     monkeypatch.setenv("SWARM_MERGE_MODE", "direct")
     _fake_git(monkeypatch, ["app/x.py", "swarm/crew.py", "docs/m.md"], calls)
     rec = _commit_changes("001", "T2", "do things")
-    assert rec["commit"].startswith("swarm: 001-T2 green")
+    assert rec["commit"].startswith("swarm: 001-example-app-T2 green")
     assert rec["push"] == "ok"
     add = calls[0]
     assert add[:3] == ["git", "add", "-A"]
@@ -393,7 +393,7 @@ def test_push_failure_is_not_ok(monkeypatch):
     monkeypatch.setattr("swarm.tools_guarded._git_changed", list)
     monkeypatch.setattr(subprocess, "run", lambda args, **kwargs: _PushFail(list(args)))
     rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
-    assert rec["commit"].startswith("swarm: 001-T2 green")
+    assert rec["commit"].startswith("swarm: 001-example-app-T2 green")
     assert rec["push"].startswith("failed")
     assert rec["ok"] == "0"
 
@@ -775,13 +775,13 @@ def test_merge_mode_happy_path(monkeypatch):
     calls = _merge_git(monkeypatch)
     rec = _commit_changes("001", "T2", "do things", paths=["app/x.py"])
     assert rec["ok"] == "1"
-    assert rec["branch"] == "swarm/001-T2"
+    assert rec["branch"] == "swarm/001-example-app-T2"
     assert rec["base"] == "main"
     assert rec["merge"] == "ok"
     flat = [c[1:] for c in calls]
-    assert ["switch", "-c", "swarm/001-T2"] in flat
+    assert ["switch", "-c", "swarm/001-example-app-T2"] in flat
     assert ["add", "-A", "--", "app/x.py"] in flat
-    assert ["merge", "--no-ff", "swarm/001-T2", "-m", "merge: swarm 001-T2 green"] in flat
+    assert ["merge", "--no-ff", "swarm/001-example-app-T2", "-m", "merge: swarm 001-example-app-T2 green"] in flat
     assert ["push", "origin", "main"] in flat
 
 
@@ -802,7 +802,7 @@ def test_branch_push_failure_keeps_work_and_untouched_base(monkeypatch):
     assert rec["push"].startswith("failed")
     assert "kept local branch" in rec["rollback"]
     flat = [c[1:] for c in calls]
-    assert ["merge", "--no-ff", "swarm/001-T2", "-m", "merge: swarm 001-T2 green"] not in flat
+    assert ["merge", "--no-ff", "swarm/001-example-app-T2", "-m", "merge: swarm 001-example-app-T2 green"] not in flat
 
 
 def test_base_push_failure_rolls_back_merge(monkeypatch):
@@ -899,7 +899,7 @@ def test_merge_mode_against_real_git(tmp_path, monkeypatch):
 
     rec = flow._commit_changes("001", "T2", "add new.py", paths=["app/new.py"])
     assert rec["ok"] == "1", rec
-    assert rec["branch"] == "swarm/001-T2"
+    assert rec["branch"] == "swarm/001-T2"  # no spec dir in this tmp repo
 
     branches = run("branch", "--list", "swarm/001-T2").stdout
     assert "swarm/001-T2" in branches

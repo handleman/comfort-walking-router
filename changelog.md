@@ -1,13 +1,11 @@
 # Changelog
 
-## 2026-11-16
+## 2026-11-15
 - 028 route comfort profile: POST /route now returns `comfort_profile` (per-segment bands of at most 200 m with a 0-100 score from the corridor factors, the dominant factor and a short label, built by `profile()` in `app/comfort.py`) and derives `comfort_score` from `weighted_score(profile)`, with a `Profile: k of n segments shaded, m sunny (a-b m).` explanation line.
 - Cache bump: `CACHE_VERSION` in `app/cache.py` raised to `v6`, so cached `/route` keys never serve a response without `comfort_profile`.
 - Tests: `tests/test_comfort_profile.py` (segment cut points and full coverage, weight/clamp bounds, factor choice, `weighted_score`, determinism, `None` without corridor data), `tests/test_route_comfort.py` (profile present, `comfort_score` equals the weighted mean, gap case null + explanation, cache hit refetches no corridor), `tests/test_route_contract.py` (optional `comfort_profile` in `contracts/route.json`, contiguous `from_m`/`to_m` ending at `distance_m`), and the `frontend/e2e/search.spec.ts` scenario (`.comfort-legend`, two or more `.comfort-band` classes, a label containing `/100`).
 
-- Gates: make test, make lint, make typecheck, make e2e, npm --prefix frontend run check — green.
-
-## 2026-11-15
+- 028 gates: make test, make lint, make typecheck, make e2e, npm --prefix frontend run check — green.
 - Go baseline across task shapes (step (c) of the plan): `005-saved-routes-T2` (backend/schema task) is **green in 145 s**, 50,157 prompt tokens (26,624 cached), **$0.0126**, 0 fix rounds, 5 gates — with `DATABASE_URL` exported so the DB-gated tests ran. Together with `004-weather-sun-T2` (111 s / 131 s, $0.0075) that is two of three shapes; `007-live-position-T6` (frontend store/component) was attempted and refused by the dirty-tree guard, so it is queued behind the spec commit.
 - The local Postgres is part of the make surface instead of an operator ritual: `swarm/db.sh` (`make swarm-db-up|swarm-db-down|swarm-db-status|swarm-db-migrate`) starts colima + `comfort-pg`, waits for readiness and migrates; while it is up, `make test`, `make e2e`, `make swarm-run|swarm-up|swarm-local`, `make swarm-bench-live` and the replay targets inherit `DATABASE_URL` automatically, because `app/db.py` reads `os.environ` and never the `.env` file. `make swarm-preflight` prints one `database:` line (informational, never a failure). Tests: `swarm/tests/test_db_script.py`.
 - 027 T8: the offline bench now measures the self-heal prompt. Each frozen case gets a synthetic red variant (one `drift` failure, the case's own e2e file and gate transcript) and the score reports `triage_digest_chars` / `triage_roster_chars` with no model call: **~1.7k + ~1.9k chars per red case**, both bounded, i.e. the phase adds far less than one coder round. 027 is now complete (T1–T9).

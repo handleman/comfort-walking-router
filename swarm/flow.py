@@ -585,6 +585,13 @@ def _commit_changes(
         p = subprocess.run(args, check=False, cwd=REPO_ROOT, capture_output=True, text=True, timeout=120)
         return p.returncode, (p.stdout + p.stderr)[-500:]
 
+    # The trailer is a lookup key: the done ledger looks up
+    # `<directory name>/<task>`, so `run.sh 028 T4` must not record `028/T4`
+    # (2026-11-15: four green 028 tasks looked open and the queue would re-run
+    # them). Normalise to the spec directory once, here.
+    from swarm.spec_loader import spec_dir_name
+
+    spec_id = spec_dir_name(REPO_ROOT, spec_id)
     subject = f"swarm: {spec_id}-{task_id} green — {brief[:80]} (autocommit)"
     trailers = ""
     if task_hash_value:
