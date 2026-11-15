@@ -26,16 +26,34 @@ rules) is repo-specific.
 
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
 
-Current operator profile (**cloud-only**, 2026-11-14): local Ollama is off
-(`SWARM_LOCAL_FIRST=0`) and every role has an explicit cloud fallback.
+Current operator profile (**OpenCode Go**, 2026-11-15): local Ollama is off
+(`SWARM_LOCAL_FIRST=0`), one subscription key serves every role, and each role
+falls back to a second Go model.
 
-| Role | Model | Cost |
+| Role | Model | Cost (Go) |
 | --- | --- | --- |
-| Planner | `openrouter/deepseek/deepseek-v4.1-flash-1017` (fallback `zen/deepseek-v4.1-flash`) | ~$0.001/task |
-| Coder | `zen/glm-5.3-flash` | $0.15/$0.50 per M |
-| Reviewer / QA | `zen/glm-5.3-flash` (fallback `zen/deepseek-v4.1-flash`) | $0.15/$0.50 per M |
-| Verifier | `zen/glm-5.3-flash` | $0.15/$0.50 per M |
-| Senior / verdict fallback | `zen/glm-5.3-flash` | $0.15/$0.50 per M |
+| Planner | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
+| Coder | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
+| Reviewer / QA | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
+| Verifier | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
+| Senior / verdict fallback | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
+
+`opencode-go/*` is its own routing prefix: `OPENCODE_GO_API_KEY` (or
+`OPENCODE_API_KEY`) against `SWARM_GO_BASE_URL`
+(default `https://opencode.ai/inference/go/openai/v1`), with the client
+`User-Agent` and an `x-opencode-session` header that the Go gateway asks for
+(it drives routing and prompt caching). Model ids are the bare console ids
+(`glm-5.3-flash`, `qwen3.8-flash`, `deepseek-v4.1-flash`, `kimi-k2.7-code`, …);
+prices live in `swarm/usage.py`, so `run.json.cost` stays a number.
+
+Two Go caveats seen on 2026-11-15: `deepseek-v4.1-flash` is region-blocked until
+the workspace privacy setting is **Global** (Settings › Privacy › Regions), and
+its price is peak/off-peak — the table stores the peak rate so the per-task cap
+never under-reads.
+
+The earlier cloud-only profile (2026-11-14) was DeepSeek on OpenRouter for the
+planner and `zen/glm-5.3-flash` for the four tool roles; it still works if the
+Go subscription is absent.
 
 The free Nvidia roles worked all day until OpenRouter's **1000 free requests/day**
 limit hit (`429 free-models-per-day-high-balance`). With no free fallback left,

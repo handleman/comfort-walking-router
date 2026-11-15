@@ -17,6 +17,14 @@ PRICES_USD_PER_M: dict[str, tuple[float, float]] = {
     # → $0.15/M in, $0.50/M out. The earlier (0.10, 0.30) under-reported by ~50%.
     "zen/glm-5.3-flash": (0.15, 0.50),
     "zen/deepseek-v4.1-flash": (0.25, 1.00),
+    # OpenCode Go subscription (console pricing, 2026-11-15). DeepSeek V4.1
+    # Flash is peak/off-peak; the peak rate is used so a cap never under-reads.
+    "opencode-go/glm-5.3-flash": (0.15, 0.50),
+    "opencode-go/deepseek-v4.1-flash": (0.30, 1.20),
+    "opencode-go/qwen3.8-flash": (0.15, 0.47),
+    "opencode-go/minimax-m3.1-flash": (0.15, 0.60),
+    "opencode-go/kimi-k2.7-code": (0.95, 4.00),
+    "opencode-go/glm-5.3": (1.40, 4.40),
     # OpenRouter list price (2026-11-14). The planner uses this id because the
     # free Nvidia planner 503s on its safety screener; an unknown price would
     # silently disable the per-task cost cap.

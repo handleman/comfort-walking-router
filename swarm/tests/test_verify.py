@@ -237,7 +237,11 @@ def test_verifier_model_defaults_to_the_senior_brain(monkeypatch):
     monkeypatch.delenv("SWARM_VERIFIER_MODEL", raising=False)
     senior = os.environ["SWARM_SENIOR_MODEL"]
     # CrewAI drops the routing prefix the client adds back at call time.
-    expected = senior.removeprefix("openrouter/").removeprefix("zen/")
+    expected = (
+        senior.removeprefix("openrouter/")
+        .removeprefix("zen/")
+        .removeprefix("opencode-go/")
+    )
     assert verifier_llm().model == expected  # the senior brain, provider prefix off
 
 

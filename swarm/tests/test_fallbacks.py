@@ -153,3 +153,30 @@ def test_provider_of_classifies_every_route():
     assert llms.provider_of("zen/glm-5.3-flash") == "zen"
     assert llms.provider_of("openrouter/deepseek/x-1017") == "openrouter"
     assert llms.provider_of("") == "unknown"
+
+
+# ---- OpenCode Go prefix (2026-11-15) ----
+
+
+def test_opencode_go_routes_and_needs_its_key(monkeypatch):
+    assert llms.provider_of("opencode-go/glm-5.3-flash") == "opencode-go"
+    monkeypatch.delenv("OPENCODE_GO_API_KEY", raising=False)
+    monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+    assert llms._callable("opencode-go/glm-5.3-flash") is False
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "go-key")
+    assert llms._callable("opencode-go/glm-5.3-flash") is True
+    # The Zen key is accepted as a fallback so one account can serve both.
+    monkeypatch.delenv("OPENCODE_GO_API_KEY", raising=False)
+    monkeypatch.setenv("OPENCODE_API_KEY", "zen-key")
+    assert llms._callable("opencode-go/glm-5.3-flash") is True
+
+
+def test_a_go_role_builds_against_the_go_gateway(monkeypatch):
+    monkeypatch.setenv("SWARM_GO_BASE_URL", "https://opencode.ai/inference/go/openai/v1")
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "go-key")
+    monkeypatch.setenv("SWARM_CODER_MODEL", "opencode-go/glm-5.3-flash")
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "1")  # Go is a paid subscription
+    llms.reset_fallbacks()
+    model = llms.coder_llm()
+    assert model.model == "glm-5.3-flash"  # the prefix is routing, not the id
+    assert "inference/go" in str(getattr(model, "base_url", ""))

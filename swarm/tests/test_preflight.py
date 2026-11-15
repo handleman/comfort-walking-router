@@ -281,3 +281,16 @@ def test_no_playwright_binary_is_reported_once(tmp_path):
     problems = e2e_suite.available(tmp_path)
     assert any("playwright is missing" in p for p in problems)
     assert not any("browsers are not installed" in p for p in problems)
+
+
+def test_opencode_go_is_its_own_provider(monkeypatch):
+    assert preflight.provider("opencode-go/glm-5.3-flash") == "opencode-go"
+    assert preflight.model_id("opencode-go/glm-5.3-flash") == "glm-5.3-flash"
+    env = _ok_env(
+        SWARM_CODER_MODEL="opencode-go/glm-5.3-flash",
+        SWARM_ALLOW_PAID="1",
+    )
+    env.pop("OPENCODE_GO_API_KEY", None)
+    env.pop("OPENCODE_API_KEY", None)
+    problems = check(env, offline=True, which=_which)
+    assert any("OPENCODE_GO_API_KEY" in p.detail for p in problems)

@@ -81,11 +81,13 @@ def provider(model: str) -> str:
         return "ollama"
     if model.startswith("zen/"):
         return "zen"
+    if model.startswith("opencode-go/"):
+        return "opencode-go"
     return "openrouter"
 
 
 def model_id(model: str) -> str:
-    for prefix in ("ollama/", "zen/", "openrouter/"):
+    for prefix in ("ollama/", "zen/", "opencode-go/", "openrouter/"):
         if model.startswith(prefix):
             return model.removeprefix(prefix)
     return model
@@ -339,6 +341,12 @@ def check(
             problems.append(Problem(var, "uses OpenRouter but OPENROUTER_API_KEY is empty"))
         if prov == "zen" and not env.get("OPENCODE_API_KEY"):
             problems.append(Problem(var, "uses Zen but OPENCODE_API_KEY is empty"))
+        if prov == "opencode-go" and not (
+            env.get("OPENCODE_GO_API_KEY") or env.get("OPENCODE_API_KEY")
+        ):
+            problems.append(
+                Problem(var, "uses OpenCode Go but OPENCODE_GO_API_KEY is empty")
+            )
 
     # 2. Local/cloud model availability.
     if not offline:

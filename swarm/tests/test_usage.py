@@ -191,3 +191,13 @@ def test_two_paid_models_is_a_number_and_an_unpriced_one_is_named():
         "cost unknown: no price row for openrouter/vendor/mystery"
         " — the dollar cap cannot fire"
     )
+
+
+def test_opencode_go_models_are_priced():
+    """Go is a subscription, but the per-token rate still prices the cap."""
+    from swarm.usage import estimate_cost
+
+    assert estimate_cost({"opencode-go/glm-5.3-flash": (1_000_000, 0)}) == 0.15
+    # DeepSeek V4.1 Flash is peak/off-peak; the peak rate is used deliberately.
+    assert estimate_cost({"opencode-go/deepseek-v4.1-flash": (0, 1_000_000)}) == 1.20
+    assert estimate_cost({"opencode-go/kimi-k2.7-code": (1_000_000, 0)}) == 0.95

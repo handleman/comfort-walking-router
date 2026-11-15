@@ -29,6 +29,10 @@ except Exception:
 
 DEFAULT_OLLAMA = "http://localhost:11434"
 DEFAULT_ZEN = "https://opencode.ai/zen/v1"
+# OpenCode Go (subscription): OpenAI-compatible endpoint, model ids are the
+# bare ids from the console (`glm-5.3-flash`, `deepseek-v4.1-flash`, …).
+DEFAULT_GO = "https://opencode.ai/inference/go/openai/v1"
+GO_USER_AGENT = "spec-driven-swarm/1.0 (https://github.com/handleman/comfort-walking-router)"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 # Roles (identified by their `*_MODEL` env var) that have fallen back. A
@@ -176,6 +180,8 @@ def provider_of(model: str) -> str:
         return "ollama"
     if model.startswith("zen/"):
         return "zen"
+    if model.startswith("opencode-go/"):
+        return "opencode-go"
     if model.startswith("openrouter/"):
         return "openrouter"
     return "unknown" if not model or model == "?" else "openrouter"
@@ -195,6 +201,13 @@ def _callable(model: str) -> bool:
         return bool(os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA).strip())
     if model.startswith("zen/"):
         return bool(os.getenv("OPENCODE_API_KEY", "").strip())
+    if model.startswith("opencode-go/"):
+        return bool(
+            (
+                os.getenv("OPENCODE_GO_API_KEY", "")
+                or os.getenv("OPENCODE_API_KEY", "")
+            ).strip()
+        )
     return bool(os.getenv("OPENROUTER_API_KEY", "").strip())
 
 
@@ -304,6 +317,24 @@ def _build(
             # openai_compatible route drops extra_body, so force is_litellm.
             is_litellm=True,
             extra_body={"think": False},
+        )
+    if model.startswith("opencode-go/"):
+        _record_cache_mode(model, support)
+        # Go asks clients to identify themselves and to send a stable session id
+        # (it drives routing and prompt caching); the key is the Go API key.
+        return LLM(
+            model=model.removeprefix("opencode-go/"),
+            custom_openai=True,
+            base_url=os.getenv("SWARM_GO_BASE_URL", DEFAULT_GO),
+            api_key=os.environ.get("OPENCODE_GO_API_KEY", "")
+            or os.environ.get("OPENCODE_API_KEY", ""),
+            temperature=temperature,
+            timeout=timeout or _timeout_seconds(),
+            max_retries=sdk_retries,
+            extra_headers={
+                "User-Agent": os.getenv("SWARM_GO_USER_AGENT", GO_USER_AGENT),
+                "x-opencode-session": os.getenv("SWARM_GO_SESSION_ID", "swarm-local"),
+            },
         )
     if model.startswith("zen/"):
         _record_cache_mode(model, support)
