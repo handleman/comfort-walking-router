@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 TASK_RE = re.compile(r"^- \[ \] (T\d+)\s*(\([^)]*\))?\s*:\s*(.+)$", re.MULTILINE)
+# `- [x]` lines are done work, not queue entries; `swarm.record` still needs
+# them (a manual completion is normally ticked by hand).
+ANY_TASK_RE = re.compile(r"^- \[[ xX]\] (T\d+)\s*(\([^)]*\))?\s*:\s*(.+)$", re.MULTILINE)
 AC_RE = re.compile(r"AC-\d+")
 
 
@@ -17,9 +20,14 @@ class SpecTask:
     brief: str
 
 
-def parse_tasks_md(text: str) -> list[SpecTask]:
+def parse_tasks_md(text: str, *, include_done: bool = False) -> list[SpecTask]:
+    """Open `- [ ]` tasks; with `include_done` also the ticked `- [x]` ones.
+
+    The brief text is identical either way, so `done.task_hash` computed from a
+    ticked line still matches what the queue would compute.
+    """
     out: list[SpecTask] = []
-    for m in TASK_RE.finditer(text):
+    for m in (ANY_TASK_RE if include_done else TASK_RE).finditer(text):
         tid, paren, brief = m.group(1), m.group(2) or "", m.group(3).strip()
         out.append(SpecTask(id=tid, ac_refs=tuple(AC_RE.findall(paren)), brief=brief))
     return out
@@ -47,14 +55,20 @@ def task_key(repo_root: Path, spec: str, task: str) -> str:
     return f"{spec_dir_name(repo_root, spec)}/{task}"
 
 
-def load_spec_tasks(repo_root: Path, spec_dir: str, task_filter: str | None = None) -> tuple[Path, list[SpecTask]]:
+def load_spec_tasks(
+    repo_root: Path,
+    spec_dir: str,
+    task_filter: str | None = None,
+    *,
+    include_done: bool = False,
+) -> tuple[Path, list[SpecTask]]:
     specs = repo_root / "specs"
     spec_path = specs / spec_dir
     if not spec_path.is_dir():
         matches = sorted(p for p in specs.iterdir() if p.is_dir() and p.name.startswith(spec_dir))
         if len(matches) == 1:
             spec_path = matches[0]
-    tasks = parse_tasks_md((spec_path / "tasks.md").read_text())
+    tasks = parse_tasks_md((spec_path / "tasks.md").read_text(), include_done=include_done)
     if task_filter:
         tasks = [t for t in tasks if t.id == task_filter]
     return spec_path, tasks

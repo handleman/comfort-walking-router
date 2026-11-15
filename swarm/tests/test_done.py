@@ -3,8 +3,10 @@ import subprocess
 
 from swarm.done import (
     DoneEntry,
+    cache_only,
     done_entries,
     is_done,
+    open_reason,
     record_done,
     spec_plan_hash,
     task_hash,
@@ -173,3 +175,64 @@ def test_done_entries_normalises_a_legacy_spec_prefix(tmp_path):
 
     assert "007/T5" not in entries
     assert is_done(entries, "007-live-position", task, "b" * 64)
+
+
+# ---------------------------------------------------------------------------
+# T9 (AC-10): the queue explains itself
+# ---------------------------------------------------------------------------
+
+
+def test_an_unrecorded_task_is_open_for_no_ledger_entry():
+    task = _task()
+    assert open_reason({}, "001-example-app", task, "a" * 64) == "no ledger entry"
+
+
+def test_an_edited_brief_says_task_hash_changed():
+    task = _task()
+    entries = {"001-example-app/T3": DoneEntry(task_hash="d" * 64, spec_hash="a" * 64)}
+    assert open_reason(entries, "001-example-app", task, "a" * 64) == "task hash changed"
+
+
+def test_an_edited_spec_says_spec_hash_changed():
+    task = _task()
+    entries = {"001-example-app/T3": DoneEntry(task_hash=task_hash(task), spec_hash="a" * 64)}
+    assert open_reason(entries, "001-example-app", task, "b" * 64) == "spec hash changed"
+
+
+def test_a_cache_only_entry_is_reported_as_a_missing_trailer(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "swarm" / "runs").mkdir(parents=True)
+    task = _task()
+    record_done(
+        repo,
+        "001-example-app",
+        "T3",
+        task_hash_value=task_hash(task),
+        spec_hash_value="a" * 64,
+        run_id="run-1",
+    )
+    entries = done_entries(repo)
+    assert cache_only(entries["001-example-app/T3"])
+    assert open_reason(entries, "001-example-app", task, "a" * 64) == "missing trailer"
+
+
+def test_the_queue_logs_the_reason_it_ran_a_task(tmp_path, capsys):
+    from swarm.flow import _log_queue_reasons, _open_task_ids, queue_reasons
+    from swarm.spec_loader import load_spec_tasks
+
+    repo, spec = _spec_repo(tmp_path)
+    path, tasks = load_spec_tasks(repo, "001-x", None)
+    assert _open_task_ids(repo, path, tasks) == ["T1", "T2"]
+    capsys.readouterr()  # drop anything from earlier module-level calls
+    _log_queue_reasons("001-x")
+    out = capsys.readouterr().out
+    assert "open task 001-x/T1: no ledger entry" in out
+    assert queue_reasons("001-x") == {"T1": "no ledger entry", "T2": "no ledger entry"}
+
+    _commit_with_trailer(repo, "001-x", "T1", task_hash(tasks[0]), spec_plan_hash(spec))
+    assert _open_task_ids(repo, path, tasks) == ["T2"]
+    capsys.readouterr()
+    _log_queue_reasons("001-x")
+    out = capsys.readouterr().out
+    assert "001-x/T1" not in out, "a done task is not noise in the queue log"
+    assert "open task 001-x/T2" in out

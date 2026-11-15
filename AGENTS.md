@@ -31,8 +31,22 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - **Do not show a budget cap that cannot fire.** The panel read "tokens 1.7M / 2.0M 84.0%" for a run whose token/dollar caps are *not enforced* (`free_local_run: true`), which reads as "the budget stopped this". A free-local run now shows "no cap: free local run".
 - **A red run needs a verdict most of all.** The reviewer got 9 iterations for 6 gates + `git status` + the verdict, so it re-ran `pytest` and never concluded: `review_verdict: "unknown"` left the fix rounds with no grounded reason. The budget is 12 and the verdict repair now runs on red runs too (it used to run only when the gates were green).
 - **Measure with the replay set, not with memory.** `make swarm-bench` (020) renders the real prompts and reports from 12 frozen green runs with no model call. It is the only way to tell whether a change removed work or moved it; run it before and after, and use `SWARM_CONTEXT_COMPACT=0` / `SWARM_GATE_SELECT=0` / `SWARM_PROMPT_CACHE=0` to restore the old behaviour for an honest A/B. A token win that lowers the green rate is not a win; `make swarm-bench-live CASE=<id>` is the check that the loop still reaches green.
+- **An empty delta is a stop, not a verdict problem.** Two 014-T10 runs spent 21 and 28
+  minutes, produced `changed: []`, and then paid the verifier to name the missing files.
+  026's delta guard now stops `no_delta`/`delta_incomplete` before any judge. If a docs
+  task has an empty delta, check `run.json.delta_guard` and `scope_extra` before
+  blaming the model.
+- **A spent wall budget must not become an unbounded call.** 007-T10 ran 2.7 h against
+  an 1800 s bound and ignored SIGTERM: `remaining = budget - elapsed` went negative and
+  `run_bounded` read `timeout <= 0` as "no bound". Only `None` is unbounded now, and the
+  flow stops before a crew when the budget is spent.
 - **A docs task could never write its deliverable.** `DEFAULT_SCOPE` has no `docs/`, `README.md` or `changelog.md`, and the scope was task-blind, so two 014-T10 runs produced an empty delta and the verifier (correctly) blocked on files the brief named. `task_scope` now extends the base scope with the brief's own paths, per task. When a docs task ends with `changed: []`, check `run.json.scope_extra` and the write-tool refusals before blaming the coder.
 - **Three shapes for one field means no shape is right.** 014-T1 was not a typo: `plan.md`, the green `contracts/geocode.json` and the coder's module each defined `Suggestion` differently (and the token variable a third way). Before blaming a coder for a contract mismatch, diff the three sources — `plan.md`, the committed contract, and the code — and pin one.
+- **An unparseable verdict is not a pass.** 014-T10 attempt 1 committed green with three missing deliverables because the verifier ended on a tool call and `unknown` fell through as `PASS`. Every judge (verifier, QA, senior) now goes through `guards.resolve_verdict`: parse → one repair call → terminal stop with the raw tail in `run.json.judges`. If a green run's brief is not implemented, look for `judges.<kind>.terminal` or `review_note` before blaming the gates.
+- **A correction can break the build after the self-check passed.** 014-T11's senior correction appended a duplicate style block to `App.svelte` (stray `air;`, orphan `</style>`) and the run parked a broken tree, because nothing re-checked the static gates after a correction step. `correction_reverted` now reverts only that step's paths (archived in `<run>/reverted/`) and ends the loop; a red static check after a correction is never a coder fix round.
+- **A cap that cannot fire is worse than no cap.** A paid planner + paid coder made `estimate_run_cost` return `None`, which silently disabled `SWARM_MAX_COST_PER_TASK`, and the dashboard showed `unknown` with no reason. Cost is priced per model now, and `usage.cost_unknown` + `unpriced_models` + the budget note name the model whose price is missing.
+- **A walled provider is not a fallback.** 014-T10 burned 54 `429 free-models-per-day` errors and 20 minutes because the chain still offered providers with no key and every role retried the wall. Quota is now counted per provider with a terminal breaker, `llms._callable` filters the chain, and `make swarm-preflight` makes one 1-token call per role.
+- **A green task can be an e2e claim nobody ran.** 010-T4 was green having touched only `frontend/e2e/helpers.ts`; the suite had four setup bugs and NYC-only fixtures. A brief naming `frontend/e2e/*` now needs a recorded Playwright execution (`reason_code=e2e_missing`, `make e2e`), and preflight checks the binary exists.
 
 ## Commands (verified 2026-11-08)
 - One command dev: `make dev` — bootstraps `.venv` + `frontend/node_modules` on first run, then backend `:8000` + frontend `:5173`; Ctrl-C stops both.
@@ -43,6 +57,7 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - Lint: `make lint` (`ruff check .`). Types: `make typecheck` (`mypy app tests`).
 - Frontend: `cd frontend && npm run check` (svelte-check), `npm run lint` (ESLint + Prettier check), `npm run format`, `npm run build`, `npm run dev`.
 - Swarm: `make swarm-run|swarm-local|swarm-dash|swarm-up|swarm-up-local|swarm-test|swarm-stop|swarm-approve|swarm-preflight|swarm-sandbox`.
+- Browser suite: `make e2e` (builds the frontend, boots the fixture backend via `frontend/playwright.config.ts`, runs `playwright test`); it is the evidence 026 requires for a task naming `frontend/e2e/*`. Manual completion of a task: `make swarm-record SPEC=014 TASK=T11` writes the standard green trailers as an empty commit (`--dry-run`/`--no-commit` available).
 - Swarm economics/autonomy (015): `make swarm-supervise` (unattended queue, retry/backoff, `retry_later`) and `make swarm-report` (cost per green task, tokens per role, fix rate, stops). Per-task caps: `SWARM_MAX_COST_PER_TASK`/`SWARM_MAX_SECONDS_PER_TASK`; routing: `SWARM_LOCAL_FIRST`, `SWARM_PAID_ALWAYS`; hygiene: `SWARM_SELF_HEAL`, `SWARM_STASH_UNRELATED`, `SWARM_REVERT_OUT_OF_SCOPE`.
 - Unattended/overnight: `make swarm-night` (`caffeinate -is` + supervisor). A locked screen is fine; system sleep is not — runbook: `docs/runbooks/overnight-runs.md`.
 - Approval hold: `./swarm/run.sh 001 T3 --require-approval` (or `SWARM_REQUIRE_APPROVAL=1`); release with `make swarm-approve` (defaults to the last checkpoint task; `SPEC=001 TASK=T3` to be explicit) or the dashboard `a` key.
@@ -60,7 +75,28 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - Durable journal (025, ADR-012 option C first slice, implemented): `swarm/journal.py` is a SQLite/WAL append-only journal with idempotent `(run, key)` events, step status/attempt/**leases** (atomic claim, owner-only heartbeat, TTL), an **effects** table (`commit:<run>:<delta>` makes a retried commit a no-op) and `fold(run)` as the projection in `run.json.journal`. The flow writes `run_started`, seeds/completes steps, resumes from the journal's contiguous completed prefix when it is longer than `progress.json` (recovery note `journal`), and records the commit effect. `run.json`, `events.jsonl` and `progress.json` remain the operator views; green is still QA's evidence. No dispatcher/workers/Postgres yet — those are the ADR triggers. Control-plane spec, skipped by the queue.
 - Escape rate (024): `make swarm-report` joins `run.json.autonomy` with git (`This reverts commit <sha>`) and reports escapes per class. It is a floor (a hand-fixed regression is not counted); widening to class 2 waits for it.
 - Earned autonomy was switched on in the operator `.env` on 2026-11-14 (`SWARM_AUTONOMY=1`, max class 1): class 0/1 greens may auto-merge after gates + verifier; the code default stays 0 so a fresh checkout is safe. Watch the class and reason in `human_log.txt`/`run.json.autonomy` and build the escape-rate ratio before widening to class 2.
-- Swarm queue: the harness reads only unchecked `- [ ] T<n> (AC-…): brief` lines from `specs/*/tasks.md`, in directory order; authoring rules + scope/`--replan` notes are in `swarm/README.md` ("Adding a spec to the swarm todo list"). Harness specs (`009`, `012`–`025`) are always skipped (control plane; the list is `HARNESS_SPECS` in `swarm/flow.py`). The swarm does not edit spec files — mark `[x]` yourself after green (or rely on the 013 done ledger). Non-green statuses: `needs_human`, `awaiting_approval`, `commit_failed`, `push_failed`, `merge_failed`, `crew_error`, `quota_exhausted`, `budget_exhausted`, `interrupted`, `preflight_failed`.
+- Run guards (026, `specs/026-run-guards/`, implemented): the 2026-11-14 failures are now
+  typed, deterministic stops. A **delta guard** stops an empty in-scope delta (`no_delta`) or
+  a brief-named file never created (`delta_incomplete`) **before** the self-check/verifier/QA
+  (`run.json.delta_guard`, `SWARM_DELTA_GUARD=0` off); **judges fail closed** — verifier, QA
+  and senior go through `guards.resolve_verdict` (parse → **one** repair call → terminal stop,
+  `run.json.judges`, `SWARM_JUDGE_FAIL_CLOSED=0` off), because 014-T10 committed green on an
+  `unknown`; a **correction cannot regress the build** — the 017 static checks run before a
+  correction plan and after each step, a green→red transition reverts that step's paths
+  (`<run>/reverted/`) and ends the loop as `correction_reverted` (`SWARM_CORRECTION_GUARD=0`
+  off); **quota is terminal** — counted per provider, stop `quota_exhausted` at
+  `SWARM_QUOTA_LIMIT` (3), fallbacks skip providers with no key, preflight makes one 1-token
+  call per role (`SWARM_QUOTA_BREAKER=0` off); **cost is never silently unknown** (two paid
+  models price per model, an unpriced one sets `usage.cost_unknown` + names it);
+  **e2e evidence** — a brief naming `frontend/e2e/*` is green only with a recorded Playwright
+  run (`reason_code=e2e_missing`, `make e2e`, `SWARM_E2E_EVIDENCE=0` off); **config errors are
+  readable** (`run.json.error` + `human_log.txt`, preflight builds the crews' own factories);
+  **one retry authority** (`max_retry_limit=0` on every agent); and **the queue explains
+  itself** (`run.json.queue_reasons`, `open task <spec>/<T>: <reason>`, `make swarm-record
+  SPEC=… TASK=…` for a manual completion). The **wall budget is terminal**
+  (`run_bounded(None)` is the only unbounded mode, a spent budget refuses the call and raises
+  `_WallBudget`), and `append`/`record_effect` no-op after the journal closes.
+- Swarm queue: the harness reads only unchecked `- [ ] T<n> (AC-…): brief` lines from `specs/*/tasks.md`, in directory order; authoring rules + scope/`--replan` notes are in `swarm/README.md` ("Adding a spec to the swarm todo list"). Harness specs (`009`, `012`–`026`) are always skipped (control plane; the list is `HARNESS_SPECS` in `swarm/flow.py`). The swarm does not edit spec files — mark `[x]` yourself after green (or rely on the 013 done ledger). Non-green statuses: `needs_human`, `awaiting_approval`, `commit_failed`, `push_failed`, `merge_failed`, `crew_error`, `quota_exhausted`, `budget_exhausted`, `interrupted`, `preflight_failed`.
 - Do not invent commands or config. Verify via manifests/scripts before claiming a workflow exists.
 
 ## Spec-driven workflow

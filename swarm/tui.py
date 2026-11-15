@@ -258,6 +258,11 @@ def format_metrics(
         out.append(f"  {pct(usage.get('total_tokens') or 0, limits['tokens'])}\n", style="dim")
         out.append(f"  cost    {fmt_cost(usage.get('cost_usd', payload.get('cost')))} / ${limits['cost']:.2f}", style="")
         out.append(f"  {pct(usage.get('cost_usd') or 0, limits['cost'])}\n", style="dim")
+        # 026 AC-7: `unknown` must say why — an unpriced model means the dollar
+        # cap cannot fire, and "$0" would be a lie.
+        if usage.get("cost_unknown"):
+            names = ", ".join(usage.get("unpriced_models") or [])
+            out.append(f"  cost cap cannot fire: no price for {names or 'a paid model'}\n", style="dim")
     elapsed = elapsed if elapsed is not None else usage.get("duration_seconds")
     out.append(f"  time    {fmt_duration(elapsed)} / {fmt_duration(limits['seconds'])}", style="")
     out.append(f"  {pct(elapsed or 0, limits['seconds'])}\n", style="dim")

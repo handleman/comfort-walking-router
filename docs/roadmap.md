@@ -32,6 +32,16 @@
 - `024-earned-autonomy` is implemented (off by default): a 0/1/2/3 risk ladder, `SWARM_AUTONOMY`/`SWARM_AUTONOMY_MAX_CLASS`, an `awaiting_approval` hold that class 0/1 may skip after gates + reviewer + verifier, and a per-run `run.json.autonomy` decision + reason in the human log and `make swarm-report`. No live auto-merge is claimed until a green baseline exists; escape-rate measurement is the next decision. Control-plane spec, skipped by the queue.
 - `025-durable-journal` (ADR-012 option C, first slice) is implemented: an in-repo SQLite/WAL journal (idempotent events, step leases, effect keys, `fold` in `run.json.journal`), wired into step resume and the commit effect. `run.json`/`events.jsonl`/`progress.json` remain views; green is still QA's. Postgres, a dispatcher and workers wait for the ADR triggers (>1 worker in 023).
 - Earned autonomy is **on** in the operator `.env` (`SWARM_AUTONOMY=1`, max class 1): class 0/1 greens auto-merge after gates + verifier; the code default remains 0. Next: measure the first auto-merge and build the escape-rate ratio before widening to class 2.
+- `026-run-guards` (implemented) turns the 2026-11-14 failures into deterministic stops:
+  the delta guard (`no_delta`/`delta_incomplete` before any judge), fail-closed judges
+  (parse → one repair → terminal, for verifier/QA/senior), a correction-regression guard
+  (`correction_reverted`, reverted paths archived), a per-provider quota breaker with
+  callable-only fallbacks and a 1-token preflight probe, `max_retry_limit=0` on every agent,
+  per-model cost with `cost_unknown`/`unpriced_models`, e2e evidence for `frontend/e2e/*`
+  tasks (`e2e_missing`, `make e2e`), readable config errors (`run.json.error`), queue
+  reasons (`run.json.queue_reasons`, `make swarm-record`) and a terminal wall budget.
+  Each guard has an off switch; `delta_incomplete` stays a stop until the replay set agrees.
+  Control-plane spec, skipped by the queue.
 - Next harness phases: measure the green baseline suite, 023 throughput and the 021/022 A/Bs; then the post-merge loop and halt drills once the escape rate exists.
 
 ## 4 — Non-goals (no spec yet)

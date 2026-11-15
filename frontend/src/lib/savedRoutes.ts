@@ -73,7 +73,7 @@ async function handle<T>(res: Response): Promise<T> {
 
 /** POST a new saved route. */
 export async function saveRoute(name: string, snapshot: RouteSnapshot): Promise<SavedRoute> {
-  const res = await fetch('/api/saved-routes', {
+  const res = await fetch('/saved-routes', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ name, snapshot }),
@@ -83,19 +83,19 @@ export async function saveRoute(name: string, snapshot: RouteSnapshot): Promise<
 
 /** GET all saved routes for this token. */
 export async function listRoutes(): Promise<SavedRoute[]> {
-  const res = await fetch('/api/saved-routes', { headers: authHeaders() })
+  const res = await fetch('/saved-routes', { headers: authHeaders() })
   return handle<SavedRoute[]>(res)
 }
 
 /** GET a single saved route by id. */
 export async function recallRoute(id: string): Promise<SavedRoute> {
-  const res = await fetch(`/api/saved-routes/${encodeURIComponent(id)}`, { headers: authHeaders() })
+  const res = await fetch(`/saved-routes/${encodeURIComponent(id)}`, { headers: authHeaders() })
   return handle<SavedRoute>(res)
 }
 
 /** DELETE a saved route by id. */
 export async function deleteRoute(id: string): Promise<void> {
-  const res = await fetch(`/api/saved-routes/${encodeURIComponent(id)}`, {
+  const res = await fetch(`/saved-routes/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -104,13 +104,13 @@ export async function deleteRoute(id: string): Promise<void> {
 
 /** GET the user's preferences. */
 export async function getPrefs(): Promise<Prefs> {
-  const res = await fetch('/api/prefs', { headers: authHeaders() })
+  const res = await fetch('/saved-routes/prefs', { headers: authHeaders() })
   return handle<Prefs>(res)
 }
 
 /** PUT updated preferences. */
 export async function updatePrefs(prefs: Prefs): Promise<Prefs> {
-  const res = await fetch('/api/prefs', {
+  const res = await fetch('/saved-routes/prefs', {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(prefs),

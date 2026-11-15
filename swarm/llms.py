@@ -170,11 +170,41 @@ def fallback_roles() -> list[str]:
     return sorted(r for r in _fallback_roles if r != "*")
 
 
+def provider_of(model: str) -> str:
+    """Provider a model id routes to (''/'?' → unknown)."""
+    if model.startswith("ollama/"):
+        return "ollama"
+    if model.startswith("zen/"):
+        return "zen"
+    if model.startswith("openrouter/"):
+        return "openrouter"
+    return "unknown" if not model or model == "?" else "openrouter"
+
+
+def _callable(model: str) -> bool:
+    """Can this model actually be called with the configured credentials?
+
+    A fallback that the provider cannot serve is not a fallback: 014-T10 spent
+    20 minutes and 54 quota errors retrying a walled free tier while the chain
+    still offered models whose provider key was empty. Local Ollama needs no
+    key; both cloud gateways do.
+    """
+    if not model:
+        return False
+    if model.startswith("ollama/"):
+        return bool(os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA).strip())
+    if model.startswith("zen/"):
+        return bool(os.getenv("OPENCODE_API_KEY", "").strip())
+    return bool(os.getenv("OPENROUTER_API_KEY", "").strip())
+
+
 def fallback_model(env_var: str, *, allow_paid: bool) -> str:
     """First usable fallback for a role; '' when none passes the paid guard."""
     name = env_var.removesuffix("_MODEL") + "_FALLBACK_MODEL"
     chain = tuple(x for x in (os.getenv(name, "").strip(),) if x) + default_fallback_chain(env_var)
     for model in chain:
+        if not _callable(model):
+            continue
         try:
             _guard(model, allow_paid=allow_paid)
         except PermissionError:

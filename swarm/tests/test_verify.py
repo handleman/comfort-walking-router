@@ -274,7 +274,13 @@ def _flow_stub(monkeypatch):
 
     monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: [])
     stub = types.SimpleNamespace(
-        state=types.SimpleNamespace(verifier={}, total_tokens=0, fix_rounds_detail=[]),
+        state=types.SimpleNamespace(
+            verifier={},
+            total_tokens=0,
+            fix_rounds_detail=[],
+            judges={},
+            review_note="",
+        ),
         _spec_dir="019-scenario-verifier",
         _baseline={},
         _in_scope_paths=lambda paths: list(paths),
@@ -283,6 +289,9 @@ def _flow_stub(monkeypatch):
     stub._verifier_record = types.MethodType(flow.SwarmFlow._verifier_record, stub)
     stub._verify_phase = types.MethodType(flow.SwarmFlow._verify_phase, stub)
     stub._record_fix_round = types.MethodType(flow.SwarmFlow._record_fix_round, stub)
+    # 026 AC-4: a correction cannot regress the static checks.
+    stub._static_codes = dict
+    stub._revert_paths = lambda paths, reason="paths": list(paths)
     return stub
 
 
@@ -461,8 +470,11 @@ def test_a_blocked_verifier_is_never_green():
             gates={"pytest -q": 0},
             review_verdict="pass",
             verifier={"blocked": True},
+            e2e={},
         ),
         _interrupted=False,
+        # 026 AC-8: not an e2e task, so that branch stays out of the way.
+        _e2e_state=dict,
     )
     assert SwarmFlow.gate(stub, "") == "needs_human"
 
@@ -729,3 +741,77 @@ def test_the_verifier_precheck_does_not_read_unknown_as_pass(monkeypatch):
     record = stub._verify_precheck(_task(), kick)
     assert record["verdict"] == "unknown"
     assert record["blocked"] is True
+
+
+# ---------------------------------------------------------------------------
+# 026 AC-4: a correction cannot regress the build
+# ---------------------------------------------------------------------------
+
+
+def test_a_correction_that_breaks_a_green_check_is_reverted_and_ends_the_loop(monkeypatch):
+    from swarm import tools_guarded
+
+    stub = _flow_stub(monkeypatch)
+    deltas = iter([[], [], ["frontend/src/App.svelte"]])
+    monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: next(deltas, []))
+    codes = iter([{"npm run check": 0}, {"npm run check": 1}])
+    stub._static_codes = lambda: next(codes, {"npm run check": 1})
+    reverted: list[tuple[list[str], str]] = []
+    stub._revert_paths = lambda paths, reason="paths": (
+        reverted.append((list(paths), reason)) or list(paths)
+    )
+    kicked: list[str] = []
+
+    def kick(build, role):
+        kicked.append(role)
+        if role.startswith("verifier"):
+            return None, _blocked()
+        return None, "step done"
+
+    assert stub._verify_phase(_task(), kick) is False
+    # The correction ran, then the guard stopped the loop before a re-verify.
+    assert kicked == ["verifier:1", "senior:verify1"]
+    assert reverted == [(["frontend/src/App.svelte"], "correction regression")]
+    record = stub.state.verifier
+    assert record["blocked"] is True
+    assert record["correction_reverted"]["regressed"] == ["npm run check"]
+    assert record["correction_reverted"]["step"] == 1
+    assert stub.state.correction_reverted["regressed"] == ["npm run check"]
+
+
+def test_a_correction_that_keeps_the_checks_green_is_kept(monkeypatch):
+    stub = _flow_stub(monkeypatch)
+    stub._static_codes = lambda: {"npm run check": 0}
+    reverted: list[list[str]] = []
+    stub._revert_paths = lambda paths, reason="paths": reverted.append(list(paths)) or []
+
+    def kick(build, role):
+        if role.startswith("verifier:1"):
+            return None, _blocked()
+        return None, "VERDICT: PASS"
+
+    assert stub._verify_phase(_task(), kick) is True
+    assert reverted == []
+    assert stub.state.verifier["blocked"] is False
+
+
+def test_the_correction_guard_can_be_switched_off(monkeypatch):
+    from swarm import tools_guarded
+
+    stub = _flow_stub(monkeypatch)
+    monkeypatch.setenv("SWARM_CORRECTION_GUARD", "0")
+    monkeypatch.setattr(
+        tools_guarded, "run_delta", lambda baseline: ["frontend/src/App.svelte"]
+    )
+    stub._static_codes = lambda: {"npm run check": 1}
+    reverted: list[list[str]] = []
+    stub._revert_paths = lambda paths, reason="paths": reverted.append(list(paths)) or []
+
+    def kick(build, role):
+        if role.startswith("verifier:1"):
+            return None, _blocked()
+        return None, "VERDICT: PASS"
+
+    assert stub._verify_phase(_task(), kick) is True
+    assert reverted == []
+    assert "correction_reverted" not in stub.state.verifier

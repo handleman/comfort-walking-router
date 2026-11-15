@@ -135,3 +135,40 @@ def test_dashboard_screen_and_file_render_the_same_text(tmp_path):
     payload = json.loads((run_dir / "run.json").read_text())
 
     assert screen_render(payload, []) == format_human_report(payload, [])
+
+
+def test_report_shows_a_config_error_exception_text():
+    """026 AC-9: a two-second `crew_error` with no message is unanswerable."""
+    text = format_human_report(
+        _payload(status="config_error", error="PermissionError: paid model needs SWARM_ALLOW_PAID=1"),
+        [],
+    )
+    assert "error: PermissionError: paid model needs SWARM_ALLOW_PAID=1" in text
+
+
+def test_report_names_the_reverted_correction():
+    """026 AC-4: the operator must see which step was undone and why."""
+    text = format_human_report(
+        _payload(
+            reason_code="correction_reverted",
+            correction_reverted={
+                "step": 2,
+                "regressed": ["npm run check"],
+                "paths": ["frontend/src/App.svelte"],
+            },
+        ),
+        [],
+    )
+    assert "correction reverted: step 2 broke npm run check" in text
+    assert "frontend/src/App.svelte" in text
+
+
+def test_report_names_an_unknown_cost_and_its_cause():
+    payload = _payload()
+    payload["usage"]["cost_usd"] = None
+    payload["cost_note"] = (
+        "cost unknown: no price row for openrouter/vendor/mystery — the dollar cap cannot fire"
+    )
+    text = format_human_report(payload, [])
+    assert "cost unknown" in text
+    assert "openrouter/vendor/mystery" in text

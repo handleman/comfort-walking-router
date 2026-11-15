@@ -50,6 +50,7 @@ def test_out_of_scope_writes_are_archived_before_reverting(tmp_path, monkeypatch
         run_dir=run_dir,
         state=types.SimpleNamespace(reverted_archive=[]),
     )
+    stub._revert_paths = types.MethodType(flow.SwarmFlow._revert_paths, stub)
     stub._revert_out_of_scope = types.MethodType(flow.SwarmFlow._revert_out_of_scope, stub)
 
     assert stub._revert_out_of_scope(["swarm/evil.py"]) == ["swarm/evil.py"]

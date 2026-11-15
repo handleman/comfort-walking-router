@@ -14,22 +14,178 @@ The check is deliberately cheap and model-free:
   `untouched` but does not stop the run — briefs also name files for context,
   and the verifier still judges whether an update was required.
 
-`SWARM_DELTA_GUARD=0` restores the old behaviour.
+The other guards in this module are the cheap policies the flow applies around
+a judge or a correction:
+
+* `resolve_verdict` — parse a judge's answer, make **one** bounded repair call,
+  then stop. A verdict the parser could not read is never a pass (014-T10
+  committed green on an `unknown`).
+* `correction_regressions` — a correction step that turns a green static check
+  red cannot land (014-T11 appended a duplicate style block to `App.svelte`).
+* `note_quota` — quota errors are counted per provider and a wall is terminal
+  instead of a retry loop (54 `429 free-models-per-day` errors on 014-T10).
+
+Every guard has an off switch; each one stops with a typed reason code and none
+of them can make a green run red.
 """
 
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
 DISABLE_ENV = "SWARM_DELTA_GUARD"
+JUDGE_ENV = "SWARM_JUDGE_FAIL_CLOSED"
+CORRECTION_ENV = "SWARM_CORRECTION_GUARD"
+QUOTA_ENV = "SWARM_QUOTA_BREAKER"
+QUOTA_LIMIT_ENV = "SWARM_QUOTA_LIMIT"
+DEFAULT_QUOTA_LIMIT = 3
+
+VALID_VERDICTS = frozenset({"pass", "blocked"})
+
+
+def _on(name: str, env: Mapping[str, str] | None = None) -> bool:
+    source: Mapping[str, str] = os.environ if env is None else env
+    return str(source.get(name, "1")).strip().lower() not in {"0", "false", "no"}
 
 
 def enabled(env: Mapping[str, str] | None = None) -> bool:
+    return _on(DISABLE_ENV, env)
+
+
+# ---------------------------------------------------------------------------
+# T2: judges fail closed
+# ---------------------------------------------------------------------------
+
+
+def judge_fail_closed(env: Mapping[str, str] | None = None) -> bool:
+    """True unless the fail-closed judge rule is switched off.
+
+    `SWARM_JUDGE_FAIL_CLOSED=0` restores the 019-era behaviour where an
+    unparseable verdict was advisory (and the verifier's `unknown` fell through
+    as a pass). It exists for an A/B, not for normal operation.
+    """
+    return _on(JUDGE_ENV, env)
+
+
+def resolve_verdict(
+    *,
+    kind: str,
+    first_text: str,
+    parse: Callable[[str], tuple[str, list[str]]],
+    repair: Callable[[], str | None] | None = None,
+) -> dict[str, Any]:
+    """Parse → one bounded repair → terminal (AC-3).
+
+    Returns `{kind, verdict, findings, repaired, terminal, raw}`. `terminal` is
+    True only when the answer is still unparseable after the single repair, and
+    the caller must then stop instead of reading `unknown` as anything close to
+    a pass. `raw` is the tail of the text the parser actually read, so a run
+    record can show what the model said.
+    """
+    verdict, findings = parse(first_text or "")
+    record: dict[str, Any] = {
+        "kind": kind,
+        "verdict": verdict,
+        "findings": findings,
+        "repaired": False,
+        "terminal": False,
+        "raw": str(first_text or "")[-2000:],
+    }
+    if verdict in VALID_VERDICTS:
+        return record
+    if not judge_fail_closed():
+        return record
+    if repair is not None:
+        record["repaired"] = True
+        try:
+            out = repair()
+        except Exception as e:  # noqa: BLE001 - a failed repair is still terminal
+            record["repair_error"] = f"{type(e).__name__}: {e}"[:500]
+            out = None
+        if out is not None:
+            verdict, findings = parse(str(out))
+            record["raw"] = str(out)[-2000:]
+            record["verdict"] = verdict
+            record["findings"] = findings
+            if verdict in VALID_VERDICTS:
+                return record
+    record["terminal"] = True
+    return record
+
+
+# ---------------------------------------------------------------------------
+# T3: a correction cannot regress the build
+# ---------------------------------------------------------------------------
+
+
+def correction_guard(env: Mapping[str, str] | None = None) -> bool:
+    return _on(CORRECTION_ENV, env)
+
+
+def correction_regressions(
+    before: Mapping[str, int],
+    after: Mapping[str, int],
+) -> list[str]:
+    """Checks that were green before a correction and are red after it.
+
+    Only a green→red transition counts: a check that was already red is not the
+    correction's fault, and a check that does not appear in `after` keeps its
+    previous code (it was not run, so it cannot be called a regression).
+    """
+    regressed: list[str] = []
+    for command, code in (before or {}).items():
+        try:
+            was_green = int(code) == 0
+            now = int(after.get(command, code))
+        except (TypeError, ValueError):
+            continue
+        if was_green and now != 0:
+            regressed.append(str(command))
+    return sorted(regressed)
+
+
+# ---------------------------------------------------------------------------
+# T4: quota is counted per provider and terminal
+# ---------------------------------------------------------------------------
+
+
+def quota_breaker(env: Mapping[str, str] | None = None) -> bool:
+    return _on(QUOTA_ENV, env)
+
+
+def quota_limit(env: Mapping[str, str] | None = None) -> int:
     source: Mapping[str, str] = os.environ if env is None else env
-    return str(source.get(DISABLE_ENV, "1")).strip().lower() not in {"0", "false", "no"}
+    try:
+        value = int(str(source.get(QUOTA_LIMIT_ENV, DEFAULT_QUOTA_LIMIT)))
+    except (TypeError, ValueError):
+        value = DEFAULT_QUOTA_LIMIT
+    return max(1, value)
+
+
+def note_quota(
+    hits: dict[str, int],
+    provider: str,
+    limit: int,
+) -> bool:
+    """Count one quota error for `provider`; True when the breaker should trip."""
+    key = provider or "unknown"
+    hits[key] = int(hits.get(key, 0)) + 1
+    return hits[key] >= max(1, limit)
+
+
+def summary_of(record: Mapping[str, Any]) -> str:
+    """One line for `human_log.txt` for any guard record."""
+    if "reason" in record:
+        return summary(record)
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# T1: the delta guard
+# ---------------------------------------------------------------------------
 
 
 def delta_record(

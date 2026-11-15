@@ -154,3 +154,88 @@ def test_unmerged_worktree_blocks_a_run(monkeypatch):
     tags = [p.check for p in problems]
     assert "worktree" in tags
     assert "App.svelte" in next(p.detail for p in problems if p.check == "worktree")
+
+
+# ---------------------------------------------------------------------------
+# T8 (AC-9): the factories are built exactly as the run builds them
+# ---------------------------------------------------------------------------
+
+
+def test_a_broken_factory_is_a_preflight_problem(monkeypatch):
+    """A paid planner with allow_paid=False must fail here, not in the crew."""
+    from swarm.preflight import factory_problems
+
+    def paid_only():
+        raise PermissionError("paid model requires SWARM_ALLOW_PAID=1")
+
+    monkeypatch.setattr(preflight, "factories", lambda: {"planner": paid_only})
+    problems = factory_problems()
+    assert len(problems) == 1
+    assert problems[0].check == "factory planner"
+    assert "SWARM_ALLOW_PAID" in problems[0].detail
+
+
+def test_every_factory_building_is_not_a_problem(monkeypatch):
+    from swarm.preflight import factory_problems
+
+    monkeypatch.setattr(
+        preflight, "factories", lambda: {"coder": lambda: object(), "qa": lambda: object()}
+    )
+    assert factory_problems() == []
+
+
+def test_the_role_list_matches_the_crews():
+    names = {name for name, _ in preflight.ROLE_FACTORIES}
+    assert names == {"planner", "coder", "reviewer", "senior", "verifier"}
+    assert set(preflight.factories()) == names
+
+
+def test_a_walled_role_fails_the_probe(monkeypatch):
+    from swarm.preflight import probe_roles
+
+    def walled(_llm):
+        raise RuntimeError("429 free-models-per-day")
+
+    problems = probe_roles(roles={"coder": lambda: object()}, call=walled)
+    assert len(problems) == 1
+    assert problems[0].check == "probe coder"
+    assert "free-models-per-day" in problems[0].detail
+
+
+def test_a_healthy_role_passes_the_probe():
+    from swarm.preflight import probe_roles
+
+    assert probe_roles(roles={"coder": lambda: object()}, call=lambda _llm: "ok") == []
+
+
+def test_the_probe_is_skipped_offline():
+    from swarm.preflight import probe_roles
+
+    def boom(_llm):  # pragma: no cover - must not run
+        raise AssertionError("offline must not call a provider")
+
+    assert probe_roles(offline=True, roles={"coder": lambda: object()}, call=boom) == []
+
+
+def test_check_can_probe_the_real_factories(monkeypatch):
+    """`check(probe_factories=True)` reports broken factories; default does not."""
+
+    def boom():
+        raise PermissionError("no key")
+
+    monkeypatch.setattr(preflight, "factories", lambda: {"planner": boom})
+    base = {"fetch": _tags("swarm-coder:latest", "swarm-qa:latest"), "which": _which}
+    assert not any(p.check.startswith("factory") for p in check(_ok_env(), **base))
+    problems = check(_ok_env(), probe_factories=True, **base)
+    assert any(p.check == "factory planner" for p in problems)
+
+
+def test_missing_playwright_blocks_preflight(monkeypatch, tmp_path):
+    """026 AC-8: an e2e repo without the suite installed must not start."""
+    (tmp_path / "frontend" / "e2e").mkdir(parents=True)
+    (tmp_path / "frontend" / "playwright.config.ts").write_text("export default {}\n")
+    monkeypatch.setattr(preflight, "REPO_ROOT", tmp_path)
+    problems = check(
+        _ok_env(), fetch=_tags("swarm-coder:latest", "swarm-qa:latest"), which=_which
+    )
+    assert any(p.check == "e2e" for p in problems)

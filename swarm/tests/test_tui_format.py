@@ -272,3 +272,21 @@ def test_models_from_progress_shows_a_live_fallback(tmp_path):
         ("reviewer", "ollama/swarm-qa:latest", False),
     ]
     assert models_from_progress(tmp_path / "missing") is None
+
+
+def test_an_unpriced_model_says_the_cost_cap_cannot_fire():
+    """026 AC-7: `unknown` alone hides the consequence — the cap is disabled."""
+    payload = {
+        "usage": {
+            "total_tokens": 15_000,
+            "cost_usd": None,
+            "cost_unknown": True,
+            "unpriced_models": ["openrouter/vendor/mystery"],
+            "duration_seconds": 125,
+        },
+        "budget": {"free_local_run": False, "local_coder": False},
+    }
+    text = format_metrics(payload, models=[("coder", "openrouter/vendor/mystery")]).plain
+    assert "unknown" in text
+    assert "cost cap cannot fire" in text
+    assert "openrouter/vendor/mystery" in text

@@ -117,16 +117,25 @@ def format_human_report(
         ("review_note", "reviewer"),
         ("vacancy_note", "vacancy"),
         ("budget_note", "budget"),
+        ("cost_note", "cost"),
         ("wall_budget_note", "wall budget"),
         ("quota_note", "quota"),
         ("recovery_note", "recovery"),
         ("approval_error", "approval"),
         ("evidence_note", "QA evidence"),
         ("verification_note", "verification"),
+        ("error", "error"),
     ):
         value = p.get(key)
         if value:
             reasons.append(f"{label}: {value}")
+    correction = p.get("correction_reverted") or {}
+    if correction.get("regressed"):
+        reasons.append(
+            "correction reverted: step "
+            f"{correction.get('step')} broke {', '.join(correction.get('regressed') or [])}"
+            f" (reverted {', '.join(correction.get('paths') or []) or 'nothing'})"
+        )
     self_check = p.get("self_check") or {}
     if self_check.get("red"):
         reasons.append(

@@ -24,6 +24,17 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Preflight is the one command an operator runs *before* anything else, so it
+# must see the same `.env` the run will (026 T8 made the model list read from
+# `os.environ` directly; without this the roles printed `<missing>`).
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(REPO_ROOT / ".env")
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:  # python-dotenv is optional for the unit tests
+    pass
+
 # Roles that the crew actually instantiates (zen fallback is Phase 1 / T13).
 ROLE_VARS = (
     "SWARM_PLANNER_MODEL",
@@ -191,6 +202,77 @@ def self_heal(
     return actions
 
 
+ROLE_FACTORIES: tuple[tuple[str, str], ...] = (
+    # The same flags the crews use: the planner may be paid (build_plan_crew
+    # passes allow_paid=True), the reviewer/senior/verifier follow
+    # SWARM_ALLOW_PAID through `_paid_ok(None)`.
+    ("planner", "planner"),
+    ("coder", "coder"),
+    ("reviewer", "reviewer"),
+    ("senior", "senior"),
+    ("verifier", "verifier"),
+)
+
+
+def factories() -> dict[str, Callable[[], Any]]:
+    """Role → factory used by the crews, built with the crews' own flags."""
+    from swarm import llms
+
+    return {
+        "planner": lambda: llms.planner_llm(allow_paid=True),
+        "coder": llms.coder_llm,
+        "reviewer": llms.reviewer_llm,
+        "senior": llms.senior_llm,
+        "verifier": llms.verifier_llm,
+    }
+
+
+def factory_problems() -> list[Problem]:
+    """Build every role factory exactly as the run will (026 AC-9).
+
+    A paid planner with `allow_paid=False` used to end as a 2-second
+    `crew_error` with no message: the factory raised inside the crew, not in
+    preflight, because preflight built a different factory with different flags.
+    """
+    problems: list[Problem] = []
+    for name, factory in factories().items():
+        try:
+            factory()
+        except Exception as e:  # noqa: BLE001 - report every broken factory
+            problems.append(
+                Problem(f"factory {name}", f"{type(e).__name__}: {e}"[:400])
+            )
+    return problems
+
+
+def probe_roles(
+    *,
+    offline: bool = False,
+    roles: dict[str, Callable[[], Any]] | None = None,
+    call: Callable[[Any], Any] | None = None,
+) -> list[Problem]:
+    """One 1-token call per configured role (026 AC-5).
+
+    A free-tier wall must fail before the first task, not after 20 minutes of
+    retries. `--offline` skips it; the in-run preflight opts in with
+    `SWARM_PREFLIGHT_PROBE=1` because five tiny calls are not free.
+    """
+    if offline:
+        return []
+    problems: list[Problem] = []
+    invoke = call or (lambda llm: llm.call(
+        [{"role": "user", "content": "Reply with the single word: ok"}]
+    ))
+    for name, factory in (roles or factories()).items():
+        try:
+            invoke(factory())
+        except Exception as e:  # noqa: BLE001 - a walled role is a preflight problem
+            problems.append(
+                Problem(f"probe {name}", f"{type(e).__name__}: {e}"[:400])
+            )
+    return problems
+
+
 def unmerged_paths(repo_root: Path | None = None) -> list[str]:
     """Paths with unresolved index stages (mid-merge, rebase, or stash pop)."""
     try:
@@ -213,12 +295,20 @@ def check(
     fetch: Callable[..., Any] = _get_json,
     which: Callable[[str], str | None] = shutil.which,
     offline: bool = False,
+    probe_factories: bool = False,
 ) -> list[Problem]:
-    """Return every blocking problem; empty list means safe to start."""
+    """Return every blocking problem; empty list means safe to start.
+
+    `probe_factories` builds the real role factories (process env, same flags as
+    the crews). It is opt-in so a unit test with a synthetic env never depends
+    on the machine's keys.
+    """
     env = dict(os.environ if env is None else env)
     self_heal(env)
     problems: list[Problem] = []
     allow_paid = env.get("SWARM_ALLOW_PAID", "0") == "1"
+    if probe_factories:
+        problems.extend(factory_problems())
 
     # 0. A conflicted worktree poisons every gate and can be committed by the
     #    next green run; stop before the first paid call.
@@ -292,6 +382,14 @@ def check(
     for binary in _gate_binaries(env):
         if not which(binary, path=path_env):
             problems.append(Problem("gates", f"`{binary}` not found in the project venvs"))
+
+    # 4. Browser e2e: a task whose brief names frontend/e2e/* needs a runnable
+    #    suite (026 AC-8). Cheap: file existence, no browser launch.
+    if (REPO_ROOT / "frontend" / "e2e").is_dir():
+        from swarm import e2e as e2e_suite
+
+        for problem in e2e_suite.available(REPO_ROOT):
+            problems.append(Problem("e2e", problem))
     return problems
 
 
@@ -302,29 +400,17 @@ def main() -> int:
     ap.add_argument("--offline", action="store_true", help="skip provider model-list requests")
     args = ap.parse_args()
 
-    from swarm import llms
-
     for var in ROLE_VARS:
         model = os.getenv(var, "")
         print(f"{var:<24} {model or '<missing>':<58} {provider(model) if model else '-'}")
 
-    # Reuse the factory so a broken factory (not just a broken id) is caught.
-    # The planner may be a paid model: the flag matches `build_plan_crew`, and
-    # `SWARM_ALLOW_PAID` is still the gate that decides.
-    for name, factory in (
-        ("planner", lambda: llms.planner_llm(allow_paid=True)),
-        ("coder", llms.coder_llm),
-        ("reviewer", llms.reviewer_llm),
-        ("senior", llms.senior_llm),
-        ("verifier", llms.verifier_llm),
-    ):
-        try:
-            factory()
-        except Exception as e:  # noqa: BLE001
-            print(f"factory {name}: FAILED {e}")
-            return 1
+    # Reuse the crews' factories so a broken factory (not just a broken id) is
+    # caught, with the same allow_paid/fallback flags the run uses.
+    problems = list(factory_problems())
 
-    problems = check(offline=args.offline)
+    # One 1-token call per role: a wall fails here, not after the first task.
+    problems += probe_roles(offline=args.offline)
+    problems += check(offline=args.offline)
     for p in problems:
         print(f"FAIL {p}")
     if problems:

@@ -17,6 +17,13 @@ from swarm.llms import (
 )
 
 # Back-compat re-exports: flow.py and the tests import these from swarm.crew.
+# 026 T5: CrewAI's own per-agent retry loop is invisible to the harness — it
+# multiplies one transport blip into a long silent wait and re-bills the same
+# prompt. The flow owns retries (`run_bounded`, model fallbacks, backoff), so
+# every agent is built with CrewAI retries off: one attempt per LLM call, every
+# failure recorded where the run can see it.
+AGENT_RETRY_LIMIT = 0
+
 from swarm.prompts import (
     FIX_RULES,
     MAX_STEPS,
@@ -104,6 +111,7 @@ def _coder(
         llm=llm,
         tools=_tools(allow_gates=allow_gates, role=copy["role"]),
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=max_iter,
     )
 
@@ -117,6 +125,7 @@ def _reviewer() -> Agent:
         llm=reviewer_llm(),
         tools=[TrimmedFileReadTool(), ShellTool(agent_role="QA Gatekeeper")],
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         # 015 tuning: 5 gates + `git status` + the verdict need ~7 calls; the old
         # budget of 5 made the model skip a gate and forced the harness fallback.
         # 014-T1 (2026-11-12): 6 gates + `git status` + the verdict + a look at
@@ -160,6 +169,7 @@ def build_senior_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: i
         llm=senior_llm(),
         tools=_tools(role=copy["role"]),
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=12,
     )
     t_step = Task(
@@ -188,6 +198,7 @@ def build_verify_crew(spec_dir: str, task: SpecTask, context_text: str) -> Crew:
         llm=verifier_llm(),
         tools=[FullFileReadTool(), ShellTool(allow_gates=False, agent_role="verifier")],
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         # 022: the delta files are already in the prompt; 12 iterations at ~60 s
         # per call let the verifier eat a whole 900 s task budget on 007-T2.
         max_iter=6,
@@ -248,6 +259,7 @@ def build_test_author_crew(spec_dir: str, task: SpecTask, ac_text: str = "") -> 
         llm=coder_llm(),
         tools=[TrimmedFileReadTool(), CreateTool(test_only=True), EditTool(test_only=True)],
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=8,
     )
     t_tests = Task(
@@ -268,6 +280,7 @@ def build_plan_crew(spec_dir: str, task: SpecTask) -> Crew:
         llm=planner_llm(allow_paid=True),
         tools=[TrimmedFileReadTool(), ShellTool()],
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=10,
     )
     t_plan = Task(
@@ -305,6 +318,7 @@ def build_conflict_crew(
         llm=conflict_llm(allow_paid=True),
         tools=[TrimmedFileReadTool(), EditTool()],
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=10,
     )
     files = "\n".join(f"- {p}" for p in conflicts)
@@ -353,6 +367,7 @@ def build_stash_crew(
         llm=conflict_llm(allow_paid=True),
         tools=[TrimmedFileReadTool(), EditTool()],
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=10,
     )
     files = "\n".join(f"- {p}" for p in conflicts)
@@ -423,6 +438,7 @@ def build_senior_crew(spec_dir: str, task: SpecTask, qa_report_text: str, qa_rev
         llm=senior_llm(),
         tools=_tools(allow_gates=False, role=copy["role"]),
         verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=16,
     )
     t_fix = Task(

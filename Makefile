@@ -1,10 +1,10 @@
 # Comfort walking router — top-level shortcuts.
 # App: make dev (bootstraps deps on first run). Swarm: make swarm-*.
 
-.PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck \
+.PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck e2e \
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
-	swarm-supervise swarm-report swarm-log swarm-night \
+	swarm-supervise swarm-report swarm-log swarm-night swarm-record \
 	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live swarm-parallel \
 	swarm-replay swarm-replay-off swarm-replay-one swarm-replay-paid
 
@@ -111,6 +111,13 @@ swarm-bench-live: ## Live replay of one case in a throwaway worktree: make swarm
 
 swarm-test: ## Harness unit tests (no LLM, no network)
 	swarm/.venv/bin/python -m pytest swarm/tests -q
+
+e2e: ## Browser e2e suite (fixture backend + vite preview + playwright test)
+	swarm/.venv/bin/python -m swarm.e2e
+
+swarm-record: ## Record a manually completed task's trailers: make swarm-record SPEC=001 TASK=T3
+	@test -n "$(SPEC)" -a -n "$(TASK)" || { echo "SPEC=<spec dir> TASK=<T3> are required"; exit 2; }
+	swarm/.venv/bin/python -m swarm.record $(SPEC) $(TASK)
 
 swarm-coder-image: ## Build tuned local coder image (swarm/ollama/Modelfile -> swarm-coder:latest)
 	ollama create swarm-coder -f swarm/ollama/Modelfile

@@ -126,3 +126,30 @@ def test_verdict_fallback_never_uses_a_paid_model(monkeypatch):
     monkeypatch.setenv("SWARM_ALLOW_PAID", "0")
     with pytest.raises(PermissionError):
         llms.verdict_fallback_llm()
+
+
+# ---------------------------------------------------------------------------
+# 026 AC-5: a fallback the provider cannot call is not a fallback
+# ---------------------------------------------------------------------------
+
+
+def test_an_uncallable_provider_is_skipped(monkeypatch):
+    """014-T10 retried a walled provider because the chain still offered it."""
+    monkeypatch.setenv("OPENCODE_API_KEY", "")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    monkeypatch.setenv("SWARM_LOCAL_FALLBACK_MODEL", "ollama/swarm-coder:latest")
+    model = llms.fallback_model("SWARM_SENIOR_MODEL", allow_paid=True)
+    assert model == "ollama/swarm-coder:latest", "a zen fallback with no key is not usable"
+
+
+def test_a_cloud_key_makes_the_cloud_fallback_usable(monkeypatch):
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "1")
+    monkeypatch.setenv("OPENCODE_API_KEY", "sk-test")
+    assert llms.fallback_model("SWARM_SENIOR_MODEL", allow_paid=True) == "zen/glm-5.3-flash"
+
+
+def test_provider_of_classifies_every_route():
+    assert llms.provider_of("ollama/qwen3.5:9b") == "ollama"
+    assert llms.provider_of("zen/glm-5.3-flash") == "zen"
+    assert llms.provider_of("openrouter/deepseek/x-1017") == "openrouter"
+    assert llms.provider_of("") == "unknown"

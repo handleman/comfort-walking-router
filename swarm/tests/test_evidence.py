@@ -219,3 +219,58 @@ def test_the_assertion_detail_after_the_path_line_is_kept():
     keys = evidence.extract_error_lines(text)
     assert "tests/test_route_toggles.py:119: AssertionError" in keys
     assert any("assert 8.0 < 8.0" in key for key in keys)
+
+
+# ---------------------------------------------------------------------------
+# T7 (AC-8): e2e evidence
+# ---------------------------------------------------------------------------
+
+
+def _playwright(*extra: str, **kwargs) -> dict:
+    return _rec(["npx", "playwright", "test", *extra], **kwargs)
+
+
+def test_a_recorded_playwright_run_is_e2e_evidence():
+    executions = [_rec(["git", "status"]), _playwright()]
+    runs = evidence.e2e_executions(executions)
+    assert len(runs) == 1
+    record = evidence.e2e_recorded(executions, current_hash="h")
+    assert record["exit"] == 0
+    assert record["current"] is True
+
+
+def test_a_task_that_names_an_e2e_file_requires_one():
+    assert evidence.e2e_required("Update `frontend/e2e/helpers.ts`.")
+    assert evidence.e2e_required("", ["frontend/e2e/walk-mode.spec.ts"])
+    assert not evidence.e2e_required("Update `frontend/src/App.svelte`.")
+
+
+def test_no_playwright_execution_records_nothing():
+    assert evidence.e2e_executions([_rec(["pytest", "-q"])]) == []
+    assert evidence.e2e_recorded([_rec(["pytest", "-q"])], current_hash="h") == {}
+
+
+def test_a_stale_playwright_run_is_not_current():
+    record = evidence.e2e_recorded([_playwright(digest="old")], current_hash="new")
+    assert record["current"] is False
+    # It is still a recorded run; the flow decides what staleness means.
+    assert record["exit"] == 0
+
+
+def test_a_failing_playwright_run_is_recorded_as_red():
+    record = evidence.e2e_recorded([_playwright(exit_code=1)], current_hash="h")
+    assert record["exit"] == 1
+
+
+def test_the_e2e_reason_code_is_typed():
+    import types
+
+    from swarm.flow import _reason_code
+
+    state = types.SimpleNamespace(
+        e2e={"required": True, "recorded": False},
+        verifier={},
+    )
+    assert _reason_code("needs_human", {}, state) == "e2e_missing"
+    state.e2e = {"required": True, "recorded": True}
+    assert _reason_code("needs_human", {}, state) != "e2e_missing"

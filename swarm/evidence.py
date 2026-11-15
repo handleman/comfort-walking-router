@@ -77,6 +77,60 @@ def read_executions(log_path: Path) -> list[dict[str, Any]]:
     return out
 
 
+def e2e_executions(executions: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Recorded Playwright runs (026 AC-8).
+
+    A task whose brief names `frontend/e2e/*` must show that the suite actually
+    ran. 010-T4 was green having touched only `helpers.ts`: the harness had
+    never executed Playwright, and four setup bugs plus NYC-only fixtures were
+    invisible to every gate.
+    """
+    out: list[dict[str, Any]] = []
+    for rec in executions or []:
+        argv = [str(part) for part in (rec.get("argv") or [])]
+        joined = " ".join(argv).lower()
+        if "playwright" not in joined:
+            continue
+        if " test" not in f" {joined}" and "test" not in argv:
+            continue
+        out.append(rec)
+    return out
+
+
+def e2e_recorded(
+    executions: Iterable[dict[str, Any]],
+    *,
+    current_hash: str = "",
+) -> dict[str, Any]:
+    """The newest Playwright execution, preferring one at the current delta."""
+    runs = e2e_executions(executions)
+    if not runs:
+        return {}
+    fresh = [
+        rec
+        for rec in runs
+        if not current_hash or str(rec.get("changed_after") or "") == current_hash
+    ]
+    rec = (fresh or runs)[-1]
+    try:
+        code = int(rec.get("exit"))
+    except (TypeError, ValueError):
+        code = 99
+    return {
+        "argv": list(rec.get("argv") or []),
+        "exit": code,
+        "agent": str(rec.get("agent") or ""),
+        "at": str(rec.get("at") or ""),
+        "current": bool(current_hash and str(rec.get("changed_after") or "") == current_hash),
+    }
+
+
+def e2e_required(brief: str, changed: Iterable[str] = ()) -> bool:
+    """True when the brief (or the delta) names a `frontend/e2e/` file."""
+    text = f"{brief or ''} " + " ".join(str(path) for path in changed)
+    return "frontend/e2e/" in text.replace("\\", "/")
+
+
 def gate_evidence(
     *,
     executions: Iterable[dict[str, Any]],

@@ -3,7 +3,7 @@
 Greenfield learning repo. Two goals, one product:
 
 1. **Spec-driven development** — spec → plan → tasks → implement, small verifiable slices.
-2. **Swarming agents / agentic autonomous loops with CrewAI** — a free-first local swarm that implements the specs task-by-task (`specs/009-swarm-harness/`).
+2. **Swarming agents / agentic autonomous loops with CrewAI** — a measured, cloud-first swarm (local Ollama as an opt-in offline mode) that implements the specs task-by-task (`specs/009-swarm-harness/`, `swarm/README.md`).
 
 Product under both loops: comfort-first walking router ("Google Maps for walks") — start/end → comfort-scored route + why-explanation (shade + sun + quiet from OSM).
 
@@ -12,23 +12,25 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 - Stack: `docs/tech-stack.md` — Python + FastAPI + Svelte + TypeScript + Leaflet, OSM/Overpass, SQLite first; swarm: CrewAI + Textual + Ollama + OpenRouter + Zen.
 - Order of work: `docs/roadmap.md`
 - Rules: `.specify/memory/constitution.md`, `AGENTS.md`
-- Decisions: `docs/architecture/` (ADRs 001–012)
+- Decisions: `docs/architecture/` (ADRs 001–013)
 
 ## Specs
 | Spec | State | What |
 | --- | --- | --- |
-| `001-example-app` | T1–T5 done; T7–T10 queued (comfort scoring) | MVP: scored route + explanation, SQLite cache |
-| `004-weather-sun` | spec→plan→tasks done | Open-Meteo preference + override |
-| `005-saved-routes` | spec→plan→tasks done | No-accounts Postgres routes + prefs (ADR-007) |
-| `006-comfort-plus` | spec→plan→tasks done | Lighting + traffic toggles |
-| `007-live-position` | spec drafted | Walk-mode marker, drift warning, no auto-reroute |
-| `008-mapbox-routing` | spec drafted | OSRM interim → Mapbox behind interface |
-| `009-swarm-harness` | harness implemented, pilot running | CrewAI swarm + parallel Textual dashboard |
-| `010-e2e-playwright` | spec drafted | Chromium E2E for all user scenarios |
+| `001-example-app` | done (T1–T11); live demo gate open | Scored route + explanation, SQLite cache |
+| `004-weather-sun` | done (T1–T5) | Open-Meteo auto preference + manual override |
+| `005-saved-routes` | code done; live Postgres gate open | No-accounts Postgres routes + prefs (ADR-007) |
+| `006-comfort-plus` | done (T1–T5) | Lighting + traffic toggles, regression matrix |
+| `007-live-position` | T1–T9 done; T10 open (mount walk mode) | Walk-mode marker, drift warning, arrival, no auto-reroute |
+| `008-mapbox-routing` | done (T1–T4); needs a real token to demo | OSRM interim → Mapbox behind the provider interface |
+| `009-swarm-harness` | done | CrewAI swarm + parallel Textual dashboard |
+| `010-e2e-playwright` | 5/10 e2e green; infra fixed 2026-11-14 | Chromium E2E for all user scenarios |
 | `011-dev-run` | done (2026-11-08) | `make dev` one-command startup + contract alignment |
-| `012-dark-factory-harness` | done (2026-11-08) | Dark-factory hardening: truthful green, sandbox, merge queue, observability |
+| `012-dark-factory-harness` | done (2026-11-08) | Truthful green, sandbox, merge queue, observability |
 | `013-dark-factory-phase-2` | done (2026-11-08) | Done ledger, approval-resume commit, crash checkpoints |
-| `014-walk-guidance-ux` | spec drafted (2026-11-08) | Geolocation, autocomplete, map picking, walker glyph, arrival |
+| `014-walk-guidance-ux` | done (T1–T11) | Geolocation, autocomplete, map picking, walker glyph, arrival |
+| `020`–`025` | done | Efficiency bench, fix loop, lean loop, parallel factory, earned autonomy, durable journal |
+| `026-run-guards` | proposed; T1/T11 implemented | Deterministic guards: delta, fail-closed judges, corrections, quota, cost, e2e evidence, queue reasons |
 
 Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 
@@ -64,7 +66,7 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-08: 5 app tests + 174 harness tests pass, ruff/mypy/svelte-check clean, Vite build OK, and a live `POST /route` (Marienplatz → Viktualienmarkt, 2.04 km) rendered in headless Chrome with no JS errors.
+Last verified 2026-11-15: **170 app tests + 605 harness tests** pass, ruff/mypy/svelte-check clean, Vite build OK. `frontend/e2e` runs against `vite preview` + a fixture backend (`ROUTE_FIXTURES=1`); 5/10 scenarios pass, the rest are tracked in 010/007 (walk mode mounting, prefs panel).
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 

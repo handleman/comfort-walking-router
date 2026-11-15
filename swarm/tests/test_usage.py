@@ -120,3 +120,74 @@ def test_run_cost_falls_back_to_the_aggregate_without_per_model_data():
         )
     )
     assert SwarmFlow._run_cost(stub) == 0.65
+
+
+def test_unpriced_models_names_what_the_price_table_cannot_price():
+    """026 AC-7: `cost: null` must say which model made it null."""
+    from swarm.usage import unpriced_models
+
+    assert unpriced_models({"zen/glm-5.3-flash": (10, 10)}) == []
+    assert unpriced_models({"ollama/swarm-coder:latest": (10, 10)}) == []
+    assert unpriced_models({"openrouter/vendor/mystery": (10, 10)}) == [
+        "openrouter/vendor/mystery"
+    ]
+    assert unpriced_models(
+        {
+            "zen/glm-5.3-flash": (10, 10),
+            "openrouter/vendor/mystery": (10, 10),
+            "openrouter/other/thing": (1, 1),
+        }
+    ) == ["openrouter/other/thing", "openrouter/vendor/mystery"]
+
+
+def test_two_paid_models_is_a_number_and_an_unpriced_one_is_named():
+    """The usage snapshot is what `run.json.cost` / `cost_unknown` come from."""
+    import types
+
+    from swarm.flow import SwarmFlow
+
+    priced = types.SimpleNamespace(
+        models_used=["glm-5.3-flash", "deepseek/deepseek-v4.1-flash-1017"],
+        tokens_by_model={
+            "glm-5.3-flash": {"prompt_tokens": 1_000_000, "completion_tokens": 0},
+            "deepseek/deepseek-v4.1-flash-1017": {
+                "prompt_tokens": 0,
+                "completion_tokens": 1_000_000,
+            },
+        },
+        prompt_tokens=1_000_000,
+        completion_tokens=1_000_000,
+        cached_prompt_tokens=0,
+        total_tokens=2_000_000,
+        llm_calls=4,
+        cost_note="",
+        started_at="",
+        finished_at="",
+    )
+    import time
+
+    stub = types.SimpleNamespace(
+        state=priced,
+        _started_monotonic=time.monotonic(),
+        _usage_by_role={},
+        _usage_by_step={},
+        _run_cost=lambda: SwarmFlow._run_cost(stub),
+    )
+    usage = SwarmFlow._usage_snapshot(stub)
+    assert usage["cost_usd"] == 0.65
+    assert usage["cost_unknown"] is False
+    assert usage["unpriced_models"] == []
+
+    mystery = types.SimpleNamespace(**vars(priced))
+    mystery.tokens_by_model = {"openrouter/vendor/mystery": {"prompt_tokens": 5, "completion_tokens": 5}}
+    mystery.models_used = ["openrouter/vendor/mystery"]
+    stub.state = mystery
+    usage = SwarmFlow._usage_snapshot(stub)
+    assert usage["cost_usd"] is None
+    assert usage["cost_unknown"] is True
+    assert usage["unpriced_models"] == ["openrouter/vendor/mystery"]
+    assert "openrouter/vendor/mystery" in stub.state.cost_note
+    assert stub.state.cost_note == (
+        "cost unknown: no price row for openrouter/vendor/mystery"
+        " — the dollar cap cannot fire"
+    )

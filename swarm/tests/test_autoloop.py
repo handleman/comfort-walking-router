@@ -132,7 +132,9 @@ def test_gate_preserves_terminal_status():
     from swarm.flow import SwarmFlow, SwarmState
 
     class Stub:
-        pass
+        # 026 AC-8: this class of tasks is not e2e, so the branch is inert.
+        _e2e_state = lambda self: {}
+        _interrupted = False
 
     for terminal in ("quota_exhausted", "crew_error"):
         stub = Stub()
@@ -1389,3 +1391,58 @@ def test_repair_routing_to_the_senior_model_is_in_the_loop():
     assert "senior:verify" in source
     # verifier corrections use the senior step crew (a stuck step, not a new step)
     assert "build_senior_step_crew(" in source
+
+
+def test_a_qa_verdict_that_stays_unreadable_is_terminal_not_a_pass(monkeypatch):
+    """026 AC-3 for QA: one repair, then the run cannot read it as a pass."""
+    import types
+
+    from swarm import flow
+    from swarm.spec_loader import SpecTask
+
+    class Mute:
+        def call(self, prompt):
+            return "I looked at the gates and the code and it seems reasonable."
+
+    monkeypatch.setattr("swarm.llms.reviewer_llm", lambda: Mute())
+    monkeypatch.setattr("swarm.llms.verdict_fallback_llm", lambda: Mute())
+    stub = types.SimpleNamespace(
+        state=flow.SwarmState(review_verdict="unknown"),
+        _verdict_retried=False,
+    )
+    flow.SwarmFlow._repair_verdict(
+        stub, SpecTask(id="T1", ac_refs=("AC-1",), brief="do x"), "exit=0"
+    )
+    assert stub.state.review_verdict == "unknown"
+    assert stub.state.judges["qa"]["terminal"] is True
+    assert stub.state.judges["qa"]["repaired"] is True
+    assert "no readable verdict" in stub.state.review_note
+
+
+def test_the_qa_fail_closed_rule_is_one_repair_only(monkeypatch):
+    import types
+
+    from swarm import flow
+    from swarm.spec_loader import SpecTask
+
+    calls: list[str] = []
+
+    class Counting:
+        def call(self, prompt):
+            calls.append(prompt)
+            return "hmm"
+
+    monkeypatch.setattr("swarm.llms.reviewer_llm", lambda: Counting())
+    monkeypatch.setattr("swarm.llms.verdict_fallback_llm", lambda: Counting())
+    stub = types.SimpleNamespace(
+        state=flow.SwarmState(review_verdict="unknown"),
+        _verdict_retried=False,
+    )
+    task = SpecTask(id="T1", ac_refs=("AC-1",), brief="do x")
+    flow.SwarmFlow._repair_verdict(stub, task, "exit=0")
+    # One bounded repair call: the reviewer answered, so the fallback is not
+    # billed as well (it only runs when the call itself failed).
+    assert len(calls) == 1
+    # A second round for the same run must not spend another call.
+    flow.SwarmFlow._repair_verdict(stub, task, "exit=0")
+    assert len(calls) == 1

@@ -94,6 +94,8 @@ make swarm-up                   # pilot in background + dashboard attached
 make swarm-up-local             # all-local pilot in background + dashboard attached
 make swarm-test                 # harness unit tests (no LLM, no network)
 make swarm-preflight            # validate models/keys/Ollama/venvs/gates (no LLM call)
+make e2e                        # browser suite: build + fixture backend + playwright test
+make swarm-record SPEC=014 TASK=T11  # standard trailers for a task finished by hand
 make swarm-approve             # grant approval for the last checkpoint task (or SPEC=001 TASK=T3)
 make swarm-approve SPEC=001 TASK=T3  # grant approval for a specific held task
 make swarm-coder-image          # build tuned coder image (swarm/ollama/Modelfile → swarm-coder:latest)
@@ -372,7 +374,90 @@ and again after a QA fix round that changed the delta:
   show its verdict next to QA's (`h`). `SWARM_VERIFY=0` disables the phase.
 
 Like the self-check, the verifier is not a gate: it is cheap relative to a wrong
-green (one bounded crew per round on a free model) and it never certifies work.
+green (one bounded crew per round) and it never certifies work.
+
+Two verdict rules matter when reading `run.json.verifier`:
+
+- **No verdict is not a pass.** If the model spends its turn on tool calls and
+  never states `VERDICT:`, the flow re-asks **once** (`verifier:<n>b`); if that
+  also fails the run stops as `needs_human` (`verifier_blocked`). Before this,
+  `unknown` fell through as a pass and 014-T10 committed green with three
+  missing deliverables.
+- **Re-litigation is judged on the finding, not the file.** A block after a
+  landed correction is `unstable` (a warning, QA decides) only when it repeats
+  the **same** finding (file + normalised sentence, line numbers ignored). A new
+  defect in the same file stops the run — the earlier file-overlap heuristic
+  waived a real missing crosshair rule.
+
+### Run guards (026)
+
+Deterministic checks that run **around** model phases. They exist because the
+cheap answer is almost always available before a judge is paid:
+
+- **Delta guard** (`run.json.delta_guard`, `SWARM_DELTA_GUARD=0` off): after the
+  micro-steps and **before** the self-check/verifier/QA, an empty in-scope delta
+  stops as `reason_code=no_delta`; a brief-named file that did not exist before
+  the run and is still absent stops as `delta_incomplete` with the list. A named
+  existing file that was not touched is recorded as `untouched` (a warning, not a
+  stop — briefs name files for context too). Dotted code such as `route.waypoints`
+  is not a path. This is what the two 014-T10 empty-delta runs (21 + 28 min,
+  $0.18) needed.
+- **Wall budget is terminal** (`SWARM_TASK_WALL_BUDGET`): `bounded.run_bounded`
+  only treats `None` as unbounded; a zero/negative remaining budget refuses the
+  call, and the flow raises `_WallBudget` before a crew. 007-T10 once ran 2.7 h
+  past its 1800 s bound because a spent budget became a negative timeout, which
+  the old code read as "no bound".
+- **Per-model cost** (`run.json.usage.by_model`): each model's own tokens are
+  priced. With a paid planner + paid coder the old aggregate returned `None`,
+  which silently disabled `SWARM_MAX_COST_PER_TASK`; the default cap is **$1.00**
+  per task (`SWARM_MAX_COST_PER_TASK`).
+- **Journal after close** (`run.json.journal`): the run-end `save_run` listener
+  runs after `_cleanup`; `fold` returns a `closed` view and `append`/
+  `record_effect` are no-ops, so a terminal stop cannot crash the run record.
+- **Judges fail closed** (`SWARM_JUDGE_FAIL_CLOSED=0` off): the verifier, QA and
+  the senior path go through `guards.resolve_verdict` — parse, **one** bounded
+  repair call, then a terminal stop. `run.json.judges[<kind>]` records the
+  verdict, whether a repair ran and the raw tail. 014-T10 committed green because
+  the verifier spent its turn on tool calls and an `unknown` verdict fell through
+  as a pass. `review_note` names the terminal judge.
+- **Corrections cannot regress the build** (`SWARM_CORRECTION_GUARD=0` off):
+  before a verifier correction plan and after each `STEP n:` the harness runs the
+  017 static checks (`harness-selfcheck` role, never QA evidence); a green→red
+  transition reverts only that step's new paths (archived in
+  `<run>/reverted/`), records `run.json.correction_reverted`, ends the loop and
+  stops as `reason_code=correction_reverted`. 014-T11 appended a duplicate style
+  block to `App.svelte` after the self-check had passed.
+- **Quota is terminal** (`SWARM_QUOTA_BREAKER=0` off, `SWARM_QUOTA_LIMIT=3`):
+  quota errors are counted **per provider** in `run.json.quota`; at the limit the
+  run stops `quota_exhausted` instead of retrying a walled model. Fallbacks skip
+  providers whose key is missing (`llms._callable`), and `make swarm-preflight`
+  makes one 1-token call per role (`--offline` skips it). 014-T10 burned 54
+  `429 free-models-per-day` errors and 20 minutes.
+- **Cost is never silently unknown** (`run.json.usage.cost_unknown`): with two
+  paid models the cost is a number; an unpriced paid model sets
+  `cost_unknown: true`, names it in `unpriced_models` and in the budget note
+  ("the dollar cap cannot fire"), and the dashboard prints "unknown" — never `$0`.
+- **E2E evidence** (`SWARM_E2E_EVIDENCE=0` off): a task whose brief (or delta)
+  names `frontend/e2e/*` is green only with a recorded Playwright execution at
+  the current delta hash; otherwise `reason_code=e2e_missing`. `make e2e` builds
+  the app and runs the suite from `frontend/`; preflight checks that
+  `frontend/node_modules/.bin/playwright` and the config exist. 010-T4 was green
+  having touched only `helpers.ts`.
+- **Config errors are readable** (`run.json.error`): every typed config failure
+  writes its exception text, `human_log.txt` shows it as `error: …`, and
+  preflight builds the crews' own factories (planner `allow_paid=True`, others
+  follow `SWARM_ALLOW_PAID`) via `SWARM_PREFLIGHT_FACTORIES=0` to disable.
+- **One retry authority** (`swarm/crew.py`): every `Agent` is built with
+  `max_retry_limit=0`, so a provider outage costs the harness's 3 attempts, not
+  20 nested calls.
+- **The queue explains itself** (`run.json.queue_reasons`): queue selection logs
+  `open task <spec>/<T>: <reason>` with `no ledger entry` / `missing trailer` /
+  `task hash changed` / `spec hash changed`. `make swarm-record SPEC=014 TASK=T11`
+  writes the standard trailers for work finished by hand (an empty commit plus
+  the ledger cache) — `--dry-run` / `--no-commit` for inspection.
+- **Delta completeness stays a stop, not a gate.** `delta_incomplete` is
+  promoted to a gate only after the replay set agrees; the verifier still judges
+  behaviour.
 
 ### Cost routing (015 D2)
 - Non-trivial steps (existing file, >1 file, frontend/type-checked path, logic/
@@ -430,6 +515,10 @@ p90 $0.0295, duration p50 237s / p75 454s, fix rounds 0:11, 1:5, 2:3).
 | `SWARM_OLLAMA_TIMEOUT_SECONDS` | 1800 | Local generation at 64k context legitimately ran past 300 s (two `litellm.Timeout` on 2026-11-10); 30 min bounds a hang without cutting a real answer. |
 | `SWARM_STYLE_FIX_COMMAND` | `npm --prefix frontend run lint:fix` | The harness repairs a style-only gate failure (Prettier/ESLint) instead of spending a coder round on a wrap. |
 | `SWARM_LLM_TIMEOUT_SECONDS` / `SWARM_LLM_MAX_RETRIES` | 180 / 0 | Small calls return in 1–7 s, but a fix generation on a big prompt legitimately runs past 60 s (007-T5 saw 6 failures at exactly 2×60 s). SDK retries off: the harness retries once, visibly, then falls back per role. |
+| `SWARM_DELTA_GUARD` / `SWARM_JUDGE_FAIL_CLOSED` / `SWARM_CORRECTION_GUARD` | `1` | 026 off switches: empty-delta stop, fail-closed judges, correction regression revert. `0` restores the pre-026 behaviour (A/B only). |
+| `SWARM_QUOTA_BREAKER` / `SWARM_QUOTA_LIMIT` | `1` / `3` | Quota errors per provider before the run stops `quota_exhausted`; `SWARM_QUOTA_BREAKER=0` restores the retry loop. |
+| `SWARM_E2E_EVIDENCE` / `SWARM_PREFLIGHT_FACTORIES` | `1` | Require a recorded Playwright run for a `frontend/e2e/*` task; build the crews' real role factories in preflight. |
+| `max_retry_limit` (agents) | `0` | CrewAI's inner retry loop would multiply one outage into ~20 calls; the harness owns retries. |
 
 ### Stash lifecycle: conflicts are resolved, not parked
 A run parks unrelated dirty work in a `swarm-<run-id>` stash and restores it
@@ -708,6 +797,22 @@ flowchart TB
 ```bash
 swarm/.venv/bin/python -m pytest swarm/tests -v
 ```
+
+## Browser e2e (`frontend/e2e`)
+```bash
+npm --prefix frontend run build
+(cd frontend && npx playwright test)        # needs browsers: npx playwright install chromium
+```
+The Playwright config boots `uvicorn app.main:app` from the repo root with
+`ROUTE_FIXTURES=1` and a placeholder `MAPBOX_TOKEN`, then `vite preview` on
+:5173. `vite preview` does **not** inherit `server.proxy`, so `vite.config.ts`
+carries an explicit `preview.proxy` for `/route`, `/geocode`, `/prefs`, `/saved`
+and `/token`; without it the browser gets the SPA's 404 page ("Unexpected token
+'<'") and no `.result` can render. Fixtures know the UI's Munich places
+(`Marienplatz, Munich`, `Englischer Garten`) and build the route geometry from
+the requested coordinates. Current state: 5/10 scenarios pass; walk mode is not
+mounted in `App.svelte` (007-T10) and the prefs panel's select is the other
+failure.
 
 ## Replay bench (`make swarm-bench`, 020 T1)
 A frozen corpus of 12 historical green runs (`swarm/bench/corpus/*.json`) plus a

@@ -177,3 +177,36 @@ def is_done(
         return False
     # Entries predating the spec hash stay valid (task hash is still exact).
     return not entry.spec_hash or entry.spec_hash == current_spec_hash
+
+
+def open_reason(
+    entries: dict[str, DoneEntry],
+    spec_dir: str,
+    task: Any,
+    current_spec_hash: str,
+) -> str:
+    """Why the queue considers this task open, in four words (026 AC-10).
+
+    A `- [ ]` line is not enough information: a `spec.md` edit reopens T2–T8,
+    and a manual commit leaves a green task without a trailer. The queue used to
+    print nothing, so "why is this running again?" had to be answered by reading
+    `done.py` by hand.
+
+    * `no ledger entry` — never recorded;
+    * `missing trailer` — only the gitignored cache knows it was green;
+    * `task hash changed` — the brief/ACs were edited;
+    * `spec hash changed` — `spec.md`/`plan.md` were edited.
+    """
+    entry = entries.get(_key(spec_dir, str(task.id)))
+    if entry is None:
+        return "no ledger entry"
+    if entry.task_hash != task_hash(task):
+        return "task hash changed"
+    if entry.spec_hash and entry.spec_hash != current_spec_hash:
+        return "spec hash changed"
+    return "missing trailer"
+
+
+def cache_only(entry: DoneEntry | None) -> bool:
+    """True when the only evidence of green is the local cache, not a trailer."""
+    return entry is not None and entry.source == "cache"

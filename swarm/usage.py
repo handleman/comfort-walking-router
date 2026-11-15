@@ -57,6 +57,18 @@ def estimate_cost(per_model: dict[str, tuple[int, int]]) -> float | None:
     return round(total, 6)
 
 
+def unpriced_models(per_model: dict[str, tuple[int, int]]) -> list[str]:
+    """Paid models the price table cannot price (the reason cost is unknown).
+
+    026 AC-7: an unpriced model must be named. `None` cost is honest but silent —
+    it also disables the per-task dollar cap, and a run record that says
+    `cost: null` without the model makes that impossible to diagnose.
+    """
+    return sorted(
+        {model for model in (per_model or {}) if not is_free(model) and _rate(model) is None}
+    )
+
+
 def estimate_run_cost(
     models: list[str], prompt_tokens: int, completion_tokens: int
 ) -> float | None:
