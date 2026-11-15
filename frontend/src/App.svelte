@@ -25,6 +25,7 @@
     explanation: string[]
     geometry: LineStringGeometry
     distance_m: number
+    comfort_profile: ComfortProfileSegment[] | null
     duration_s: number
     applied_preference: string
     preference_source: 'auto' | 'manual'
@@ -47,6 +48,14 @@
   import type { Suggestion } from './lib/search/suggestions'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
   import type { PickRole } from './lib/map/picker'
+  import {
+    COMFORT_BANDS,
+    COMFORT_UNAVAILABLE_TEXT,
+    bandColour,
+    formatRun,
+    mergeBandRuns,
+  } from './lib/map/comfortBands'
+  import type { ComfortBandRun, ComfortProfileSegment } from './lib/map/comfortBands'
   import {
     deleteRoute,
     ensureToken,
@@ -316,6 +325,7 @@
 
   /** WalkControls route as `[lat, lng]` pairs; empty until a route exists. */
   $: walkRoute = route ? route.waypoints.map((w): LatLng => [w.lat, w.lng]) : []
+  $: comfortRuns = route && route.comfort_profile ? mergeBandRuns(route.comfort_profile) : []
 
   // The last request that produced the route on screen, so an identical repeat
   // renders the cached result instead of a second external call (005 AC-3).
@@ -367,7 +377,39 @@
     }
     const layer = L.layerGroup().addTo(map)
     routeLayer = layer
-    const line = L.geoJSON(route.geometry).addTo(layer)
+    const runs: ComfortBandRun[] = route.comfort_profile ? mergeBandRuns(route.comfort_profile) : []
+    const coords: [number, number][] = route.geometry.coordinates.map(
+      (c) => [c[1], c[0]] as [number, number],
+    )
+    const dists: number[] = [0]
+    for (let i = 1; i < coords.length; i++) {
+      const [aLat, aLng] = coords[i - 1]
+      const [bLat, bLng] = coords[i]
+      const rad = Math.PI / 180
+      const dLat = (bLat - aLat) * rad
+      const dLng = (bLng - aLng) * rad
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLng / 2) ** 2
+      dists.push(dists[i - 1] + 2 * 6371000 * Math.asin(Math.sqrt(a)))
+    }
+    let line: L.Polyline
+    if (runs.length) {
+      const lines: L.Polyline[] = []
+      for (const run of runs) {
+        const slice: [number, number][] = []
+        coords.forEach((c, i) => {
+          if (dists[i] >= run.from_m && dists[i] <= run.to_m) slice.push(c)
+        })
+        const pl = L.polyline(slice, { color: bandColour(run.band), weight: 6 })
+          .bindTooltip(formatRun(run))
+          .addTo(layer)
+        lines.push(pl)
+      }
+      line = lines[0]
+    } else {
+      line = L.polyline(coords, { color: '#4a5568', weight: 6 }).addTo(layer)
+    }
     const startPoint = route.waypoints[0]
     const endPoint = route.waypoints[1]
     if (startPoint) {
@@ -399,6 +441,7 @@
         preference_source: route.preference_source,
         weather: route.weather,
         timestamp: route.timestamp,
+        comfort_profile: route.comfort_profile,
       })
       savedRoutes = [saved, ...savedRoutes.filter((r) => r.id !== saved.id)]
     } catch (err) {
@@ -426,6 +469,7 @@
         applied_preference: snap.applied_preference,
         preference_source: snap.preference_source,
         weather: snap.weather,
+        comfort_profile: snap.comfort_profile,
       }
       start = ''
       end = ''
@@ -604,6 +648,23 @@
           {Math.round(route.duration_s / 60)} min
         </p>
         <p class="score">comfort {route.comfort_score}/100</p>
+        {#if route.comfort_profile}
+          <ul class="comfort-legend">
+            {#each COMFORT_BANDS as b (b.band)}
+              <li class="comfort-band comfort-band--{b.band}">
+                <span class="comfort-swatch" style="background:{b.colour}"></span>
+                {b.band} · {b.range}/100
+              </li>
+            {/each}
+          </ul>
+          <ul class="comfort-segments">
+            {#each comfortRuns as run, index (index)}
+              <li class="comfort-segment comfort-band--{run.band}">{formatRun(run)}</li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
+        {/if}
         <Attribution text={route.attribution ?? suggestionAttribution} />
         <WalkControls route={walkRoute} />
         <h3>Comfort factors</h3>
@@ -796,6 +857,52 @@
 
   .locate-retry:hover {
     background: #7a6300;
+  }
+
+  /* 028 T4: comfort profile legend and segment list */
+  .comfort-legend,
+  .comfort-segments {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .comfort-band,
+  .comfort-segment {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-left: 0.4rem;
+  }
+
+  .comfort-band--good {
+    border-left: 4px solid #1a7f37;
+  }
+
+  .comfort-band--mixed {
+    border-left: 4px solid #b58900;
+  }
+
+  .comfort-band--poor {
+    border-left: 4px solid #b00020;
+  }
+
+  .comfort-swatch {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    display: inline-block;
+  }
+
+  .comfort-unavailable {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: #666;
   }
 
   @media (max-width: 720px) {

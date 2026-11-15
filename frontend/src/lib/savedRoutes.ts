@@ -1,6 +1,8 @@
 // Saved routes client (spec 005-saved-routes, task T8)
 // Types + token helpers + fetch wrappers for the saved-routes API.
 
+import type { ComfortProfileSegment } from './map/comfortBands'
+
 /** A saved route as returned by the API. */
 export interface SavedRoute {
   id: string
@@ -33,6 +35,7 @@ export interface RouteSnapshot {
   applied_preference: string
   preference_source: 'auto' | 'manual'
   weather: { temperature: number; cloudCover: number }
+  comfort_profile: ComfortProfileSegment[] | null
   timestamp: string
 }
 
