@@ -1,4 +1,5 @@
 
+import os
 from typing import Any
 
 import requests
@@ -24,11 +25,15 @@ def fetch_overpass_features(
         A list of GeoJSON feature dicts with geometry and properties.
     """
     headers = {"User-Agent": user_agent}
+    # A 3 km corridor with trees is ~9.5k elements and the public instance took
+    # 40 s on a warm day (2026-11-15); 10 s looked like an outage. The QL timeout
+    # travels in the query itself, so the HTTP timeout is the outer bound.
+    timeout = float(os.getenv("OVERPASS_TIMEOUT_SECONDS", "45"))
     params: dict[str, str | int] = {
         "data": query,
-        "timeout": 10,
+        "timeout": int(timeout),
     }
-    response = requests.get(url, params=params, headers=headers, timeout=10)
+    response = requests.get(url, params=params, headers=headers, timeout=timeout)
     response.raise_for_status()
     data = response.json()
     

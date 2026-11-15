@@ -7,7 +7,7 @@
 	swarm-supervise swarm-report swarm-log swarm-night swarm-record \
 	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live swarm-parallel \
 	swarm-replay swarm-replay-off swarm-replay-one swarm-replay-paid \
-	swarm-db-up swarm-db-down swarm-db-status swarm-db-migrate
+	swarm-db-up swarm-db-down swarm-db-status swarm-db-migrate smoke-live
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -144,6 +144,9 @@ swarm-db-status: ## Is the local Postgres up?
 
 swarm-db-migrate: ## Upgrade the local Postgres schema to head
 	./swarm/db.sh migrate
+
+smoke-live: ## Real providers (no fixtures): one Munich route, profile and weather
+	$(DB_ENV) .venv/bin/python -m swarm.smoke
 
 swarm-preflight: ## Validate models/keys/Ollama/venvs/gates before a run
 	swarm/.venv/bin/python -m swarm.preflight

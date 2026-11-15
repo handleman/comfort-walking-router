@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -94,7 +95,7 @@ def overpass_query(box: tuple[float, float, float, float]) -> str:
     """Ways with a road/path class, plus trees, inside the corridor."""
     south, west, north, east = box
     return (
-        "[out:json][timeout:10];\n(\n"
+        "[out:json][timeout:40];\n(\n"
         f"  way[highway]({south},{west},{north},{east});\n"
         f"  node[natural=tree]({south},{west},{north},{east});\n"
         f"  way[natural=wood]({south},{west},{north},{east});\n"
@@ -143,12 +144,31 @@ def _corridor_features(
         return None
     if fixtures.route_fixtures_enabled():
         return fixtures.recorded_corridor_features(geometry)
-    try:
-        return overpass.fetch_overpass_features(
-            overpass.OVERPASS_URL, query=overpass_query(box)
-        )
-    except Exception:  # noqa: BLE001 - best effort: a score must still return
-        return None
+    return _overpass_features(overpass_query(box))
+
+
+def _overpass_features(query: str) -> list[dict[str, Any]] | None:
+    """Fetch from the primary endpoint, then one mirror.
+
+    The public Overpass instance answers 502 "all query workers are busy" when it
+    is at capacity (seen live 2026-11-15, which turned a real Munich route into a
+    weather-only score with no comfort data). One retry against a mirror is the
+    difference between a data gap and a good route; anything worse is still a
+    gap, never a failed route.
+    """
+    urls = [overpass.OVERPASS_URL]
+    mirror = os.getenv("OVERPASS_MIRROR_URL", "https://overpass.kumi.systems/api/interpreter").strip()
+    if mirror and mirror not in urls:
+        urls.append(mirror)
+    for url in urls:
+        try:
+            features = overpass.fetch_overpass_features(url, query=query)
+        except Exception as exc:  # noqa: BLE001 - try the next endpoint
+            print(f"overpass: {url} failed ({exc}) — trying the next endpoint", flush=True)
+            continue
+        if features:
+            return features
+    return None
 
 
 def _as_elements(features: list[dict[str, Any]]) -> list[dict[str, Any]]:
