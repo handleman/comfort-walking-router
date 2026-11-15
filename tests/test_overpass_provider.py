@@ -49,4 +49,5 @@ def test_fetch_overpass_features_passes_through_geometry(monkeypatch: pytest.Mon
     # Verify timeout was passed
     params = captured["kwargs"].get("params", {})
     assert "timeout" in params
-    assert params["timeout"] == 10
+    # 45 s: a 3 km corridor is ~9.5k elements and took 40 s live (2026-11-15).
+    assert params["timeout"] == 45
