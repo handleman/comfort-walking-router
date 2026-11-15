@@ -8,6 +8,8 @@
 
 import { get, writable } from 'svelte/store'
 import { checkArrival } from './navigation/arrival'
+import { compareReroutes } from './navigation/rerouteChoice'
+import type { RerouteChoice, RerouteVerdict, RouteForChoice } from './navigation/rerouteChoice'
 import type { LatLng } from './navigation/interpolate'
 
 /** Milliseconds a dismissed reroute warning stays snoozed (AC-5). */
@@ -25,6 +27,12 @@ export interface WalkModeState {
   offRouteMeters: number
   /** True once the walker has arrived at the destination (AC-7). */
   arrived: boolean
+  /** Distance delta (meters) of the chosen reroute vs the current route (spec 029, AC-2). */
+  delta?: number
+  /** Remaining distance (km) of the chosen reroute (spec 029, AC-2). */
+  remainingKm?: number
+  /** Comparison verdict for the last reroute decision (spec 029, AC-2). */
+  verdict?: RerouteVerdict
 }
 
 export const walkMode = writable<WalkModeState>({
@@ -47,6 +55,31 @@ export const rerouteError = writable<string | null>(null)
 /** Timestamp until which reroute warnings are snoozed (AC-5). */
 export const snoozedUntil = writable<number | null>(null)
 
+let currentProfile: RouteForChoice['profile'] = []
+
+function metresBetween(a: LatLng, b: LatLng): number {
+  const latDiff = (b[0] - a[0]) * 111_320
+  const lngDiff = (b[1] - a[1]) * 111_320 * Math.cos(((a[0] + b[0]) / 2) * (Math.PI / 180))
+  return Math.hypot(latDiff, lngDiff)
+}
+
+function distanceAlong(route: LatLng[], pos: LatLng): number {
+  let nearestIdx = 0
+  let nearestDist = Infinity
+  for (let i = 0; i < route.length; i++) {
+    const d = metresBetween(route[i], pos)
+    if (d < nearestDist) {
+      nearestDist = d
+      nearestIdx = i
+    }
+  }
+  let total = 0
+  for (let i = 0; i < nearestIdx; i++) {
+    total += metresBetween(route[i], route[i + 1])
+  }
+  return total
+}
+
 export function start(route: LatLng[]): void {
   walkMode.set({
     active: true,
@@ -68,9 +101,13 @@ export function stop(): void {
     rerouteWarning: false,
     offRouteMeters: 0,
     arrived: false,
+    delta: undefined,
+    remainingKm: undefined,
+    verdict: undefined,
   })
   snoozedUntil.set(null)
   rerouteError.set(null)
+  currentProfile = []
 }
 
 export function onFix(lat: number, lng: number): void {
@@ -126,9 +163,70 @@ export async function reroute(pos: LatLng | null, dest: LatLng | null): Promise<
     if (next.length === 0) {
       throw new Error('Reroute returned an empty route')
     }
-    rerouteError.set(null)
-    snoozedUntil.set(null)
-    walkMode.update((s) => ({ ...s, route: next, rerouteWarning: false, offRouteMeters: 0 }))
+    // The comparison baseline is the stored walk route, projected from the
+    // walker position onto that route/profile — never the fresh candidate.
+    const storedRoute = get(walkMode).route ?? next
+    const alongM = distanceAlong(storedRoute, pos)
+    const current: RouteForChoice = {
+      profile: currentProfile,
+      distance_m: alongM,
+      from_m: alongM,
+    }
+    const candidateProfile = Array.isArray(data.comfort_profile) ? data.comfort_profile : []
+    const candidate: RouteForChoice = {
+      profile: candidateProfile,
+      distance_m: Number(data.distance_m ?? 0),
+      from_m: 0,
+    }
+    // No profile on either side means there is nothing to compare: a walker who
+    // has drifted must never be stuck on the old route because comfort data is
+    // missing, so that case keeps 007's behaviour (adopt). `compareReroutes`
+    // failures (bad data) fall back the same way.
+    let choice: RerouteChoice = {
+      delta: 0,
+      remainingKm: 0,
+      verdict: 'replace',
+      summary: '',
+    }
+    try {
+      choice =
+        current.profile.length && candidate.profile.length
+          ? compareReroutes(current, candidate)
+          : choice
+    } catch {
+      /* fall through to adopt */
+    }
+    if (choice.verdict === 'replace') {
+      currentProfile = candidate.profile
+      rerouteError.set(null)
+      snoozedUntil.set(null)
+      walkMode.update((s) => ({
+        ...s,
+        route: next,
+        rerouteWarning: false,
+        offRouteMeters: 0,
+        delta: undefined,
+        remainingKm: undefined,
+        verdict: undefined,
+      }))
+    } else if (choice.verdict === 'ask') {
+      walkMode.update((s) => ({
+        ...s,
+        rerouteWarning: true,
+        delta: choice.delta,
+        remainingKm: choice.remainingKm,
+        verdict: choice.verdict,
+      }))
+    } else {
+      walkMode.update((s) => ({
+        ...s,
+        rerouteWarning: true,
+        delta: choice.delta,
+        remainingKm: choice.remainingKm,
+        verdict: choice.verdict,
+      }))
+      rerouteError.set(choice.summary)
+    }
   } catch (err) {
     rerouteError.set(err instanceof Error ? err.message : String(err))
   }
