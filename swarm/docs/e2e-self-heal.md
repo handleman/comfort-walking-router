@@ -47,6 +47,24 @@ healed (recorded suite passes at the final delta) or a typed stop
 Triaging and the roster are code, so a wrong verdict is a failing unit test
 rather than a prompt to argue with. Only the repair itself needs a model.
 
+## The guard is not phase-only
+
+The first canary run (2026-11-15: one `button.walk-start` selector deliberately
+broken) taught this the honest way. The suite came back green with
+`e2e_self_heal: {}` — the **coder** had fixed the selector in the coding phase,
+before QA ever ran, because the spec file is inside its scope. Two conclusions:
+
+1. a `drift` canary in the same task is usually repaired before the phase can
+   see it, so the phase's marginal value is the *triage* (a record of *why*) and
+   the repairs that survive coding;
+2. the anti-weakening guard was phase-only, which left the normal loop
+   unguarded — the exact hole the guard exists to close.
+
+So the check now runs on **any** run whose delta touches `frontend/e2e/`,
+whether the editor was a coder, a fix round or the repair crew: the baseline
+facts are captured with the run baseline, and `gate()` reverts and stops
+`e2e_weakened` before a status is decided.
+
 ## The guard that makes it safe
 
 `swarm/e2e_guard.py` compares the spec files before and after a repair:
@@ -90,6 +108,9 @@ rounds, reverted attempts, stop) and prints one line in `human_log.txt`:
 
 - The bench case (027 T8) that renders the triage digest and roster with no model
   call is still open; the phase's prompt cost is therefore unmeasured.
-- There is no live measurement yet of how often a drift repair is correct. The
-  input exists (`e2e_self_heal` in every run plus the escape rate); the first
-  deliberately broken spec is the next test.
+- No live drift repair has been observed yet: the canary was fixed earlier in the
+  pipeline. The next experiment is a failure the coder cannot pre-empt — e.g. a
+  spec that only fails after the fix round's own change — plus an `env` case with
+  the fixture backend down.
+- How often a repair is correct is still unmeasured. `e2e_self_heal` in every run
+  and the escape rate are the inputs; the first real repair is the next test.

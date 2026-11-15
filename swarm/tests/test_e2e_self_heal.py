@@ -292,3 +292,59 @@ def test_a_repair_that_makes_the_suite_pass_heals_the_run(tmp_path, monkeypatch)
     assert state["rounds"] == 1
     assert state["class"] == "drift"
     assert calls == ["e2e:repair1", "qa"]
+
+
+# ---- the guard is not phase-only: any run that edits a spec is checked ----
+
+
+def _weakening_stub(tmp_path: Path) -> types.SimpleNamespace:
+    from swarm import e2e_guard
+    from swarm.flow import SwarmFlow
+
+    spec = tmp_path / "frontend" / "e2e" / "walk.spec.ts"
+    spec.parent.mkdir(parents=True, exist_ok=True)
+    spec.write_text("test('a', async () => { await expect(x).toBeVisible() })\n")
+    stub = types.SimpleNamespace(
+        state=types.SimpleNamespace(
+            changed_files=["frontend/e2e/walk.spec.ts"], e2e_self_heal={}, review_note=""
+        ),
+        _e2e_baseline=e2e_guard.facts_for(tmp_path, ["frontend/e2e/walk.spec.ts"]),
+        _revert_paths=lambda paths, reason="": list(paths),
+    )
+    stub._e2e_weakening = types.MethodType(SwarmFlow._e2e_weakening, stub)
+    return stub
+
+
+def test_a_coder_that_skips_a_test_is_reverted_by_the_general_guard(tmp_path, monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    stub = _weakening_stub(tmp_path)
+    (tmp_path / "frontend" / "e2e" / "walk.spec.ts").write_text(
+        "test.skip('a', async () => {})\n"
+    )
+    result = stub._e2e_weakening()
+    assert result["weakened"] and result["reverted"] == ["frontend/e2e/walk.spec.ts"]
+    assert stub.state.e2e_self_heal["stop"] == "e2e_weakened"
+    assert "weakened the suite" in stub.state.review_note
+
+
+def test_a_honest_selector_repair_passes_the_general_guard(tmp_path, monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    stub = _weakening_stub(tmp_path)
+    (tmp_path / "frontend" / "e2e" / "walk.spec.ts").write_text(
+        "test('a', async () => { await expect(y).toBeVisible() })\n"
+    )
+    assert stub._e2e_weakening() == {"weakened": [], "reverted": []}
+    assert stub.state.e2e_self_heal == {}
+
+
+def test_the_guard_does_nothing_when_the_delta_has_no_spec_file(tmp_path, monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setattr(flow, "REPO_ROOT", tmp_path)
+    stub = _weakening_stub(tmp_path)
+    stub.state.changed_files = ["app/main.py"]
+    assert stub._e2e_weakening()["weakened"] == []

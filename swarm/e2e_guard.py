@@ -75,3 +75,15 @@ def weakened(
 def weaken_reason(problems: list[str]) -> str:
     """One line for `run.json` / `human_log.txt`."""
     return "e2e repair weakened the suite: " + "; ".join(problems)
+
+
+def e2e_files(root: Path) -> list[str]:
+    """Every spec file the suite runs (repo-relative), for baseline capture."""
+    base = Path(root) / "frontend" / "e2e"
+    if not base.is_dir():
+        return []
+    return sorted(
+        path.relative_to(root).as_posix()
+        for path in base.rglob("*.ts")
+        if path.is_file()
+    )

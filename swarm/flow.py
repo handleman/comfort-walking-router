@@ -2993,6 +2993,16 @@ class SwarmFlow(Flow[SwarmState]):
         from swarm.tools_guarded import snapshot_worktree
 
         self._baseline = snapshot_worktree()
+        # 027: remember what the e2e specs asserted before this run, so ANY edit
+        # to them (coder or repair crew) can be checked for weakening.
+        self._e2e_baseline: dict[str, Any] = {}
+        try:
+            from swarm import e2e_guard as _guard
+
+            if os.getenv("SWARM_E2E_SELF_HEAL", "1") != "0":
+                self._e2e_baseline = _guard.facts_for(REPO_ROOT, _guard.e2e_files(REPO_ROOT))
+        except Exception:
+            self._e2e_baseline = {}
         from swarm.evidence import report_text
         from swarm.routing import classify_step, routing_enabled
         cache = plan_cache_path(self._spec_dir, task.id)
@@ -3709,6 +3719,44 @@ class SwarmFlow(Flow[SwarmState]):
         print(f"e2e evidence: {note}", flush=True)
         return self.state.e2e
 
+    def _e2e_weakening(self) -> dict[str, Any]:
+        """027 AC-5: did this run weaken a spec? Revert if so, whoever wrote it.
+
+        The phase's guard only sees repairs; a coder editing a spec in the normal
+        loop was unguarded (2026-11-15: the first canary was "repaired" by the
+        coder, not the phase). Weakening is weakening, so the check runs on any
+        run whose delta touches the e2e tree.
+        """
+        from swarm import e2e_guard
+
+        result: dict[str, Any] = {"weakened": [], "reverted": []}
+        baseline = getattr(self, "_e2e_baseline", None) or {}
+        if not baseline:
+            return result
+        changed = [
+            path
+            for path in (getattr(self.state, "changed_files", None) or [])
+            if str(path).startswith("frontend/e2e/")
+        ]
+        if not changed:
+            return result
+        after = e2e_guard.facts_for(REPO_ROOT, changed)
+        before = {path: baseline[path] for path in changed if path in baseline}
+        problems = e2e_guard.weakened(before, after)
+        if not problems:
+            return result
+        result["weakened"] = problems
+        result["reverted"] = self._revert_paths(changed, reason="e2e weakening")
+        self.state.e2e_self_heal = {
+            "class": (getattr(self.state, "e2e_self_heal", None) or {}).get("class", ""),
+            "stop": "e2e_weakened",
+            "weakened": problems,
+            "reverted": result["reverted"],
+        }
+        self.state.review_note = e2e_guard.weaken_reason(problems)
+        print(f"e2e weakening: {e2e_guard.weaken_reason(problems)} → reverted", flush=True)
+        return result
+
     def _e2e_self_heal(self) -> bool:
         """027: triage a red recorded suite and run the inner repair roster.
 
@@ -3840,6 +3888,9 @@ class SwarmFlow(Flow[SwarmState]):
             return self.state.status
         if getattr(self, "_interrupted", False):
             self.state.status = "interrupted"
+        elif (getattr(self, "_e2e_weakening", None) and self._e2e_weakening().get("weakened")):
+            # 027 AC-5: a weakened spec is never green, whoever edited it.
+            self.state.status = "needs_human"
         elif self._e2e_state().get("required") and not self.state.e2e.get("recorded"):
             # 026 AC-8: a task whose brief names frontend/e2e/* needs a recorded
             # passing run. 010-T4 was green without the suite ever executing.
