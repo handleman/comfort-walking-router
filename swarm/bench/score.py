@@ -106,6 +106,7 @@ def prompts(case: dict[str, Any]) -> dict[str, int | str]:
         verify = crew_prompt(build_verify_crew(spec, task, _verify_context(case)))
     prefix_text, prefix_hash = prompt_prefix(task, spec, "step")
     return {
+        **_triage_chars(case),
         "step_prompt_chars": len(step),
         "qa_prompt_chars": len(qa),
         "fix_prompt_chars": len(fix),
@@ -113,6 +114,48 @@ def prompts(case: dict[str, Any]) -> dict[str, int | str]:
         "prefix_chars": len(prefix_text),
         "prefix_sha256": prefix_hash,
     }
+
+
+def _triage_chars(case: dict[str, Any]) -> dict[str, int]:
+    """027: the self-heal prompt for a synthetic red variant of this case.
+
+    The corpus is made of *green* runs, so a triage prompt has no real failure to
+    parse. The variant is honest about being synthetic: one `drift` failure
+    against the case's own e2e file (or its id) and the case's own gate
+    transcript. It measures the two blocks the phase actually sends — the triage
+    digest and the roster — with no model call.
+    """
+    import tempfile
+    from pathlib import Path as _Path
+
+    from swarm import e2e_triage, inner
+
+    changed = [str(path) for path in (case.get("changed") or [])]
+    spec_file = next(
+        (path for path in changed if path.startswith("frontend/e2e/")),
+        f"frontend/e2e/{case.get('id') or 'case'!s}.spec.ts",
+    )
+    synthetic = e2e_triage.FailedTest(
+        file=spec_file.removeprefix("frontend/"),
+        line=1,
+        title=str(case.get("brief") or "the scenario")[:80],
+        cls="drift",
+        reasons=("synthetic red variant of a frozen green case",),
+    )
+    transcript = str(case.get("transcript") or "")
+    digest = e2e_triage.digest([synthetic], transcript)
+    with tempfile.TemporaryDirectory() as tmp:
+        roster = inner.write_roster(
+            _Path(tmp),
+            spec_id=str(case.get("spec") or ""),
+            task_id=str(case.get("task") or ""),
+            failed=[synthetic],
+        )
+        roster_chars = sum(
+            len((roster.directory / name).read_text())
+            for name in ("spec.md", "plan.md", "tasks.md")
+        )
+    return {"triage_digest_chars": len(digest), "triage_roster_chars": roster_chars}
 
 
 def _work_summary(case: dict[str, Any]) -> str:
@@ -220,6 +263,8 @@ def score(cases: list[dict[str, Any]]) -> dict[str, Any]:
         "report_chars": sum(r["report_chars"] for r in rows),
         "est_tokens": sum(r["est_tokens"] for r in rows),
         "gates_per_round": sum(r["gates_per_round"] for r in rows),
+        "triage_digest_chars": sum(r.get("triage_digest_chars", 0) for r in rows),
+        "triage_roster_chars": sum(r.get("triage_roster_chars", 0) for r in rows),
     }
     if rows:
         totals["mean_task_prompt_chars"] = totals["task_prompt_chars"] // len(rows)

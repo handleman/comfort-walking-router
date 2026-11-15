@@ -247,3 +247,18 @@ def test_every_run_records_provenance_for_a_future_corpus():
     assert '"base_sha": getattr' in source
     assert '"head_sha": _head_sha()' in source
     assert '"plan_hash": self.state.plan_hash or None' in source
+
+
+def test_the_bench_measures_the_self_heal_prompt(monkeypatch):
+    """027 T8: a red-suite run's triage digest + roster, with no model call."""
+    from swarm.bench import corpus, score
+
+    cases = corpus.load_corpus(corpus.REPO_ROOT)[:1]
+    row = score.score_case(cases[0])
+    assert row["triage_digest_chars"] > 0
+    assert row["triage_roster_chars"] > 0
+    # Both blocks are bounded: the digest by max_chars, the roster by 3 tasks.
+    assert row["triage_digest_chars"] <= 4000
+    assert row["triage_roster_chars"] <= 12_000
+    totals = score.score(cases)["totals"]
+    assert totals["triage_digest_chars"] == row["triage_digest_chars"]

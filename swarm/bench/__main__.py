@@ -119,6 +119,13 @@ def main(argv: list[str] | None = None) -> int:
         f"(~{totals['est_tokens']:,} tokens), report {totals['report_chars']:,} chars, "
         f"{totals['gates_per_round']} gate runs/round"
     )
+    if totals.get("triage_digest_chars"):
+        # 027: what a red-suite run sends the repair crew, per case (synthetic
+        # red variant of the frozen green case — no model call).
+        print(
+            f"e2e self-heal (027): triage digest {totals['triage_digest_chars']:,} chars, "
+            f"roster {totals['triage_roster_chars']:,} chars per red case"
+        )
 
     if not baseline:
         print("\nno baseline.json yet: review the table, then `make swarm-bench-baseline`")

@@ -106,8 +106,10 @@ rounds, reverted attempts, stop) and prints one line in `human_log.txt`:
 
 ## What is not done yet
 
-- The bench case (027 T8) that renders the triage digest and roster with no model
-  call is still open; the phase's prompt cost is therefore unmeasured.
+- The phase's prompt cost is measured (`make swarm-bench`, 027 T8): for a
+  synthetic red variant of each frozen case the triage digest is ~1.7k chars and
+  the roster ~1.9k chars, both bounded — small enough that the phase never
+  doubles a round's cost.
 - No live drift repair has been observed yet: the canary was fixed earlier in the
   pipeline. The next experiment is a failure the coder cannot pre-empt — e.g. a
   spec that only fails after the fix round's own change — plus an `env` case with
