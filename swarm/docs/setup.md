@@ -51,6 +51,10 @@ the workspace privacy setting is **Global** (Settings › Privacy › Regions), 
 its price is peak/off-peak — the table stores the peak rate so the per-task cap
 never under-reads.
 
+Measured on 2026-11-15 with `make swarm-bench-live CASE=004-weather-sun-T2`:
+**green in 111 s / 131 s, $0.0075 / $0.0074, 0 fix rounds**, versus 384 s /
+$0.0161 on the same case with the Zen profile. One case, not a benchmark.
+
 The earlier cloud-only profile (2026-11-14) was DeepSeek on OpenRouter for the
 planner and `zen/glm-5.3-flash` for the four tool roles; it still works if the
 Go subscription is absent.
