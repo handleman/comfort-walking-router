@@ -666,7 +666,7 @@
           <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
         {/if}
         <Attribution text={route.attribution ?? suggestionAttribution} />
-        <WalkControls route={walkRoute} />
+        <WalkControls route={walkRoute} profile={route.comfort_profile ?? []} />
         <h3>Comfort factors</h3>
         <ul class="factors">
           {#each route.explanation as line, index (index)}

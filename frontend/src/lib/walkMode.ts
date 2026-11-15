@@ -55,6 +55,9 @@ export const rerouteError = writable<string | null>(null)
 /** Timestamp until which reroute warnings are snoozed (AC-5). */
 export const snoozedUntil = writable<number | null>(null)
 
+/** The 028 profile slice the store keeps for comparisons (029). */
+export type WalkProfile = RouteForChoice['profile']
+
 let currentProfile: RouteForChoice['profile'] = []
 
 function metresBetween(a: LatLng, b: LatLng): number {
@@ -80,7 +83,9 @@ function distanceAlong(route: LatLng[], pos: LatLng): number {
   return total
 }
 
-export function start(route: LatLng[]): void {
+export function start(route: LatLng[], profile: WalkProfile = []): void {
+  // 029: the walk's own comfort profile is the comparison baseline.
+  currentProfile = profile
   walkMode.set({
     active: true,
     route,
@@ -169,7 +174,10 @@ export async function reroute(pos: LatLng | null, dest: LatLng | null): Promise<
     const alongM = distanceAlong(storedRoute, pos)
     const current: RouteForChoice = {
       profile: currentProfile,
-      distance_m: alongM,
+      // The profile's last segment ends at the route's distance; the *walked*
+      // distance here made the remaining overlap empty and every candidate
+      // looked better (2026-11-15).
+      distance_m: currentProfile.length ? currentProfile[currentProfile.length - 1].to_m : alongM,
       from_m: alongM,
     }
     const candidateProfile = Array.isArray(data.comfort_profile) ? data.comfort_profile : []
@@ -218,6 +226,7 @@ export async function reroute(pos: LatLng | null, dest: LatLng | null): Promise<
         verdict: choice.verdict,
       }))
     } else {
+      // 029: a materially worse reroute is refused; the chosen route stays.
       walkMode.update((s) => ({
         ...s,
         rerouteWarning: true,

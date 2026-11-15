@@ -77,12 +77,13 @@ is the profile they already understand from 028.
   remaining distance, and never claims a comfort gain that the comparison does
   not show.
 - **AC-3 — Tests pin the three branches.** Unit tests for `compareReroutes`
-  (weighting, thresholds, past-the-end) and store tests for
-  `replace`/`ask`/`keep`. The e2e scenario covers `ask`: the fixture corridor is
-  the same for both routes, so the banner must show the signed delta and the
-  remaining distance and the route must not change until the walker accepts.
-  (`keep` is a store-level branch; a fixture pair with two different corridors
-  would be needed to make it visual.)
+  (weighting, thresholds, past-the-end) and store tests for `replace`/`ask`/`keep`
+  with mocked responses. The acceptance is *store-level*, not visual: the e2e
+  fixture serves the same corridor for the original and the reroute, so a
+  deterministic delta cannot be forced in the browser; the existing walk-mode
+  scenario still proves the banner appears and the route is replaced only on
+  accept. Two fixtures with different corridors would make `keep` visual and are
+  the recorded follow-up.
 - **AC-4 — No new requests, no contract change.** The comparison uses the
   profile already present in both responses; the reroute path keeps its single
   `POST /route`; `contracts/route.json` and `app/` are untouched.

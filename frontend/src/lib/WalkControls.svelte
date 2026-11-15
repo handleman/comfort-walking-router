@@ -5,19 +5,22 @@
    * Renders the off-route reroute warning banner (spec 007, T7, AC-4/AC-5).
    */
   import { autoCenter, dismissRerouteWarning, reroute, start, stop, walkMode } from './walkMode'
+  import type { WalkProfile } from './walkMode'
   import WalkRerouteWarning from './WalkRerouteWarning.svelte'
   import WalkArrivedBanner from './WalkArrivedBanner.svelte'
   import type { LatLng } from './navigation/interpolate'
 
   /** Route to walk; Start is disabled until a route is provided. */
   export let route: LatLng[] = []
+  /** Its 028 comfort profile, the baseline for the reroute comparison (029). */
+  export let profile: WalkProfile = []
 </script>
 
 <div class="walk-controls">
   <button
     type="button"
     class="walk-start"
-    on:click={() => start(route)}
+    on:click={() => start(route, profile)}
     disabled={$walkMode.active || route.length === 0}
   >
     Start
@@ -43,6 +46,9 @@
 {#if $walkMode.rerouteWarning}
   <WalkRerouteWarning
     distanceMeters={$walkMode.offRouteMeters}
+    delta={$walkMode.delta ?? null}
+    remainingKm={$walkMode.remainingKm ?? null}
+    verdict={$walkMode.verdict ?? null}
     onReroute={() => reroute($walkMode.markerPos, $walkMode.destination)}
     onDismiss={() => dismissRerouteWarning()}
   />
