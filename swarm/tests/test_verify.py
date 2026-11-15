@@ -772,8 +772,9 @@ def test_a_correction_that_breaks_a_green_check_is_reverted_and_ends_the_loop(mo
             return None, _blocked()
         return None, "step done"
 
-    assert stub._verify_phase(_task(), kick) is False
-    # The correction ran, then the guard stopped the loop before a re-verify.
+    # The correction loop ends, but the phase continues so QA can judge the
+    # pre-correction delta (2026-11-15: ending here hid the gate evidence).
+    assert stub._verify_phase(_task(), kick) is True
     assert kicked == ["verifier:1", "senior:verify1"]
     assert reverted == [(["frontend/src/App.svelte"], "correction regression")]
     record = stub.state.verifier

@@ -2424,8 +2424,16 @@ class SwarmFlow(Flow[SwarmState]):
                         f"correction step {idx} broke a green static check "
                         f"({', '.join(regressed)}); reverted {', '.join(reverted) or 'nothing'}"
                     )
-                    print(f"verifier: {record['note']} → needs a human", flush=True)
-                    return False
+                    print(
+                        f"verifier: {record['note']} → correction reverted, QA decides",
+                        flush=True,
+                    )
+                    # 026 AC-4 ends the *correction* loop, not the run: the
+                    # correction is reverted, the verifier's block stands, and QA
+                    # still judges the pre-correction delta. Ending here hid the
+                    # gate evidence three times on 2026-11-15 (029-T2 and two
+                    # replay cases) and left an `unknown`-shaped stop.
+                    return True
                 baseline_codes = after_codes
             record["corrections"] = True
             record["corrected"] = self._delta_signature() != verify_sig
