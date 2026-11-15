@@ -14,6 +14,7 @@ import re
 import shlex
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -4565,6 +4566,29 @@ def run_tasks(
         task_id = todo_ids[0] if todo_ids else None
 
 
+def _exit_soon(seconds: float = 5.0) -> None:
+    """Leave even if a blocked worker thread keeps the interpreter alive.
+
+    CrewAI spawns non-daemon workers. One stuck in an HTTP call kept a finished
+    run alive — and the run lock held — for ~40 s after the record was written
+    (2026-11-15, a wall-budget stop that needed SIGKILL). Everything is on disk
+    by the time `main` returns, so a daemon timer gives shutdown a grace period
+    and then exits.
+    """
+    import threading
+
+    def _bail() -> None:
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        finally:
+            os._exit(0)
+
+    timer = threading.Timer(max(1.0, float(seconds)), _bail)
+    timer.daemon = True
+    timer.start()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--spec", default=None)
@@ -4618,7 +4642,8 @@ def main() -> None:
         single=args.single,
         require_approval=args.require_approval,
     ):
-        print(f"{flow.state.task_id}: {status}")
+        print(f"{flow.state.task_id}: {status}", flush=True)
+    _exit_soon()
 
 
 if __name__ == "__main__":

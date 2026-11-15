@@ -81,3 +81,30 @@ def test_no_cap_without_a_budget():
     stub._apply_wall_cap = types.MethodType(flow.SwarmFlow._apply_wall_cap, stub)
     stub._apply_wall_cap(types.SimpleNamespace(agents=[agent]))
     assert agent.max_execution_time is None
+
+
+def test_a_finished_run_does_not_wait_on_a_blocked_worker_thread(monkeypatch):
+    """2026-11-15: a wall-budget stop kept the run lock ~40 s and needed SIGKILL.
+
+    `main()` arms a daemon timer after the queue loop, so a CrewAI worker stuck
+    in an HTTP call cannot keep the process (and the flock) alive.
+    """
+    import threading
+
+    from swarm import flow
+
+    started: list[tuple[float, bool]] = []
+
+    class FakeTimer:
+        def __init__(self, interval, function):
+            started.append((interval, False))
+            self.daemon = False
+            self.function = function
+
+        def start(self):
+            started[-1] = (started[-1][0], self.daemon)
+
+    monkeypatch.setattr(threading, "Timer", FakeTimer)
+    flow._exit_soon()
+    assert started and started[0][0] == 5.0
+    assert started[0][1] is True, "the watcher must not itself block exit"
