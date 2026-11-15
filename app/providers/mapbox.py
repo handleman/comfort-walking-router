@@ -21,17 +21,26 @@ class MapboxProvider(RouteProvider):
         self.alternatives = min(2, max(1, int(alternatives)))
         self.base_url = BASE_URL
 
+    def params(self, start: tuple[float, float], end: tuple[float, float]) -> dict[str, str]:
+        """Query parameters for one request (kept separate so it can be tested).
+
+        Mapbox rejects `alternatives=1` with 422 "should be either true or false"
+        — the live token found this the first time the provider ran against the
+        real API (2026-11-15); every unit test had mocked the response.
+        """
+        return {
+            "alternatives": "true" if self.alternatives else "false",
+            "overview": "full",
+            "geometries": "geojson",
+            "access_token": self.access_token,
+        }
+
     def route(self, start: tuple[float, float], end: tuple[float, float], preference: str | None = None) -> dict:
         """Calculate walking routes and return GeoJSON with distance/time."""
         (slat, slon), (elat, elon) = start, end
         coordinates = f"{slon},{slat};{elon},{elat}"
         url = f"{self.base_url}/{PROFILE}/{coordinates}"
-        params = {
-            "alternatives": str(self.alternatives),
-            "overview": "full",
-            "geometries": "geojson",
-            "access_token": self.access_token,
-        }
+        params = self.params(start, end)
         headers = {"User-Agent": USER_AGENT}
         # 10s timeout with a single retry on transport errors.
         try:

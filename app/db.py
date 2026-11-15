@@ -1,5 +1,7 @@
 import os
 
+from . import env as _env  # noqa: F401 - loads .env before the env reads
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 

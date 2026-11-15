@@ -2,6 +2,8 @@
 
 import os
 
+from . import env as _env  # noqa: F401 - loads .env before the env reads
+
 
 def get_mapbox_token() -> str:
     """Return the Mapbox access token from the environment.
