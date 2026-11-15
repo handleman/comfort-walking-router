@@ -50,7 +50,11 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - **A spent wall budget must not become an unbounded call.** 007-T10 ran 2.7 h against
   an 1800 s bound and ignored SIGTERM: `remaining = budget - elapsed` went negative and
   `run_bounded` read `timeout <= 0` as "no bound". Only `None` is unbounded now, and the
-  flow stops before a crew when the budget is spent.
+  flow stops before a crew when the budget is spent. **And the process must leave when the
+  record is written**: `main()` arms a 5 s daemon timer (`_exit_soon`), because a CrewAI
+  worker stuck in an HTTP call held the run lock ~40 s after a 2026-11-15 wall-budget stop
+  (SIGKILL was needed) and the same shape likely explains a 40-minute replay that had no
+  run directory at all.
 - **A docs task could never write its deliverable.** `DEFAULT_SCOPE` has no `docs/`, `README.md` or `changelog.md`, and the scope was task-blind, so two 014-T10 runs produced an empty delta and the verifier (correctly) blocked on files the brief named. `task_scope` now extends the base scope with the brief's own paths, per task. When a docs task ends with `changed: []`, check `run.json.scope_extra` and the write-tool refusals before blaming the coder.
 - **Three shapes for one field means no shape is right.** 014-T1 was not a typo: `plan.md`, the green `contracts/geocode.json` and the coder's module each defined `Suggestion` differently (and the token variable a third way). Before blaming a coder for a contract mismatch, diff the three sources — `plan.md`, the committed contract, and the code — and pin one.
 - **An unparseable verdict is not a pass.** 014-T10 attempt 1 committed green with three missing deliverables because the verifier ended on a tool call and `unknown` fell through as `PASS`. Every judge (verifier, QA, senior) now goes through `guards.resolve_verdict`: parse → one repair call → terminal stop with the raw tail in `run.json.judges`. If a green run's brief is not implemented, look for `judges.<kind>.terminal` or `review_note` before blaming the gates.
