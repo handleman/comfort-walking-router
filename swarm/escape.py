@@ -63,7 +63,8 @@ def rate(rows: list[dict[str, Any]], repo: Path | None = None) -> dict[str, Any]
     escapes = 0
     by_class: dict[str, dict[str, int]] = {}
     for entry in runs:
-        key = f"class {entry['class']}"
+        # Historic runs predate `run.json.risk`; do not print "class None".
+        key = f"class {entry['class'] if entry['class'] is not None else 'n/a'}"
         bucket = by_class.setdefault(key, {"merged": 0, "escapes": 0})
         bucket["merged"] += 1
         sha = commit_for(root, entry["spec"], entry["task"])
