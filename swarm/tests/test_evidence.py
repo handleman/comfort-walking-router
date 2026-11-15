@@ -302,7 +302,7 @@ def test_a_current_green_suite_is_evidence(tmp_path):
     append_execution(
         tmp_path / "shell_log.jsonl",
         agent="QA Gatekeeper",
-        argv=["npm", "--prefix", "frontend", "exec", "playwright", "test"],
+        argv=["npm", "--prefix", "frontend", "run", "test:e2e"],
         exit_code=0,
         duration_ms=5,
         changed_after="h",
@@ -321,7 +321,7 @@ def test_a_green_suite_from_before_the_last_fix_is_not_evidence(tmp_path):
     append_execution(
         tmp_path / "shell_log.jsonl",
         agent="QA Gatekeeper",
-        argv=["npm", "--prefix", "frontend", "exec", "playwright", "test"],
+        argv=["npm", "--prefix", "frontend", "run", "test:e2e"],
         exit_code=0,
         duration_ms=5,
         changed_after="older",
@@ -339,7 +339,7 @@ def test_a_red_suite_is_recorded_as_not_evidence(tmp_path):
     append_execution(
         tmp_path / "shell_log.jsonl",
         agent="QA Gatekeeper",
-        argv=["npm", "--prefix", "frontend", "exec", "playwright", "test"],
+        argv=["npm", "--prefix", "frontend", "run", "test:e2e"],
         exit_code=1,
         duration_ms=5,
         changed_after="h",

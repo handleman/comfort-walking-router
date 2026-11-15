@@ -514,11 +514,17 @@ ALLOWED_COMMANDS = {"pytest", "ruff", "mypy", "git", "ls", "cat", "grep", "npm"}
 GATE_BINARIES = frozenset({"pytest", "ruff", "mypy"})
 # npm scripts that are gates (QA-only). `build` stays available to coders as a
 # compile check; `check`/`lint`/`test` are verification, not development.
-NPM_GATE_SCRIPTS = frozenset({"check", "lint", "test"})
+NPM_GATE_SCRIPTS = frozenset({"check", "lint", "test", "test:e2e"})
 # The browser suite (026 AC-8). It has to be runnable by the one role that owns
 # gate evidence — without this allowlist `e2e_missing` was a stop no compliant
 # run could avoid. Argv-exact, relative spec paths only, QA-only (a gate).
-E2E_ARGV = ("npm", "--prefix", "frontend", "exec", "playwright", "test")
+#
+# It must be the *npm script* form: `npm --prefix frontend run test:e2e` runs
+# the script with cwd=frontend, so `playwright.config.ts` (baseURL, the fixture
+# backend, vite preview) is loaded. `exec playwright test` runs from the repo
+# root, silently loads no config and fails every test on page.goto('/') —
+# 2026-11-15, QA blocked a run over exactly that.
+E2E_ARGV = ("npm", "--prefix", "frontend", "run", "test:e2e")
 
 
 def _configured_gate(argv: list[str]) -> bool:
@@ -553,7 +559,7 @@ def is_gate_command(argv: list[str]) -> bool:
         return True
     if argv[0] != "npm" or not _valid_npm(argv):
         return False
-    if tuple(argv[:6]) == E2E_ARGV:
+    if tuple(argv[:5]) == E2E_ARGV:
         return True
     script = argv[4] if argv[3:4] == ["run"] and len(argv) > 4 else argv[3] if len(argv) > 3 else ""
     return script in NPM_GATE_SCRIPTS
@@ -688,13 +694,22 @@ def _valid_npm(argv: list[str]) -> bool:
     if argv[3:4] == ["test"]:
         return argv[4:] == ["--", "--run"]
     if argv[3:4] == ["exec"]:
-        # The browser suite: `npm --prefix frontend exec playwright test [spec]`.
-        return argv[4:6] == ["playwright", "test"] and _valid_playwright_args(argv[6:])
+        # Refused on purpose: `exec` keeps the caller's cwd, so Playwright would
+        # miss frontend/playwright.config.ts (2026-11-15). Use the npm script.
+        return False
     if argv[3:4] != ["run"] or len(argv) < 5:
         return False
     script = argv[4]
     if script == "test":
         return argv[5:] == ["--", "--run"]
+    if script == "test:e2e":
+        # `npm --prefix frontend run test:e2e [-- e2e/x.spec.ts ...]`
+        rest = argv[5:]
+        if not rest:
+            return True
+        if rest[0] != "--":
+            return False
+        return _valid_playwright_args(rest[1:])
     # `format`/`lint:fix` are deterministic, in-scope autofixes (Prettier/ESLint);
     # `install` stays blocked. Gates themselves remain QA-only (see
     # is_gate_command).
@@ -783,7 +798,7 @@ class ShellTool(BaseTool):
                 "transcript in your task and fix its reported failures."
             )
         try:
-            timeout = 300 if tuple(argv[:6]) == E2E_ARGV else self.timeout
+            timeout = 300 if tuple(argv[:5]) == E2E_ARGV else self.timeout
             env = dict(os.environ)
             # App gates must use the root .venv; fall back to the harness venv.
             bins = [Path(REPO_ROOT) / ".venv" / "bin", Path(REPO_ROOT) / "swarm" / ".venv" / "bin"]

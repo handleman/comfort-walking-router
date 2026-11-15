@@ -51,10 +51,13 @@ def agent_commands(brief: str = "") -> list[list[str]]:
     has to pass, and QA still runs every gate.
     """
     specs = specs_in(brief)
-    return [
-        ["npm", "--prefix", "frontend", "run", "build"],
-        ["npm", "--prefix", "frontend", "exec", "playwright", "test", *specs],
-    ]
+    # The npm script form is what makes cwd=frontend: `run test:e2e` loads
+    # `playwright.config.ts` (baseURL + fixture backend + vite preview). The
+    # `exec` form runs from the repo root and fails every test on page.goto('/').
+    suite = ["npm", "--prefix", "frontend", "run", "test:e2e"]
+    if specs:
+        suite += ["--", *specs]
+    return [["npm", "--prefix", "frontend", "run", "build"], suite]
 
 
 def browsers(repo_root: Path | None = None) -> list[str]:

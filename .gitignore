@@ -49,3 +49,7 @@ Thumbs.db
 *.swo
 
 swarm/bench/replay_last.json
+
+# Playwright artifacts (the suite is a gate now; do not attribute them to a run)
+test-results/
+playwright-report/

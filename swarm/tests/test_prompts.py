@@ -230,7 +230,7 @@ def test_an_e2e_brief_gives_qa_the_exact_suite_commands():
                  "`frontend/e2e/walk-mode.spec.ts`.")
     qa = prompts.qa_prompt(task, "007-live-position", "step summaries")
     assert "npm --prefix frontend run build" in qa
-    assert "npm --prefix frontend exec playwright test e2e/walk-mode.spec.ts" in qa
+    assert "npm --prefix frontend run test:e2e -- e2e/walk-mode.spec.ts" in qa
     assert "not accepted" in qa
     # The suite note is volatile: the byte-stable prefix is untouched.
     assert qa.startswith(prompts.stable_prefix(task, "007-live-position", "qa"))

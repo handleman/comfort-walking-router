@@ -51,17 +51,21 @@ def test_npm_validator_allowlist():
 
 
 def test_the_browser_suite_is_an_allowlisted_gate_argv():
-    """026 AC-8: QA must be able to produce the execution `e2e_missing` wants."""
-    suite = ["npm", "--prefix", "frontend", "exec", "playwright", "test"]
+    """026 AC-8: QA must be able to produce the execution `e2e_missing` wants.
+
+    The npm *script* form is required: `run test:e2e` gives Playwright cwd=frontend
+    so `playwright.config.ts` loads. `exec` keeps the caller's cwd and silently
+    fails every test (2026-11-15: `Cannot navigate to invalid URL`).
+    """
+    suite = ["npm", "--prefix", "frontend", "run", "test:e2e"]
     assert _valid_npm(suite)
-    assert _valid_npm([*suite, "e2e/walk-mode.spec.ts"])
+    assert _valid_npm([*suite, "--", "e2e/walk-mode.spec.ts"])
     # A model may not narrow the suite with flags or run another binary.
     assert not _valid_npm([*suite, "--grep", "start"])
-    assert not _valid_npm([*suite, "--reporter=dot"])
-    assert not _valid_npm(["npm", "--prefix", "frontend", "exec", "vitest", "run"])
-    assert not _valid_npm(["npm", "--prefix", "frontend", "exec"])
+    assert not _valid_npm([*suite, "--", "--reporter=dot"])
+    assert not _valid_npm(["npm", "--prefix", "frontend", "exec", "playwright", "test"])
     assert is_gate_command(suite)
-    assert is_gate_command([*suite, "e2e/search.spec.ts"])
+    assert is_gate_command([*suite, "--", "e2e/search.spec.ts"])
     # Coders cannot spend tokens on it.
     coder = ShellTool(allow_gates=False)
     assert coder._run(" ".join(suite)).startswith("BLOCKED: gates are QA-only")

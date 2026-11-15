@@ -89,9 +89,13 @@ def e2e_executions(executions: Iterable[dict[str, Any]]) -> list[dict[str, Any]]
     for rec in executions or []:
         argv = [str(part) for part in (rec.get("argv") or [])]
         joined = " ".join(argv).lower()
-        if "playwright" not in joined:
+        # `npm --prefix frontend run test:e2e [-- spec...]` is the supported path
+        # (npm changes cwd, so the config loads); a raw `playwright … test` from an
+        # operator or the old argv is still evidence.
+        suite_script = argv[0:1] == ["npm"] and argv[3:5] == ["run", "test:e2e"]
+        if "playwright" not in joined and not suite_script:
             continue
-        if " test" not in f" {joined}" and "test" not in argv:
+        if not suite_script and " test" not in f" {joined}" and "test" not in argv:
             continue
         out.append(rec)
     return out
