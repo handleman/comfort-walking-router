@@ -38,6 +38,9 @@
   import { checkArrival } from './lib/navigation/arrival'
   import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
   import type { LatLng } from './lib/navigation/interpolate'
+  import WalkControls from './lib/WalkControls.svelte'
+  import { clearRerouteWarning, flagOffRoute, onFix, walkMode } from './lib/walkMode'
+  import { DRIFT_DISTANCE_THRESHOLD_M, distanceToRouteMeters } from './lib/navigation/drift'
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
   import Attribution from './lib/components/Attribution.svelte'
   import SearchInput from './lib/components/SearchInput.svelte'
@@ -77,6 +80,7 @@
   let prefsError = ''
   let locateError = ''
   let currentMarker: L.Marker | null = null
+  let walkerMarker: L.Marker | null = null
   let startCoords: [number, number] | null = null
   let endCoords: [number, number] | null = null
   let startMarker: L.Marker | null = null
@@ -145,12 +149,34 @@
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map)
     ensureToken()
-    map.locate({ setView: true, maxZoom: 16, timeout: 8000, enableHighAccuracy: true })
+    // Continuous position fixes (spec 007, T10): watch geolocation from page
+    // load so every fix fires `locationfound`, feeding onFix, the drift check,
+    // and arrival detection for the whole walk, not just the first fix.
+    map.locate({ watch: true, setView: false, maxZoom: 16, enableHighAccuracy: true })
     map.on('locationfound', onLocationFound)
     map.on('locationerror', onLocationError)
     map.on('click', onMapClick)
     loadSaved()
     loadPrefs()
+
+    // Stop the watcher when a walk ends (Stop or arrival both clear `active`)
+    // and re-arm it when a new walk starts, so fixes stay continuous while
+    // walking and no duplicate geolocation watchers pile up.
+    let wasWalkActive = false
+    const unsubscribeWalkMode = walkMode.subscribe((state) => {
+      if (!map) return
+      if (state.active && !wasWalkActive) {
+        map.stopLocate()
+        map.locate({ watch: true, setView: false, maxZoom: 16, enableHighAccuracy: true })
+      } else if (!state.active && wasWalkActive) {
+        map.stopLocate()
+      }
+      wasWalkActive = state.active
+    })
+    return () => {
+      unsubscribeWalkMode()
+      map?.stopLocate()
+    }
   })
 
   async function loadSaved() {
@@ -187,6 +213,15 @@
       accuracyMeters: e.accuracy,
       timestampMs: e.timestamp,
     })
+    onFix(lat, lng)
+    if ($walkMode.active && $walkMode.route) {
+      const d = distanceToRouteMeters([lat, lng], $walkMode.route)
+      if (d > DRIFT_DISTANCE_THRESHOLD_M) {
+        flagOffRoute(d)
+      } else {
+        clearRerouteWarning()
+      }
+    }
   }
 
   function onLocationError(e: L.ErrorEvent) {
@@ -260,6 +295,27 @@
       endMarker = null
     }
   }
+
+  function syncWalker(pos: LatLng | null) {
+    if (!pos || !$walkMode.active) {
+      if (walkerMarker) {
+        walkerMarker.remove()
+        walkerMarker = null
+      }
+      return
+    }
+    if (!map) return
+    if (walkerMarker) {
+      walkerMarker.setLatLng([pos[0], pos[1]])
+    } else {
+      walkerMarker = L.marker([pos[0], pos[1]], { icon: L.divIcon(personIcon()) }).addTo(map)
+    }
+  }
+
+  $: syncWalker($walkMode.markerPos)
+
+  /** WalkControls route as `[lat, lng]` pairs; empty until a route exists. */
+  $: walkRoute = route ? route.waypoints.map((w): LatLng => [w.lat, w.lng]) : []
 
   async function submitRoute() {
     error = ''
@@ -539,6 +595,7 @@
         </p>
         <p class="score">comfort {route.comfort_score}/100</p>
         <Attribution text={route.attribution ?? suggestionAttribution} />
+        <WalkControls route={walkRoute} />
         <h3>Comfort factors</h3>
         <ul class="factors">
           {#each route.explanation as line, index (index)}

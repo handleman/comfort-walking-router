@@ -61,8 +61,11 @@ test('walk mode shows the arrived banner after reaching the destination', async 
   await page.locator('button.walk-start').click()
   await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()
 
-  // Simulate a final position fix at the destination (Englischer Garten).
-  await setGeolocation(page, 48.155, 11.583)
+  // Simulate a final position fix at the destination. The fixture geocoder
+  // records "Englischer Garten" at 48.1642, 11.6056 (app/fixtures.py) and the
+  // fixture route ends there, so the fix has to land on that point to be inside
+  // the 25 m arrival radius.
+  await setGeolocation(page, 48.1642, 11.6056)
 
   await expect(page.locator('.walk-arrived-banner')).toContainText('Arrived!')
 
