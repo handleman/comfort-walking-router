@@ -69,6 +69,14 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             phases[phase] = phases.get(phase, 0) + 1
             if entry.get("changed"):
                 changed_rounds += 1
+    # 027: how the red-suite phase ends, per class (healed vs typed stop).
+    self_heal: dict[str, int] = {}
+    for row in rows:
+        heal = row.get("e2e_self_heal") or {}
+        if not heal.get("class") and not heal.get("stop"):
+            continue
+        key = str(heal.get("stop") or "healed")
+        self_heal[key] = self_heal.get(key, 0) + 1
     # 024: risk labels over recorded runs (the escape-rate input).
     risk_classes: dict[str, int] = {}
     for row in rows:
@@ -119,6 +127,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "verifier_hits": sum(1 for r in verifier_runs if (r.get("verifier") or {}).get("hit")),
         "phases": dict(sorted(phases_summary.items(), key=lambda kv: -kv[1]["p50"])),
         "risk_classes": dict(sorted(risk_classes.items())),
+        "self_heal": dict(sorted(self_heal.items())),
     }
 
 
@@ -154,6 +163,11 @@ def render(summary: dict[str, Any]) -> str:
         lines.append(
             f"verification: self-check {summary['self_check_hits']}/{sc} hit, "
             f"verifier {summary['verifier_hits']}/{vr} hit"
+        )
+    if summary.get("self_heal"):
+        lines.append(
+            "e2e self-heal: "
+            + ", ".join(f"{k}={v}" for k, v in summary["self_heal"].items())
         )
     if summary.get("risk_classes"):
         lines.append(

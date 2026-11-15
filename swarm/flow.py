@@ -107,6 +107,8 @@ class SwarmState(BaseModel):
     cost_note: str = ""
     # 026 AC-8: e2e evidence for a brief that names `frontend/e2e/*`.
     e2e: dict[str, Any] = {}
+    # 027: triage + inner roster of a red e2e suite (class, failed, rounds, stop).
+    e2e_self_heal: dict[str, Any] = {}
     # 026 AC-9: the text of a terminal configuration error.
     error: str = ""
     # 026 T9: the task's own brief, for the guards and the evidence check.
@@ -405,6 +407,11 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
     correction = getattr(state, "correction_reverted", None) or {}
     if correction.get("regressed"):
         return "correction_reverted"
+    heal = getattr(state, "e2e_self_heal", None) or {}
+    stop = str(heal.get("stop") or "")
+    if stop.startswith("e2e_"):
+        # 027: the phase names its own stop (env, weakened, overflow, rounds…)
+        return stop.split(":", 1)[0].strip()
     e2e = getattr(state, "e2e", None) or {}
     if e2e.get("required") and not e2e.get("recorded"):
         return "e2e_missing"
@@ -3702,6 +3709,128 @@ class SwarmFlow(Flow[SwarmState]):
         print(f"e2e evidence: {note}", flush=True)
         return self.state.e2e
 
+    def _e2e_self_heal(self) -> bool:
+        """027: triage a red recorded suite and run the inner repair roster.
+
+        Returns True when a fresh recorded run now passes at the current delta
+        (green may proceed), False when the run must stop with
+        `run.json.e2e_self_heal.stop` as the reason. Never raises: this runs on
+        the way to a status decision.
+        """
+        from swarm import e2e_guard, e2e_triage, evidence, inner
+        from swarm.crew import build_fix_crew
+        from swarm.spec_loader import load_spec_tasks
+        from swarm.tools_guarded import run_delta
+
+        state: dict[str, Any] = {
+            "class": "",
+            "failed": [],
+            "roster": {},
+            "rounds": 0,
+            "stop": "",
+            "weakened": [],
+        }
+        self.state.e2e_self_heal = state
+        if os.getenv("SWARM_E2E_SELF_HEAL", "1") == "0":
+            state["stop"] = "off (SWARM_E2E_SELF_HEAL=0)"
+            return False
+        try:
+            task = load_spec_tasks(REPO_ROOT, self._spec_dir, self._task_id)[1][0]
+        except (OSError, SystemExit, IndexError):
+            state["stop"] = "e2e_unclassified"
+            return False
+
+        def _triage() -> tuple[list[Any], dict[str, Any]]:
+            runs = evidence.read_executions(self.run_dir / evidence.SHELL_LOG)
+            parsed = e2e_triage.failing_tests(runs)
+            exists = {
+                f.file: (REPO_ROOT / "frontend" / f.file).is_file() for f in parsed
+            }
+            return e2e_triage.classify_run(runs, spec_exists=exists)
+
+        classified, last = _triage()
+        state["class"] = e2e_triage.primary_class(classified)
+        state["failed"] = [f.as_dict() for f in classified]
+        if not classified:
+            state["stop"] = "e2e_unclassified"
+            return False
+        if state["class"] in ("env", "flaky", "unclassified"):
+            state["stop"] = f"e2e_{state['class']}"
+            return False
+        if state["class"] == "impl":
+            # A product defect: the normal fix loop owns it, and it may not edit
+            # the test to agree with the bug (AC-4).
+            state["stop"] = "impl: code fix loop owns it, spec edits refused"
+            return False
+
+        try:
+            limit = int(os.getenv("SWARM_MAX_INNER_TASKS", str(inner.MAX_TASKS)))
+        except ValueError:
+            limit = inner.MAX_TASKS
+        if len(classified) > limit:
+            state["stop"] = "e2e_roster_overflow"
+            return False
+        roster = inner.write_roster(
+            self.run_dir,
+            spec_id=self.state.spec_dir,
+            task_id=str(task.id),
+            failed=classified,
+            acs=tuple(getattr(task, "ac_refs", ()) or ()),
+            max_tasks=limit,
+        )
+        state["roster"] = roster.as_dict()
+        specs = sorted({f"frontend/{f.file}" for f in classified})
+        roster_text = (roster.directory / "tasks.md").read_text()
+        try:
+            rounds = int(os.getenv("SWARM_MAX_INNER_ROUNDS", "2"))
+        except ValueError:
+            rounds = 2
+        for round_no in range(1, rounds + 1):
+            state["rounds"] = round_no
+            before = e2e_guard.facts_for(REPO_ROOT, specs)
+            prompt = (
+                e2e_triage.digest(classified, str(last.get("tail") or ""))
+                + "\nREPAIR ROSTER (follow it exactly; e2e files only)\n"
+                + roster_text
+            )
+            try:
+                self._kickoff(
+                    lambda prompt=prompt: build_fix_crew(self._spec_dir, task, prompt),
+                    role=f"e2e:repair{round_no}",
+                    step=f"e2e{round_no}",
+                )
+            except SystemExit as e:
+                state["stop"] = f"e2e_unclassified: repair crew failed: {e}"[:300]
+                return False
+            after = e2e_guard.facts_for(REPO_ROOT, specs)
+            problems = e2e_guard.weakened(before, after)
+            if problems:
+                touched = [
+                    path
+                    for path in self._in_scope_paths(run_delta(self._baseline))
+                    if path in specs
+                ]
+                state["weakened"] = problems
+                state["reverted"] = self._revert_paths(touched, reason="e2e weakening")
+                state["stop"] = "e2e_weakened"
+                print(f"e2e self-heal: {e2e_guard.weaken_reason(problems)} → reverted", flush=True)
+                return False
+            # QA re-runs the gates and the suite (the e2e task prompt names it),
+            # so the new evidence is QA's, not the repair crew's.
+            self._review(task, "inner roster repair: " + roster_text[:400])
+            classified, last = _triage()
+            state["failed"] = [f.as_dict() for f in classified]
+            exit_value = last.get("exit")
+            if not classified and exit_value is not None and int(exit_value) == 0:
+                # `or 1` here would read a real exit 0 as 1 (0 is falsy). The
+                # class stays on the record: it says what the repair was for.
+                state["stop"] = ""
+                return True
+            if classified:
+                state["class"] = e2e_triage.primary_class(classified)
+        state["stop"] = state["stop"] or "e2e_rounds_exhausted"
+        return False
+
     @listen(run_crew)
     def gate(self, result: str) -> str:
         # Gates already ran inside run_crew (fix loop needs them mid-stage);
@@ -3713,8 +3842,10 @@ class SwarmFlow(Flow[SwarmState]):
             self.state.status = "interrupted"
         elif self._e2e_state().get("required") and not self.state.e2e.get("recorded"):
             # 026 AC-8: a task whose brief names frontend/e2e/* needs a recorded
-            # Playwright run. 010-T4 was green without the suite ever executing.
-            self.state.status = "needs_human"
+            # passing run. 010-T4 was green without the suite ever executing.
+            # 027: a red suite is triaged and repaired first (typed stops only).
+            if not (getattr(self, "_e2e_self_heal", None) and self._e2e_self_heal()):
+                self.state.status = "needs_human"
         elif self.state.verifier.get("blocked"):
             # 019: the scenario was verifiably not implemented; QA's gates cannot
             # turn that into green, no matter how many of them exit 0.
@@ -3807,6 +3938,7 @@ class SwarmFlow(Flow[SwarmState]):
             "judges": self.state.judges,
             "correction_reverted": self.state.correction_reverted,
             "e2e": self.state.e2e,
+            "e2e_self_heal": self.state.e2e_self_heal,
             "error": self.state.error,
             # 026 AC-10: why the queue ran this task (and what it skipped).
             "queue_reasons": _spec_queue_reasons(self._spec_dir),

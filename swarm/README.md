@@ -40,6 +40,7 @@ once, then jump to what you need.
 - [`docs/tools-and-gates.md`](docs/tools-and-gates.md) — guarded tools and who owns gate evidence.
 - [`docs/verifier.md`](docs/verifier.md) — the read-only scenario check.
 - [`docs/run-guards.md`](docs/run-guards.md) — the deterministic stops and their off switches.
+- [`docs/e2e-self-heal.md`](docs/e2e-self-heal.md) — a red suite is triaged, repaired in-scope, and never weakened.
 - [`docs/usage-and-budgets.md`](docs/usage-and-budgets.md) — tokens, cost, caps.
 - [`docs/unattended.md`](docs/unattended.md) — overnight runs, tuning, stashes, supervisor.
 - [`docs/risk-classes.md`](docs/risk-classes.md) — the risk label and the escape rate.

@@ -100,6 +100,13 @@ def format_human_report(
         lines.append("  ".join(bits))
     if p.get("reason_code"):
         lines.append(f"reason_code: {p['reason_code']}")
+    heal = p.get("e2e_self_heal") or {}
+    if heal.get("class") or heal.get("stop"):
+        lines.append(
+            f"e2e self-heal: class {heal.get('class') or '?'} "
+            f"({len(heal.get('failed') or [])} failing, {heal.get('rounds', 0)} round(s))"
+            + (f" — {heal['stop']}" if heal.get("stop") else " — healed")
+        )
     risk = p.get("risk") or p.get("autonomy") or {}
     if risk:
         # 024: a label, not a decision — every green run merges by itself.
