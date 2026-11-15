@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -619,7 +620,29 @@ def qa_prompt(task: SpecTask, spec_dir: str, work_summary: str) -> str:
     return (
         stable_prefix(task, spec_dir, "qa")
         + f"\n\nThe coder reports:\n{work_summary[:3000]}\n"
+        + e2e_gate_note(task.brief)
         + "Result: per gate command and exit code, then exactly one verdict line."
+    )
+
+
+def e2e_gate_note(brief: str) -> str:
+    """The browser suite as a gate, for a task whose brief names one (026 AC-8).
+
+    Appended after the stable prefix, so the prompt's byte-stable head is
+    unchanged. Without this line the QA role had no way to produce the
+    execution that `e2e_missing` demands — the guard could only fire.
+    """
+    from swarm import e2e, evidence
+
+    if not (evidence.e2e_enabled() and evidence.e2e_required(brief)):
+        return ""
+    commands = " then ".join(f"`{shlex.join(argv)}`" for argv in e2e.agent_commands(brief))
+    return (
+        "\n\nThis task names a browser spec: also run "
+        + commands
+        + " through Guarded Shell, in that order (the build is what `vite preview` "
+        "serves), and report each exit code. A green run without that Playwright "
+        "execution is not accepted.\n"
     )
 
 

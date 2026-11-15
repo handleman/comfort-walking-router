@@ -3653,9 +3653,10 @@ class SwarmFlow(Flow[SwarmState]):
 
     def _e2e_state(self) -> dict[str, Any]:
         """026 AC-8: does this task require an e2e execution, and was one recorded?"""
-        if os.getenv("SWARM_E2E_EVIDENCE", "1") == "0":
-            return {}
         from swarm import evidence as ev
+
+        if not ev.e2e_enabled():
+            return {}
 
         changed = list(getattr(self.state, "changed_files", []) or [])
         if not ev.e2e_required(self.state.brief, changed):
@@ -3668,14 +3669,17 @@ class SwarmFlow(Flow[SwarmState]):
             ev.read_executions(self.run_dir / ev.SHELL_LOG),
             current_hash=current_hash,
         )
-        if record and record.get("exit") == 0:
+        if record and record.get("exit") == 0 and record.get("current"):
             self.state.e2e = {"required": True, "recorded": True, **record}
             return self.state.e2e
-        note = (
-            "the recorded Playwright execution did not pass"
-            if record
-            else "brief names frontend/e2e/* but no Playwright execution was recorded"
-        )
+        if record and record.get("exit") == 0:
+            # A green suite that ran before the last fix round proves nothing
+            # about the code being committed — the hash is the whole point.
+            note = "the recorded Playwright execution predates the current delta"
+        elif record:
+            note = "the recorded Playwright execution did not pass"
+        else:
+            note = "brief names frontend/e2e/* but no Playwright execution was recorded"
         self.state.e2e = {
             "required": True,
             "recorded": False,

@@ -131,6 +131,16 @@ def e2e_required(brief: str, changed: Iterable[str] = ()) -> bool:
     return "frontend/e2e/" in text.replace("\\", "/")
 
 
+def e2e_enabled(env: Any = None) -> bool:
+    """`SWARM_E2E_EVIDENCE=0` restores the pre-026 behaviour (A/B only).
+
+    Read by the flow *and* by the QA prompt: an off switch that only silences
+    the check would still spend two gate calls per e2e round.
+    """
+    source = os.environ if env is None else env
+    return str(source.get("SWARM_E2E_EVIDENCE", "1")).strip() != "0"
+
+
 def gate_evidence(
     *,
     executions: Iterable[dict[str, Any]],

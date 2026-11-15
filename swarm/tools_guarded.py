@@ -515,6 +515,10 @@ GATE_BINARIES = frozenset({"pytest", "ruff", "mypy"})
 # npm scripts that are gates (QA-only). `build` stays available to coders as a
 # compile check; `check`/`lint`/`test` are verification, not development.
 NPM_GATE_SCRIPTS = frozenset({"check", "lint", "test"})
+# The browser suite (026 AC-8). It has to be runnable by the one role that owns
+# gate evidence — without this allowlist `e2e_missing` was a stop no compliant
+# run could avoid. Argv-exact, relative spec paths only, QA-only (a gate).
+E2E_ARGV = ("npm", "--prefix", "frontend", "exec", "playwright", "test")
 
 
 def _configured_gate(argv: list[str]) -> bool:
@@ -538,9 +542,10 @@ def _configured_gate(argv: list[str]) -> bool:
 def is_gate_command(argv: list[str]) -> bool:
     """True when argv is one of the project's gates (QA-only by policy).
 
-    Covers the classic checkers, the configured `SWARM_GATE_COMMANDS`, and the
-    repo's npm verification scripts. Read-only inspection (`git`, `ls`, `cat`,
-    `grep`) and `npm --prefix frontend run build` stay available to coders.
+    Covers the classic checkers, the configured `SWARM_GATE_COMMANDS`, the
+    repo's npm verification scripts and the Playwright suite. Read-only
+    inspection (`git`, `ls`, `cat`, `grep`) and `npm --prefix frontend run build`
+    stay available to coders.
     """
     if not argv:
         return False
@@ -548,6 +553,8 @@ def is_gate_command(argv: list[str]) -> bool:
         return True
     if argv[0] != "npm" or not _valid_npm(argv):
         return False
+    if tuple(argv[:6]) == E2E_ARGV:
+        return True
     script = argv[4] if argv[3:4] == ["run"] and len(argv) > 4 else argv[3] if len(argv) > 3 else ""
     return script in NPM_GATE_SCRIPTS
 
@@ -663,11 +670,26 @@ def _valid_grep(argv: list[str]) -> bool:
     return pattern and paths > 0
 
 
+def _valid_playwright_args(rest: list[str]) -> bool:
+    """Only relative spec paths / `.ts` filters after `playwright test`.
+
+    No flags: `--reporter`, `--grep` and config overrides would let a model
+    narrow the suite, which is the one thing the evidence must not allow.
+    """
+    for arg in rest:
+        if arg.startswith("-") or not arg.endswith(".ts"):
+            return False
+    return True
+
+
 def _valid_npm(argv: list[str]) -> bool:
     if argv[1:3] != ["--prefix", "frontend"]:
         return False
     if argv[3:4] == ["test"]:
         return argv[4:] == ["--", "--run"]
+    if argv[3:4] == ["exec"]:
+        # The browser suite: `npm --prefix frontend exec playwright test [spec]`.
+        return argv[4:6] == ["playwright", "test"] and _valid_playwright_args(argv[6:])
     if argv[3:4] != ["run"] or len(argv) < 5:
         return False
     script = argv[4]
@@ -761,6 +783,7 @@ class ShellTool(BaseTool):
                 "transcript in your task and fix its reported failures."
             )
         try:
+            timeout = 300 if tuple(argv[:6]) == E2E_ARGV else self.timeout
             env = dict(os.environ)
             # App gates must use the root .venv; fall back to the harness venv.
             bins = [Path(REPO_ROOT) / ".venv" / "bin", Path(REPO_ROOT) / "swarm" / ".venv" / "bin"]
@@ -779,13 +802,13 @@ class ShellTool(BaseTool):
                 cwd=REPO_ROOT,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout,
+                timeout=timeout,
                 env=env,
                 check=False,
             )
         except subprocess.TimeoutExpired:
-            self._log_execution(argv, 124, "timeout after 120s", time.monotonic())
-            return "BLOCKED: timeout after 120s"
+            self._log_execution(argv, 124, f"timeout after {timeout}s", time.monotonic())
+            return f"BLOCKED: timeout after {timeout}s"
         tail = (p.stdout + p.stderr)[-4000:]
         self._log_execution(argv, p.returncode, tail, started)
         return f"exit={p.returncode}\n{tail}"

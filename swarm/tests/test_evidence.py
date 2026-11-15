@@ -274,3 +274,89 @@ def test_the_e2e_reason_code_is_typed():
     assert _reason_code("needs_human", {}, state) == "e2e_missing"
     state.e2e = {"required": True, "recorded": True}
     assert _reason_code("needs_human", {}, state) != "e2e_missing"
+
+
+def _e2e_flow(tmp_path, hash_value: str = "h"):
+    import types
+
+    from swarm.flow import SwarmFlow
+
+    (tmp_path / "shell_log.jsonl").write_text("")
+    stub = types.SimpleNamespace(
+        run_dir=tmp_path,
+        state=types.SimpleNamespace(
+            brief="Acceptance: `frontend/e2e/walk-mode.spec.ts`.",
+            changed_files=["frontend/src/App.svelte"],
+            e2e={},
+        ),
+        _evidence_hash=lambda: hash_value,
+    )
+    stub._e2e_state = types.MethodType(SwarmFlow._e2e_state, stub)
+    return stub
+
+
+def test_a_current_green_suite_is_evidence(tmp_path):
+    from swarm.evidence import append_execution
+
+    stub = _e2e_flow(tmp_path)
+    append_execution(
+        tmp_path / "shell_log.jsonl",
+        agent="QA Gatekeeper",
+        argv=["npm", "--prefix", "frontend", "exec", "playwright", "test"],
+        exit_code=0,
+        duration_ms=5,
+        changed_after="h",
+        tail="1 passed",
+    )
+    state = stub._e2e_state()
+    assert state["required"] is True
+    assert state["recorded"] is True
+
+
+def test_a_green_suite_from_before_the_last_fix_is_not_evidence(tmp_path):
+    """The hash is the point: a pass before the last edit proves nothing."""
+    from swarm.evidence import append_execution
+
+    stub = _e2e_flow(tmp_path)
+    append_execution(
+        tmp_path / "shell_log.jsonl",
+        agent="QA Gatekeeper",
+        argv=["npm", "--prefix", "frontend", "exec", "playwright", "test"],
+        exit_code=0,
+        duration_ms=5,
+        changed_after="older",
+        tail="1 passed",
+    )
+    state = stub._e2e_state()
+    assert state["recorded"] is False
+    assert "predates" in state["note"]
+
+
+def test_a_red_suite_is_recorded_as_not_evidence(tmp_path):
+    from swarm.evidence import append_execution
+
+    stub = _e2e_flow(tmp_path)
+    append_execution(
+        tmp_path / "shell_log.jsonl",
+        agent="QA Gatekeeper",
+        argv=["npm", "--prefix", "frontend", "exec", "playwright", "test"],
+        exit_code=1,
+        duration_ms=5,
+        changed_after="h",
+        tail="1 failed",
+    )
+    state = stub._e2e_state()
+    assert state["recorded"] is False
+    assert "did not pass" in state["note"]
+
+
+def test_the_e2e_check_is_inert_without_an_e2e_brief(tmp_path):
+    stub = _e2e_flow(tmp_path)
+    stub.state.brief = "Add `app/scoring.py`."
+    assert stub._e2e_state() == {}
+
+
+def test_the_e2e_check_honours_the_off_switch(tmp_path, monkeypatch):
+    stub = _e2e_flow(tmp_path)
+    monkeypatch.setenv("SWARM_E2E_EVIDENCE", "0")
+    assert stub._e2e_state() == {}

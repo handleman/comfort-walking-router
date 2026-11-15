@@ -215,3 +215,33 @@ def test_the_verifier_prefix_carries_the_task_scope_line():
     assert "TASK SCOPE (what this task owns): - [x] T1" in prefix
     assert "Judge THIS task only" in prefix
     assert "out of scope" in prefix
+
+
+# ---- 026 AC-8: the browser suite is a named gate for an e2e task ----
+
+
+def test_an_e2e_brief_gives_qa_the_exact_suite_commands():
+    """The guard `e2e_missing` must be satisfiable by a compliant run.
+
+    Before this, no allowlisted command could produce the execution the check
+    demanded, so a `frontend/e2e/*` task could only ever stop.
+    """
+    task = _task("Wire walk mode into `frontend/src/App.svelte`; acceptance is "
+                 "`frontend/e2e/walk-mode.spec.ts`.")
+    qa = prompts.qa_prompt(task, "007-live-position", "step summaries")
+    assert "npm --prefix frontend run build" in qa
+    assert "npm --prefix frontend exec playwright test e2e/walk-mode.spec.ts" in qa
+    assert "not accepted" in qa
+    # The suite note is volatile: the byte-stable prefix is untouched.
+    assert qa.startswith(prompts.stable_prefix(task, "007-live-position", "qa"))
+
+
+def test_a_normal_brief_gets_no_suite_command():
+    qa = prompts.qa_prompt(_task(), "001-example-app", "step summaries")
+    assert "playwright" not in qa
+
+
+def test_the_e2e_note_honours_the_off_switch(monkeypatch):
+    task = _task("Acceptance: `frontend/e2e/search.spec.ts`.")
+    monkeypatch.setenv("SWARM_E2E_EVIDENCE", "0")
+    assert "playwright" not in prompts.qa_prompt(task, "010-x", "summary")

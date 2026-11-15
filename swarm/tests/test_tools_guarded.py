@@ -1,4 +1,10 @@
-from swarm.tools_guarded import ALLOWED_COMMANDS, EditTool, ShellTool, _valid_npm
+from swarm.tools_guarded import (
+    ALLOWED_COMMANDS,
+    EditTool,
+    ShellTool,
+    _valid_npm,
+    is_gate_command,
+)
 
 
 def test_shell_blocks_non_allowlisted():
@@ -42,6 +48,23 @@ def test_npm_validator_allowlist():
     assert _valid_npm(["npm", "--prefix", "frontend", "test", "--", "--run"])
     assert not _valid_npm(["npm", "--prefix", "frontend", "run", "test", "--", "--run", "extra"])
     assert "pip" not in ALLOWED_COMMANDS
+
+
+def test_the_browser_suite_is_an_allowlisted_gate_argv():
+    """026 AC-8: QA must be able to produce the execution `e2e_missing` wants."""
+    suite = ["npm", "--prefix", "frontend", "exec", "playwright", "test"]
+    assert _valid_npm(suite)
+    assert _valid_npm([*suite, "e2e/walk-mode.spec.ts"])
+    # A model may not narrow the suite with flags or run another binary.
+    assert not _valid_npm([*suite, "--grep", "start"])
+    assert not _valid_npm([*suite, "--reporter=dot"])
+    assert not _valid_npm(["npm", "--prefix", "frontend", "exec", "vitest", "run"])
+    assert not _valid_npm(["npm", "--prefix", "frontend", "exec"])
+    assert is_gate_command(suite)
+    assert is_gate_command([*suite, "e2e/search.spec.ts"])
+    # Coders cannot spend tokens on it.
+    coder = ShellTool(allow_gates=False)
+    assert coder._run(" ".join(suite)).startswith("BLOCKED: gates are QA-only")
 
 
 def test_edit_requires_exact_single_match(tmp_path, monkeypatch):
