@@ -157,7 +157,7 @@ def status_mark(status: str) -> tuple[str, str]:
 def short_model(model: str) -> str:
     """Compact model label for the narrow side column."""
     m = model
-    for prefix in ("openrouter/", "zen/", "ollama/"):
+    for prefix in ("openrouter/", "zen/", "ollama/", "opencode-go/"):
         if m.startswith(prefix):
             m = m.removeprefix(prefix)
             break
@@ -280,6 +280,27 @@ def format_metrics(
         out.append(f"  round {verifier.get('rounds', 0)}", style="dim")
         out.append("\n")
     return out
+
+
+def format_self_heal(payload: dict[str, Any] | None) -> str:
+    """The 027 triage, in the same words `human_log.txt` uses (031 AC-3).
+
+    Renders nothing unless this run actually triaged a red e2e suite, so a normal
+    run is unchanged.
+    """
+    heal = (payload or {}).get("e2e_self_heal") or {}
+    if not (heal.get("class") or heal.get("failed") or heal.get("stop")):
+        return ""
+    headline = (
+        f"e2e self-heal: class {heal.get('class') or '?'} "
+        f"· {len(heal.get('failed') or [])} failing "
+        f"· {heal.get('rounds', 0)} round(s) "
+        f"· {heal.get('stop') or 'healed'}"
+    )
+    lines = [headline]
+    for task in (heal.get("roster") or {}).get("tasks", []):
+        lines.append(f"  · {task.get('id')} {str(task.get('brief', ''))[:52]}")
+    return "\n".join(lines)
 
 
 def format_recent(runs: list[dict[str, Any]], spec: str, limit: int = 5) -> Text:
@@ -860,7 +881,12 @@ class SwarmTUI(App[None]):
         fallback = False
 
         line = Text()
-        line.append(f"{self._spec} {self._task_id}", style="bold")
+        # 031: the ledger keys entries by the spec directory, so the screen shows
+        # the same path (`028` and `028-route-comfort-profile` must not disagree).
+        from swarm.spec_loader import spec_dir_name
+
+        spec_path = spec_dir_name(REPO_ROOT, self._spec) or self._spec
+        line.append(f"{spec_path} {self._task_id}", style="bold")
         line.append("  ")
         line.append(f" {status} ", style=f"reverse {style}")
         line.append(f"  {self._run_dir.name}", style="dim")
@@ -901,6 +927,9 @@ class SwarmTUI(App[None]):
         self._set_markup("metrics", format_metrics(payload, models=models, fallback=fallback, elapsed=elapsed))
         self._set_markup("gates", format_gates(self._payload.get("gates")))
         self._set_markup("recent", format_recent(self._history or scan_runs(REPO_ROOT), self._spec))
+        heal = format_self_heal(payload)
+        if heal:
+            self._set_markup("gates", format_gates(self._payload.get("gates")) + Text("\n" + heal, style="dim"))
 
     # ---- keys ----
     def action_approve(self) -> None:

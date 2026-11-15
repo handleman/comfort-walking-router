@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from swarm.tui import (
     fmt_cost,
@@ -10,6 +11,7 @@ from swarm.tui import (
     pct,
     queue_marks,
     scan_runs,
+    short_model,
     status_mark,
     status_style,
 )
@@ -290,3 +292,58 @@ def test_an_unpriced_model_says_the_cost_cap_cannot_fire():
     assert "unknown" in text
     assert "cost cap cannot fire" in text
     assert "openrouter/vendor/mystery" in text
+
+
+# ---- 031: the dashboard shows what the run records ----
+
+
+def test_short_model_strips_every_routing_prefix():
+    """The Go prefix was missing, so the planner showed a different shape."""
+    assert short_model("opencode-go/glm-5.3-flash") == "glm-5.3-flash"
+    assert short_model("opencode-go/deepseek-v4.1-flash") == "deepseek-v4.1-flash"
+    assert short_model("zen/glm-5.3-flash") == "glm-5.3-flash"
+    assert short_model("openrouter/nvidia/x:free") == "nvidia/x:free"
+    assert short_model("ollama/swarm-coder:latest") == "swarm-coder:latest"
+    assert short_model("bare-model") == "bare-model"
+
+
+def test_the_status_line_shows_the_spec_directory():
+    """`028` and `028-route-comfort-profile` must not disagree on screen."""
+    from swarm.spec_loader import spec_dir_name
+
+    root = Path(__file__).resolve().parents[2]
+    assert spec_dir_name(root, "028") == "028-route-comfort-profile"
+    assert spec_dir_name(root, "028-route-comfort-profile") == "028-route-comfort-profile"
+    # An unknown prefix degrades to the input rather than crashing the screen.
+    assert spec_dir_name(root, "does-not-exist") == "does-not-exist"
+
+
+def test_self_heal_block_names_the_class_and_the_roster():
+    from swarm.tui import format_self_heal
+
+    payload = {
+        "e2e_self_heal": {
+            "class": "drift",
+            "failed": [{"file": "e2e/x.spec.ts"}, {"file": "e2e/y.spec.ts"}],
+            "rounds": 1,
+            "stop": "",
+            "roster": {"tasks": [{"id": "T1", "brief": "Repair the stale locator in walk-mode"}]},
+        }
+    }
+    text = format_self_heal(payload)
+    assert "class drift" in text and "2 failing" in text and "healed" in text
+    assert "T1 Repair the stale locator" in text
+
+
+def test_self_heal_block_reports_a_stop():
+    from swarm.tui import format_self_heal
+
+    text = format_self_heal({"e2e_self_heal": {"class": "drift", "stop": "e2e_weakened"}})
+    assert "e2e_weakened" in text
+
+
+def test_no_self_heal_means_no_block():
+    from swarm.tui import format_self_heal
+
+    assert format_self_heal({}) == ""
+    assert format_self_heal({"e2e_self_heal": {}}) == ""
