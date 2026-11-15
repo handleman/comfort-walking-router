@@ -16,10 +16,17 @@ autonomy policy cannot be evaluated or withdrawn on evidence.
 
 ## Goal
 
-Let **class 0 (docs) and class 1 (tests)** merge after gates + the scenario
-verifier when autonomy is explicitly enabled, keep class 2 (logic) and class 3
-(control-plane/auth/migrations/unknown) human, and record every decision so an
-escape-rate ratio can be computed later.
+Let a green run merge after the machine gates — the swarm is autonomous — and
+record what kind of change it was (a risk label) so an escape-rate ratio per
+class can be computed later.
+
+**Decision 2026-11-15: autonomy is not a setting.** The first phase shipped a
+ladder with three knobs (`SWARM_AUTONOMY`, `SWARM_AUTONOMY_MAX_CLASS`,
+`SWARM_REQUIRE_APPROVAL`); the operator removed them because the point of the
+project is the autonomous swarm. A green run whose gates are all `0`, whose
+reviewer says `PASS` and whose verifier is not blocked merges in every class.
+The label stayed (it is the escape-rate input); the ceiling and the on/off
+switch went. The only hold is the per-run `--require-approval` flag.
 
 ## Scope
 
@@ -48,10 +55,9 @@ escape-rate ratio can be computed later.
   and 3 for `swarm/`, `specs/`, migrations, auth/payments/infra, configuration
   and any unknown path. An empty delta is 3. A sensitive brief (auth, payment,
   migration, infra, secret) is 3 regardless of paths.
-- **AC-2 — Earned decision.** `risk.decision` allows auto-merge only when
-  autonomy is on, class ≤ `SWARM_AUTONOMY_MAX_CLASS`, every gate is green, the
-  reviewer verdict is `pass`, and the verifier is not blocked. It records a
-  reason for both outcomes (off, class too high, gates red, reviewer, verifier).
+- **AC-2 — The label is recorded, not consulted.** `risk.classify` labels the
+  delta and `run.json.risk` carries `{class, label}` for every run; no gate and
+  no merge decision reads it. (It read a ladder before the 2026-11-15 decision.)
 - **AC-3 — Wiring.** On a green run, `save_run` records `payload["autonomy"]`
   and skips the `awaiting_approval` hold only when `auto_merge` is true; the
   commit still goes through `_commit_green` (branch, merge queue, trailers,
@@ -60,16 +66,18 @@ escape-rate ratio can be computed later.
   `gates_green`, `review_verdict`, `verifier_blocked`, `auto_merge` and
   `reason`; `human_log.txt` prints the class and the merge basis;
   `make swarm-report` counts runs per class and the auto-merged total.
-- **AC-5 — Knobs and off switch.** `SWARM_AUTONOMY` (default `0`) and
-  `SWARM_AUTONOMY_MAX_CLASS` (default `1`) are documented in `.env.example` and
-  `swarm/README.md`; `SWARM_AUTONOMY=0` restores the human hold exactly.
+- **AC-5 — No autonomy setting.** There is no on/off switch and no class
+  ceiling: `SWARM_AUTONOMY*` and `SWARM_REQUIRE_APPROVAL` are removed from the
+  code, `.env.example` and the docs, and a test pins their absence. The only
+  hold is the explicit `--require-approval` flag (`make swarm-approve`).
 - **AC-6 — Tests and docs.** `make swarm-test` covers the ladder, sensitive
   briefs, every decision branch, the wiring and the telemetry without an LLM;
   `024-earned-autonomy` is in `HARNESS_SPECS`; `AGENTS.md`, `docs/roadmap.md`
   and `changelog.md` record the result.
-- **AC-7 — Honest measurement.** No live auto-merge is claimed until a green
-  baseline exists. Expansion to class 2 and withdrawal are driven by measured
-  agreement and escape rates (recorded as the next decision, not this phase).
+- **AC-7 — Honest measurement.** Autonomy is the default and the escape rate
+  (`swarm/escape.py`, every green run counts as merged) is a floor: a hand-fixed
+  regression is not a detected escape. That ratio, per class, is the only signal
+  that would justify reintroducing a ceiling.
 
 ## Evidence
 

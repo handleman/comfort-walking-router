@@ -1,4 +1,4 @@
-"""Earned-autonomy tests (024): the risk ladder and the merge decision."""
+"""Risk-label tests (024): the label every run carries, and no autonomy switch."""
 
 from __future__ import annotations
 
@@ -32,62 +32,39 @@ def test_unknown_paths_are_control():
     assert risk.classify(["scripts/new_tool.py"]) == 3
 
 
-def test_earned_auto_merge_only_for_low_risk_green_work():
-    def decision(changed, *, autonomy=True, max_class=1, gates=None, verdict="pass", blocked=False):
-        return risk.decision(
-            changed=changed,
-            brief="",
-            gates=gates if gates is not None else {"pytest -q": 0},
-            review_verdict=verdict,
-            verifier_blocked=blocked,
-            autonomy=autonomy,
-            max_class=max_class,
-        )
-
-    assert decision(["docs/x.md"])["auto_merge"] is True
-    assert decision(["tests/test_x.py"])["auto_merge"] is True
-    assert decision(["app/x.py"])["auto_merge"] is False
-    assert decision(["swarm/x.py"])["auto_merge"] is False
-    assert decision(["docs/x.md"], autonomy=False)["auto_merge"] is False
-    assert decision(["docs/x.md"], gates={"pytest -q": 1})["auto_merge"] is False
-    assert decision(["docs/x.md"], verdict="blocked")["auto_merge"] is False
-    assert decision(["docs/x.md"], blocked=True)["auto_merge"] is False
-    assert decision(["docs/x.md"], max_class=0)["auto_merge"] is True
-    assert decision(["tests/test_x.py"], max_class=0)["auto_merge"] is False
+def test_the_record_is_the_label_and_nothing_else():
+    info = risk.record(changed=["frontend/src/App.svelte"], brief="wire walk mode")
+    assert info == {"class": 2, "label": "logic"}
+    assert risk.record(changed=[]) == {"class": 3, "label": "control"}
 
 
-def test_the_decision_explains_itself():
-    info = risk.decision(
-        changed=["app/x.py"], brief="", gates={"pytest -q": 0},
-        review_verdict="pass", verifier_blocked=False, autonomy=True, max_class=1,
-    )
-    assert info["class"] == 2 and info["label"] == "logic"
-    assert "class 2 > max 1" in info["reason"]
-    assert info["gates_green"] is True
+def test_there_is_no_autonomy_switch():
+    """2026-11-15: the swarm is autonomous; a setting cannot make it stop.
 
-
-def test_the_flow_gates_the_hold_on_the_decisions():
+    `--require-approval` is a per-run flag for a deliberate look, not a mode.
+    """
     source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
-    assert 'os.getenv("SWARM_AUTONOMY", "0")' in source
-    assert 'payload["autonomy"] = autonomy' in source
-    assert 'not autonomy["auto_merge"]' in source
+    assert "SWARM_AUTONOMY" not in source
+    assert "SWARM_REQUIRE_APPROVAL" not in source
+    assert 'payload["risk"] = risk.record' in source
+    assert "elif self._require_approval and not approved:" in source
 
 
-def test_the_human_log_and_report_show_autonomy():
-    from swarm import report
+def test_a_green_run_is_never_held_without_the_flag():
+    source = (Path(__file__).resolve().parents[1] / "flow.py").read_text()
+    assert "elif self._require_approval and not approved:" in source
+    assert 'and not autonomy["' not in source
+
+
+def test_the_human_log_shows_the_class_without_a_merge_verb():
     from swarm.humanlog import format_human_report
 
     payload = {
-        "spec": "001", "task": "T1", "status": "green",
-        "autonomy": {"class": 1, "label": "tests", "auto_merge": True, "reason": "earned"},
+        "spec": "001",
+        "task": "T1",
+        "status": "green",
+        "risk": {"class": 2, "label": "logic"},
     }
     text = format_human_report(payload, [])
-    assert "risk class 1 (tests): auto-merged" in text
-
-    summary = report.summarize([
-        {"status": "green", "fix_rounds": 0, "autonomy": {"class": 1, "auto_merge": True}},
-        {"status": "green", "fix_rounds": 0, "autonomy": {"class": 2, "auto_merge": False}},
-    ])
-    assert summary["auto_merged"] == 1
-    assert summary["autonomy"] == {"class 1": 1, "class 2": 1}
-    assert "auto-merged 1" in report.render(summary)
+    assert "risk class 2 (logic)" in text
+    assert "auto-merged" not in text

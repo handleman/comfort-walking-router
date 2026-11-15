@@ -1,9 +1,9 @@
-# spec-driven-learn
+# Swarm (dark factory) learning project in a spec-driven way
 
 Greenfield learning repo. Two goals, one product:
 
 1. **Spec-driven development** — spec → plan → tasks → implement, small verifiable slices.
-2. **Swarming agents / agentic autonomous loops with CrewAI** — a measured, cloud-first swarm (local Ollama as an opt-in offline mode) that implements the specs task-by-task (`specs/009-swarm-harness/`, `swarm/README.md`).
+2. **Swarming agents / agentic autonomous loops with CrewAI** — a measured, cloud-first swarm (local Ollama as an opt-in offline mode) that implements the specs task-by-task (`specs/009-swarm-harness/`, `swarm/docs/`).
 
 Product under both loops: comfort-first walking router ("Google Maps for walks") — start/end → comfort-scored route + why-explanation (shade + sun + quiet from OSM).
 
@@ -13,6 +13,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 - Order of work: `docs/roadmap.md`
 - Rules: `.specify/memory/constitution.md`, `AGENTS.md`
 - Decisions: `docs/architecture/` (ADRs 001–013)
+- Harness docs: `swarm/README.md` (intro + run commands + index) → `swarm/docs/*.md`
 
 ## Specs
 | Spec | State | What |
@@ -24,13 +25,13 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 | `007-live-position` | T1–T9 done; T10 open (mount walk mode) | Walk-mode marker, drift warning, arrival, no auto-reroute |
 | `008-mapbox-routing` | done (T1–T4); needs a real token to demo | OSRM interim → Mapbox behind the provider interface |
 | `009-swarm-harness` | done | CrewAI swarm + parallel Textual dashboard |
-| `010-e2e-playwright` | 5/10 e2e green; infra fixed 2026-11-14 | Chromium E2E for all user scenarios |
+| `010-e2e-playwright` | 4 passed / 3 skipped / 3 failed 2026-11-15 | Chromium E2E for all user scenarios; the failures are 007-T10's unmounted walk mode |
 | `011-dev-run` | done (2026-11-08) | `make dev` one-command startup + contract alignment |
 | `012-dark-factory-harness` | done (2026-11-08) | Truthful green, sandbox, merge queue, observability |
 | `013-dark-factory-phase-2` | done (2026-11-08) | Done ledger, approval-resume commit, crash checkpoints |
 | `014-walk-guidance-ux` | done (T1–T11) | Geolocation, autocomplete, map picking, walker glyph, arrival |
 | `020`–`025` | done | Efficiency bench, fix loop, lean loop, parallel factory, earned autonomy, durable journal |
-| `026-run-guards` | proposed; T1/T11 implemented | Deterministic guards: delta, fail-closed judges, corrections, quota, cost, e2e evidence, queue reasons |
+| `026-run-guards` | done (T1–T12) | Deterministic stops: delta, fail-closed judges, corrections, quota, cost, e2e evidence, queue reasons, resume validity |
 
 Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 
@@ -38,7 +39,7 @@ Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 1. Read `docs/mission.md` → `docs/roadmap.md` → the spec you care about.
 2. Secrets: copy `.env.example` → `.env` (gitignored, ADR-006). Never commit keys.
 3. App: `make dev` → UI at http://localhost:5173, API docs at http://localhost:8000/docs. First run creates `.venv` and installs frontend deps; `make dev-setup` pre-installs only.
-4. Swarm: `make swarm-up` (pilot in background + dashboard attached), `make swarm-dash` (attach to current pilot), `make swarm-test` (unit tests). Pilot writes `swarm/runs/<ts>-<pid>-<rand>/run.json` (must show $0). Full usage: `swarm/README.md`.
+4. Swarm: `make swarm-up` (pilot in background + dashboard attached), `make swarm-dash` (attach to current pilot), `make swarm-test` (unit tests). Pilot writes `swarm/runs/<ts>-<pid>-<rand>/run.json`. Full usage: `swarm/README.md`.
 
 ## Development commands
 
@@ -56,6 +57,7 @@ make test          # app pytest (tests/)
 make lint          # ruff check .
 make typecheck     # mypy app tests
 make swarm-test    # harness pytest (swarm/.venv)
+make e2e           # browser suite (build + fixture backend + playwright)
 
 cd frontend && npm run check && npm run build
 ```
@@ -66,7 +68,7 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-15: **170 app tests + 605 harness tests** pass, ruff/mypy/svelte-check clean, Vite build OK. `frontend/e2e` runs against `vite preview` + a fixture backend (`ROUTE_FIXTURES=1`); 5/10 scenarios pass, the rest are tracked in 010/007 (walk mode mounting, prefs panel).
+Last verified 2026-11-15: **170 app tests + 676 harness tests** pass, ruff/mypy/svelte-check clean, Vite build OK. `make e2e` runs against `vite preview` + a fixture backend (`ROUTE_FIXTURES=1`): 4 passed, 3 skipped (prefs needs `DATABASE_URL`), 3 failed — the walk-mode specs, which need 007-T10.
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
 
@@ -90,70 +92,44 @@ map's own attribution control intact (Leaflet's, plus Mapbox's when a Mapbox tok
 
 ## CrewAI swarm (learning goal 2)
 
-The swarm implements unchecked tasks from `specs/NNN-*/tasks.md`, one task at a time:
-Planner → Coder → QA → **truthful green** (gates + reviewer `PASS` + non-empty run delta + commit/push)
-→ next task/spec. Full details: `swarm/README.md`.
+A measured, cloud-first swarm that implements unchecked `specs/*/tasks.md` tasks one
+at a time. Each phase is a small CrewAI crew with its own model role; a Flow
+(`swarm/flow.py`) sequences them and owns what a model must not decide — retries,
+scope, green, commit. **Green is QA's gate evidence** (exit codes recorded in the
+run's `shell_log.jsonl`), never a model's prose; the verifier, self-check and
+correction crews run under their own roles so their work can never count as gate
+evidence. Deterministic guards stop with typed reason codes (`no_delta`,
+`delta_incomplete`, `correction_reverted`, `e2e_missing`, `quota_exhausted`,
+`wall_budget`, `verifier_blocked`) instead of spending a judge to find out.
 
 ```bash
 make swarm-up        # start/resume in background + attach the dashboard
-make swarm-dash      # attach to a running pilot
 make swarm-run       # foreground pilot (no args = resume from last checkpoint)
-make swarm-local     # all-local Ollama variant (no cloud keys)
 make swarm-test      # harness unit tests (no LLM, no network)
-make swarm-preflight # check models/keys/Ollama/venvs/gates before running
-make swarm-stop      # stop the running pilot
-make swarm-approve   # release an awaiting_approval hold (defaults to the last checkpoint task)
+make swarm-preflight # models/keys/venvs/gates before the first LLM call
 ```
 
-Every task writes `swarm/runs/<ts>-<pid>-<rand>/run.json` (status, gate exit codes, changed files,
-reviewer verdict, approval/commit/push, tokens/cost/duration — free tiers show `$0`).
-The dashboard (`make swarm-dash`) shows the queue with per-task outcomes, models/fallback,
-budget gauges, gate exit codes, recent runs, and live agent panes (ADR-011).
-Green runs commit on `swarm/<spec>-<task>`, push, `--no-ff` merge into the base branch, then push
-(conflicts stop with `merge_failed`; `SWARM_MERGE_MODE=direct` opts out).
-`make swarm-sandbox` runs the pilot in Docker with the repo as the only writable mount
-(plus a read-only `/dev/null` over `.env`); on macOS use `colima start --cpu 4 --memory 8 --disk 60`.
-`commit_failed`/`push_failed` are not green.
-Per-run budgets (`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS`) stop a
-runaway loop with `budget_exhausted`; rate limits retry with backoff and fallback models.
-Use `./swarm/run.sh 001 T3 --no-commit` to opt out of committing.
+Every task writes `swarm/runs/<ts>-<pid>-<rand>/` (`run.json`, `events.jsonl`,
+`shell_log.jsonl`, `progress.json`, `journal.db`, `human_log.txt`); the dashboard
+(`make swarm-dash`) shows the queue, models/fallbacks, budget gauges, gates and recent
+runs (ADR-011). Green runs commit on `swarm/<spec>-<task>`, push, and `--no-ff` merge
+into the base branch (`merge_failed` stops a conflict); `SWARM_MERGE_MODE=direct` opts
+out, `./swarm/run.sh 001 T3 --no-commit` skips the commit.
 
-### Adding a spec so the swarm picks it up
+**Documentation**: [`swarm/README.md`](swarm/README.md) is the entry point — intro,
+run commands and an index of one file per topic under [`swarm/docs/`](swarm/docs/).
+Start with [`how-it-works.md`](swarm/docs/how-it-works.md) (roles, phase order, flow
+diagram, the invariant); then
+[`run-guards.md`](swarm/docs/run-guards.md) (the deterministic stops and their off
+switches), [`queue.md`](swarm/docs/queue.md) (task format, adding a spec) and
+[`usage-and-budgets.md`](swarm/docs/usage-and-budgets.md) (tokens, cost, caps).
 
-1. Create `specs/NNN-name/` with the usual `spec.md` (why, scope, acceptance criteria),
-   `plan.md` (approach, steps, risks), and `tasks.md` (start from `.specify/templates/`).
-2. Write each task as an **unchecked one-line checkbox** in execution order:
-
-   ```markdown
-   - [ ] T1 (AC-1): Add the endpoint in `app/main.py` and its test in `tests/test_api.py`.
-   - [ ] T2 (AC-2): Render the result in `frontend/src/App.svelte`.
-   ```
-
-   The parser only reads lines matching `- [ ] T<n> (AC-…): <brief>`; `[x]` tasks are skipped.
-   Use `T1`, `T2`, … (no `T1a`), one line per task. Indented notes below the line are fine, but the
-   brief on the line is what the planner passes to the coder.
-3. Keep a task coder-sized: one behavior/file, 4–8 planner micro-steps, verifiable by the gates
-   (`pytest`, `ruff check .`, `mypy app tests`, plus `npm test` once the frontend has a test script).
-   Put exact paths and AC refs in the brief.
-4. Queue order is `specs/` directory order (`001-…`, `004-…`, …). Specs without `tasks.md` and
-   the harness specs `009-swarm-harness`/`012-dark-factory-harness` are skipped; a spec whose
-   tasks are all `[x]` is treated as done.
-5. If the task must touch paths outside the default coder scope (`app/`, `frontend/`, `tests/`,
-   `contracts/`, `requirements*.txt`, `pyproject.toml`, `.gitignore`), widen it explicitly:
-
-   ```bash
-   SWARM_SCOPE=app/,frontend/,tests/,scripts/ make swarm-up
-   ```
-
-   The coder can never edit `swarm/`, `specs/`, `docs/`, or `.env*`.
-6. Start it explicitly the first time (`make swarm-run SPEC=012 TASK=T1`) or let `make swarm-up`
-   resume from run history. **The swarm does not edit spec files**, so mark the task `[x]` yourself
-   after a green run is verified. If you changed a spec after a plan was cached, force a fresh plan:
-
-   ```bash
-   ./swarm/run.sh 012 T1 --replan
-   ```
+Economics: `make swarm-report` (cost per green task, tokens per role, fix rate, stops) and
+`make swarm-supervise` (unattended queue with retry/backoff). Per-run budgets
+(`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS`) stop a runaway
+loop with `budget_exhausted`; `make swarm-sandbox` runs the pilot in Docker with the
+repo as the only writable mount and `.env` masked (ADR-012, `colima start` on macOS).
 
 ## Status
 - App: MVP flow runs end-to-end (`POST /route` → geocode → OSRM → SQLite cache → Leaflet route + explanation). Comfort score is neutral until `001-T3` + T7–T10 wire Overpass/scoring; the UI states that explicitly.
-- Swarm harness: implemented (`swarm/`, `Makefile` targets), 39 unit tests green. See `changelog.md` for history.
+- Swarm harness: implemented (`swarm/`, `Makefile` targets), 676 harness tests green; guards and off switches in `swarm/docs/run-guards.md`. See `changelog.md` for history.

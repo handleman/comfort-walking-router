@@ -1,12 +1,11 @@
-"""Escape-rate telemetry for earned autonomy (024).
+"""Escape-rate telemetry (024).
 
-Autonomy expands on measured agreement, not ambition: the metric that matters is
-how often an auto-merged change had to be reverted afterwards. This module joins
-`run.json.autonomy` (which runs were auto-merged) with git (which of their commits
-were later reverted) and reports a ratio per risk class.
+The swarm merges green runs by itself, so the honest question is not "did a
+human approve?" but "did an automatic merge have to be reverted?". This module
+joins `run.json` (every merged run and its risk label) with git (which of their
+commits a later commit reverts) and reports a ratio per class.
 
-A revert is the explicit `This reverts commit <sha>` message git writes. A
-hand-fixed regression is not detected here; the ratio is a floor, not a ceiling.
+It is a floor: a regression fixed by hand is not a detected escape.
 """
 
 from __future__ import annotations
@@ -21,19 +20,20 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def _git(repo: Path, *args: str) -> str:
     try:
         p = subprocess.run(
-            ["git", *args], cwd=repo, check=False, capture_output=True, text=True, timeout=30
+            ["git", *args], cwd=repo, capture_output=True, text=True, check=False
         )
     except (OSError, subprocess.SubprocessError):
         return ""
     return p.stdout.strip() if p.returncode == 0 else ""
 
 
-def auto_merged(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def merged(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Green runs — every one of them merges without a human."""
     out: list[dict[str, Any]] = []
     for row in rows:
-        info = row.get("autonomy") or {}
-        if not info.get("auto_merge"):
+        if str(row.get("status") or "") != "green":
             continue
+        info = row.get("risk") or row.get("autonomy") or {}
         out.append(
             {
                 "spec": str(row.get("spec") or ""),
@@ -59,33 +59,33 @@ def is_reverted(repo: Path, sha: str) -> bool:
 
 def rate(rows: list[dict[str, Any]], repo: Path | None = None) -> dict[str, Any]:
     root = repo or REPO_ROOT
-    merged = auto_merged(rows)
+    runs = merged(rows)
     escapes = 0
     by_class: dict[str, dict[str, int]] = {}
-    for entry in merged:
+    for entry in runs:
         key = f"class {entry['class']}"
-        bucket = by_class.setdefault(key, {"auto_merged": 0, "escapes": 0})
-        bucket["auto_merged"] += 1
+        bucket = by_class.setdefault(key, {"merged": 0, "escapes": 0})
+        bucket["merged"] += 1
         sha = commit_for(root, entry["spec"], entry["task"])
         if is_reverted(root, sha):
             escapes += 1
             bucket["escapes"] += 1
     return {
-        "auto_merged": len(merged),
+        "merged": len(runs),
         "escapes": escapes,
-        "rate": round(escapes / len(merged), 3) if merged else 0.0,
+        "rate": round(escapes / len(runs), 3) if runs else 0.0,
         "by_class": by_class,
     }
 
 
 def render(result: dict[str, Any]) -> str:
-    if not result.get("auto_merged"):
-        return "autonomy escapes: no auto-merged runs yet"
+    if not result.get("merged"):
+        return "escapes: no merged runs yet"
     classes = ", ".join(
-        f"{name} {bucket['escapes']}/{bucket['auto_merged']}"
+        f"{name} {bucket['escapes']}/{bucket['merged']}"
         for name, bucket in sorted(result["by_class"].items())
     )
     return (
-        f"autonomy escapes: {result['escapes']}/{result['auto_merged']} "
+        f"escapes: {result['escapes']}/{result['merged']} "
         f"({result['rate'] * 100:.0f}%) — {classes}"
     )

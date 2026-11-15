@@ -249,7 +249,6 @@ def run_case(
         env["SWARM_GATE_COMMANDS"] = ";".join(commands)
     for rel in (".venv", "swarm/.venv"):
         env["PATH"] = f"{repo / rel / 'bin'}:{env.get('PATH', '')}"
-    env.pop("SWARM_REQUIRE_APPROVAL", None)
     try:
         rc, out = _git(repo, "worktree", "add", "--detach", str(worktree), case["base_sha"])
         if rc != 0:

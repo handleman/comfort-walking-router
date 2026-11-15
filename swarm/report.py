@@ -1,4 +1,4 @@
-"""Cost/autonomy report over recorded runs (015 AC-6).
+"""Cost/risk report over recorded runs (015 AC-6, 024).
 
 `make swarm-report` → cost per green task, tokens per role, fix-round rate,
 stop reasons, and p50/p90 wall clock. Pure read: never touches a run.
@@ -69,17 +69,14 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             phases[phase] = phases.get(phase, 0) + 1
             if entry.get("changed"):
                 changed_rounds += 1
-    # 024: auto-merge decisions by risk class (escape-rate input).
-    autonomy: dict[str, int] = {}
-    auto_merged = 0
+    # 024: risk labels over recorded runs (the escape-rate input).
+    risk_classes: dict[str, int] = {}
     for row in rows:
-        info = row.get("autonomy") or {}
+        info = row.get("risk") or row.get("autonomy") or {}
         if not info:
             continue
         key = f"class {info.get('class')}"
-        autonomy[key] = autonomy.get(key, 0) + 1
-        if info.get("auto_merge"):
-            auto_merged += 1
+        risk_classes[key] = risk_classes.get(key, 0) + 1
     # 022 AC-1: wall clock per phase, derived from each run's events.
     phase_durations: dict[str, list[float]] = {}
     for row in rows:
@@ -121,8 +118,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "verifier_runs": len(verifier_runs),
         "verifier_hits": sum(1 for r in verifier_runs if (r.get("verifier") or {}).get("hit")),
         "phases": dict(sorted(phases_summary.items(), key=lambda kv: -kv[1]["p50"])),
-        "autonomy": dict(sorted(autonomy.items())),
-        "auto_merged": auto_merged,
+        "risk_classes": dict(sorted(risk_classes.items())),
     }
 
 
@@ -159,10 +155,10 @@ def render(summary: dict[str, Any]) -> str:
             f"verification: self-check {summary['self_check_hits']}/{sc} hit, "
             f"verifier {summary['verifier_hits']}/{vr} hit"
         )
-    if summary.get("autonomy"):
+    if summary.get("risk_classes"):
         lines.append(
-            "autonomy: " + ", ".join(f"{k}={v}" for k, v in summary["autonomy"].items())
-            + f" (auto-merged {summary['auto_merged']})"
+            "risk classes: "
+            + ", ".join(f"{k}={v}" for k, v in summary["risk_classes"].items())
         )
     if summary.get("phases"):
         lines.append("phases (p50/p90, seconds):")
@@ -185,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     rows = collect()
     print(render(summarize(rows)))
     result = escape.rate(rows)
-    if result["auto_merged"]:
+    if result["merged"]:
         print(escape.render(result))
     return 0
 

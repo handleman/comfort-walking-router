@@ -100,13 +100,10 @@ def format_human_report(
         lines.append("  ".join(bits))
     if p.get("reason_code"):
         lines.append(f"reason_code: {p['reason_code']}")
-    autonomy = p.get("autonomy") or {}
-    if autonomy:
-        verb = "auto-merged" if autonomy.get("auto_merge") else "human merge"
-        lines.append(
-            f"risk class {autonomy.get('class')} ({autonomy.get('label')}): {verb}"
-            f" — {autonomy.get('reason')}"
-        )
+    risk = p.get("risk") or p.get("autonomy") or {}
+    if risk:
+        # 024: a label, not a decision — every green run merges by itself.
+        lines.append(f"risk class {risk.get('class')} ({risk.get('label')})")
 
     lines += ["", "why"]
     reasons: list[str] = []
