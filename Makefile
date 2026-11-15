@@ -6,11 +6,16 @@
 	swarm-coder-image swarm-qa-image swarm-stop swarm-approve swarm-preflight swarm-sandbox \
 	swarm-supervise swarm-report swarm-log swarm-night swarm-record \
 	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live swarm-parallel \
-	swarm-replay swarm-replay-off swarm-replay-one swarm-replay-paid
+	swarm-replay swarm-replay-off swarm-replay-one swarm-replay-paid \
+	swarm-db-up swarm-db-down swarm-db-status swarm-db-migrate
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
 PY := $(VENV)/bin/python
+# 005: when the local Postgres is up, every target that needs it gets
+# DATABASE_URL automatically (the app reads os.environ, not .env).
+SWARM_DB_URL ?= postgresql://postgres:comfort@localhost:5432/comfort
+DB_ENV := $(shell ./swarm/db.sh env 2>/dev/null)
 
 dev: ## Start backend :8000 + frontend :5173; Ctrl-C stops both
 	@test -x "$(PY)" || $(MAKE) --no-print-directory dev-setup-python
@@ -41,7 +46,7 @@ dev-frontend: ## Frontend only (http://localhost:5173; proxies /route to :8000)
 	cd frontend && npm run dev -- --port 5173 --strictPort
 
 test: ## App tests (pytest)
-	$(PY) -m pytest -q
+	$(DB_ENV) $(PY) -m pytest -q
 
 lint: ## Ruff lint (app + swarm)
 	$(PY) -m ruff check .
@@ -50,10 +55,10 @@ typecheck: ## Mypy typecheck (app + tests)
 	$(PY) -m mypy app tests
 
 swarm-run: ## Pilot run: make swarm-run [SPEC=001] [TASK=T1]
-	./swarm/run.sh $(SPEC) $(TASK)
+	$(DB_ENV) ./swarm/run.sh $(SPEC) $(TASK)
 
 swarm-local: ## All-local pilot (Ollama Qwen for all roles, ignores cloud .env): make swarm-local [SPEC=001] [TASK=T1]
-	SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/run.sh $(SPEC) $(TASK)
+	$(DB_ENV) SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/run.sh $(SPEC) $(TASK)
 
 swarm-up-local: ## All-local pilot in background + dashboard attached
 	SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/up.sh $(SPEC) $(TASK)
@@ -62,7 +67,7 @@ swarm-dash: ## Dashboard attached to current pilot
 	./swarm/dash.sh
 
 swarm-up: ## Pilot in background + dashboard attached: make swarm-up [SPEC=001] [TASK=T1]
-	./swarm/up.sh $(SPEC) $(TASK)
+	$(DB_ENV) ./swarm/up.sh $(SPEC) $(TASK)
 
 swarm-supervise: ## Unattended queue: auto-resume retryable stops, park exhausted tasks
 	swarm/.venv/bin/python -m swarm.supervise
@@ -107,13 +112,13 @@ swarm-replay-one: ## One case with details: make swarm-replay-one CASE=<id>
 
 swarm-bench-live: ## Live replay of one case in a throwaway worktree: make swarm-bench-live CASE=<id>
 	@test -n "$(CASE)" || { echo "CASE=<corpus id> is required (see: make swarm-bench ARGS=--list)"; exit 2; }
-	swarm/.venv/bin/python -m swarm.bench --live $(CASE)
+	$(DB_ENV) swarm/.venv/bin/python -m swarm.bench --live $(CASE)
 
 swarm-test: ## Harness unit tests (no LLM, no network)
 	swarm/.venv/bin/python -m pytest swarm/tests -q
 
 e2e: ## Browser e2e suite (fixture backend + vite preview + playwright test)
-	swarm/.venv/bin/python -m swarm.e2e
+	$(DB_ENV) swarm/.venv/bin/python -m swarm.e2e
 
 swarm-record: ## Record a manually completed task's trailers: make swarm-record SPEC=001 TASK=T3
 	@test -n "$(SPEC)" -a -n "$(TASK)" || { echo "SPEC=<spec dir> TASK=<T3> are required"; exit 2; }
@@ -127,6 +132,18 @@ swarm-qa-image: ## Build tuned local QA image (swarm/ollama/Modelfile.qa -> swar
 
 swarm-stop: ## Stop the currently running pilot (Ollama/dashboards untouched)
 	./swarm/stop.sh
+
+swarm-db-up: ## Start colima + local Postgres, migrate, print the DATABASE_URL export
+	./swarm/db.sh up
+
+swarm-db-down: ## Stop the local Postgres (COLIMA=1 also stops colima)
+	./swarm/db.sh down $(if $(COLIMA),--all,)
+
+swarm-db-status: ## Is the local Postgres up?
+	./swarm/db.sh status
+
+swarm-db-migrate: ## Upgrade the local Postgres schema to head
+	./swarm/db.sh migrate
 
 swarm-preflight: ## Validate models/keys/Ollama/venvs/gates before a run
 	swarm/.venv/bin/python -m swarm.preflight

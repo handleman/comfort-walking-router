@@ -401,6 +401,27 @@ def check(
     return problems
 
 
+def database_note() -> str:
+    """One informational line about the local Postgres (never a failure).
+
+    005's saved-routes tests and the `preferences` e2e specs skip without a
+    database; a preflight that says "down" saves the "why did these skip?"
+    question. `make swarm-db-up` starts it.
+    """
+    import subprocess
+
+    script = REPO_ROOT / "swarm" / "db.sh"
+    if not script.is_file():
+        return "database: no swarm/db.sh"
+    try:
+        out = subprocess.run(
+            [str(script), "status"], capture_output=True, text=True, timeout=30, check=False
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"database: unknown ({exc})"
+    return f"database: {out or 'unknown'}"
+
+
 def main() -> int:
     import argparse
 
@@ -417,6 +438,8 @@ def main() -> int:
     problems = list(factory_problems())
 
     # One 1-token call per role: a wall fails here, not after the first task.
+    if not args.offline:
+        print(database_note())
     problems += probe_roles(offline=args.offline)
     problems += check(offline=args.offline)
     for p in problems:

@@ -97,6 +97,20 @@ Model prefixes route automatically: `ollama/*` → local Ollama, `zen/*` → Ope
 (`custom_openai` gateway; `SWARM_ZEN_BASE_URL` must stop at `/v1` — the SDK appends
 `/chat/completions`, a full URL gives 404).
 
+## Local Postgres (005 saved routes)
+
+```bash
+make swarm-db-up       # colima + comfort-pg, wait, migrate, print the export
+make swarm-db-status
+make swarm-db-down     # COLIMA=1 also stops colima
+```
+
+While the container runs, `make test`, `make e2e`, `make swarm-run`, `make swarm-up`,
+`make swarm-bench-live` and `make swarm-replay*` get `DATABASE_URL` automatically
+(`$(DB_ENV)` in the Makefile) — the app reads the environment at import, not
+`.env`. Without it, the 005 repository tests and the three `preferences` e2e
+specs skip. `make swarm-preflight` prints the database line but never fails on it.
+
 ## Preflight (before the first LLM call)
 ```bash
 make swarm-preflight                              # roles/models, keys, Ollama pull, cloud lists, venvs, gates
