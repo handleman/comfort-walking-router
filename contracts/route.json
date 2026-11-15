@@ -67,6 +67,20 @@
     "weather": {
       "type": "object",
       "description": "Weather conditions used for scoring"
+    },
+    "comfort_profile": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["from_m", "to_m", "score", "factor", "label"],
+        "properties": {
+          "from_m": {"type": "number", "minimum": 0},
+          "to_m": {"type": "number", "minimum": 0},
+          "score": {"type": "number", "minimum": 0, "maximum": 100},
+          "factor": {"enum": ["shade", "sun", "quiet", "traffic", "lit", "unknown"]},
+          "label": {"type": "string", "maxLength": 40}
+        }
+      }
     }
   },
   "required": [

@@ -230,3 +230,20 @@ def test_the_quota_provider_is_the_role_model_provider(monkeypatch):
     assert _role_provider("qa") == "openrouter"
     assert _role_provider("senior") == "openrouter"
     assert _role_provider("verifier") == "openrouter"
+
+
+def test_a_spec_reference_in_the_brief_is_not_a_missing_deliverable(tmp_path):
+    """028-T3 was stopped for a spec file the coder can never write.
+
+    The brief said "items as specified in `specs/028-.../plan.md`"; the coder
+    must not edit `specs/`, so that path is context, not a deliverable.
+    """
+    from swarm import guards
+
+    record = guards.delta_record(
+        "Extend `contracts/route.json` (items as specified in `specs/028-x/plan.md`).",
+        ["contracts/route.json"],
+        tmp_path,
+    )
+    assert record["reason"] == ""
+    assert not any(path.startswith("specs/") for path in record["named"])

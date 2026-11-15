@@ -201,7 +201,11 @@ def delta_record(
     from swarm.prompts import brief_paths
 
     touched = sorted({str(path).strip() for path in changed if str(path).strip()})
-    named = brief_paths(brief)
+    # A brief names files the coder must change *and* may reference spec files
+    # for context. The coder never writes `specs/` (the swarm must not edit the
+    # roster), so a path there can never be a missing deliverable — 028-T3 was
+    # stopped for "plan.md" after a complete contract change (2026-11-15).
+    named = [path for path in brief_paths(brief) if not path.startswith("specs/")]
     missing = [
         path for path in named if path not in touched and not (repo_root / path).exists()
     ]
