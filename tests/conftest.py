@@ -25,24 +25,31 @@ from app import comfort as _comfort
 from app import fixtures as _fixtures
 from app.providers import overpass as _overpass
 
-_REAL_CORRIDOR = _comfort.corridor_factors
+_REAL_CORRIDOR = _comfort.corridor_data
 
 
 def _recorded_corridor(geometry, *, margin_m=_comfort.CORRIDOR_MARGIN_M):
-    return _comfort.factors_from_counts(
-        _overpass.count_features(_fixtures.recorded_corridor_elements())
-    )
+    """The recorded corridor: factors plus the fixture's positioned trees."""
+    counts = _overpass.count_features(_fixtures.recorded_corridor_elements())
+    return {
+        "factors": _comfort.factors_from_counts(counts),
+        "feature_points": _comfort.feature_points(
+            geometry, _fixtures.recorded_corridor_features(geometry)
+        ),
+    }
 
 
 @pytest.fixture(autouse=True)
 def _no_overpass(monkeypatch):
-    monkeypatch.setattr(_comfort, "corridor_factors", _recorded_corridor)
+    # `/route` asks for both halves in one call (028 AC-2); stubbing the pair is
+    # what keeps the suite off the network.
+    monkeypatch.setattr(_comfort, "corridor_data", _recorded_corridor)
 
 
 @pytest.fixture
 def real_corridor(monkeypatch):
-    """Opt back into the real `corridor_factors` (still network-free when stubbed)."""
-    monkeypatch.setattr(_comfort, "corridor_factors", _REAL_CORRIDOR)
+    """Opt back into the real corridor fetch (still network-free when stubbed)."""
+    monkeypatch.setattr(_comfort, "corridor_data", _REAL_CORRIDOR)
     return _REAL_CORRIDOR
 
 

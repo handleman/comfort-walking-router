@@ -55,6 +55,29 @@ def _alembic_config():
     return cfg
 
 
+def _reset_schema() -> None:
+    """Drop everything and rebuild — the only state a test DB can trust.
+
+    Alembic can be left inconsistent by an interrupted run or a *different*
+    worktree's migrations (a 2026-11-15 live replay with DATABASE_URL inherited
+    upgraded this database without the 0004 revision), and then `downgrade base`
+    fails on a table that is already gone.
+    """
+    from alembic import command
+
+    from app.db import get_connection
+
+    cfg = _alembic_config()
+    try:
+        command.downgrade(cfg, "base")
+    except Exception:  # noqa: BLE001 - inconsistent state: drop and rebuild
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DROP SCHEMA public CASCADE")
+            cur.execute("CREATE SCHEMA public")
+        command.stamp(cfg, "base")
+    command.upgrade(cfg, "head")
+
+
 @pytest.fixture()
 def clean_db():
     """Empty schema for one test, then back to head.
@@ -67,9 +90,10 @@ def clean_db():
     from alembic import command
 
     cfg = _alembic_config()
+    _reset_schema()  # known-good state first, then empty for the test body
     command.downgrade(cfg, "base")
     yield
-    command.upgrade(cfg, "head")
+    _reset_schema()
 
 
 @skipif_no_db

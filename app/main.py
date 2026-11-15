@@ -86,6 +86,7 @@ class RouteResponse(BaseModel):
     status: str
     timestamp: str
     comfort_score: float
+    comfort_profile: list[dict[str, Any]] | None = None
     explanation: list[str]
     geometry: dict[str, Any]
     distance_m: float
@@ -149,16 +150,30 @@ def _build_response(
     # 001 AC-2: real OSM corridor factors (best effort). Nothing downstream is
     # rejected when Overpass is unavailable; the explanation says so instead of
     # naming factors the route never had.
-    comfort_data = comfort.corridor_factors(geometry)
+    corridor = comfort.corridor_data(geometry)
+    comfort_data = corridor["factors"] if corridor else None
     if comfort_data:
         props = {**props, **comfort_data}
-    comfort_score = score_comfort(
-        props,
-        body.preference or "balanced",
-        prefer_lit=body.prefer_lit,
-        avoid_traffic=body.avoid_traffic,
+    profile = comfort.profile(
+        geometry,
+        comfort_data,
+        feature_points_in=(corridor or {}).get("feature_points"),
+        total_m=distance_m,
+        preference=applied_preference or body.preference or "balanced",
     )
-    
+    if profile:
+        # 028 AC-1: the number is the picture's mean, by construction.
+        comfort_score = round(comfort.weighted_score(profile), 1)
+    else:
+        # No OSM corridor: fall back to the weather/tag score, and the
+        # explanation says the profile is unavailable (AC-3).
+        comfort_score = score_comfort(
+            props,
+            body.preference or "balanced",
+            prefer_lit=body.prefer_lit,
+            avoid_traffic=body.avoid_traffic,
+        )
+
     # Build explanation with applied factors
     explanation = [
         f"{distance_m / 1000:.2f} km, about {round(duration_s / 60)} min walking.",
@@ -180,6 +195,16 @@ def _build_response(
             f"{weather.get('cloud_cover')}% and {weather.get('temperature')}°C "
             f"→ {applied_preference}."
         )
+    if profile:
+        shaded = [s for s in profile if s.factor == "shade"]
+        sunny = [s for s in profile if s.factor == "sun"]
+        span = f"{profile[0].from_m:.0f}–{profile[-1].to_m:.0f} m"
+        explanation.append(
+            f"Profile: {len(shaded)} of {len(profile)} segments shaded, "
+            f"{len(sunny)} sunny ({span})."
+        )
+    else:
+        explanation.append("Profile: unavailable without OSM corridor data.")
     data = comfort_data or {}
     shade_value = data.get("shade_factor")
     quiet_value = data.get("quiet_factor")
@@ -194,7 +219,7 @@ def _build_response(
         explanation.append(
             "Comfort data: OSM corridor unavailable — weather-only score (data gap)."
         )
-    
+
     # Add preference-specific factors
     if body.preference == "hot":
         explanation.append(f"Shade factor: {'high' if props.get('shade_factor', 0) > 0.5 else 'low'}")
@@ -235,6 +260,7 @@ def _build_response(
         status="active",
         timestamp=datetime.now(tz=UTC).isoformat(),
         comfort_score=comfort_score,
+        comfort_profile=[segment.as_dict() for segment in profile] if profile else None,
         explanation=explanation,
         geometry=geometry,
         distance_m=distance_m,

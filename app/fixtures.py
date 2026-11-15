@@ -119,3 +119,49 @@ def recorded_corridor_elements() -> list[dict]:
     elements += [{"type": "node", "tags": {"natural": "tree"}} for _ in range(2)]
     elements.append({"type": "node", "tags": {"natural": "grass"}})
     return elements
+
+
+def recorded_corridor_features(geometry: dict) -> list[dict]:
+    """The corridor as the profile sees it (028 AC-4).
+
+    Ways come back from Overpass `out tags` without coordinates, so they only
+    feed the corridor-level counts; trees are nodes, so they are the only
+    positional signal and this fixture places them on the first 40 % of the
+    route (shaded start, open middle) to give e2e two visible bands. Counts:
+    5 ways, 3 trees, 1 grass — the same corridor as
+    ``recorded_corridor_elements``, in GeoJSON form.
+    """
+    ways: list[tuple[str, bool]] = [
+        ("footway", True),
+        ("footway", True),
+        ("residential", True),
+        ("path", False),
+        ("primary", False),
+    ]
+    features: list[dict] = [
+        {
+            "geometry": {"type": "LineString", "coordinates": []},
+            "properties": {"highway": kind, **({"lit": "yes"} if lit else {})},
+        }
+        for kind, lit in ways
+    ]
+    coords = geometry.get("coordinates") or []
+    if coords:
+        start, end = coords[0], coords[-1]
+
+        def at(fraction: float) -> list[float]:
+            return [
+                round(start[0] + (end[0] - start[0]) * fraction, 6),
+                round(start[1] + (end[1] - start[1]) * fraction, 6),
+            ]
+
+        features += [
+            {"geometry": {"type": "Point", "coordinates": at(fraction)},
+             "properties": {"natural": "tree"}}
+            for fraction in (0.02, 0.06, 0.1, 0.14, 0.18, 0.22, 0.26, 0.3)
+        ]
+        features.append(
+            {"geometry": {"type": "Point", "coordinates": at(0.34)},
+             "properties": {"natural": "grass"}}
+        )
+    return features

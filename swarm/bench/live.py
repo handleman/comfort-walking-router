@@ -241,6 +241,12 @@ def run_case(
     # that (the baseline is taken after the copy); the stash hygiene would not,
     # and it would park e.g. the node_modules symlink mid-run.
     env["SWARM_STASH_UNRELATED"] = "0"
+    # A replay runs a *historical* worktree; inheriting DATABASE_URL woke the
+    # modern DB-gated tests against old migrations (UndefinedTable → QA blocked a
+    # 2026-11-15 replay for an environment reason the case never had). Hermetic
+    # unless the caller asks for the database explicitly.
+    if env.get("SWARM_BENCH_DB", "0") != "1":
+        env.pop("DATABASE_URL", None)
     env["PYTHONPATH"] = str(worktree)
     # The repo's `.env` is not copied into the worktree (it holds keys). Pin the
     # gate list from the case itself so the replay runs the task's real gates.

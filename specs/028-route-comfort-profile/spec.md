@@ -68,10 +68,12 @@ the data is missing.
 - **AC-3 — Honest gap.** When the corridor is unavailable the response has
   `comfort_profile: null` and the explanation says the profile needs OSM data —
   never fabricated segments, never a 500.
-- **AC-4 — Visible and accessible.** The map draws the route in the profile's
-  bands, shows a legend naming the bands, and exposes each segment's score without
-  colour (a `title`/`aria-label` and a visible list). `frontend/e2e/search.spec.ts`
-  asserts the legend and at least three bands on the fixture route.
+- **AC-4 — Visible and accessible.** The map draws the route in three bands
+  derived from the route's **own** score terciles (absolute bands collapse when
+  quiet/lit are corridor-level and only shade varies), shows a legend naming the
+  bands and their score ranges, and exposes each segment's score without colour
+  (a `title`/`aria-label` and a visible list). `frontend/e2e/search.spec.ts`
+  asserts the legend and at least two distinct bands on the fixture route.
 - **AC-5 — Deterministic tests.** `make test`, `make lint`, `make typecheck`
   and `npm --prefix frontend run check` are green; the profiling is pure and
   deterministic from fixture data (no clock, no network in tests).

@@ -6,7 +6,7 @@ from datetime import datetime
 # never read again (the 2026-11-08 contract change made old geometries invalid).
 # v3/v4 (2026-11-15): the explanation gained the OSM comfort line and then the
 # weather/auto-preference lines — an older row would hide them (and did, twice).
-CACHE_VERSION = "v4"
+CACHE_VERSION = "v6"
 
 
 class Cache:
