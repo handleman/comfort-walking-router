@@ -31,6 +31,16 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - **Do not show a budget cap that cannot fire.** The panel read "tokens 1.7M / 2.0M 84.0%" for a run whose token/dollar caps are *not enforced* (`free_local_run: true`), which reads as "the budget stopped this". A free-local run now shows "no cap: free local run".
 - **A red run needs a verdict most of all.** The reviewer got 9 iterations for 6 gates + `git status` + the verdict, so it re-ran `pytest` and never concluded: `review_verdict: "unknown"` left the fix rounds with no grounded reason. The budget is 12 and the verdict repair now runs on red runs too (it used to run only when the gates were green).
 - **Measure with the replay set, not with memory.** `make swarm-bench` (020) renders the real prompts and reports from 12 frozen green runs with no model call. It is the only way to tell whether a change removed work or moved it; run it before and after, and use `SWARM_CONTEXT_COMPACT=0` / `SWARM_GATE_SELECT=0` / `SWARM_PROMPT_CACHE=0` to restore the old behaviour for an honest A/B. A token win that lowers the green rate is not a win; `make swarm-bench-live CASE=<id>` is the check that the loop still reaches green.
+- **A resume can skip the very phase the guard checks.** 2026-11-15: `run.sh 007 T10`
+  printed `resuming T10 after step 5/5`, then stopped `no_delta` in 2 s — it had
+  reused a checkpoint from an attempt whose delta was reverted, so the coding phase
+  never ran and the run could not possibly produce a delta. A checkpoint is only
+  valid if the run can still vouch for it: `load_checkpoint` now refuses
+  `completed == len(steps)` (nothing left to run → empty delta by construction) and
+  an empty recorded `delta_hashes` (`hash_paths([]) == {}` compares equal, so a
+  snapshot written after a revert looked fine). Both print
+  `restarting <T>: <reason>`; check `run.json.recovery`/`recovery_note` before
+  blaming a coder for "doing nothing".
 - **An empty delta is a stop, not a verdict problem.** Two 014-T10 runs spent 21 and 28
   minutes, produced `changed: []`, and then paid the verifier to name the missing files.
   026's delta guard now stops `no_delta`/`delta_incomplete` before any judge. If a docs

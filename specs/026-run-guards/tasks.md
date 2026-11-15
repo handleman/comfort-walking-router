@@ -13,6 +13,7 @@ Control-plane spec (`HARNESS_SPECS`): the queue never runs these.
 - [x] T9 (AC-10): `swarm/done.py` returns a reason per entry and `swarm/flow.py` logs `open task <id>: <reason>` at queue selection; add `swarm/record.py` + `make swarm-record SPEC=… TASK=…` writing the standard trailers; tests for both.
 - [x] T11 (AC-12): wall budget is terminal — `swarm/bounded.py` accepts `float | None` (None = unbounded) and refuses a zero/negative timeout; `swarm/flow.py` raises `_WallBudget` before a call when `remaining <= 0`; regression test in `swarm/tests/test_bounded.py` (landed with the 007 2.7 h overrun fix). Evidence: `swarm/bounded.py`, `swarm/flow.py`, `swarm/tests/test_bounded.py`.
 - [x] T10 (AC-11): add `026-run-guards` to `HARNESS_SPECS`; record the guards and off switches in `AGENTS.md`, `swarm/README.md`, `docs/roadmap.md`, `changelog.md`; `make swarm-test` green.
+- [x] T12 (AC-13): resume validity — `swarm/flow.py::load_checkpoint` refuses a checkpoint whose every step is already done (`completed >= len(steps)`) and one whose recorded `delta_hashes` is empty (`hash_paths([]) == {}` compares equal); both print `restarting <T>: <reason>` and redo the coding phase. Found by the 2026-11-15 007-T10 run (`20261115-125731-42092-09f0`): it "resumed after step 5/5" from an attempt whose delta had been reverted, so the coding phase was skipped and the delta guard stopped a run that could not have produced a delta. Tests: `swarm/tests/test_progress.py` (full-completion refused, empty delta refused, completed-0 still resumes).
 
 ## Decisions
 

@@ -819,6 +819,22 @@ held (`awaiting_approval`) → same task again; everything green → exits with
 `_resume_point` (`--resume` flag). To release an approval hold, use
 `make swarm-approve SPEC=… TASK=…` (or `./swarm/run.sh SPEC TASK --approve`), then resume.
 
+A *phase* checkpoint (`progress.json`, and the journal's completed prefix) only skips
+micro-steps the next run can still vouch for, because run-delta attribution compares
+against the baseline it took at start:
+
+- **completion** — `SWARM_RESUME_MAX_AGE_SECONDS`, plan hash and step list must all match;
+- **delta** — the recorded `delta_hashes` must be non-empty and still present in the
+  worktree. An empty delta is evidence of nothing (`hash_paths([]) == {}` compares
+  equal), so a checkpoint written after a revert is not a resume;
+- **not all steps done** — `completed == len(steps)` is refused: nothing is left to
+  run, so this run's delta would be empty by construction and the delta guard would
+  stop it. The coding phase is redone so the run owns what it commits.
+
+Both refusals print `restarting <T>: <reason>` and land in `run.json.recovery_note`
+(`reason_code=no_delta` otherwise, which is how 007-T10 "resumed after step 5/5" into
+an empty delta on 2026-11-15).
+
 ## Escalation (dev ×3 → senior → QA)
 Each task gets up to `DEV_ATTEMPTS` (3) dev phases (micro-steps + review + 2 fix rounds
 each, cached plan reused). A single micro-step failing `STEP_ATTEMPTS` (3) times is

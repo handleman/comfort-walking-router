@@ -124,6 +124,23 @@ Per-model cost landed this session. Remaining:
   standard `Swarm-Task`/`Swarm-Task-Hash`/`Swarm-Spec-Hash` trailers for a
   manually completed task and records the ledger cache.
 
+## T12 — resume validity (AC-13)
+
+`flow.load_checkpoint` gains two refusals, both discovered by the first live run
+of the finished guards (`20261115-125731-42092-09f0`):
+
+- `completed >= len(steps)` → refused ("redo the coding phase"): nothing is left
+  to run, so `run_delta(baseline)` is empty by construction and AC-1 would stop a
+  run that never had a chance to act. The checkpoint exists to save *coding*
+  work, not to skip attribution.
+- `completed > 0 and not delta_hashes` → refused ("no in-scope delta"): the
+  empty dict compared equal to `hash_paths([])`, so a snapshot written after a
+  revert looked valid.
+
+`completed == 0` still resumes (nothing to vouch for). The note flows through
+`_resume_checkpoint` → `run.json.recovery_note`, and the flow prints
+`restarting <T>: <reason>`.
+
 ## T11 — wall budget is terminal (AC-12)
 
 `bounded.run_bounded(fn, timeout: float | None)` — `None` is the only unbounded

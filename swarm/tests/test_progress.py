@@ -155,8 +155,8 @@ def test_lenient_checkpoint_keeps_prefix_on_drift(tmp_path):
         "task": "T1",
         "plan_hash": "h",
         "steps": steps,
-        "completed": 3,
-        "step_outputs": ["a", "b", "c"],
+        "completed": 2,
+        "step_outputs": ["a", "b"],
         "delta_hashes": {drifted: "stale"},
         "updated_at": flow.dt.datetime.now().isoformat(timespec="seconds"),
     }
@@ -171,7 +171,8 @@ def test_lenient_checkpoint_keeps_prefix_on_drift(tmp_path):
         prev, spec_dir="001-x", task_id="T1", plan_hash="h", steps=steps, lenient=True
     )
     assert lenient is not None and lenient["drift"] is True
-    assert lenient["completed"] == 3
+    # The flow redoes the last completed step (`resume_at = completed - 1`).
+    assert lenient["completed"] == 2
 
 
 def test_lenient_checkpoint_is_rejected_when_a_file_is_gone(tmp_path):
@@ -182,7 +183,7 @@ def test_lenient_checkpoint_is_rejected_when_a_file_is_gone(tmp_path):
     prev = root / "swarm" / "runs" / "20260101-000000-1-a"
     prev.mkdir(parents=True)
     (prev / "meta.json").write_text('{"spec": "001-x", "task": "T1"}')
-    steps = ["STEP 1: a", "STEP 2: b"]
+    steps = ["STEP 1: a", "STEP 2: b", "STEP 3: c"]
     missing = "app/__deleted_by_a_human__.py"
     payload = {
         "spec": "001-x",
@@ -200,3 +201,54 @@ def test_lenient_checkpoint_is_rejected_when_a_file_is_gone(tmp_path):
         prev, spec_dir="001-x", task_id="T1", plan_hash="h", steps=steps, lenient=True
     )
     assert lenient is None and "missing" in note
+
+
+# ---------------------------------------------------------------------------
+# 026: a checkpoint the run cannot vouch for is not a resume
+# ---------------------------------------------------------------------------
+
+
+def test_a_checkpoint_with_every_step_done_is_rejected(tmp_path, monkeypatch):
+    """A resumed run's delta is empty by construction; redo the coding phase.
+
+    20261115: 007-T10 "resumed after step 5/5" from an attempt whose delta had
+    been reverted, so the coding phase was skipped and the delta guard stopped a
+    run that never had a chance to produce a delta.
+    """
+    repo = _repo(tmp_path, monkeypatch)
+    prev = repo / "swarm" / "runs" / "20260101-000000-1-aaaa"
+    prev.mkdir(parents=True)
+    _progress(prev, plan_hash="p" * 64, steps=("a", "b"), completed=2)
+    got, note = load_checkpoint(
+        prev, spec_dir="001-x", task_id="T1", plan_hash="p" * 64, steps=["a", "b"]
+    )
+    assert got is None
+    assert "redo" in note
+
+
+def test_a_checkpoint_that_recorded_no_delta_is_rejected(tmp_path, monkeypatch):
+    """`hash_paths([]) == {}` compares equal: an empty delta is evidence of nothing."""
+    repo = _repo(tmp_path, monkeypatch)
+    prev = repo / "swarm" / "runs" / "20260101-000000-1-aaaa"
+    prev.mkdir(parents=True)
+    payload = _progress(prev, plan_hash="p" * 64, steps=("a", "b", "c"), completed=2)
+    payload["delta_hashes"] = {}
+    (prev / "progress.json").write_text(json.dumps(payload))
+    got, note = load_checkpoint(
+        prev, spec_dir="001-x", task_id="T1", plan_hash="p" * 64, steps=["a", "b", "c"]
+    )
+    assert got is None
+    assert "no in-scope delta" in note
+
+
+def test_a_fresh_killed_run_still_resumes_at_zero(tmp_path, monkeypatch):
+    """Completed 0 is not work: nothing to vouch for, nothing to reject noisily."""
+    repo = _repo(tmp_path, monkeypatch)
+    prev = repo / "swarm" / "runs" / "20260101-000000-1-aaaa"
+    prev.mkdir(parents=True)
+    payload = _progress(prev, plan_hash="p" * 64, steps=("a", "b"), completed=0)
+    (prev / "progress.json").write_text(json.dumps(payload))
+    got, note = load_checkpoint(
+        prev, spec_dir="001-x", task_id="T1", plan_hash="p" * 64, steps=["a", "b"]
+    )
+    assert got is not None and note == ""

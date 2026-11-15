@@ -924,6 +924,20 @@ def load_checkpoint(
     if completed < 0 or completed > len(steps) or len(outputs) != completed:
         return None, "malformed progress"
     delta = prog.get("delta_hashes") or {}
+    # 026: a checkpoint exists to save *coding* work, and this run can only vouch
+    # for work it saw appear (`run_delta` against the baseline it took at start).
+    # Two shapes make that impossible, and both used to resume into `no_delta`:
+    #   - every step was done, so nothing is left to run and the delta is empty
+    #     by construction;
+    #   - the recorded delta is empty, i.e. the work was reverted (or the
+    #     progress snapshot was written after a revert) — nothing to build on.
+    if completed >= len(steps):
+        return None, (
+            "checkpoint had every step done but the run never finished; "
+            "redoing the coding phase so this run owns the delta"
+        )
+    if completed and not delta:
+        return None, "checkpoint recorded no in-scope delta (work was reverted)"
     if path_filter is not None and isinstance(delta, dict):
         delta = {path: digest for path, digest in delta.items() if path_filter(path)}
     if not isinstance(delta, dict) or hash_paths(list(delta)) != delta:

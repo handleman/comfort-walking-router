@@ -125,6 +125,12 @@ QA-owned; no gate, trailer or autonomy rule changes.
 - **AC-11 — Tests and docs.** `make swarm-test` covers every guard with a
   passing and a failing case; `026-run-guards` is in `HARNESS_SPECS`;
   AGENTS/roadmap/changelog record the guards and their off switches.
+- **AC-13 — A checkpoint cannot skip the delta it was meant to save.** A resume
+  is refused when every step is already done, or when the recorded
+  `delta_hashes` is empty, because the resumed run's own delta is then empty by
+  construction and the delta guard stops a run that never had a chance to act.
+  The refusal prints `restarting <T>: <reason>`, is recorded in
+  `run.json.recovery_note`, and redoes the coding phase.
 
 ## Evidence
 
