@@ -241,6 +241,10 @@ def run_case(
     # that (the baseline is taken after the copy); the stash hygiene would not,
     # and it would park e.g. the node_modules symlink mid-run.
     env["SWARM_STASH_UNRELATED"] = "0"
+    # A historical brief can name a file that did not exist at the case's base;
+    # the corpus's recorded delta is what a green run actually changed.
+    if case.get("changed"):
+        env["SWARM_REPLAY_EXPECTED"] = ",".join(str(path) for path in case["changed"])
     # A replay runs a *historical* worktree; inheriting DATABASE_URL woke the
     # modern DB-gated tests against old migrations (UndefinedTable → QA blocked a
     # 2026-11-15 replay for an environment reason the case never had). Hermetic

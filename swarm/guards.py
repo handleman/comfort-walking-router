@@ -192,6 +192,8 @@ def delta_record(
     brief: str,
     changed: Iterable[str],
     repo_root: Path,
+    *,
+    expected: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Describe this run's delta against the files the brief names.
 
@@ -205,7 +207,14 @@ def delta_record(
     # for context. The coder never writes `specs/` (the swarm must not edit the
     # roster), so a path there can never be a missing deliverable — 028-T3 was
     # stopped for "plan.md" after a complete contract change (2026-11-15).
-    named = [path for path in brief_paths(brief) if not path.startswith("specs/")]
+    if expected is not None:
+        # A replay compares against the corpus's recorded delta: a historical
+        # brief can name a file that did not exist yet at that base commit, and
+        # the frozen case is the evidence of what a green run actually changed
+        # (007-T2 stopped here on 2026-11-16).
+        named = sorted({str(path).strip() for path in expected if str(path).strip()})
+    else:
+        named = [path for path in brief_paths(brief) if not path.startswith("specs/")]
     missing = [
         path for path in named if path not in touched and not (repo_root / path).exists()
     ]

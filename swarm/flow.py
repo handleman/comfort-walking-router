@@ -3367,7 +3367,22 @@ class SwarmFlow(Flow[SwarmState]):
 
                 if _guards.enabled():
                     delta_now = self._in_scope_paths(run_delta(self._baseline))
-                    record = _guards.delta_record(task.brief, delta_now, REPO_ROOT)
+                    # A replay supplies the corpus's recorded delta: a historical
+                    # brief can name a file that did not exist at that base
+                    # (007-T2, 2026-11-16).
+                    expected_raw = os.getenv("SWARM_REPLAY_EXPECTED", "").strip()
+                    expected = (
+                        [
+                            entry.strip()
+                            for entry in expected_raw.replace("\n", ",").split(",")
+                            if entry.strip()
+                        ]
+                        if expected_raw
+                        else None
+                    )
+                    record = _guards.delta_record(
+                        task.brief, delta_now, REPO_ROOT, expected=expected
+                    )
                     self.state.delta_guard = record
                     print(_guards.summary(record), flush=True)
                     if record["reason"]:

@@ -247,3 +247,23 @@ def test_a_spec_reference_in_the_brief_is_not_a_missing_deliverable(tmp_path):
     )
     assert record["reason"] == ""
     assert not any(path.startswith("specs/") for path in record["named"])
+
+
+def test_a_replay_can_supply_the_expected_delta(tmp_path):
+    """007-T2 named a file absent at its 2026-11-09 base; the corpus knows what a
+    green run changed, and that is what a replay should compare against."""
+    from swarm import guards
+
+    record = guards.delta_record(
+        "Create `frontend/src/lib/newThing.ts`.",
+        ["frontend/src/lib/newThing.ts", "frontend/src/App.svelte"],
+        tmp_path,
+        expected=["frontend/src/lib/newThing.ts", "frontend/src/App.svelte"],
+    )
+    assert record["reason"] == ""
+    assert record["missing"] == []
+    # Without the hint the same brief is incomplete (the file cannot exist yet).
+    plain = guards.delta_record(
+        "Create `frontend/src/lib/newThing.ts`.", [], tmp_path
+    )
+    assert plain["reason"] == "no_delta"
