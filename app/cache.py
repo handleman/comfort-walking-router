@@ -4,7 +4,9 @@ from datetime import datetime
 
 # Bump when the cached response shape changes; old rows stay in SQLite but are
 # never read again (the 2026-11-08 contract change made old geometries invalid).
-CACHE_VERSION = "v2"
+# v3 (2026-11-15): the explanation gained the "Comfort data: OSM corridor" line
+# and the score now uses those factors — a v2 row would hide both.
+CACHE_VERSION = "v3"
 
 
 class Cache:

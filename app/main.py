@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import fixtures, geocode_cache, geocoding, saved_routes
+from . import comfort, fixtures, geocode_cache, geocoding, saved_routes
 from .cache import Cache
 from .config import get_mapbox_token
 from .geocoder import geocode_place
@@ -146,6 +146,12 @@ def _build_response(
         PREFERENCE_NOTES[body.preference] if body.preference else BALANCED_NOTE
     )
     props = feature.get("properties", {})
+    # 001 AC-2: real OSM corridor factors (best effort). Nothing downstream is
+    # rejected when Overpass is unavailable; the explanation says so instead of
+    # naming factors the route never had.
+    comfort_data = comfort.corridor_factors(geometry)
+    if comfort_data:
+        props = {**props, **comfort_data}
     comfort_score = score_comfort(
         props,
         body.preference or "balanced",
@@ -159,6 +165,20 @@ def _build_response(
         preference_note,
         "Comfort factor: applied based on preference and route properties.",
     ]
+    data = comfort_data or {}
+    shade_value = data.get("shade_factor")
+    quiet_value = data.get("quiet_factor")
+    if isinstance(shade_value, (int, float)) and isinstance(quiet_value, (int, float)):
+        explanation.append(
+            "Comfort data: OSM corridor — "
+            f"shade {float(shade_value):.2f}, quiet {float(quiet_value):.2f}, "
+            f"{data.get('osm_ways', 0)} ways, "
+            f"{data.get('osm_trees', 0)} trees."
+        )
+    else:
+        explanation.append(
+            "Comfort data: OSM corridor unavailable — weather-only score (data gap)."
+        )
     
     # Add preference-specific factors
     if body.preference == "hot":

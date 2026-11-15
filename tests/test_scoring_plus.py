@@ -197,7 +197,11 @@ def test_equal_weight_contribution():
 def test_data_gap_explanation_lighting_unavailable():
     # Missing lit tag: the gap note is reported
     _, explanation = explain_comfort(_features(None), "balanced", prefer_lit=True)
-    assert explanation.get("gaps") == ["lighting data unavailable here"]
+    gaps = explanation.get("gaps")
+    assert gaps is not None
+    assert "lighting data unavailable here" in gaps
+    # 001 AC-2: a feature dict without corridor factors says so too.
+    assert "OSM corridor data unavailable here" in gaps
 
     # Missing lit tag even with both toggles on: gap note still reported
     _, explanation = explain_comfort(

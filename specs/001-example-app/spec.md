@@ -14,9 +14,20 @@ Minimal web map for comfortable walking routes (not shortest): start/end → com
 
 ## Acceptance Criteria
 - [x] AC-1: Enter start/end → map renders one comfort-scored route with distance/time.
-- [ ] AC-2: Hot toggle prefers shade/greenery; cloudy toggle prefers sun; explanation lists applied factors.
+- [x] AC-2: Hot toggle prefers shade/greenery; cloudy toggle prefers sun; explanation lists applied factors.
 - [x] AC-3: Repeated identical query served from SQLite cache (no second Overpass call).
 - [x] AC-4: `pytest` + `ruff check .` + `mypy` clean per constitution.
+
+## Status (2026-11-15)
+
+- AC-2 is **satisfied**: `app/comfort.py` bounds a 60 m corridor around the route,
+  asks Overpass for `highway`/`lit` ways and trees, normalizes them to
+  `shade_factor` / `quiet_factor` / `lit_share`, and `POST /route` adds them to the
+  scored features and to the explanation ("Comfort data: OSM corridor — shade …,
+  quiet …, N ways, N trees."). Overpass failure is a data gap, never a failed
+  route; `ROUTE_FIXTURES=1` uses the recorded corridor so e2e is deterministic.
+  Tests: `tests/test_comfort.py`, `tests/test_route_comfort.py`; e2e asserts the
+  line (`frontend/e2e/search.spec.ts`).
 
 ## Status (2026-11-08)
 - AC-1/AC-3/AC-4 are satisfied and verified end-to-end through 011 (`make dev`, live route,

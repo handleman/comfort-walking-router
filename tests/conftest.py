@@ -16,3 +16,31 @@ os.environ.setdefault("MAPBOX_TOKEN", "test-dummy-mapbox-token")
 def _mapbox_token(monkeypatch):
     """Keep the suite hermetic: inject a dummy Mapbox token for every test."""
     monkeypatch.setenv("MAPBOX_TOKEN", "test-dummy-mapbox-token")
+
+
+# 001 AC-2: /route now asks Overpass for corridor comfort factors. Unit tests
+# must never touch the network, so the default is the recorded corridor; a test
+# that needs the real code path asks for the `real_corridor` fixture.
+from app import comfort as _comfort
+from app import fixtures as _fixtures
+from app.providers import overpass as _overpass
+
+_REAL_CORRIDOR = _comfort.corridor_factors
+
+
+def _recorded_corridor(geometry, *, margin_m=_comfort.CORRIDOR_MARGIN_M):
+    return _comfort.factors_from_counts(
+        _overpass.count_features(_fixtures.recorded_corridor_elements())
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_overpass(monkeypatch):
+    monkeypatch.setattr(_comfort, "corridor_factors", _recorded_corridor)
+
+
+@pytest.fixture
+def real_corridor(monkeypatch):
+    """Opt back into the real `corridor_factors` (still network-free when stubbed)."""
+    monkeypatch.setattr(_comfort, "corridor_factors", _REAL_CORRIDOR)
+    return _REAL_CORRIDOR

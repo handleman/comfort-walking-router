@@ -96,3 +96,26 @@ _RECORDED_OVERPASS: list[dict] = [
 def recorded_overpass_features() -> list[dict]:
     """Return the recorded Overpass feature dicts."""
     return _RECORDED_OVERPASS
+
+
+def recorded_corridor_elements() -> list[dict]:
+    """Fixed OSM corridor for ``ROUTE_FIXTURES`` runs (001 AC-2).
+
+    Shapes and tag values are what Overpass returns for a Munich footway
+    corridor (footpath-heavy, partly lit, a few trees). They are constant on
+    purpose: e2e asserts the comfort data line, so the score must be stable.
+    """
+    ways: list[tuple[str, bool]] = [
+        ("footway", True),
+        ("footway", True),
+        ("residential", True),
+        ("path", False),
+        ("primary", False),
+    ]
+    elements: list[dict] = [
+        {"type": "way", "tags": {"highway": kind, **({"lit": "yes"} if lit else {})}}
+        for kind, lit in ways
+    ]
+    elements += [{"type": "node", "tags": {"natural": "tree"}} for _ in range(2)]
+    elements.append({"type": "node", "tags": {"natural": "grass"}})
+    return elements

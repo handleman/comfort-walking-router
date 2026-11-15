@@ -21,7 +21,10 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'uvicorn app.main:app --port 8000',
+      // `python -m uvicorn` with the repo venv: the suite must not depend on
+      // the caller's PATH having `.venv/bin` (it does not when npm is run
+      // directly; a fresh shell then fails with `uvicorn: command not found`).
+      command: './.venv/bin/python -m uvicorn app.main:app --port 8000',
       // `/` has no route (404), so the readiness probe must hit the docs page.
       url: 'http://localhost:8000/docs',
       // The config lives in frontend/, the FastAPI app in the repo root; and

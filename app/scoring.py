@@ -53,6 +53,19 @@ def score_comfort(
         elif highway in ("residential", "footway", "path"):
             score += 2.0
 
+    # 001 AC-2: OSM corridor factors, when the route has them. Callers without
+    # them (older fixtures, single-element tag dicts) keep the weather-only
+    # score, so this is additive rather than a formula change.
+    shade = features.get("shade_factor")
+    if isinstance(shade, (int, float)):
+        if preference == "hot":
+            score += (float(shade) - 0.5) * 4.0  # shade is worth more in heat
+        elif preference == "cloudy":
+            score += (0.5 - float(shade)) * 4.0  # sun-seekers prefer open ways
+    quiet = features.get("quiet_factor")
+    if isinstance(quiet, (int, float)):
+        score += (float(quiet) - 0.5) * 3.0
+
     return max(0.0, float(score))
 
 
@@ -82,8 +95,20 @@ def explain_comfort(
             elif highway in ("residential", "footway", "path"):
                 factors.append("quiet-way bonus +2.0")
 
+    shade = features.get("shade_factor")
+    quiet = features.get("quiet_factor")
+    if isinstance(shade, (int, float)):
+        factors.append(f"shade {float(shade):.2f} (OSM corridor)")
+    if isinstance(quiet, (int, float)):
+        factors.append(f"quiet {float(quiet):.2f} (OSM corridor)")
+
     explanation: dict[str, Any] = {"factors": factors}
+    gaps: list[str] = []
     if "lit" not in features:
-        explanation["gaps"] = ["lighting data unavailable here"]
+        gaps.append("lighting data unavailable here")
+    if not isinstance(shade, (int, float)) or not isinstance(quiet, (int, float)):
+        gaps.append("OSM corridor data unavailable here")
+    if gaps:
+        explanation["gaps"] = gaps
 
     return score, explanation
