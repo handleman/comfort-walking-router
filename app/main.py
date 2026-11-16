@@ -1,12 +1,14 @@
 import hashlib
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 
 import requests
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import comfort, fixtures, geocode_cache, geocoding, saved_routes
@@ -386,3 +388,13 @@ def route(body: RouteRequest) -> RouteResponse:
     )
     cache.set(cache_key, response.model_dump())
     return response
+
+
+# 035: serve the built Svelte app from the same origin as the API, so one free
+# Render service hosts both (no CORS, no proxy). The API routes above are
+# registered first, so `/route`, `/geocode` and `/saved-routes` keep winning; the
+# mount only catches everything else. A no-op when dist/ was never built
+# (`make dev` runs vite; the tests do not build dist/).
+_frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if (_frontend_dist / "index.html").is_file():
+    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")

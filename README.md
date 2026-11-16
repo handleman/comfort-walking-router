@@ -85,7 +85,7 @@ The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not m
 | `make swarm-preflight` | models/keys/venvs/gates usable before the first LLM call. |
 
 Runbooks: [local-postgres](docs/runbooks/local-postgres.md), [e2e-suite](docs/runbooks/e2e-suite.md),
-[verification](docs/runbooks/verification.md). Harness internals: [`swarm/docs/`](swarm/docs/).
+[verification](docs/runbooks/verification.md), [deploy](docs/runbooks/deploy.md). Harness internals: [`swarm/docs/`](swarm/docs/).
 
 ## Geocoding (spec 014)
 

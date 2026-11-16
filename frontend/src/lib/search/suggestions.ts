@@ -34,11 +34,11 @@ export function createSuggestionFetcher(baseUrl: string): (q: string) => Promise
     return new Promise<Suggestion[]>((resolve) => {
       debounceTimer = setTimeout(() => {
         abortController = new AbortController()
-        fetch(`${baseUrl}/api/geocode/suggest?q=${encodeURIComponent(q)}`, {
+        fetch(`${baseUrl}/geocode?q=${encodeURIComponent(q)}`, {
           signal: abortController.signal,
         })
-          .then((res) => (res.ok ? res.json() : Promise.resolve({ results: [] })))
-          .then((data: { results?: unknown }) => {
+          .then((res) => (res.ok ? res.json() : Promise.resolve({ suggestions: [] })))
+          .then((data: { suggestions?: unknown }) => {
             // Stale response guard: only the latest request id may resolve.
             if (id !== requestId) return
             resolve(normalizeSuggestions(data))

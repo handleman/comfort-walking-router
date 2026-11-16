@@ -42,13 +42,15 @@ def coder_acs_enabled(env: dict[str, str] | None = None) -> bool:
     return str(source.get(CODER_ACS_ENV, "0")).strip().lower() in {"1", "true", "yes"}
 MAX_PLAN_LINES = 12
 # 033: the planner decomposes the human plan.md instead of re-deriving the
-# approach. `0` restores the derive-from-ACs prompt (A/B only).
+# approach. Default is OFF: the 2026-11-16 replay A/B measured 1/5 green vs the
+# 2/5 baseline (004-T2 went green -> needs_human), so AC-5 "green rate not
+# lower" failed and the knob stays off until the cause is isolated. `1` re-enables.
 PLAN_USE_MD_ENV = "SWARM_PLAN_USE_MD"
 
 
 def plan_use_md(env: dict[str, str] | None = None) -> bool:
     source = os.environ if env is None else env
-    return str(source.get(PLAN_USE_MD_ENV, "1")).strip().lower() not in {"0", "false", "no", "off"}
+    return str(source.get(PLAN_USE_MD_ENV, "0")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 _BACKTICK_PATH_RE = re.compile(r"`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`")

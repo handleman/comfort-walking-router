@@ -1,0 +1,15 @@
+# 035: Render Blueprint — one free web service built from the Dockerfile.
+# Deploy with "New + > Blueprint" in the Render dashboard, or `render blueprint`.
+services:
+  - type: web
+    name: comfort-walking-router
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MAPBOX_TOKEN
+        sync: false        # set in the Render dashboard; never committed
+      - key: DATABASE_URL
+        sync: false        # optional: a Neon free-tier connection string
+      - key: OVERPASS_MIRROR_URL
+        sync: false        # optional: mirror for the OSM corridor lookup
