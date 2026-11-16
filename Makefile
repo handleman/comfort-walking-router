@@ -54,20 +54,20 @@ lint: ## Ruff lint (app + swarm)
 typecheck: ## Mypy typecheck (app + tests)
 	$(PY) -m mypy app tests
 
-swarm-run: ## Pilot run: make swarm-run [SPEC=001] [TASK=T1]
-	$(DB_ENV) ./swarm/run.sh $(SPEC) $(TASK)
+swarm-run: ## Pilot run (starts colima+Postgres if needed): make swarm-run [SPEC=001] [TASK=T1]
+	@eval "$$(./swarm/db.sh up)"; ./swarm/run.sh $(SPEC) $(TASK)
 
 swarm-local: ## All-local pilot (Ollama Qwen for all roles, ignores cloud .env): make swarm-local [SPEC=001] [TASK=T1]
-	$(DB_ENV) SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/run.sh $(SPEC) $(TASK)
+	@eval "$$(./swarm/db.sh up)"; SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/run.sh $(SPEC) $(TASK)
 
 swarm-up-local: ## All-local pilot in background + dashboard attached
-	SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/up.sh $(SPEC) $(TASK)
+	@eval "$$(./swarm/db.sh up)"; SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/up.sh $(SPEC) $(TASK)
 
 swarm-dash: ## Dashboard attached to current pilot
 	./swarm/dash.sh
 
 swarm-up: ## Pilot in background + dashboard attached: make swarm-up [SPEC=001] [TASK=T1]
-	$(DB_ENV) ./swarm/up.sh $(SPEC) $(TASK)
+	@eval "$$(./swarm/db.sh up)"; ./swarm/up.sh $(SPEC) $(TASK)
 
 swarm-supervise: ## Unattended queue: auto-resume retryable stops, park exhausted tasks
 	swarm/.venv/bin/python -m swarm.supervise
@@ -130,14 +130,14 @@ swarm-coder-image: ## Build tuned local coder image (swarm/ollama/Modelfile -> s
 swarm-qa-image: ## Build tuned local QA image (swarm/ollama/Modelfile.qa -> swarm-qa:latest)
 	ollama create swarm-qa -f swarm/ollama/Modelfile.qa
 
-swarm-stop: ## Stop the currently running pilot (Ollama/dashboards untouched)
-	./swarm/stop.sh
+swarm-stop: ## Stop the running pilot and colima (Postgres included)
+	./swarm/stop.sh; ./swarm/db.sh down --all
 
 swarm-db-up: ## Start colima + local Postgres, migrate, print the DATABASE_URL export
 	./swarm/db.sh up
 
-swarm-db-down: ## Stop the local Postgres (COLIMA=1 also stops colima)
-	./swarm/db.sh down $(if $(COLIMA),--all,)
+swarm-db-down: ## Stop the local Postgres + colima and the running pilot
+	./swarm/db.sh down --all; ./swarm/stop.sh
 
 swarm-db-status: ## Is the local Postgres up?
 	./swarm/db.sh status

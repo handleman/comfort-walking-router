@@ -1,9 +1,12 @@
 #!/bin/sh
 # Local Postgres for the saved-routes feature (005), driven by `make swarm-db-*`.
+# Colima is part of the swarm lifecycle: `make swarm-run`/`swarm-up` start it
+# (best-effort) and `make swarm-stop`/`swarm-db-down` stop it.
 #
-#   ./swarm/db.sh up       start colima + the container, wait, migrate, print the export
-#   ./swarm/db.sh down     stop the container (colima keeps running)
-#   ./swarm/db.sh down --all   stop the container and colima
+#   ./swarm/db.sh up       start colima + the container, wait, migrate, print the
+#                          export (chatter on stderr; `export DATABASE_URL=…` on
+#                          stdout so a recipe can `eval "$(./swarm/db.sh up)"`)
+#   ./swarm/db.sh down [--all]  stop the container; --all also stops colima
 #   ./swarm/db.sh status   one line: up <version> / down
 #   ./swarm/db.sh env      `DATABASE_URL=…` when the container is up (Makefile prefix)
 #   ./swarm/db.sh migrate  upgrade the schema to head
@@ -11,7 +14,7 @@
 # The app reads DATABASE_URL from the environment at import (`app/db.py`), it
 # does not load `.env`; that is why this prints an `export` line instead of
 # writing a file. Values are overridable: SWARM_DB_URL, SWARM_DB_CONTAINER,
-# SWARM_DB_IMAGE.
+# SWARM_DB_IMAGE. Missing colima is a no-op, not an error: DB-gated tests skip.
 set -eu
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -46,25 +49,38 @@ migrate() {
     DATABASE_URL=$URL "$PY" -c "from app import db; db.run_migrations(); print('schema at head')"
 }
 
-case "${1:-}" in
-up)
+start() {
+    # Bring colima + the container up, migrate, and print the export. Chatter
+    # goes to stderr so `eval "$(./swarm/db.sh up)"` sets only DATABASE_URL.
+    if ! command -v colima >/dev/null 2>&1; then
+        echo "colima not installed — local Postgres skipped (DB-gated tests will skip)" >&2
+        return 0
+    fi
     if ! colima status >/dev/null 2>&1; then
-        echo "starting colima (4 CPU / 8 GB / 60 GB)…"
+        echo "starting colima (4 CPU / 8 GB / 60 GB)…" >&2
         colima start --cpu 4 --memory 8 --disk 60 >/dev/null
     fi
     if exists; then
-        running || { echo "starting $CONTAINER…"; docker start "$CONTAINER" >/dev/null; }
+        running || { echo "starting $CONTAINER…" >&2; docker start "$CONTAINER" >/dev/null; }
     else
-        echo "creating $CONTAINER from $IMAGE…"
+        echo "creating $CONTAINER from $IMAGE…" >&2
         # The account exists for public images; a missing credsStore otherwise
         # fails every pull (2026-11-15).
         docker run -d --name "$CONTAINER" \
             -e POSTGRES_PASSWORD=comfort -e POSTGRES_DB=comfort \
             -p 5432:5432 "$IMAGE" >/dev/null
     fi
-    wait_ready || { echo "postgres did not become ready in 60s" >&2; exit 1; }
-    migrate
+    if ! wait_ready; then
+        echo "postgres did not become ready in 60s" >&2
+        return 1
+    fi
+    migrate >&2
     echo "export DATABASE_URL=$URL"
+}
+
+case "${1:-}" in
+up)
+    start
     ;;
 down)
     running && { echo "stopping $CONTAINER…"; docker stop "$CONTAINER" >/dev/null; }
