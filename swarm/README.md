@@ -1,8 +1,8 @@
 # Swarm harness — usage
 
-A free-first CrewAI swarm that implements `specs/` tasks one at a time
-(`specs/009-swarm-harness/`, hardened by `specs/012-dark-factory-harness/` and the
-run guards of `specs/026-run-guards/`). Each phase is a small crew with its own
+A free-first CrewAI swarm that implements `specs/product/` tasks one at a time
+(`specs/harness/009-swarm-harness/`, hardened by `specs/harness/012-dark-factory-harness/` and the
+run guards of `specs/harness/026-run-guards/`). Each phase is a small crew with its own
 model role; a CrewAI Flow (`swarm/flow.py`) sequences them and owns every
 decision that must not be made by a model — retries, scope, green, commit.
 Green comes from gate exit codes queued by QA, never from a model's prose; the

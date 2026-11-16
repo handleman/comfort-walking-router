@@ -1928,7 +1928,10 @@ class SwarmFlow(Flow[SwarmState]):
         if not record["enabled"]:
             return
         try:
-            spec_md = (REPO_ROOT / "specs" / self._spec_dir / "spec.md").read_text()
+            from swarm.spec_loader import resolve_spec_dir
+
+            path = resolve_spec_dir(REPO_ROOT, self._spec_dir)
+            spec_md = (path / "spec.md").read_text() if path is not None else ""
         except OSError:
             spec_md = ""
         ac_text = "\n".join(ac_paragraphs(spec_md, task.ac_refs))
@@ -4238,7 +4241,7 @@ def _runnable_spec(name: str) -> bool:
 
     if name in HARNESS_SPECS:
         return False
-    return spec_kind(REPO_ROOT, name) != "control-plane"
+    return spec_kind(REPO_ROOT, name) != "harness"
 
 
 HARNESS_SPECS = (
@@ -4258,19 +4261,22 @@ HARNESS_SPECS = (
     "025-durable-journal",
     "026-run-guards",
     "027-e2e-self-heal",
+    "030-operator-runbooks",
     "031-dashboard-update",
     "032-spec-kind",
     "033-planner-coder-chain",
+    "034-spec-folders",
 )
 
 
 def _spec_after(repo_root: Path, current_dir: str) -> str | None:
     """Next spec dir (directory order) that has tasks, skipping harness specs."""
-    specs = repo_root / "specs"
+    from swarm.spec_loader import iter_spec_dirs
+
     names = sorted(
         p.name
-        for p in specs.iterdir()
-        if p.is_dir() and (p / "tasks.md").is_file() and _runnable_spec(p.name)
+        for p in iter_spec_dirs(repo_root)
+        if (p / "tasks.md").is_file() and _runnable_spec(p.name)
     )
     return _next_after(names, current_dir)
 
@@ -4394,17 +4400,14 @@ def _next_todo(all_ids: list[str], todo_ids: list[str], current: str) -> str | N
 
 def _first_open_task(repo_root: Path, skip: tuple[str, str] | None = None) -> tuple[str, str] | None:
     """Earliest unchecked, not-done, not-parked task across the queue (wrap-around)."""
-    from swarm.spec_loader import load_spec_tasks, task_key
+    from swarm.spec_loader import iter_spec_dirs, load_spec_tasks, task_key
 
-    specs = repo_root / "specs"
-    if not specs.is_dir():
-        return None
     parked = _retry_later_keys(repo_root)
     fallback: tuple[str, str] | None = None
     for name in sorted(
         p.name
-        for p in specs.iterdir()
-        if p.is_dir() and (p / "tasks.md").is_file() and _runnable_spec(p.name)
+        for p in iter_spec_dirs(repo_root)
+        if (p / "tasks.md").is_file() and _runnable_spec(p.name)
     ):
         try:
             spec_path, tasks = load_spec_tasks(repo_root, name, None)

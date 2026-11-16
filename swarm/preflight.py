@@ -402,27 +402,24 @@ def check(
 
 
 def spec_kind_notes(repo_root: Path | None = None) -> list[str]:
-    """Informational drift between the `kind` files and HARNESS_SPECS (032)."""
+    """Informational drift between the spec folders/`kind` files and HARNESS_SPECS (034)."""
     from swarm.flow import HARNESS_SPECS
-    from swarm.spec_loader import spec_kind
+    from swarm.spec_loader import iter_spec_dirs, spec_kind
 
     root = Path(repo_root or REPO_ROOT)
-    specs = root / "specs"
-    if not specs.is_dir():
-        return []
     notes: list[str] = []
-    for path in sorted(p for p in specs.iterdir() if p.is_dir()):
+    for path in iter_spec_dirs(root):
         if not (path / "tasks.md").is_file():
             continue
         kind = spec_kind(root, path.name)
-        if kind == "control-plane" and path.name not in HARNESS_SPECS:
+        if kind == "harness" and path.name not in HARNESS_SPECS:
             notes.append(
-                f"{path.name} is control-plane but not in HARNESS_SPECS "
+                f"{path.name} is harness but not in HARNESS_SPECS "
                 "(the queue still skips it by kind)"
             )
-        if path.name in HARNESS_SPECS and kind != "control-plane":
+        if path.name in HARNESS_SPECS and kind != "harness":
             notes.append(
-                f"{path.name} is in HARNESS_SPECS but declares no control-plane kind"
+                f"{path.name} is in HARNESS_SPECS but does not resolve to a harness spec"
             )
     return notes
 

@@ -1,7 +1,9 @@
 # Spec Template
 
-Copy to `specs/NNN-name/spec.md` and create `specs/NNN-name/kind` containing
-`product` (the queue runs it) or `control-plane` (the queue never runs it).
+Copy to `specs/product/NNN-name/spec.md` (a work item for the comfort route
+guide) or `specs/harness/NNN-name/spec.md` (swarm machinery; the queue never
+runs it). A one-line `kind` file (`product` or `harness`) is the backstop for a
+legacy flat dir.
 
 ## What / Why
 

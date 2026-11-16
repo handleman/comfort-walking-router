@@ -129,23 +129,38 @@ def e2e_recorded(
     }
 
 
+# A brief that only *reads* an e2e helper ("Read `frontend/e2e/helpers.ts`")
+# documents the suite; it does not write it (030-T2, 2026-11-16). These verbs
+# mark a reference clause.
+_READ_VERBS = frozenset(
+    {
+        "read", "explain", "document", "describe", "reference", "see", "note",
+        "summarise", "summarize", "outline", "mention", "cover", "mirror",
+        "compare", "quote", "list",
+    }
+)
+_E2E_PATH_RE = re.compile(r"frontend/e2e/[\w./-]+")
+_CLAUSE_RE = re.compile(r"[.;\n]")
+
+
 def e2e_required(brief: str, changed: Iterable[str] = ()) -> bool:
     """True when this task owns a `frontend/e2e/` file (026 AC-8).
 
     The delta is authoritative: a task that actually touched an e2e file needs a
-    recorded run (010-T4). The brief is the planning-time proxy, but only for
-    its *deliverable* — the first-named path, the object of the leading
-    `Write`/`Update`/… verb. A docs page that merely *reads* an e2e helper
-    (`Write docs/…; read frontend/e2e/helpers.ts`) is not an e2e task; 030-T2
-    stopped `e2e_unclassified` on 2026-11-16 because the old check read the
-    mention instead of the deliverable.
+    recorded run (010-T4). The brief is the planning-time proxy: an e2e path
+    counts unless the clause naming it is a *reference* — "Read
+    `frontend/e2e/helpers.ts`" documents the suite, it does not write it, and
+    030-T2 stopped `e2e_unclassified` on 2026-11-16 because the old check read
+    the mention instead of the ownership.
     """
     if "frontend/e2e/" in " ".join(str(path) for path in changed).replace("\\", "/"):
         return True
-    from swarm.prompts import brief_paths
-
-    paths = brief_paths(brief)
-    return bool(paths) and paths[0].replace("\\", "/").startswith("frontend/e2e/")
+    text = (brief or "").replace("\\", "/")
+    for match in _E2E_PATH_RE.finditer(text):
+        clause = _CLAUSE_RE.split(text[: match.start()])[-1].lower()
+        if not (_READ_VERBS & set(re.findall(r"[a-z]+", clause))):
+            return True
+    return False
 
 
 def e2e_enabled(env: Any = None) -> bool:

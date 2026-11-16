@@ -24,10 +24,11 @@ def step_target(step: str) -> str | None:
 
 def task_files(repo: Path, spec_dir: str) -> dict[str, set[str]]:
     """`task id → files its brief names`, from the spec's `tasks.md`."""
-    from swarm.spec_loader import parse_tasks_md
+    from swarm.spec_loader import parse_tasks_md, resolve_spec_dir
 
     try:
-        text = (repo / "specs" / spec_dir / "tasks.md").read_text()
+        path = resolve_spec_dir(repo, spec_dir)
+        text = (path / "tasks.md").read_text() if path is not None else ""
     except OSError:
         return {}
     return {task.id: set(prompts.brief_paths(task.brief)) for task in parse_tasks_md(text)}

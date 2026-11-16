@@ -233,7 +233,10 @@ def _spec_artifacts(repo: Path, sha: str, spec: str) -> tuple[str, str]:
     for name, current in (("spec", spec_text), ("plan", plan_text)):
         if current is None:
             try:
-                fallback = (REPO_ROOT / "specs" / spec / f"{name}.md").read_text()
+                from swarm.spec_loader import resolve_spec_dir
+
+                path = resolve_spec_dir(REPO_ROOT, spec)
+                fallback = (path / f"{name}.md").read_text() if path is not None else ""
             except OSError:
                 fallback = ""
             if name == "spec":

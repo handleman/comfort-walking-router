@@ -413,7 +413,10 @@ def agent_copy(task: SpecTask | None, kind: str) -> dict[str, str]:
 def _read_artifacts(spec_dir: str) -> tuple[str, str]:
     if not spec_dir:
         return "", ""
-    base = REPO_ROOT / "specs" / spec_dir
+    from swarm.spec_loader import resolve_spec_dir
+
+    path = resolve_spec_dir(REPO_ROOT, spec_dir)
+    base = path if path is not None else REPO_ROOT / "specs" / spec_dir
     out = []
     for name in ("spec.md", "plan.md"):
         try:

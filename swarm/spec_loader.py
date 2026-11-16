@@ -1,4 +1,4 @@
-"""Parse specs/<id>/{spec,plan,tasks}.md into task objects (009 T3, AC-3). No LLM."""
+"""Parse `specs/<kind>/<id>/{spec,plan,tasks}.md` into task objects (009 T3, AC-3). No LLM."""
 
 from __future__ import annotations
 
@@ -33,20 +33,37 @@ def parse_tasks_md(text: str, *, include_done: bool = False) -> list[SpecTask]:
     return out
 
 
-def spec_kind(repo_root: Path, spec: str) -> str:
-    """`product` | `control-plane`, from `specs/<dir>/kind` (032).
+KINDS = ("product", "harness")
+# 032 used `control-plane` as the marker value; 034 renamed it to `harness` (the
+# folder name). A legacy flat `kind` file may still say `control-plane`.
+_KIND_ALIASES = {"product": "product", "harness": "harness", "control-plane": "harness"}
 
-    A spec that does not say it is control-plane is a product spec: the queue
-    must never digest the harness, but defaulting the unknown to control-plane
-    would silently stop running real work. The file is a sidecar on purpose — it
-    is outside `spec_plan_hash`, so adding it cannot reopen a green task.
+
+def iter_spec_dirs(repo_root: Path) -> list[Path]:
+    """Every spec directory: `specs/product/*`, `specs/harness/*`, and any legacy
+    flat `specs/<name>/` (the pre-034 layout, still used by the unit tests)."""
+    specs = Path(repo_root) / "specs"
+    out: list[Path] = []
+    for kind in KINDS:
+        base = specs / kind
+        if base.is_dir():
+            out.extend(sorted(p for p in base.iterdir() if p.is_dir()))
+    if specs.is_dir():
+        out.extend(sorted(p for p in specs.iterdir() if p.is_dir() and p.name not in KINDS))
+    return out
+
+
+def resolve_spec_dir(repo_root: Path, spec: str) -> Path | None:
+    """Canonical spec directory for a name or a unique numeric prefix.
+
+    `spec` is always a leaf name (`007-live-position`) or a prefix (`007`), so
+    the search is over the two kind folders and any legacy flat dirs.
     """
-    name = spec_dir_name(repo_root, spec)
-    try:
-        text = (Path(repo_root) / "specs" / name / "kind").read_text().strip()
-    except OSError:
-        return "product"
-    return "control-plane" if text == "control-plane" else "product"
+    exact = [p for p in iter_spec_dirs(repo_root) if p.name == spec]
+    if len(exact) == 1:
+        return exact[0]
+    prefix = [p for p in iter_spec_dirs(repo_root) if p.name.startswith(spec)]
+    return prefix[0] if len(prefix) == 1 else None
 
 
 def spec_dir_name(repo_root: Path, spec: str) -> str:
@@ -56,14 +73,28 @@ def spec_dir_name(repo_root: Path, spec: str) -> str:
     records `spec: "007"` in run.json, but the flow and the parked-task list use
     the directory name. Normalising once keeps `retry_later` honest.
     """
-    specs = repo_root / "specs"
+    path = resolve_spec_dir(repo_root, spec)
+    return path.name if path is not None else spec
+
+
+def spec_kind(repo_root: Path, spec: str) -> str:
+    """`product` | `harness` (034). The folder is authoritative; a `kind` file is
+    the backstop for a legacy flat dir (032's marker, which predates the split).
+
+    A spec that does not say it is harness is a product spec: the queue must
+    never digest the harness, but defaulting the unknown to harness would
+    silently stop running real work.
+    """
+    path = resolve_spec_dir(repo_root, spec)
+    if path is None:
+        return "product"
+    if path.parent.name in KINDS:
+        return path.parent.name
     try:
-        if (specs / spec).is_dir():
-            return spec
-        matches = sorted(p.name for p in specs.iterdir() if p.is_dir() and p.name.startswith(spec))
+        text = (path / "kind").read_text().strip()
     except OSError:
-        return spec
-    return matches[0] if len(matches) == 1 else spec
+        return "product"
+    return _KIND_ALIASES.get(text, "product")
 
 
 def task_key(repo_root: Path, spec: str, task: str) -> str:
@@ -78,12 +109,9 @@ def load_spec_tasks(
     *,
     include_done: bool = False,
 ) -> tuple[Path, list[SpecTask]]:
-    specs = repo_root / "specs"
-    spec_path = specs / spec_dir
-    if not spec_path.is_dir():
-        matches = sorted(p for p in specs.iterdir() if p.is_dir() and p.name.startswith(spec_dir))
-        if len(matches) == 1:
-            spec_path = matches[0]
+    spec_path = resolve_spec_dir(repo_root, spec_dir)
+    if spec_path is None:
+        raise FileNotFoundError(spec_dir)
     tasks = parse_tasks_md((spec_path / "tasks.md").read_text(), include_done=include_done)
     if task_filter:
         tasks = [t for t in tasks if t.id == task_filter]

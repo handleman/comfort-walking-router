@@ -4,7 +4,7 @@
 
 ## How the swarm builds its todo list
 
-The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `004-…`, …):
+The queue comes from `specs/product/*/tasks.md`, sorted by directory name (`001-…`, `004-…`, …):
 
 - `swarm/spec_loader.py` parses **only unchecked tasks** with this shape:
   `- [ ] T1 (AC-1, AC-2): brief text`
@@ -12,9 +12,9 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
   parser, and ids must be `T1`, `T2`, … — `T1a` is not recognized.
 - Task order in the file is the execution order (`T1` → `T2` → …). After the last task, the
   loop moves to the next spec directory with tasks.
-- Skipped automatically: `009-swarm-harness`, `012-dark-factory-harness`, `013-dark-factory-phase-2`, directories without
+- Skipped automatically: everything under `specs/harness/` (`009-swarm-harness`, `012-dark-factory-harness`, `013-dark-factory-phase-2`, …), directories without
   `tasks.md`, and specs whose tasks are all `[x]`/have no parseable tasks.
-- The planner reads `specs/<dir>/{spec,plan,tasks}.md` plus the constitution. The `brief` it
+- The planner reads `specs/<kind>/<dir>/{spec,plan,tasks}.md` plus the constitution. The `brief` it
   receives is the text after the colon on the task line; indented notes below the line are fine
   but do not replace the brief.
 - Progress between invocations comes from `swarm/runs/` history (`_resume_point`): latest green
@@ -26,7 +26,8 @@ The queue comes from `specs/*/tasks.md`, sorted by directory name (`001-…`, `0
 
 ## Adding a spec to the swarm todo list
 
-1. Create `specs/NNN-name/` (`NNN` controls queue position) with:
+1. Create `specs/product/NNN-name/` (`NNN` controls queue position; a harness spec goes in
+   `specs/harness/NNN-name/` and is never run) with:
    - `spec.md` — what/why, scope, acceptance criteria using stable ids (`AC-1`, `AC-2`, …).
    - `plan.md` — approach, ordered steps, risks; name the files you expect to change.
    - `tasks.md` — the queue (see format below).

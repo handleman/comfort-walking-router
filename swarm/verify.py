@@ -167,7 +167,10 @@ def task_line(spec_dir: str, task_id: str) -> str:
     from swarm import prompts
 
     try:
-        text = (prompts.REPO_ROOT / "specs" / spec_dir / "tasks.md").read_text()
+        from swarm.spec_loader import resolve_spec_dir
+
+        path = resolve_spec_dir(prompts.REPO_ROOT, spec_dir)
+        text = (path / "tasks.md").read_text() if path is not None else ""
     except OSError:
         return ""
     for line in text.splitlines():
@@ -393,10 +396,13 @@ def scenario_context(
     Every file that fits is included *whole*; every file that does not is
     listed by name and size, never silently dropped.
     """
+    from swarm.spec_loader import resolve_spec_dir
     from swarm.tools_guarded import is_secret_path
 
     root = Path(repo_root)
-    spec_path = root / "specs" / spec_dir
+    spec_path = resolve_spec_dir(root, spec_dir)
+    if spec_path is None:
+        spec_path = root / "specs" / spec_dir
     brief = str(getattr(task, "brief", "") or "")
     ac_refs = [str(ref) for ref in getattr(task, "ac_refs", ()) or ()]
     acs = ac_paragraphs(_read_text(spec_path / "spec.md"), ac_refs)
