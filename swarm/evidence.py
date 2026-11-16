@@ -130,9 +130,22 @@ def e2e_recorded(
 
 
 def e2e_required(brief: str, changed: Iterable[str] = ()) -> bool:
-    """True when the brief (or the delta) names a `frontend/e2e/` file."""
-    text = f"{brief or ''} " + " ".join(str(path) for path in changed)
-    return "frontend/e2e/" in text.replace("\\", "/")
+    """True when this task owns a `frontend/e2e/` file (026 AC-8).
+
+    The delta is authoritative: a task that actually touched an e2e file needs a
+    recorded run (010-T4). The brief is the planning-time proxy, but only for
+    its *deliverable* — the first-named path, the object of the leading
+    `Write`/`Update`/… verb. A docs page that merely *reads* an e2e helper
+    (`Write docs/…; read frontend/e2e/helpers.ts`) is not an e2e task; 030-T2
+    stopped `e2e_unclassified` on 2026-11-16 because the old check read the
+    mention instead of the deliverable.
+    """
+    if "frontend/e2e/" in " ".join(str(path) for path in changed).replace("\\", "/"):
+        return True
+    from swarm.prompts import brief_paths
+
+    paths = brief_paths(brief)
+    return bool(paths) and paths[0].replace("\\", "/").startswith("frontend/e2e/")
 
 
 def e2e_enabled(env: Any = None) -> bool:

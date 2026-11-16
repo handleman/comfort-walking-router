@@ -360,3 +360,17 @@ def test_the_e2e_check_honours_the_off_switch(tmp_path, monkeypatch):
     stub = _e2e_flow(tmp_path)
     monkeypatch.setenv("SWARM_E2E_EVIDENCE", "0")
     assert stub._e2e_state() == {}
+
+
+def test_a_docs_brief_that_mentions_the_helper_is_not_an_e2e_task():
+    """030-T2 documented `frontend/e2e/helpers.ts` and was asked for a suite run."""
+    from swarm import evidence
+
+    # The deliverable (first-named path) is a docs page; the e2e helper is a
+    # read reference, so no recorded Playwright run is required.
+    brief = "Write `docs/runbooks/e2e-suite.md`; read `frontend/e2e/helpers.ts`."
+    assert not evidence.e2e_required(brief)
+    # A task whose deliverable is an e2e file still requires it.
+    assert evidence.e2e_required("Update `frontend/e2e/helpers.ts`.")
+    # A delta touching the suite always requires it, whatever the brief says.
+    assert evidence.e2e_required("", ["frontend/e2e/x.spec.ts"])
