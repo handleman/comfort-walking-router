@@ -245,3 +245,47 @@ def test_the_e2e_note_honours_the_off_switch(monkeypatch):
     task = _task("Acceptance: `frontend/e2e/search.spec.ts`.")
     monkeypatch.setenv("SWARM_E2E_EVIDENCE", "0")
     assert "playwright" not in prompts.qa_prompt(task, "010-x", "summary")
+
+
+# ---- 033: the planner reads plan.md and decomposes intent, not code ----
+
+_PLAN_SPEC = "# spec\n## AC-2\n- [ ] AC-2: scorer\n## AC-3\n- [ ] AC-3: test\n"
+_PLAN_MD = "# plan\n- write `app/scoring.py`\n- add a test in `tests/test_scoring.py`\n"
+
+
+def test_plan_prompt_carries_the_plan_when_enabled(monkeypatch):
+    monkeypatch.setenv("SWARM_PLAN_USE_MD", "1")
+    monkeypatch.setattr(prompts, "_read_artifacts", lambda spec_dir: (_PLAN_SPEC, _PLAN_MD))
+    text = prompts.plan_prompt(_task(), "001-example-app")
+    assert "PLAN (the approach, already decided" in text
+    assert "write `app/scoring.py`" in text
+    assert "ACCEPTANCE CRITERIA" in text
+
+
+def test_plan_prompt_drops_the_plan_when_off(monkeypatch):
+    monkeypatch.setenv("SWARM_PLAN_USE_MD", "0")
+    monkeypatch.setattr(prompts, "_read_artifacts", lambda spec_dir: (_PLAN_SPEC, _PLAN_MD))
+    text = prompts.plan_prompt(_task(), "001-example-app")
+    assert "PLAN (the approach" not in text
+    assert "write `app/scoring.py`" not in text
+    # the ACs stay (the planner decomposes one criterion per step either way)
+    assert "ACCEPTANCE CRITERIA" in text
+
+
+def test_plan_rules_forbid_inventing_api_names():
+    assert "NEVER invent a function, import path or field name" in prompts.PLAN_RULES
+    assert "one acceptance criterion each" in prompts.PLAN_RULES
+    assert "name the import path and the functions it calls" not in prompts.PLAN_RULES
+
+
+def test_step_prompt_names_the_step_an_intent():
+    text = prompts.step_prompt(_task(), "001-example-app", "render the route", 1, 3)
+    assert "logical step 1/3" in text
+    assert "render the route" in text
+    assert "micro-step" not in text.lower()
+
+
+def test_plan_md_lines_is_empty_without_a_plan(monkeypatch):
+    monkeypatch.setenv("SWARM_PLAN_USE_MD", "1")
+    monkeypatch.setattr(prompts, "_read_artifacts", lambda spec_dir: ("# spec\n", ""))
+    assert prompts.plan_md_lines(_task(), "001-example-app") == []

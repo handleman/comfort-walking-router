@@ -59,6 +59,8 @@ class SwarmState(BaseModel):
     senior_rounds: int = 0
     transcript: str = ""
     plan_reused: bool = False
+    plan_src: str = ""  # 033: cached | plan.md | derived
+    plan_steps: int = 0
     quota_note: str = ""
     budget_note: str = ""
     review_verdict: str = ""
@@ -3217,18 +3219,30 @@ class SwarmFlow(Flow[SwarmState]):
 
         try:
             plan_text = ""
+            plan_src = "derived"
             if cache.is_file() and not self._replan:
                 cached = read_cached_plan(cache, source_hash)
                 if _resolve_steps(cached):
                     # Proven plan for the current spec content: skip re-planning.
                     plan_text = cached
                     self.state.plan_reused = True
+                    plan_src = "cached"
+            if plan_src != "cached":
+                # 033: the planner prompt included plan.md only when lines were
+                # actually fed (off, no plan, or no matching lines → derived).
+                from swarm import prompts as _prompts
+
+                plan_src = (
+                    "plan.md" if _prompts.plan_md_lines(task, self._spec_dir) else "derived"
+                )
             for _ in range(PLAN_ATTEMPTS):
                 if _resolve_steps(plan_text):
                     break
                 plan_crew, _ = _kickoff(lambda: build_plan_crew(self._spec_dir, task))
                 plan_text = _plan_text(plan_crew)
             steps = _resolve_steps(plan_text)
+            self.state.plan_src = plan_src
+            self.state.plan_steps = len(steps)
             from swarm import plan_scope
 
             steps, trimmed_steps = plan_scope.scope_steps(
@@ -4018,6 +4032,8 @@ class SwarmFlow(Flow[SwarmState]):
             "quota_note": self.state.quota_note,
             "quota": self.state.quota,
             "plan_reused": self.state.plan_reused,
+            "plan_src": self.state.plan_src,
+            "plan_steps": self.state.plan_steps,
             "review_verdict": self.state.review_verdict,
             "review_note": self.state.review_note,
             "judges": self.state.judges,

@@ -41,6 +41,15 @@ def coder_acs_enabled(env: dict[str, str] | None = None) -> bool:
     source = os.environ if env is None else env
     return str(source.get(CODER_ACS_ENV, "0")).strip().lower() in {"1", "true", "yes"}
 MAX_PLAN_LINES = 12
+# 033: the planner decomposes the human plan.md instead of re-deriving the
+# approach. `0` restores the derive-from-ACs prompt (A/B only).
+PLAN_USE_MD_ENV = "SWARM_PLAN_USE_MD"
+
+
+def plan_use_md(env: dict[str, str] | None = None) -> bool:
+    source = os.environ if env is None else env
+    return str(source.get(PLAN_USE_MD_ENV, "1")).strip().lower() not in {"0", "false", "no", "off"}
+
 
 _BACKTICK_PATH_RE = re.compile(r"`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`")
 _BARE_PATH_RE = re.compile(
@@ -171,6 +180,8 @@ LOOSE_STEP_RULES = (
 )
 
 STEP_RULES = (
+    "The step names intent, not code: you choose the implementation, read the "
+    "real modules and use their real API. "
     "Before you write code for an existing module, read that module once and use "
     "its REAL exported API — never invent a function, store or field. If the API "
     "you need does not exist, add it in this task's scope instead of calling "
@@ -217,14 +228,11 @@ FIX_READ_RULES = (
 )
 
 PLAN_RULES = (
-    "Split the task into MICRO-STEPS for a tiny coder model (each step: one file, "
-    "one exact edit, independently executable). Read the spec documents first. "
-    "Before a step touches an existing module, read that module so the step names "
-    "its REAL exported API — a step that writes a test must name the module under "
-    "test, the import path to use and the functions it calls. Never plan a call to "
-    "a function you have not seen, and never plan a test that re-declares the code "
-    "under test. "
-    "Output format (exact, one per line): `STEP n: <file> — <one precise action>`. "
+    "Decompose the plan into LOGICAL steps, one acceptance criterion each. For "
+    "each step: what the step achieves, and at most which files it may touch. "
+    "NEVER invent a function, import path or field name — the coder reads the "
+    "real module and decides how. Read the spec documents first. "
+    "Output format (exact, one per line): `STEP n: <intent> — <files, optional>`. "
     f"4–{MAX_STEPS} steps. No other text. Loop rules (hard): at most 6 tool calls, "
     "then write the answer; never read the same file twice; `ls` instead of guessing paths."
 )
@@ -528,7 +536,7 @@ def stable_prefix(task: SpecTask, spec_dir: str = "", kind: str = "step") -> str
     """
     scenario = kind == "verifier"
     coder = kind in {"step", "fix", "selfcheck", "senior", "senior_step"}
-    ac = scenario or (coder and coder_acs_enabled())
+    ac = scenario or (coder and coder_acs_enabled()) or kind == "plan"
     scope_line = ""
     if scenario:
         from swarm.verify import task_line
@@ -571,7 +579,7 @@ def step_prompt(task: SpecTask, spec_dir: str, step_text: str, idx: int, total: 
     frozen = tests_first.frozen_note()
     return (
         stable_prefix(task, spec_dir, "step")
-        + f"\n\nExecute micro-step {idx}/{total} (no other work):\n{step_text[:2000]}\n"
+        + f"\n\nExecute logical step {idx}/{total} (no other work):\n{step_text[:2000]}\n"
         + (f"{frozen}\n" if frozen else "")
         + f"Result: one line per file changed by step {idx}."
     )
@@ -675,11 +683,30 @@ def test_author_prompt(task: SpecTask, spec_dir: str, ac_text: str = "") -> str:
     )
 
 
+def plan_md_lines(task: SpecTask, spec_dir: str) -> list[str]:
+    """The plan.md lines the planner would decompose ([] when off or no plan).
+
+    033: the planner reads the human plan instead of re-deriving the approach.
+    `SWARM_PLAN_USE_MD=0` restores the derive-from-ACs prompt. The flow reuses
+    this to record `plan_src == "plan.md"`.
+    """
+    if not plan_use_md():
+        return []
+    _, plan_md = _read_artifacts(spec_dir)
+    if not plan_md:
+        return []
+    from swarm.verify import plan_lines
+
+    return plan_lines(plan_md, task, brief_paths(task.brief))[:MAX_PLAN_LINES]
+
+
 def plan_prompt(task: SpecTask, spec_dir: str) -> str:
-    return (
-        stable_prefix(task, spec_dir, "plan")
-        + "\n\nResult: the STEP lines only."
-    )
+    parts = [stable_prefix(task, spec_dir, "plan")]
+    lines = plan_md_lines(task, spec_dir)
+    if lines:
+        parts.append("PLAN (the approach, already decided — decompose, do not re-derive):")
+        parts.extend(f"- {line}" for line in lines)
+    return "\n\n".join(parts) + "\n\nResult: the STEP lines only."
 
 
 # ---------------------------------------------------------------------------
