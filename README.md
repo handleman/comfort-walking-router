@@ -68,9 +68,24 @@ Single app test:
 .venv/bin/python -m pytest tests/test_route_api.py::test_route_matches_contract -v
 ```
 
-Last verified 2026-11-15: **170 app tests + 676 harness tests** pass, ruff/mypy/svelte-check clean, Vite build OK. `make e2e` runs against `vite preview` + a fixture backend (`ROUTE_FIXTURES=1`): 4 passed, 3 skipped (prefs needs `DATABASE_URL`), 3 failed — the walk-mode specs, which need 007-T10.
+Last verified 2026-11-16: **214 app tests + 724 harness tests** pass, ruff/mypy clean, Vite build OK, `make e2e` **12 passed** (fixture backend + `vite preview`).
 
 The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
+
+## Verification
+
+| Command | Proves |
+| --- | --- |
+| `make test` | 214 app pytest (route contract, comfort scoring, saved-routes DB paths). |
+| `make lint` | `ruff check .` — style + enabled static rules. |
+| `make typecheck` | `mypy app tests` — backend type safety. |
+| `make swarm-test` | 724 harness unit tests (queue, guards, prompts, ledger). |
+| `make e2e` | 12 Playwright — user scenarios in a browser, against fixtures. |
+| `make smoke-live` | one real Munich route through the live providers. |
+| `make swarm-preflight` | models/keys/venvs/gates usable before the first LLM call. |
+
+Runbooks: [local-postgres](docs/runbooks/local-postgres.md), [e2e-suite](docs/runbooks/e2e-suite.md),
+[verification](docs/runbooks/verification.md). Harness internals: [`swarm/docs/`](swarm/docs/).
 
 ## Geocoding (spec 014)
 
