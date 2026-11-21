@@ -289,3 +289,19 @@ def test_plan_md_lines_is_empty_without_a_plan(monkeypatch):
     monkeypatch.setenv("SWARM_PLAN_USE_MD", "1")
     monkeypatch.setattr(prompts, "_read_artifacts", lambda spec_dir: ("# spec\n", ""))
     assert prompts.plan_md_lines(_task(), "001-example-app") == []
+
+
+# ---- 041: the coder/planner handle restructure tasks ----
+
+def test_step_rules_say_remove_the_old_code():
+    assert "REMOVE the old code you replace" in prompts.STEP_RULES
+    assert "never leave a duplicate" in prompts.STEP_RULES
+
+
+def test_step_rules_say_land_an_in_scope_change():
+    assert "Every step must leave an in-scope file change" in prompts.STEP_RULES
+
+
+def test_plan_rules_split_restructures_into_atomic_steps():
+    assert "restructure/refactor" in prompts.PLAN_RULES
+    assert "each land a concrete file change" in prompts.PLAN_RULES

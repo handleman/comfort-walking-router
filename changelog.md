@@ -1,5 +1,6 @@
 # Changelog
 
+- Swarm restructure support (041): `STEP_RULES` now says a step that replaces code must **remove the old code** (no duplicates) and that **every step must leave an in-scope file change**; `PLAN_RULES` says a restructure/refactor splits into atomic steps that each land a concrete file change (naming the exact file + action). This targets the 040 UI-restructure failures (6×: `correction_reverted` from leaving the old form, and `no_delta` from steps that analysed but never landed). 730 harness tests.
 ## 2026-11-21
 - Swarm autonomy: the coder can now install frontend dependencies itself (037) — `npm --prefix frontend install|ci|add <pkg>` is allowlisted in `_valid_npm` (was blocked), prefix-locked and meta-free, with a second `--prefix`/`--global` still refused and `npx`/`npm exec` still blocked; `SWARM_NPM_INSTALL=0` restores the block. This unblocks the 036 UI-overhaul foundation (Svelte 5, Tailwind, shadcn-svelte) so the swarm can upgrade its own deps. Recorded tradeoff: package install scripts run under the coder's session (the coder already executes code in the gates). 726 harness tests.
 ## 2026-11-17
