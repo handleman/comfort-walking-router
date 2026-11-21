@@ -45,6 +45,8 @@
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
   import Attribution from './lib/components/Attribution.svelte'
   import TopSearchCard from './lib/components/TopSearchCard.svelte'
+  import BottomDrawer from './lib/components/BottomDrawer.svelte'
+  import ControlsContent from './lib/components/ControlsContent.svelte'
   import type { Suggestion } from './lib/search/suggestions'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
   import type { PickRole } from './lib/map/picker'
@@ -143,8 +145,8 @@
 
   let arrival: ArrivalStatus | null = null
   let arrivalDismissed = false
-  let drawerOpen = false
-  let sidebarCollapsed = false
+  let drawerOpen = false // mobile drawer starts collapsed
+  let sidebarCollapsed = false // desktop sidebar keeps its own toggle state
 
   function evaluateArrival(sample: ArrivalSample) {
     if (!endCoords) return
@@ -1147,46 +1149,5 @@
     font-size: 0.85rem;
     font-style: italic;
     color: #666;
-  }
-
-  /* Mobile bottom drawer: collapsed by default, only visible below 768px so the
-     sidebar and drawer are never shown at the same size. */
-  .bottom-drawer {
-    display: none;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-    background: #fff;
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
-  }
-
-  @media not all and (min-width: 768px) {
-    .bottom-drawer {
-      display: block;
-    }
-  }
-
-  .drawer-toggle {
-    width: 100%;
-    border: none;
-    border-bottom: 1px solid #ddd;
-    background: #fff;
-    padding: 0.6rem 1rem;
-    text-align: left;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .drawer-body {
-    display: none;
-    max-height: 60vh;
-    overflow-y: auto;
-    padding: 1rem;
-  }
-
-  .bottom-drawer.open .drawer-body {
-    display: block;
   }
 </style>
