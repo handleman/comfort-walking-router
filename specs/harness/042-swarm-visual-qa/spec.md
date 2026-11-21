@@ -30,10 +30,13 @@ findings, so a visually broken UI can never be "green".
   `playwright.config.ts` already boots a fixture backend + `vite preview`. It can
   screenshot desktop and mobile viewports and inspect the DOM (e.g.
   `.leaflet-tile` count, duplicate selectors).
-- **Vision models** with image input are available (`opencode/nemotron-3.5-super-vl-free`,
-  `gemini-4-argon`, `gpt-6-luna`, `claude-*`, `grok-4.7`) — so the agent can
-  actually *look* at the screenshot and describe/flag issues, not just count
-  tiles.
+- **Vision models** with image input are available and priced per 1M tokens
+  (input is what matters — screenshots are token-heavy): **`opencode/nemotron-3.5-super-vl-free`**
+  is **free** ($0/$0) and explicitly vision-language; `claude-haiku-5-5`/`gpt-6-luna`
+  are $0.10/M in / $0.50/M out; the rest (`gemini-4-argon`, `grok-4.7`,
+  `claude-sonnet-5-5`, …) are $2–8/M in. So the agent can *look* at the
+  screenshot and describe/flag issues — the free VL model is the cost-effective
+  pick, with `claude-haiku-5-5` as the fallback.
 - **Mobile widths**: emulate with Playwright's viewport (or a temporary iframe) —
   the same technique the AGENTS.md visual-check rule prescribes.
 
@@ -69,9 +72,10 @@ findings, so a visually broken UI can never be "green".
 - **AC-2 — Deterministic visual checks.** It checks map tiles loaded, no
   duplicated form/controls, and the controls are visually separated; these are
   recorded as pass/fail in `run.json.visual_qa`.
-- **AC-3 — Vision interpretation.** The screenshots are given to a
-  vision-capable model that flags obvious visual breakage (blank map, overlapping
-  controls, dead buttons); its findings are recorded.
+- **AC-3 — Vision interpretation.** The screenshots are given to
+  **`opencode/nemotron-3.5-super-vl-free`** (free, vision-language; fallback
+  `claude-haiku-5-5`) which flags obvious visual breakage (blank map, overlapping
+  controls, dead buttons); its findings are recorded in `run.json.visual_qa`.
 - **AC-4 — Blocks green.** A visually broken task is not green: it stops with a
   typed reason (`visual_blocked`) or runs the correction path, like the verifier.
 - **AC-5 — Off switch.** `SWARM_VISUAL_QA=0` disables it (A/B).
