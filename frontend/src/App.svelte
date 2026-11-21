@@ -45,7 +45,6 @@
   import { DRIFT_DISTANCE_THRESHOLD_M, distanceToRouteMeters } from './lib/navigation/drift'
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
   import Attribution from './lib/components/Attribution.svelte'
-  import SearchInput from './lib/components/SearchInput.svelte'
   import TopSearchCard from './lib/components/TopSearchCard.svelte'
   import type { Suggestion } from './lib/search/suggestions'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
@@ -122,6 +121,7 @@
 
   let arrival: ArrivalStatus | null = null
   let arrivalDismissed = false
+  let drawerOpen = false
 
   function evaluateArrival(sample: ArrivalSample) {
     if (!endCoords) return
@@ -720,6 +720,128 @@
       {/if}
     </Step>
   </aside>
+
+  <!-- Mobile bottom drawer: same controls as the desktop sidebar, shown only
+       below 768px so the sidebar and drawer are never visible together. -->
+  <section class="bottom-drawer" class:open={drawerOpen} aria-label="Walk controls">
+    <button
+      type="button"
+      class="drawer-toggle"
+      aria-expanded={drawerOpen}
+      on:click={() => (drawerOpen = !drawerOpen)}
+    >
+      {drawerOpen ? '▾ Hide controls' : '▴ Show controls'}
+    </button>
+    <div class="drawer-body">
+      {#if route}
+        <p class="stats">
+          {Math.round(route.duration_s / 60)} min ·
+          {(route.distance_m / 1000).toFixed(2)} km · arrival {Math.round(route.duration_s / 60)} min
+          · comfort {route.comfort_score}/100
+        </p>
+      {/if}
+      <section class="prefs">
+        <h2>Preferences</h2>
+        <button type="button" on:click={togglePrefs}>
+          {showPrefs ? 'Hide preferences' : 'Edit preferences'}
+        </button>
+        {#if showPrefs && prefs}
+          <label>
+            Default preference
+            <select bind:value={prefs.default_preference}>
+              <option value="hot">Hot — prefer shade</option>
+              <option value="cloudy">Cloudy — prefer sun</option>
+            </select>
+          </label>
+          <label><input type="checkbox" bind:checked={prefs.prefer_lit} /> Prefer lit streets</label
+          >
+          <label
+            ><input type="checkbox" bind:checked={prefs.avoid_traffic} /> Avoid busy roads</label
+          >
+          <button type="button" on:click={() => handlePrefsSave()}>Save preferences</button>
+        {/if}
+        {#if prefsError}
+          <p class="error">{prefsError}</p>
+        {/if}
+      </section>
+      <section class="saved-routes">
+        <h2>Saved routes</h2>
+        {#if savedError}
+          <p class="error">{savedError}</p>
+        {/if}
+        {#if savedRoutes.length === 0}
+          <p class="empty">No saved routes yet.</p>
+        {:else}
+          <ul class="saved-list">
+            {#each savedRoutes as saved (saved.id)}
+              <li>
+                <span class="saved-name">{saved.name}</span>
+                <span class="saved-actions">
+                  <button type="button" on:click={() => handleRecall(saved.id)}>Recall</button>
+                  <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+      <Step label="Plan" active={currentStep === 'plan'}>
+        <form on:submit|preventDefault={submitRoute}>
+          <p class="hint">Set origin and destination on the map search card above.</p>
+          <label>
+            Preference
+            <select bind:value={preference}>
+              <option value="">No preference</option>
+              <option value="hot">Hot — prefer shade</option>
+              <option value="cloudy">Cloudy — prefer sun</option>
+            </select>
+          </label>
+          <label><input type="checkbox" bind:checked={manualOverride} /> Manual override</label>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Routing…' : 'Find route'}
+          </button>
+        </form>
+      </Step>
+      {#if error}
+        <p class="error">{error}</p>
+      {/if}
+      <Step label="Review" active={currentStep === 'review'}>
+        {#if route}
+          <section class="result">
+            <div class="chip">
+              {route.preference_source === 'manual'
+                ? `Manual: ${route.applied_preference}`
+                : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
+            </div>
+            <button type="button" on:click={handleSaveRoute}>Save route</button>
+            <h2>{route.name}</h2>
+            <p class="stats">
+              {(route.distance_m / 1000).toFixed(2)} km ·
+              {Math.round(route.duration_s / 60)} min
+            </p>
+            <p class="score">comfort {route.comfort_score}/100</p>
+            <Attribution text={route.attribution ?? suggestionAttribution} />
+          </section>
+        {/if}
+      </Step>
+      <Step label="Walk" active={currentStep === 'walk'}>
+        <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
+        {#if !route}
+          <p class="empty">Plan a route first, then start the walk from the Review step.</p>
+        {/if}
+        {#if arrival?.arrived && !arrivalDismissed}
+          <ArrivalCard
+            distanceMeters={arrival.distanceMeters}
+            durationMinutes={route ? route.duration_s / 60 : 0}
+            comfortScore={route ? route.comfort_score : 0}
+            topFactors={route ? route.explanation.slice(0, 3) : []}
+            onDismiss={dismissArrival}
+            onPlanAnother={planAnotherWalk}
+          />
+        {/if}
+      </Step>
+    </div>
+  </section>
 </main>
 
 <style>
@@ -738,7 +860,9 @@
     overflow: hidden;
   }
 
+  /* Desktop sidebar: floating overlay above the map, hidden below 768px */
   aside {
+    display: none;
     position: absolute;
     top: 0;
     right: 0;
@@ -747,6 +871,12 @@
     background: #fff;
     z-index: 1000;
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+
+  @media (min-width: 768px) {
+    aside {
+      display: block;
+    }
   }
 
   aside {
@@ -980,11 +1110,6 @@
     color: #444;
   }
 
-  #map {
-    min-height: 400px;
-    height: 100vh;
-  }
-
   /* 014 T6: the picker toggles this class on the Leaflet container at runtime.
      `:global` keeps Svelte from pruning a selector it cannot see in markup. */
   :global(#map.crosshair) {
@@ -1070,14 +1195,44 @@
     color: #666;
   }
 
-  @media (max-width: 720px) {
-    main {
-      grid-template-columns: 1fr;
-    }
+  /* Mobile bottom drawer: collapsed by default, only visible below 768px so the
+     sidebar and drawer are never shown at the same size. */
+  .bottom-drawer {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    background: #fff;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+  }
 
-    #map {
-      height: 60vh;
-      min-height: 320px;
+  @media (max-width: 767px) {
+    .bottom-drawer {
+      display: block;
     }
+  }
+
+  .drawer-toggle {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid #ddd;
+    background: #fff;
+    padding: 0.6rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .drawer-body {
+    display: none;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 1rem;
+  }
+
+  .bottom-drawer.open .drawer-body {
+    display: block;
   }
 </style>

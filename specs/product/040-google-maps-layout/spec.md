@@ -64,14 +64,17 @@ The layout is **responsive** — one rule decides where the controls live:
 - **AC-2 — Floating top card.** The origin/destination fields render as one
   card over the map top (origin = my-location dot + "My location", destination =
   red pin), with a drag-handle divider and `⋯`/`↑↓` actions — the ONLY form.
-- **AC-3 — Responsive controls.** On mobile the controls are a collapsed bottom
-  drawer; on desktop they are a sidebar; the sidebar is present **only** on
-  desktop. Both hold the route summary (duration · distance · arrival · terrain),
-  Preferences, Saved routes and the action buttons.
-- **AC-4 — Geolocation default start.** With location granted, the origin shows
+- **AC-3 — Responsive shell.** The sidebar is rendered **only** on desktop
+  (≥768px) and a bottom drawer **only** on mobile (<768px); on mobile the map
+  is the only main surface. Never both at once.
+- **AC-4 — Controls content.** The sidebar and the drawer each hold the route
+  summary (duration · distance · arrival · terrain), Preferences, Saved routes
+  and the action buttons; the drawer is collapsed by default. No transport-mode
+  selector.
+- **AC-5 — Geolocation default start.** With location granted, the origin shows
   the current position and the map centres on it.
-- **AC-5 — Material icons.** All glyphs use inlined Material Symbols SVGs.
-- **AC-6 — No regression.** `make e2e`, `npm run check`, `npm test` stay green;
+- **AC-6 — Material icons.** All glyphs use inlined Material Symbols SVGs.
+- **AC-7 — No regression.** `make e2e`, `npm run check`, `npm test` stay green;
   the e2e hooks (`.comfort-band`, `.comfort-legend`, `button.walk-start`, the
   search input) still resolve.
 
