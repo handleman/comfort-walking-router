@@ -1,8 +1,9 @@
 # 036 UI Overhaul — Tasks
 
-- [ ] T1 (AC-5): Add Tailwind CSS v4 to `frontend/` — the Vite plugin in `frontend/vite.config.ts` and `@import "tailwindcss"` in `frontend/src/app.css` — and hand-roll three small primitives with Tailwind classes: `frontend/src/lib/components/ui/Button.svelte`, `frontend/src/lib/components/ui/Card.svelte`, `frontend/src/lib/components/ui/Collapsible.svelte`. Keep the Leaflet map and the comfort-band colours unchanged; `npm run build` and `npm run check` green. No Svelte-5 migration, no shadcn-svelte.
-- [ ] T2 (AC-1): Refactor `frontend/src/App.svelte` into a three-step flow. Create `frontend/src/lib/components/Step.svelte` with `export let label: string`, `export let active = false`, and a `<slot/>` that renders a labelled section. Add `let currentStep: 'plan' | 'review' | 'walk' = 'plan'` and render only the step whose `label` matches `currentStep`. Wrap the existing Start/End `<form>` in `<Step label="Plan">`; wrap the whole `{#if route}` result block (chip, save, stats, score, legend, segments, `WalkControls`, factors) in `<Step label="Review">`; wrap `WalkControls` plus the `{#if arrival?.arrived && !arrivalDismissed}` `ArrivalCard` in `<Step label="Walk">`. After a successful route set `currentStep = 'review'`; when the walk starts set `currentStep = 'walk'`. Keep the e2e hooks and comfort classes.
-- [ ] T3 (AC-2): Collapse Preferences and Saved routes behind their headers (closed by default, expand in place); `loadSaved`/`loadPrefs` still run on mount.
-- [ ] T4 (AC-3): Move "use my location" inline with the Start field (a locate button beside the input); keep the ⌖ "pick on map" buttons; remove the standalone locate notice.
-- [ ] T5 (AC-4): Responsive — keep the desktop two-column layout (controls left, map right) as the primary experience; below ~768 px the map is full-bleed and the controls become a bottom sheet/panel over it.
-- [ ] T6 (AC-6): Run `make e2e`, `npm run check`, `npm test` and fix any regression; confirm the e2e hooks (`.comfort-band`, `.comfort-legend`, `button.walk-start`, the search input) still resolve.
+- [x] T1 (AC-5): Add Tailwind CSS v4 to `frontend/` — the Vite plugin in `frontend/vite.config.ts` and `@import "tailwindcss"` in `frontend/src/app.css` — and hand-roll three small primitives with Tailwind classes: `frontend/src/lib/components/ui/Button.svelte`, `frontend/src/lib/components/ui/Card.svelte`, `frontend/src/lib/components/ui/Collapsible.svelte`. Keep the Leaflet map and the comfort-band colours unchanged; `npm run build` and `npm run check` green. (Done, green.)
+
+T2–T6 are **superseded by `specs/product/040-google-maps-layout/`**: the
+Google-Maps layout (full-bleed map, floating top card, collapsed bottom drawer,
+geolocation default start, Material icons) replaces this spec's 3-step flow and
+covers the collapse / locate / responsive / verify work there. T1 (the Tailwind
+foundation) is kept and reused.
