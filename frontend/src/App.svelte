@@ -88,6 +88,7 @@
   let savedError = ''
   let prefsError = ''
   let locateError = ''
+  let didCenterOnUser = false
   let currentMarker: L.Marker | null = null
   let walkerMarker: L.Marker | null = null
   let startCoords: [number, number] | null = null
@@ -210,6 +211,12 @@
     locateError = ''
     if (!map) return
     const { lat, lng } = e.latlng
+    // Center once on the first fix, then keep the view where the user put it
+    // (the watch must not yank the map around while they browse a route).
+    if (!didCenterOnUser) {
+      didCenterOnUser = true
+      map.setView([lat, lng], 16)
+    }
     if (currentMarker) {
       currentMarker.setLatLng([lat, lng])
     } else {
