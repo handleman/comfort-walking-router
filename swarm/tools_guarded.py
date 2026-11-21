@@ -510,7 +510,7 @@ class ShellArgs(BaseModel):
 
 
 SHELL_META = set(";&|<>`$()\n\r")
-ALLOWED_COMMANDS = {"pytest", "ruff", "mypy", "git", "ls", "cat", "grep", "npm"}
+ALLOWED_COMMANDS = {"pytest", "ruff", "mypy", "git", "ls", "cat", "grep", "npm", "npx"}
 GATE_BINARIES = frozenset({"pytest", "ruff", "mypy"})
 # npm scripts that are gates (QA-only). `build` stays available to coders as a
 # compile check; `check`/`lint`/`test` are verification, not development.
@@ -694,6 +694,25 @@ def npm_install_enabled(env: dict[str, str] | None = None) -> bool:
     return str(source.get("SWARM_NPM_INSTALL", "1")).strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _valid_npx(argv: list[str]) -> bool:
+    """Only the shadcn-svelte CLI (037 follow-up): the UI overhaul needs it to
+    copy components. `npx` otherwise is arbitrary package execution and stays out."""
+    if len(argv) < 3 or argv[1] not in {"shadcn-svelte", "shadcn-svelte@latest"}:
+        return False
+    if argv[2] == "init":
+        return all(a in {"-y", "--yes", "-d", "--defaults"} for a in argv[3:])
+    if argv[2] == "add":
+        for a in argv[3:]:
+            if a in {"-y", "--yes", "-o", "--overwrite"}:
+                continue
+            if a.startswith("-"):
+                return False
+            if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", a):
+                return False
+        return True
+    return False
+
+
 def _valid_npm(argv: list[str]) -> bool:
     if argv[1:3] != ["--prefix", "frontend"]:
         return False
@@ -739,6 +758,7 @@ VALIDATORS = {
     "cat": _valid_cat,
     "grep": _valid_grep,
     "npm": _valid_npm,
+    "npx": _valid_npx,
 }
 
 
@@ -747,10 +767,11 @@ class ShellTool(BaseTool):
     description: str = (
         "Run allowlisted argv-only commands: the project gate commands from "
         "`SWARM_GATE_COMMANDS` (QA only); `git status|diff|log` (read-only); ls, cat, grep "
-        "(read-only inspection); `npm --prefix frontend run check|build|lint|test` and "
+        "(read-only inspection); `npm --prefix frontend run check|build|lint|test`, "
         "`npm --prefix frontend install|ci|add <pkg>` (frontend deps only, "
-        "`SWARM_NPM_INSTALL=0` disables) for this repo. 120s timeout, repo cwd. No shell "
-        "metacharacters, absolute paths, '..', .env/key files, or npx/npm exec."
+        "`SWARM_NPM_INSTALL=0` disables), and `npx shadcn-svelte init|add` (component "
+        "copy only) for this repo. 120s timeout, repo cwd. No shell metacharacters, "
+        "absolute paths, '..', .env/key files, or npm exec."
     )
     args_schema: type[BaseModel] = ShellArgs
     timeout: int = 120

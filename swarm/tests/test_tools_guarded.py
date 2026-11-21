@@ -140,3 +140,13 @@ def test_npm_install_still_guarded(monkeypatch):
     # off switch restores the block
     monkeypatch.setenv("SWARM_NPM_INSTALL", "0")
     assert not _valid_npm(["npm", "--prefix", "frontend", "install"])
+
+
+def test_npx_shadcn_svelte_allowlist():
+    from swarm.tools_guarded import _valid_npx
+
+    assert _valid_npx(["npx", "shadcn-svelte@latest", "add", "button", "card"])
+    assert _valid_npx(["npx", "shadcn-svelte", "init", "-y"])
+    assert not _valid_npx(["npx", "some-other-pkg", "add", "x"])
+    assert not _valid_npx(["npx", "shadcn-svelte@latest", "add", "--evil-flag"])
+    assert not _valid_npx(["npx", "shadcn-svelte@latest", "add", "../escape"])
