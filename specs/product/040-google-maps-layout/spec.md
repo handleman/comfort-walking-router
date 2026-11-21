@@ -1,7 +1,7 @@
 # 040 Google-Maps Layout — Spec
 
 Product spec (the comfort route guide). Supersedes 036's 3-step flow; reuses its
-Tailwind foundation (036-T1, green).
+Tailwind foundation (036-T1, green). **Status: queued for the swarm (T1–T5).**
 
 ## Problem
 

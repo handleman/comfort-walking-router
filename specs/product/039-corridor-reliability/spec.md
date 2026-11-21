@@ -1,6 +1,6 @@
 # 039 Corridor Reliability — Spec
 
-Product spec (the comfort route guide).
+Product spec (the comfort route guide). **Status: queued for the swarm (T1).**
 
 ## Problem
 

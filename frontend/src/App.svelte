@@ -33,7 +33,7 @@
     attribution?: string
   }
 
-  import { onMount } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
   import { checkArrival } from './lib/navigation/arrival'
@@ -46,6 +46,7 @@
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
   import Attribution from './lib/components/Attribution.svelte'
   import SearchInput from './lib/components/SearchInput.svelte'
+  import TopSearchCard from './lib/components/TopSearchCard.svelte'
   import type { Suggestion } from './lib/search/suggestions'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
   import type { PickRole } from './lib/map/picker'
@@ -155,6 +156,13 @@
 
   onMount(() => {
     map = L.map(mapElement).setView([48.137, 11.575], 12)
+    // Full-bleed map: re-measure whenever the viewport or overlay panel
+    // changes the container's size (Leaflet caches the initial dimensions).
+    const resizeObserver = new ResizeObserver(() => {
+      map?.invalidateSize()
+    })
+    resizeObserver.observe(mapElement)
+    onDestroy(() => resizeObserver.disconnect())
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution:
@@ -500,6 +508,19 @@
     }
   }
 
+  /** Swap origin and destination (queries, selections, coords). */
+  function swapEndpoints() {
+    const startQuery = start
+    start = end
+    end = startQuery
+    const startSel = startSuggestion
+    startSuggestion = endSuggestion
+    endSuggestion = startSel
+    const startC = startCoords
+    startCoords = endCoords
+    endCoords = startC
+  }
+
   async function togglePrefs() {
     showPrefs = !showPrefs
     if (showPrefs && !prefs) {
@@ -530,7 +551,23 @@
 <svelte:window on:keydown={onKeydown} />
 
 <main>
-  <aside>
+  <div id="map" bind:this={mapElement}></div>
+
+  {#if currentStep === 'plan'}
+    <TopSearchCard
+      extraClass="top-card"
+      bind:startQuery={start}
+      bind:endQuery={end}
+      bind:startSelected={startSuggestion}
+      bind:endSelected={endSuggestion}
+      {activePick}
+      on:pick={(e) => beginPick(e.detail)}
+      on:swap={swapEndpoints}
+      on:more={() => (showPrefs = !showPrefs)}
+    />
+  {/if}
+
+  <aside class="overlay-panel">
     <h1>Comfort Walking Router</h1>
 
     <ol class="step-indicator" aria-live="polite">
@@ -573,42 +610,7 @@
     {/if}
     <Step label="Plan" active={currentStep === 'plan'}>
       <form on:submit|preventDefault={submitRoute}>
-        <label>
-          Start
-          <span class="pick-row">
-            <SearchInput
-              placeholder="e.g. Marienplatz, Munich"
-              required
-              bind:query={start}
-              bind:selected={startSuggestion}
-            />
-            <button
-              type="button"
-              class="pick-btn"
-              aria-pressed={activePick === 'start'}
-              aria-label="Pick start on map"
-              on:click={() => beginPick('start')}>⌖</button
-            >
-          </span>
-        </label>
-        <label>
-          End
-          <span class="pick-row">
-            <SearchInput
-              placeholder="e.g. Englischer Garten"
-              required
-              bind:query={end}
-              bind:selected={endSuggestion}
-            />
-            <button
-              type="button"
-              class="pick-btn"
-              aria-pressed={activePick === 'end'}
-              aria-label="Pick end on map"
-              on:click={() => beginPick('end')}>⌖</button
-            >
-          </span>
-        </label>
+        <p class="hint">Set origin and destination on the map search card above.</p>
         {#if activePick}
           <p class="pick-hint" role="status">
             {pickHint(activePick)}{pickBusy ? ' (locating…)' : ' — Esc to cancel'}
@@ -718,8 +720,6 @@
       {/if}
     </Step>
   </aside>
-
-  <div id="map" bind:this={mapElement}></div>
 </main>
 
 <style>
@@ -732,9 +732,143 @@
   }
 
   main {
-    display: grid;
-    grid-template-columns: minmax(280px, 360px) 1fr;
-    min-height: 100vh;
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  aside {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(360px, 90vw);
+    background: #fff;
+    z-index: 1000;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+
+  aside {
+    padding: 1rem;
+    overflow-y: auto;
+    border-right: 1px solid #ddd;
+  }
+
+  .hint {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0 0 0.5rem;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+    margin-top: 0;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  input,
+  select,
+  button {
+    font: inherit;
+    padding: 0.5rem;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+
+  .error {
+    color: #b00020;
+  }
+
+  .saved-routes {
+    margin-top: 1.5rem;
+  }
+
+  .saved-list {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .saved-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .saved-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .saved-actions {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .empty {
+    font-size: 0.85rem;
+    color: #666;
+  }
+
+  .chip {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #eef;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+  }
+
+  .stats {
+    font-weight: 600;
+  }
+
+  .score {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1a7f37;
+  }
+
+  .factors {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+    color: #444;
+  }
+
+  #map {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    width: 100%;
   }
 
   aside {
