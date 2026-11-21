@@ -61,6 +61,7 @@ ERROR_CODES = {
     404: "not_found",
     422: "validation_error",
     502: "bad_gateway",
+    503: "service_unavailable",
     504: "gateway_timeout",
 }
 

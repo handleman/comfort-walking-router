@@ -54,7 +54,18 @@ def _prefs_repo() -> Any:
 def bearer_holder(
     authorization: str | None = Header(default=None),
 ) -> str:
-    """FastAPI dependency: bearer token -> holder_id (401 when invalid)."""
+    """FastAPI dependency: bearer token -> holder_id (401 when invalid).
+
+    Without a database the saved-routes feature is off: a clean 503, not a 500
+    stack trace (035 deployed with no DATABASE_URL on 2026-11-21).
+    """
+    from app import db as app_db
+
+    if not app_db.DATABASE_URL:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Saved routes are unavailable: DATABASE_URL is not configured",
+        )
     if not authorization or not authorization.lower().startswith("bearer "):
         raise _UNAUTHORIZED
     token = authorization.split(" ", 1)[1].strip()
