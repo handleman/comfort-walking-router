@@ -85,8 +85,8 @@
         ? `Manual: ${route.applied_preference}`
         : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
     </div>
-    <button type="button" on:click={onSaveRoute}>Save route</button>
     <h2>{route.name}</h2>
+    <!-- Summary row: duration · distance · arrival time · terrain/comfort -->
     <p class="stats">
       {Math.round(route.duration_s / 60)} min ·
       {(route.distance_m / 1000).toFixed(2)} km · arrival {formatArrivalTime(route.duration_s)} · terrain
@@ -159,7 +159,15 @@
     <ul class="saved-list">
       {#each savedRoutes as saved (saved.id)}
         <li>
-          <span class="saved-name">{saved.name}</span>
+          <span class="saved-info">
+            <span class="saved-name">{saved.name}</span>
+            <span class="saved-meta">
+              {(saved.snapshot.distance_m / 1000).toFixed(2)} km ·
+              {Math.round(saved.snapshot.duration_s / 60)} min · saved {new Date(
+                saved.created_at,
+              ).toLocaleDateString()}
+            </span>
+          </span>
           <span class="saved-actions">
             <button type="button" on:click={() => onRecall(saved.id)}>Recall</button>
             <button type="button" on:click={() => onDelete(saved.id)}>Delete</button>
@@ -174,6 +182,11 @@
 
 <section class="walk" aria-labelledby="walk-title">
   <h2 id="walk-title">Walk</h2>
+  {#if route}
+    <div class="actions">
+      <button type="button" on:click={onSaveRoute}>Save route</button>
+    </div>
+  {/if}
   <WalkControls route={walkRoute} {profile} />
   {#if !route}
     <p class="empty">Plan a route first, then start the walk.</p>
