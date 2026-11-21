@@ -4,7 +4,14 @@
  * global fetch; no local re-declaration of the code under test.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { pickHint, reverseLabel, togglePickRole, type PickRole } from './picker'
+import {
+  pickHint,
+  reverseLabel,
+  swapPickRoles,
+  togglePickRole,
+  type PickRole,
+  type PickedLocation,
+} from './picker'
 
 describe('pick role toggle (spec 014, T6, AC-3)', () => {
   it('activates a role from idle', () => {
@@ -30,6 +37,34 @@ describe('pickHint', () => {
       expect(pickHint(role)).toContain(fragment)
       expect(pickHint(role)).toContain('Esc')
     }
+  })
+})
+
+describe('swapPickRoles (spec 040, T8, AC-2 — ↑↓ origin/destination swap)', () => {
+  const start: PickedLocation = { role: 'start', lat: 52.52, lng: 13.405, label: 'Berlin' }
+  const end: PickedLocation = { role: 'end', lat: 48.135, lng: 11.582, label: 'Munich' }
+
+  it('exchanges start and end, keeping roles correct', () => {
+    const { start: s, end: e } = swapPickRoles(start, end)
+    expect(s).toEqual({ role: 'start', lat: 48.135, lng: 11.582, label: 'Munich' })
+    expect(e).toEqual({ role: 'end', lat: 52.52, lng: 13.405, label: 'Berlin' })
+  })
+
+  it('does not mutate the inputs', () => {
+    swapPickRoles(start, end)
+    expect(start.label).toBe('Berlin')
+    expect(end.label).toBe('Munich')
+  })
+
+  it('is an involution: swapping twice restores the original', () => {
+    const once = swapPickRoles(start, end)
+    expect(swapPickRoles(once.start, once.end)).toEqual({ start, end })
+  })
+
+  it('is a no-op when either side is unset', () => {
+    expect(swapPickRoles(start, null)).toEqual({ start, end: null })
+    expect(swapPickRoles(null, end)).toEqual({ start: null, end })
+    expect(swapPickRoles(null, null)).toEqual({ start: null, end: null })
   })
 })
 
