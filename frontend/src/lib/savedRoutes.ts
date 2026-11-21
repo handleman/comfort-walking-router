@@ -100,6 +100,7 @@ export async function saveRoute(name: string, snapshot: RouteSnapshot): Promise<
 /** GET all saved routes for this token. */
 export async function listRoutes(): Promise<SavedRoute[]> {
   const res = await fetch('/saved-routes', { headers: authHeaders() })
+  if (res.status === SERVICE_UNAVAILABLE) return []
   return handle<SavedRoute[]>(res)
 }
 
@@ -121,6 +122,7 @@ export async function deleteRoute(id: string): Promise<void> {
 /** GET the user's preferences. */
 export async function getPrefs(): Promise<Prefs> {
   const res = await fetch('/saved-routes/prefs', { headers: authHeaders() })
+  if (res.status === SERVICE_UNAVAILABLE) return NO_DB_PREFS
   return handle<Prefs>(res)
 }
 
