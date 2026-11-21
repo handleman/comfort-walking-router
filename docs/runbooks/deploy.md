@@ -13,9 +13,10 @@ there is no CORS and no API-base-URL to configure.
    service from `Dockerfile` (builds the frontend, then serves it from FastAPI).
 3. Set the secrets in the service's **Environment** tab (never commit them):
    - `MAPBOX_TOKEN` — required (Mapbox walking geometry + geocoding).
-   - `DATABASE_URL` — optional. A Neon free-tier connection string enables the
-     saved-routes feature; without it those endpoints answer 5xx and the app
-     says so.
+   - `DATABASE_URL` — optional. A **Render free Postgres** connection string (or
+     Neon's free tier) enables the saved-routes feature; without it those
+     endpoints answer 5xx and the app says so. Render's URL is `postgres://…`
+     — paste it as-is (the app normalises it).
    - `OVERPASS_MIRROR_URL` — optional, a mirror for the OSM corridor lookup.
 4. Open the service's `.onrender.com` URL on the phone. The first load after
    idle takes ~1 min (cold start); warm it by opening it once before walking.
@@ -33,8 +34,10 @@ there is no CORS and no API-base-URL to configure.
 - **Ephemeral disk:** the SQLite route cache resets on deploy/restart, so the
   first route after a cold start re-fetches providers (a few extra seconds).
 - **Bandwidth:** 5 GB/month. A personal walk uses a few MB.
-- **Saved-routes:** Render's free Postgres expires (30 days); use Neon's free
-  tier for a persistent DB, or leave `DATABASE_URL` unset.
+- **Saved-routes:** Render's free Postgres **expires 30 days** after creation
+  (then 14 days grace, then deleted — no backups). Fine for a demo, but saved
+  routes are lost each cycle. Neon's free tier has no expiry if you want
+  persistence. Either way, leave `DATABASE_URL` unset to keep the feature off.
 
 ## Local verification
 

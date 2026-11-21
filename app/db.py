@@ -10,11 +10,14 @@ def sqlalchemy_url() -> str:
 
     SQLAlchemy 2 maps a bare `postgresql://` to psycopg2, which this project does
     not install (it uses psycopg 3). Alembic and the tests go through here.
+    Render hands out `postgres://` URLs, so both schemes are normalised.
     """
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is not configured; cannot connect")
     if DATABASE_URL.startswith("postgresql://"):
         return "postgresql+psycopg://" + DATABASE_URL.removeprefix("postgresql://")
+    if DATABASE_URL.startswith("postgres://"):
+        return "postgresql+psycopg://" + DATABASE_URL.removeprefix("postgres://")
     return DATABASE_URL
 
 
