@@ -51,3 +51,9 @@ Hard-won lessons from real runs — read before "fixing" the swarm. See [GLOSSAR
 - **A cap that cannot fire is worse than no cap.** A paid planner + paid coder made `estimate_run_cost` return `None`, which silently disabled `SWARM_MAX_COST_PER_TASK`, and the dashboard showed `unknown` with no reason. Cost is priced per model now, and `usage.cost_unknown` + `unpriced_models` + the budget note name the model whose price is missing.
 - **A walled provider is not a fallback.** 014-T10 burned 54 `429 free-models-per-day` errors and 20 minutes because the chain still offered providers with no key and every role retried the wall. Quota is now counted per provider with a terminal breaker, `llms._callable` filters the chain, and `make swarm-preflight` makes one 1-token call per role.
 - **A green task can be an e2e claim nobody ran.** 010-T4 was green having touched only `frontend/e2e/helpers.ts`; the suite had four setup bugs and NYC-only fixtures. A brief naming `frontend/e2e/*` now needs a recorded Playwright execution (`reason_code=e2e_missing`, `make e2e`), and preflight checks the binary exists.
+- **Name every file by its FULL path in a brief.** A brief that mentions a file
+  bare (`App.svelte`) *and* by full path (`frontend/src/App.svelte`) makes
+  `brief_paths` extract both, and the delta guard marks the bare one `missing` →
+  `delta_incomplete`, even though the coder changed the file. (036-T1's
+  `Button.svelte`, 040-T10's `App.svelte`.) Use `frontend/src/App.svelte`
+  everywhere; never a bare filename.
