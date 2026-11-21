@@ -40,6 +40,7 @@
   import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
   import type { LatLng } from './lib/navigation/interpolate'
   import WalkControls from './lib/WalkControls.svelte'
+  import Step from './lib/components/Step.svelte'
   import { clearRerouteWarning, flagOffRoute, onFix, walkMode } from './lib/walkMode'
   import { DRIFT_DISTANCE_THRESHOLD_M, distanceToRouteMeters } from './lib/navigation/drift'
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
@@ -67,6 +68,7 @@
   } from './lib/savedRoutes'
   import type { Prefs, SavedRoute } from './lib/savedRoutes'
 
+  let currentStep: 'plan' | 'review' | 'walk' = 'plan'
   let mapElement: HTMLDivElement
   let map: L.Map | null = null
   let activePick: PickRole | null = null
@@ -176,6 +178,7 @@
     const unsubscribeWalkMode = walkMode.subscribe((state) => {
       if (!map) return
       if (state.active && !wasWalkActive) {
+        currentStep = 'walk'
         map.stopLocate()
         map.locate({ watch: true, setView: false, maxZoom: 16, enableHighAccuracy: true })
       } else if (!state.active && wasWalkActive) {
@@ -365,6 +368,7 @@
         throw new Error(data.message || data.detail || `Route request failed (${response.status})`)
       }
       route = data
+      currentStep = 'review'
       lastQuery = query
       suggestionAttribution = data.attribution ?? suggestionAttribution
       drawRoute()
@@ -529,6 +533,17 @@
   <aside>
     <h1>Comfort Walking Router</h1>
 
+    <ol class="step-indicator" aria-live="polite">
+      {#each ['plan', 'review', 'walk'] as stepName (stepName)}
+        <li
+          class:active={currentStep === stepName}
+          aria-current={currentStep === stepName ? 'step' : undefined}
+        >
+          {stepName}
+        </li>
+      {/each}
+    </ol>
+
     <section class="prefs">
       <h2>Preferences</h2>
       <button type="button" on:click={togglePrefs}>
@@ -556,64 +571,66 @@
         <button type="button" class="locate-retry" on:click={retryLocate}> Use my location </button>
       </div>
     {/if}
-    <form on:submit|preventDefault={submitRoute}>
-      <label>
-        Start
-        <span class="pick-row">
-          <SearchInput
-            placeholder="e.g. Marienplatz, Munich"
-            required
-            bind:query={start}
-            bind:selected={startSuggestion}
-          />
-          <button
-            type="button"
-            class="pick-btn"
-            aria-pressed={activePick === 'start'}
-            aria-label="Pick start on map"
-            on:click={() => beginPick('start')}>⌖</button
-          >
-        </span>
-      </label>
-      <label>
-        End
-        <span class="pick-row">
-          <SearchInput
-            placeholder="e.g. Englischer Garten"
-            required
-            bind:query={end}
-            bind:selected={endSuggestion}
-          />
-          <button
-            type="button"
-            class="pick-btn"
-            aria-pressed={activePick === 'end'}
-            aria-label="Pick end on map"
-            on:click={() => beginPick('end')}>⌖</button
-          >
-        </span>
-      </label>
-      {#if activePick}
-        <p class="pick-hint" role="status">
-          {pickHint(activePick)}{pickBusy ? ' (locating…)' : ' — Esc to cancel'}
-        </p>
-      {/if}
-      {#if pickError}
-        <p class="error" role="alert">{pickError}</p>
-      {/if}
-      <label>
-        Preference
-        <select bind:value={preference}>
-          <option value="">No preference</option>
-          <option value="hot">Hot — prefer shade</option>
-          <option value="cloudy">Cloudy — prefer sun</option>
-        </select>
-      </label>
-      <label><input type="checkbox" bind:checked={manualOverride} /> Manual override</label>
-      <button type="submit" disabled={loading}>
-        {loading ? 'Routing…' : 'Find route'}
-      </button>
-    </form>
+    <Step label="Plan" active={currentStep === 'plan'}>
+      <form on:submit|preventDefault={submitRoute}>
+        <label>
+          Start
+          <span class="pick-row">
+            <SearchInput
+              placeholder="e.g. Marienplatz, Munich"
+              required
+              bind:query={start}
+              bind:selected={startSuggestion}
+            />
+            <button
+              type="button"
+              class="pick-btn"
+              aria-pressed={activePick === 'start'}
+              aria-label="Pick start on map"
+              on:click={() => beginPick('start')}>⌖</button
+            >
+          </span>
+        </label>
+        <label>
+          End
+          <span class="pick-row">
+            <SearchInput
+              placeholder="e.g. Englischer Garten"
+              required
+              bind:query={end}
+              bind:selected={endSuggestion}
+            />
+            <button
+              type="button"
+              class="pick-btn"
+              aria-pressed={activePick === 'end'}
+              aria-label="Pick end on map"
+              on:click={() => beginPick('end')}>⌖</button
+            >
+          </span>
+        </label>
+        {#if activePick}
+          <p class="pick-hint" role="status">
+            {pickHint(activePick)}{pickBusy ? ' (locating…)' : ' — Esc to cancel'}
+          </p>
+        {/if}
+        {#if pickError}
+          <p class="error" role="alert">{pickError}</p>
+        {/if}
+        <label>
+          Preference
+          <select bind:value={preference}>
+            <option value="">No preference</option>
+            <option value="hot">Hot — prefer shade</option>
+            <option value="cloudy">Cloudy — prefer sun</option>
+          </select>
+        </label>
+        <label><input type="checkbox" bind:checked={manualOverride} /> Manual override</label>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Routing…' : 'Find route'}
+        </button>
+      </form>
+    </Step>
 
     {#if error}
       <p class="error">{error}</p>
@@ -641,58 +658,65 @@
       {/if}
     </section>
 
-    {#if route}
-      <section class="result">
-        <div class="chip">
-          {route.preference_source === 'manual'
-            ? `Manual: ${route.applied_preference}`
-            : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
-        </div>
-        <button type="button" on:click={handleSaveRoute}>Save route</button>
-        <h2>{route.name}</h2>
-        <p class="stats">
-          {(route.distance_m / 1000).toFixed(2)} km ·
-          {Math.round(route.duration_s / 60)} min
-        </p>
-        <p class="score">comfort {route.comfort_score}/100</p>
-        {#if route.comfort_profile}
-          <ul class="comfort-legend">
-            {#each COMFORT_BANDS as b (b.band)}
-              <li class="comfort-band comfort-band--{b.band}">
-                <span class="comfort-swatch" style="background:{b.colour}"></span>
-                {b.band} · {b.range}/100
-              </li>
+    <Step label="Review" active={currentStep === 'review'}>
+      {#if route}
+        <section class="result">
+          <div class="chip">
+            {route.preference_source === 'manual'
+              ? `Manual: ${route.applied_preference}`
+              : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
+          </div>
+          <button type="button" on:click={handleSaveRoute}>Save route</button>
+          <h2>{route.name}</h2>
+          <p class="stats">
+            {(route.distance_m / 1000).toFixed(2)} km ·
+            {Math.round(route.duration_s / 60)} min
+          </p>
+          <p class="score">comfort {route.comfort_score}/100</p>
+          {#if route.comfort_profile}
+            <ul class="comfort-legend">
+              {#each COMFORT_BANDS as b (b.band)}
+                <li class="comfort-band comfort-band--{b.band}">
+                  <span class="comfort-swatch" style="background:{b.colour}"></span>
+                  {b.band} · {b.range}/100
+                </li>
+              {/each}
+            </ul>
+            <ul class="comfort-segments">
+              {#each comfortRuns as run, index (index)}
+                <li class="comfort-segment comfort-band--{run.band}">{formatRun(run)}</li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
+          {/if}
+          <Attribution text={route.attribution ?? suggestionAttribution} />
+          <h3>Comfort factors</h3>
+          <ul class="factors">
+            {#each route.explanation as line, index (index)}
+              <li>{line}</li>
             {/each}
           </ul>
-          <ul class="comfort-segments">
-            {#each comfortRuns as run, index (index)}
-              <li class="comfort-segment comfort-band--{run.band}">{formatRun(run)}</li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
-        {/if}
-        <Attribution text={route.attribution ?? suggestionAttribution} />
-        <WalkControls route={walkRoute} profile={route.comfort_profile ?? []} />
-        <h3>Comfort factors</h3>
-        <ul class="factors">
-          {#each route.explanation as line, index (index)}
-            <li>{line}</li>
-          {/each}
-        </ul>
-      </section>
-    {/if}
+        </section>
+      {/if}
+    </Step>
 
-    {#if arrival?.arrived && !arrivalDismissed}
-      <ArrivalCard
-        distanceMeters={arrival.distanceMeters}
-        durationMinutes={route ? route.duration_s / 60 : 0}
-        comfortScore={route ? route.comfort_score : 0}
-        topFactors={route ? route.explanation.slice(0, 3) : []}
-        onDismiss={dismissArrival}
-        onPlanAnother={planAnotherWalk}
-      />
-    {/if}
+    <Step label="Walk" active={currentStep === 'walk'}>
+      <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
+      {#if !route}
+        <p class="empty">Plan a route first, then start the walk from the Review step.</p>
+      {/if}
+      {#if arrival?.arrived && !arrivalDismissed}
+        <ArrivalCard
+          distanceMeters={arrival.distanceMeters}
+          durationMinutes={route ? route.duration_s / 60 : 0}
+          comfortScore={route ? route.comfort_score : 0}
+          topFactors={route ? route.explanation.slice(0, 3) : []}
+          onDismiss={dismissArrival}
+          onPlanAnother={planAnotherWalk}
+        />
+      {/if}
+    </Step>
   </aside>
 
   <div id="map" bind:this={mapElement}></div>
