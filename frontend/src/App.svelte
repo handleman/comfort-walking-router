@@ -40,7 +40,6 @@
   import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
   import type { LatLng } from './lib/navigation/interpolate'
   import WalkControls from './lib/WalkControls.svelte'
-  import Step from './lib/components/Step.svelte'
   import { clearRerouteWarning, flagOffRoute, onFix, walkMode } from './lib/walkMode'
   import { DRIFT_DISTANCE_THRESHOLD_M, distanceToRouteMeters } from './lib/navigation/drift'
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
@@ -68,6 +67,32 @@
   } from './lib/savedRoutes'
   import type { Prefs, SavedRoute } from './lib/savedRoutes'
 
+  function formatArrivalTime(durationS: number): string {
+    const arrival = new Date(Date.now() + durationS * 1000)
+    return arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  // Terrain: dominant comfort-profile factor by covered distance, falling back
+  // to the applied preference when no profile data is available.
+  function terrainLabel(r: Route): string {
+    if (r.comfort_profile && r.comfort_profile.length > 0) {
+      const covered = new Map<string, number>()
+      for (const seg of r.comfort_profile) {
+        covered.set(seg.factor, (covered.get(seg.factor) ?? 0) + (seg.to_m - seg.from_m))
+      }
+      let best = 'unknown'
+      let bestLen = -1
+      covered.forEach((len, factor) => {
+        if (len > bestLen) {
+          bestLen = len
+          best = factor
+        }
+      })
+      return best
+    }
+    return r.applied_preference
+  }
+
   let currentStep: 'plan' | 'review' | 'walk' = 'plan'
   let mapElement: HTMLDivElement
   let map: L.Map | null = null
@@ -81,7 +106,6 @@
   let route: Route | null = null
   let suggestionAttribution = ''
   let error = ''
-  let loading = false
   let savedRoutes: SavedRoute[] = []
   let prefs: Prefs | null = null
   let showPrefs = false
@@ -353,48 +377,6 @@
   $: walkRoute = route ? route.waypoints.map((w): LatLng => [w.lat, w.lng]) : []
   $: comfortRuns = route && route.comfort_profile ? mergeBandRuns(route.comfort_profile) : []
 
-  // The last request that produced the route on screen, so an identical repeat
-  // renders the cached result instead of a second external call (005 AC-3).
-  let lastQuery = ''
-
-  async function submitRoute() {
-    error = ''
-    const appliedPreference = prefs?.default_preference || null
-    const query = JSON.stringify([start, end, appliedPreference, startCoords, endCoords])
-    if (route && query === lastQuery) return
-    loading = true
-    try {
-      const response = await fetch('/route', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          start,
-          end,
-          preference: appliedPreference,
-          prefer_lit: prefs?.prefer_lit ?? false,
-          avoid_traffic: prefs?.avoid_traffic ?? false,
-          ...(startCoords ? { start_coords: startCoords } : {}),
-          ...(endCoords ? { end_coords: endCoords } : {}),
-        }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.message || data.detail || `Route request failed (${response.status})`)
-      }
-      route = data
-      currentStep = 'review'
-      lastQuery = query
-      suggestionAttribution = data.attribution ?? suggestionAttribution
-      drawRoute()
-    } catch (err) {
-      route = null
-      suggestionAttribution = ''
-      error = err instanceof Error ? err.message : String(err)
-    } finally {
-      loading = false
-    }
-  }
-
   function drawRoute() {
     if (!map || !route || !route.geometry) return
     if (routeLayer) {
@@ -576,17 +558,6 @@
   <aside class="overlay-panel">
     <h1>Comfort Walking Router</h1>
 
-    <ol class="step-indicator" aria-live="polite">
-      {#each ['plan', 'review', 'walk'] as stepName (stepName)}
-        <li
-          class:active={currentStep === stepName}
-          aria-current={currentStep === stepName ? 'step' : undefined}
-        >
-          {stepName}
-        </li>
-      {/each}
-    </ol>
-
     <section class="prefs">
       <h2>Preferences</h2>
       <button type="button" on:click={togglePrefs}>
@@ -614,22 +585,14 @@
         <button type="button" class="locate-retry" on:click={retryLocate}> Use my location </button>
       </div>
     {/if}
-    <Step label="Plan" active={currentStep === 'plan'}>
-      <form on:submit|preventDefault={submitRoute}>
-        <p class="hint">Set origin and destination on the map search card above.</p>
-        {#if activePick}
-          <p class="pick-hint" role="status">
-            {pickHint(activePick)}{pickBusy ? ' (locating…)' : ' — Esc to cancel'}
-          </p>
-        {/if}
-        {#if pickError}
-          <p class="error" role="alert">{pickError}</p>
-        {/if}
-        <button type="submit" disabled={loading}>
-          {loading ? 'Routing…' : 'Find route'}
-        </button>
-      </form>
-    </Step>
+    {#if activePick}
+      <p class="pick-hint" role="status">
+        {pickHint(activePick)}{pickBusy ? ' (locating…)' : ' — Esc to cancel'}
+      </p>
+    {/if}
+    {#if pickError}
+      <p class="error" role="alert">{pickError}</p>
+    {/if}
 
     {#if error}
       <p class="error">{error}</p>
@@ -657,7 +620,8 @@
       {/if}
     </section>
 
-    <Step label="Review" active={currentStep === 'review'}>
+    <section class="route-summary" aria-labelledby="route-summary-title">
+      <h2 id="route-summary-title">Route summary</h2>
       {#if route}
         <section class="result">
           <div class="chip">
@@ -668,8 +632,10 @@
           <button type="button" on:click={handleSaveRoute}>Save route</button>
           <h2>{route.name}</h2>
           <p class="stats">
-            {(route.distance_m / 1000).toFixed(2)} km ·
-            {Math.round(route.duration_s / 60)} min
+            {Math.round(route.duration_s / 60)} min ·
+            {(route.distance_m / 1000).toFixed(2)} km · arrival {formatArrivalTime(
+              route.duration_s,
+            )} · terrain {terrainLabel(route)}
           </p>
           <p class="score">comfort {route.comfort_score}/100</p>
           {#if route.comfort_profile}
@@ -698,9 +664,9 @@
           </ul>
         </section>
       {/if}
-    </Step>
+    </section>
 
-    <Step label="Walk" active={currentStep === 'walk'}>
+    <section class="walk">
       <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
       {#if !route}
         <p class="empty">Plan a route first, then start the walk from the Review step.</p>
@@ -715,7 +681,7 @@
           onPlanAnother={planAnotherWalk}
         />
       {/if}
-    </Step>
+    </section>
   </aside>
 
   <!-- Mobile bottom drawer: same controls as the desktop sidebar, shown only
@@ -730,13 +696,20 @@
       {drawerOpen ? '▾ Hide controls' : '▴ Show controls'}
     </button>
     <div class="drawer-body">
-      {#if route}
-        <p class="stats">
-          {Math.round(route.duration_s / 60)} min ·
-          {(route.distance_m / 1000).toFixed(2)} km · arrival {Math.round(route.duration_s / 60)} min
-          · comfort {route.comfort_score}/100
-        </p>
-      {/if}
+      <section class="route-summary" aria-labelledby="route-summary-title">
+        <h2 id="route-summary-title">Route summary</h2>
+        {#if route}
+          <p class="stats">
+            {Math.round(route.duration_s / 60)} min ·
+            {(route.distance_m / 1000).toFixed(2)} km · arrival {formatArrivalTime(
+              route.duration_s,
+            )} · terrain {terrainLabel(route)} · comfort {route.comfort_score}/100
+          </p>
+          <button type="button" on:click={handleSaveRoute}>Save route</button>
+        {:else}
+          <p class="empty">No route planned yet.</p>
+        {/if}
+      </section>
       <hr class="section-divider" />
       <section class="prefs" aria-labelledby="prefs-title">
         <h2 id="prefs-title">Preferences</h2>
@@ -798,47 +771,23 @@
           </ul>
         {/if}
       </section>
-      <Step label="Plan" active={currentStep === 'plan'}>
-        <p class="hint">Set origin and destination on the map search card above.</p>
-      </Step>
       {#if error}
         <p class="error">{error}</p>
       {/if}
-      <Step label="Review" active={currentStep === 'review'}>
-        {#if route}
-          <section class="result">
-            <div class="chip">
-              {route.preference_source === 'manual'
-                ? `Manual: ${route.applied_preference}`
-                : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
-            </div>
-            <button type="button" on:click={handleSaveRoute}>Save route</button>
-            <h2>{route.name}</h2>
-            <p class="stats">
-              {(route.distance_m / 1000).toFixed(2)} km ·
-              {Math.round(route.duration_s / 60)} min
-            </p>
-            <p class="score">comfort {route.comfort_score}/100</p>
-            <Attribution text={route.attribution ?? suggestionAttribution} />
-          </section>
-        {/if}
-      </Step>
-      <Step label="Walk" active={currentStep === 'walk'}>
-        <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
-        {#if !route}
-          <p class="empty">Plan a route first, then start the walk from the Review step.</p>
-        {/if}
-        {#if arrival?.arrived && !arrivalDismissed}
-          <ArrivalCard
-            distanceMeters={arrival.distanceMeters}
-            durationMinutes={route ? route.duration_s / 60 : 0}
-            comfortScore={route ? route.comfort_score : 0}
-            topFactors={route ? route.explanation.slice(0, 3) : []}
-            onDismiss={dismissArrival}
-            onPlanAnother={planAnotherWalk}
-          />
-        {/if}
-      </Step>
+      <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
+      {#if !route}
+        <p class="empty">Plan a route first, then start the walk.</p>
+      {/if}
+      {#if arrival?.arrived && !arrivalDismissed}
+        <ArrivalCard
+          distanceMeters={arrival.distanceMeters}
+          durationMinutes={route ? route.duration_s / 60 : 0}
+          comfortScore={route ? route.comfort_score : 0}
+          topFactors={route ? route.explanation.slice(0, 3) : []}
+          onDismiss={dismissArrival}
+          onPlanAnother={planAnotherWalk}
+        />
+      {/if}
     </div>
   </section>
 </main>
@@ -893,12 +842,6 @@
   h1 {
     font-size: 1.2rem;
     margin-top: 0;
-  }
-
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
   }
 
   label {
