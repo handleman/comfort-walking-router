@@ -557,14 +557,6 @@
   {/if}
 
   <aside class="overlay-panel" class:collapsed={sidebarCollapsed}>
-    <button
-      type="button"
-      class="drawer-toggle"
-      aria-expanded={!sidebarCollapsed}
-      on:click={() => (sidebarCollapsed = !sidebarCollapsed)}
-    >
-      {sidebarCollapsed ? '▴ Show controls' : '▾ Hide controls'}
-    </button>
     <h1>Comfort Walking Router</h1>
 
     <section class="prefs">
@@ -799,6 +791,19 @@
       {/if}
     </div>
   </section>
+
+  <!-- Sidebar toggle mirrors the bottom drawer's toggle (same class/aria/labels).
+       Rendered as a sibling of <aside> inside <main> so it is never clipped by
+       the aside's `overflow-y: auto` and stays on-screen/clickable when the
+       collapsed panel is translated off-screen. -->
+  <button
+    type="button"
+    class="sidebar-toggle"
+    aria-expanded={!sidebarCollapsed}
+    on:click={() => (sidebarCollapsed = !sidebarCollapsed)}
+  >
+    {sidebarCollapsed ? '▴ Show controls' : '▾ Hide controls'}
+  </button>
 </main>
 
 <style>
@@ -842,22 +847,31 @@
       transition: transform 0.25s ease;
     }
 
-    /* T10 step 5: pin the sidebar toggle just outside the aside's left edge
-       so it stays on-screen (and clickable) even when the panel itself is
-       translated off-screen by `aside.collapsed`. Scoped to `aside` so the
-       mobile drawer's `.drawer-toggle` CSS is untouched. */
-    aside .drawer-toggle {
+    /* T10 step 6: these collapse/toggle rules are scoped to this
+       min-width: 768px block only; the mobile `.bottom-drawer` and
+       `.drawer-toggle` rules below remain untouched. */
+    /* T10 step 5 (rescue): the sidebar toggle is a sibling of <aside> inside
+       <main>, absolutely positioned at the viewport's right edge so it is
+       never clipped by the aside's `overflow-y: auto` and stays on-screen
+       (and clickable) even when the panel is translated off-screen by
+       `aside.collapsed`. Scoped to this min-width: 768px block so the mobile
+       drawer's `.drawer-toggle` CSS is untouched. */
+    .sidebar-toggle {
       position: absolute;
       top: 0.5rem;
-      left: -6.5rem;
+      right: 0.5rem;
       width: 6.5rem;
       border: 1px solid #ddd;
-      border-right: none;
-      border-radius: 4px 0 0 4px;
+      border-radius: 4px;
       padding: 0.4rem 0;
       text-align: center;
+      background: #fff;
+      z-index: 1001;
+      cursor: pointer;
     }
 
+    /* T10 step 4: slide the collapsed sidebar fully off-screen (right edge),
+       with the transition above animating restore back into view. */
     aside.collapsed {
       transform: translateX(100%);
     }
