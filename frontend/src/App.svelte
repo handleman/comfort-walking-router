@@ -155,19 +155,29 @@
   }
 
   onMount(() => {
+    // Ordered bootstrap: the container exists here (Svelte has mounted it),
+    // so create the map, wire the OSM tile layer onto it, and only then
+    // attach observers/handlers. Leaflet caches the container's initial
+    // dimensions, so force one re-measure right after the layer is added.
     map = L.map(mapElement).setView([48.137, 11.575], 12)
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map)
+    // Defer to the next frame so the container has its final layout first.
+    requestAnimationFrame(() => map?.invalidateSize())
     // Full-bleed map: re-measure whenever the viewport or overlay panel
     // changes the container's size (Leaflet caches the initial dimensions).
     const resizeObserver = new ResizeObserver(() => {
       map?.invalidateSize()
     })
     resizeObserver.observe(mapElement)
-    onDestroy(() => resizeObserver.disconnect())
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map)
+    onDestroy(() => {
+      resizeObserver.disconnect()
+      map?.remove()
+      map = null
+    })
     ensureToken()
     // Continuous position fixes (spec 007, T10): watch geolocation from page
     // load so every fix fires `locationfound`, feeding onFix, the drift check,
@@ -845,8 +855,10 @@
 </main>
 
 <style>
+  :global(html),
   :global(body) {
     margin: 0;
+    height: 100%;
     font-family:
       system-ui,
       -apple-system,
