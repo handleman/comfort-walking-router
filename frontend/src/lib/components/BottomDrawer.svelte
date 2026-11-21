@@ -23,7 +23,13 @@
   </button>
 
   {#if open}
-    <div class="drawer-body" id="bottom-drawer-body" transition:slide={{ duration: 200 }}>
+    <div
+      class="drawer-body"
+      id="bottom-drawer-body"
+      role="region"
+      aria-label="Route controls"
+      transition:slide={{ duration: 200 }}
+    >
       <slot />
     </div>
   {/if}
