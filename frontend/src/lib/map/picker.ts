@@ -22,6 +22,19 @@ export function togglePickRole(current: PickRole | null, role: PickRole): PickRo
   return current === role ? null : role
 }
 
+/**
+ * Swap the origin/destination picks (the ↑↓ button): exchanges the start
+ * and end locations. Returns null when either side is unset (nothing to
+ * swap yet).
+ */
+export function swapPickRoles(
+  start: PickedLocation | null,
+  end: PickedLocation | null,
+): { start: PickedLocation | null; end: PickedLocation | null } {
+  if (!start || !end) return { start, end }
+  return { start: { ...end, role: 'start' }, end: { ...start, role: 'end' } }
+}
+
 /** Crosshair-mode hint shown while the given pick role is active. */
 export function pickHint(role: PickRole): string {
   return role === 'start'
