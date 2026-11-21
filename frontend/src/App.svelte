@@ -144,6 +144,7 @@
   let arrival: ArrivalStatus | null = null
   let arrivalDismissed = false
   let drawerOpen = false
+  let sidebarCollapsed = false
 
   function evaluateArrival(sample: ArrivalSample) {
     if (!endCoords) return
@@ -555,7 +556,15 @@
     />
   {/if}
 
-  <aside class="overlay-panel">
+  <aside class="overlay-panel" class:collapsed={sidebarCollapsed}>
+    <button
+      type="button"
+      class="drawer-toggle"
+      aria-expanded={!sidebarCollapsed}
+      on:click={() => (sidebarCollapsed = !sidebarCollapsed)}
+    >
+      {sidebarCollapsed ? '▴ Show controls' : '▾ Hide controls'}
+    </button>
     <h1>Comfort Walking Router</h1>
 
     <section class="prefs">
@@ -830,6 +839,27 @@
   @media (min-width: 768px) {
     aside {
       display: block;
+      transition: transform 0.25s ease;
+    }
+
+    /* T10 step 5: pin the sidebar toggle just outside the aside's left edge
+       so it stays on-screen (and clickable) even when the panel itself is
+       translated off-screen by `aside.collapsed`. Scoped to `aside` so the
+       mobile drawer's `.drawer-toggle` CSS is untouched. */
+    aside .drawer-toggle {
+      position: absolute;
+      top: 0.5rem;
+      left: -6.5rem;
+      width: 6.5rem;
+      border: 1px solid #ddd;
+      border-right: none;
+      border-radius: 4px 0 0 4px;
+      padding: 0.4rem 0;
+      text-align: center;
+    }
+
+    aside.collapsed {
+      transform: translateX(100%);
     }
   }
 
