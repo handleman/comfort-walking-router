@@ -121,8 +121,14 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 
 ## Spec-driven workflow
 - **Route requests by target.** A request about the *built app* (`app/`, `frontend/`, product behaviour) goes to the **swarm**: write a `spec.md` + `plan.md` + `tasks.md` under `specs/product/…` and let the queue implement it. A request to *adjust the swarm itself* (`swarm/`, the harness, its constraints) is done **directly** by the coding agent. Only small, isolated direct edits (a one-line fix, a tiny tweak) bypass the spec+plan step; everything non-trivial gets a spec first.
+- **Clarify by grilling first.** Before implementing, iteratively question the
+  user (via the `question` tool) until you have a complete, unambiguous picture
+  of what needs to be done — probe the goal, scope, priorities, edge cases,
+  expected behaviour and anything that could be interpreted two ways, like a
+  structured grilling session. Keep asking in rounds until the picture is clear;
+  do not guess or implement on ambiguity. (This is why specs are refined by
+  asking, not assumed.)
 - Spec before code: define requirements, acceptance criteria, and scope in `specs/` before implementing.
-- Clarify first: when requirements are ambiguous, ask the user targeted questions (via `question` tool, 1–2 at a time) and refine the spec docs until clear. Do not guess or implement on ambiguity.
 - Update tasks/ACs in the same change as the implementation. Record completed work and remaining blockers explicitly (see `specs/001-example-app/tasks.md` T3/T7–T10 and `specs/011-dev-run/`).
 - Keep specs small and verifiable; link implementation back to spec items.
 - Prefer editing existing files over creating new ones; keep changes minimal per spec.

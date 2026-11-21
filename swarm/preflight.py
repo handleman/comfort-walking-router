@@ -424,6 +424,45 @@ def spec_kind_notes(repo_root: Path | None = None) -> list[str]:
     return notes
 
 
+def frontend_lock_problem(repo_root: Path | None = None) -> list[Problem]:
+    """frontend/package-lock.json must be in sync with package.json (041 deploy).
+
+    `npm ci` in the Docker build is strict: a stale lock (deps added without
+    regenerating it) fails the Render deploy. Catch it here with `npm ci
+    --dry-run` so a green run can never ship a lock that won't build.
+    """
+    root = Path(repo_root or REPO_ROOT)
+    frontend = root / "frontend"
+    if not (frontend / "package.json").is_file():
+        return []
+    try:
+        p = subprocess.run(
+            ["npm", "ci", "--dry-run"],
+            cwd=frontend,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []  # npm missing here; not a preflight problem
+    if p.returncode == 0:
+        return []
+    missing = [
+        line.strip()
+        for line in (p.stdout + p.stderr).splitlines()
+        if "from lock file" in line
+    ]
+    return [
+        Problem(
+            "frontend lock",
+            "package-lock.json is out of sync with package.json (npm ci would fail). "
+            "Run `make npm-lock-check` / `npm install` in frontend/. "
+            + "; ".join(missing[:3]),
+        )
+    ]
+
+
 def database_note() -> str:
     """One informational line about the local Postgres (never a failure).
 
@@ -467,6 +506,7 @@ def main() -> int:
         print(f"spec-kind: {note}")
     problems += probe_roles(offline=args.offline)
     problems += check(offline=args.offline)
+    problems += frontend_lock_problem()
     for p in problems:
         print(f"FAIL {p}")
     if problems:

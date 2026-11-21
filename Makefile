@@ -151,6 +151,9 @@ smoke-live: ## Real providers (no fixtures): one Munich route, profile and weath
 swarm-preflight: ## Validate models/keys/Ollama/venvs/gates before a run
 	swarm/.venv/bin/python -m swarm.preflight
 
+npm-lock-check: ## Verify frontend/package-lock.json is in sync with package.json
+	cd frontend && npm ci --dry-run
+
 swarm-sandbox: ## Run the pilot in the container sandbox (repo is the only mount)
 	./swarm/sandbox.sh
 
