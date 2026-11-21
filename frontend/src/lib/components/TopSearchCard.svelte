@@ -1,30 +1,39 @@
 <script lang="ts">
   /**
-   * TopSearchCard (spec 040, task T1, AC-1/AC-2):
+   * TopSearchCard (spec 040, task T2, AC-2):
    * Presentational two-row card floating over the map. Row 1 is the
    * origin (blue my-location dot + "My location" label), row 2 is the
    * destination (red pin marker). A drag-handle divider sits between
    * the rows, and `⋯` / `↑↓` action icons live on the right. Each row
    * hosts the existing SearchInput combobox, keeping the ⌖ pick
    * buttons and the search placeholder text.
+   *
+   * Two-way contract (Svelte 4 `export let` + `bind:` in markup):
+   * - `startQuery` / `endQuery` mirror the SearchInput `query` values.
+   * - `startSelected` / `endSelected` mirror the SearchInput `selected`
+   *   values, so the host page owns the route endpoints.
+   * - `baseUrl` is forwarded one-way to the SearchInput fetcher.
+   * - `activePick` mirrors the page's active map-pick role ('start' |
+   *   'end' | null) for the ⌖ buttons' aria-pressed state.
+   * Events: `pick` (PickRole), `swap`, `more`.
    */
   import { createEventDispatcher } from 'svelte'
   import SearchInput from './SearchInput.svelte'
   import type { Suggestion } from '../search/suggestions'
   import type { PickRole } from '../map/picker'
 
-  /** Origin query text; bindable so the host form stays in sync. */
+  /** Origin query text; two-way bound with the host page. */
   export let startQuery = ''
-  /** Destination query text; bindable so the host form stays in sync. */
+  /** Destination query text; two-way bound with the host page. */
   export let endQuery = ''
-  /** Selected origin suggestion; bindable. */
+  /** Selected origin suggestion; two-way bound with the host page. */
   export let startSelected: Suggestion | null = null
-  /** Selected destination suggestion; bindable. */
+  /** Selected destination suggestion; two-way bound with the host page. */
   export let endSelected: Suggestion | null = null
-  /** Currently active map-pick role, mirrored for the ⌖ buttons. */
+  /** Currently active map-pick role ('start' | 'end' | null), two-way bound. */
   export let activePick: PickRole | null = null
 
-  /** Base URL forwarded to the SearchInput suggestion fetcher. */
+  /** Base URL forwarded one-way to the SearchInput suggestion fetcher. */
   export let baseUrl = ''
 
   /** Extra classes forwarded to the host element (e.g. positioning). */
@@ -68,6 +77,7 @@
 
   <div class="divider" role="separator" aria-label="Drag to reorder">
     <span class="drag-handle" aria-hidden="true">⠿</span>
+    <span class="divider-line" aria-hidden="true"></span>
     <span class="divider-actions">
       <button
         type="button"
@@ -182,6 +192,12 @@
     cursor: grab;
     font-size: 0.9rem;
     letter-spacing: 2px;
+  }
+
+  .divider-line {
+    flex: 1;
+    height: 1px;
+    background: #e0e0e0;
   }
 
   .divider-actions {
