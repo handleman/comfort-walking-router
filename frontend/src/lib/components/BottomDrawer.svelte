@@ -30,6 +30,8 @@
       aria-label="Route controls"
       transition:slide={{ duration: 200 }}
     >
+      <!-- Slot contract: exactly one <ControlsContent /> (the shared controls
+           used by the desktop sidebar). No inline controls here. -->
       <slot />
     </div>
   {/if}
