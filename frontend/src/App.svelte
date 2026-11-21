@@ -860,7 +860,9 @@
     overflow: hidden;
   }
 
-  /* Desktop sidebar: floating overlay above the map, hidden below 768px */
+  /* Desktop sidebar: floating overlay above the map. Single breakpoint source
+     of truth: 768px. The drawer below uses `not (min-width: 768px)` so both
+     rules derive from the same value and can never drift apart. */
   aside {
     display: none;
     position: absolute;
@@ -868,6 +870,8 @@
     right: 0;
     bottom: 0;
     width: min(360px, 90vw);
+    padding: 1rem;
+    overflow-y: auto;
     background: #fff;
     z-index: 1000;
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
@@ -877,12 +881,6 @@
     aside {
       display: block;
     }
-  }
-
-  aside {
-    padding: 1rem;
-    overflow-y: auto;
-    border-right: 1px solid #ddd;
   }
 
   .hint {
@@ -999,38 +997,6 @@
     inset: 0;
     height: 100%;
     width: 100%;
-  }
-
-  aside {
-    padding: 1rem;
-    overflow-y: auto;
-    border-right: 1px solid #ddd;
-  }
-
-  h1 {
-    font-size: 1.2rem;
-    margin-top: 0;
-  }
-
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  input,
-  select,
-  button {
-    font: inherit;
-    padding: 0.5rem;
   }
 
   button {
@@ -1208,7 +1174,7 @@
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
   }
 
-  @media (max-width: 767px) {
+  @media not all and (min-width: 768px) {
     .bottom-drawer {
       display: block;
     }
