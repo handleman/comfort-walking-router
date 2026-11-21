@@ -1,5 +1,6 @@
 import { configDefaults, defineConfig } from 'vitest/config'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
+import tailwindcss from '@tailwindcss/vite'
 
 const backend = 'http://localhost:8000'
 
@@ -15,7 +16,7 @@ const proxy = Object.fromEntries(
 )
 
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [tailwindcss(), svelte()],
   test: {
     exclude: [...configDefaults.exclude, 'e2e/**'],
   },
