@@ -42,21 +42,21 @@ standard answer for secondary panels (Preferences, Saved routes).
 1. **Pattern first, library second.** Reorganise into three steps (Plan, Review,
    Walk) with a visible step indicator, and collapse Preferences / Saved routes
    behind their headers. This is library-agnostic and is most of the fix.
-2. **Adopt Tailwind CSS + shadcn-svelte** for the visual layer (design tokens,
-   cards, buttons, collapsible, a11y). It is the Svelte-native, own-the-code
-   choice with the smallest surface for this app. *Prerequisite:* shadcn-svelte
-   targets **Svelte 5** runes; this app is on Svelte 4.2, so the foundation task
-   first migrates Svelte 4 → 5 (small app, mostly a version bump + rune cleanup).
-3. **Mobile-first:** below a breakpoint the sidebar becomes a bottom sheet /
-   scrollable panel over the map; on desktop it stays the left column.
+2. **Tailwind CSS + hand-rolled primitives** (a `Button`, `Card`, `Collapsible`,
+   and a small stepper) for the visual layer. **Svelte 5 + shadcn-svelte is
+   rejected**: the Svelte 4→5 migration broke the app at runtime (`effect_orphan`
+   — the form never rendered and 12/12 e2e failed), and the swarm failed the
+   migration twice. Svelte 4 + Tailwind keeps every UI goal without that risk.
+3. **Responsive, desktop-first:** the two-column layout (controls left, map
+   right) is primary; below ~768 px the map is full-bleed and the controls become
+   a bottom sheet/panel.
 
 ## Scope
 
 - `frontend/src/App.svelte` — restructure into the step flow + collapsible
   sections; move "use my location" inline with the Start field.
 - Responsive layout: map full-bleed on phone, controls as a panel/sheet.
-- The stepper + collapsible + button/card primitives (shadcn-svelte or
-  hand-rolled, per the decision above).
+- The stepper + collapsible + button/card primitives (hand-rolled with Tailwind).
 - Visual tokens: spacing, type scale, colour (comfort-band colours stay).
 
 ## Non-goals
