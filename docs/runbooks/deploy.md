@@ -1,5 +1,9 @@
 # Deployment runbook (035)
 
+**Live:** https://comfort-walking-router.onrender.com/ — deployed on Render's free
+tier and **auto-redeployed on every commit** pushed to `main` (the service tracks
+the branch), so each green commit ships automatically.
+
 A $0 public deployment of the walking app on Render's free web service, so the
 real GPS walk (007 AC-8) and the live map look (001 AC-2) can be done on a
 phone. One service serves both the FastAPI API and the built Svelte frontend, so
@@ -23,8 +27,9 @@ there is no CORS and no API-base-URL to configure.
 
 ## Redeploy
 
-- **On push** (if the service is set to auto-deploy) or **Manual deploy → Deploy
-  latest commit**. The build runs `npm ci && npm run build` then starts
+- **On push** — the service is set to auto-deploy from `main`, so every commit
+  redeploys automatically. To force one: **Manual deploy → Deploy latest
+  commit**. The build runs `npm ci && npm run build` then starts
   `uvicorn app.main:app`.
 
 ## Free-tier caveats (Render, 2026)

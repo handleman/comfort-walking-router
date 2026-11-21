@@ -87,6 +87,8 @@ The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not m
 Runbooks: [local-postgres](docs/runbooks/local-postgres.md), [e2e-suite](docs/runbooks/e2e-suite.md),
 [verification](docs/runbooks/verification.md), [deploy](docs/runbooks/deploy.md). Harness internals: [`swarm/docs/`](swarm/docs/).
 
+**Live deployment:** https://comfort-walking-router.onrender.com/ (Render free tier, auto-redeploys on every commit to `main`).
+
 ## Geocoding (spec 014)
 
 Address autocomplete and reverse geocoding are served by `GET /geocode?q=…` and
