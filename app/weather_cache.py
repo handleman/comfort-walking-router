@@ -4,13 +4,15 @@ import json
 import sqlite3
 from datetime import UTC, datetime
 
+from .cache import cache_file
+
 
 class WeatherCache:
     """Cache weather payloads keyed by string, with a time-to-live."""
 
-    def __init__(self, db_path="weather_cache.db", ttl_seconds=1800):
+    def __init__(self, db_path: str | None = None, ttl_seconds=1800):
         """Initialize the cache and ensure the backing table exists."""
-        self.db_path = db_path
+        self.db_path = db_path or cache_file("weather-cache.db")
         self.ttl_seconds = ttl_seconds
         self._init_db()
 

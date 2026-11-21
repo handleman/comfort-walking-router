@@ -1,6 +1,8 @@
 import json
+import os
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
 # Bump when the cached response shape changes; old rows stay in SQLite but are
 # never read again (the 2026-11-08 contract change made old geometries invalid).
@@ -9,9 +11,20 @@ from datetime import datetime
 CACHE_VERSION = "v6"
 
 
+def cache_file(name: str) -> str:
+    """Resolve a cache DB path under CACHE_DIR (default `cache/`), creating it.
+
+    Cache DBs live in a gitignored `cache/` dir instead of the repo root (035
+    housekeeping); CACHE_DIR overrides it for a deployed app.
+    """
+    cache_dir = Path(os.environ.get("CACHE_DIR", "cache"))
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return str(cache_dir / name)
+
+
 class Cache:
-    def __init__(self, db_path: str = "cache.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path or cache_file("route-cache.db")
         self._init_db()
 
     def _init_db(self):
