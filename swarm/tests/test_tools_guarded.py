@@ -27,8 +27,8 @@ def test_shell_blocks_shell_metacharacters():
         assert ShellTool()._run(cmd).startswith("BLOCKED"), cmd
 
 
-def test_shell_blocks_npm_install_and_unprefixed_scripts():
-    for cmd in ("npm install", "npm run check", "npm --prefix frontend install"):
+def test_shell_blocks_unprefixed_npm():
+    for cmd in ("npm install", "npm run check"):
         assert ShellTool()._run(cmd).startswith("BLOCKED"), cmd
 
 
@@ -117,7 +117,26 @@ def test_qa_shell_can_run_gates():
     assert ShellTool()._run("pytest -q").startswith("exit=")
 
 
-def test_format_is_allowed_but_install_is_not():
+def test_format_is_allowed_for_the_coder():
     shell = ShellTool(allow_gates=False)
     assert shell._run("npm --prefix frontend run format").startswith(("exit=", "BLOCKED: timeout"))
-    assert shell._run("npm --prefix frontend install").startswith("BLOCKED")
+
+
+# ---- 037: the coder may install frontend deps ----
+
+def test_npm_install_allowlist(monkeypatch):
+    assert _valid_npm(["npm", "--prefix", "frontend", "install"])
+    assert _valid_npm(["npm", "--prefix", "frontend", "ci"])
+    assert _valid_npm(["npm", "--prefix", "frontend", "install", "tailwindcss", "-D"])
+    assert _valid_npm(["npm", "--prefix", "frontend", "add", "@tailwindcss/vite"])
+
+
+def test_npm_install_still_guarded(monkeypatch):
+    # unprefixed, global, redirect, and exec/npx stay out
+    assert not _valid_npm(["npm", "install"])
+    assert not _valid_npm(["npm", "--prefix", "frontend", "install", "--global", "x"])
+    assert not _valid_npm(["npm", "--prefix", "frontend", "install", "--prefix", "/tmp", "x"])
+    assert not _valid_npm(["npm", "--prefix", "frontend", "exec", "playwright", "test"])
+    # off switch restores the block
+    monkeypatch.setenv("SWARM_NPM_INSTALL", "0")
+    assert not _valid_npm(["npm", "--prefix", "frontend", "install"])

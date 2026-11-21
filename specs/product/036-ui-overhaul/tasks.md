@@ -1,0 +1,9 @@
+# 036 UI Overhaul — Tasks
+
+- [ ] T1 (AC-5): Migrate `frontend/` from Svelte 4 to Svelte 5 — bump `svelte`, `@sveltejs/vite-plugin-svelte`, `svelte-check` in `package.json`, and convert the reactive idioms (`$:` → `$derived`/`$effect`, `export let` → `$props`) in `src/` so `npm run build`, `npm run check`, `npm test` and `make e2e` stay green. No visual change.
+- [ ] T2 (AC-5): Add Tailwind CSS v4 + shadcn-svelte, and copy in the `button`, `card`, `select`, `checkbox`, `collapsible` primitives under `frontend/src/lib/components/ui/`. Keep the Leaflet map and the comfort-band colours unchanged; `npm run build` and `npm run check` green.
+- [ ] T3 (AC-1): Add a `Step` component and `currentStep` state (`plan` → `review` → `walk`) with a visible step indicator. Move the Start/End form into Plan, the route result into Review, WalkControls + arrival into Walk, so only the active step is prominent. A successful route advances to Review; "Start walk" advances to Walk.
+- [ ] T4 (AC-2): Collapse Preferences and Saved routes behind their headers (closed by default, expand in place); `loadSaved`/`loadPrefs` still run on mount.
+- [ ] T5 (AC-3): Move "use my location" inline with the Start field (a locate button beside the input); keep the ⌖ "pick on map" buttons; remove the standalone locate notice.
+- [ ] T6 (AC-4): Responsive — keep the desktop two-column layout (controls left, map right) as the primary experience; below ~768 px the map is full-bleed and the controls become a bottom sheet/panel over it.
+- [ ] T7 (AC-6): Run `make e2e`, `npm run check`, `npm test` and fix any regression; confirm the e2e hooks (`.comfort-band`, `.comfort-legend`, `button.walk-start`, the search input) still resolve.

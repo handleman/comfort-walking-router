@@ -688,6 +688,12 @@ def _valid_playwright_args(rest: list[str]) -> bool:
     return True
 
 
+def npm_install_enabled(env: dict[str, str] | None = None) -> bool:
+    """037: allow the coder to `npm install` frontend deps (off switch = "0")."""
+    source = os.environ if env is None else env
+    return str(source.get("SWARM_NPM_INSTALL", "1")).strip().lower() not in {"0", "false", "no", "off"}
+
+
 def _valid_npm(argv: list[str]) -> bool:
     if argv[1:3] != ["--prefix", "frontend"]:
         return False
@@ -697,6 +703,14 @@ def _valid_npm(argv: list[str]) -> bool:
         # Refused on purpose: `exec` keeps the caller's cwd, so Playwright would
         # miss frontend/playwright.config.ts (2026-11-15). Use the npm script.
         return False
+    if argv[3:4] in (["install"], ["ci"], ["add"], ["i"]):
+        # 037: the coder may install frontend dependencies (Svelte 5, Tailwind,
+        # shadcn-svelte, …). Prefix-locked and meta-free (`_no_meta` already
+        # blocks shell chars); a second `--prefix` or `--global` would land the
+        # install elsewhere, so those are refused.
+        if not npm_install_enabled():
+            return False
+        return not any(a in {"--prefix", "--global", "-g"} for a in argv[4:])
     if argv[3:4] != ["run"] or len(argv) < 5:
         return False
     script = argv[4]
@@ -733,9 +747,10 @@ class ShellTool(BaseTool):
     description: str = (
         "Run allowlisted argv-only commands: the project gate commands from "
         "`SWARM_GATE_COMMANDS` (QA only); `git status|diff|log` (read-only); ls, cat, grep "
-        "(read-only inspection); `npm --prefix frontend run check|build|lint|test` for "
-        "this repo. 120s timeout, repo cwd. No shell metacharacters, absolute paths, "
-        "'..', .env/key files, network, or npm install."
+        "(read-only inspection); `npm --prefix frontend run check|build|lint|test` and "
+        "`npm --prefix frontend install|ci|add <pkg>` (frontend deps only, "
+        "`SWARM_NPM_INSTALL=0` disables) for this repo. 120s timeout, repo cwd. No shell "
+        "metacharacters, absolute paths, '..', .env/key files, or npx/npm exec."
     )
     args_schema: type[BaseModel] = ShellArgs
     timeout: int = 120
