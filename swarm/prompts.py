@@ -242,7 +242,7 @@ PLAN_RULES = (
     "For a restructure/refactor, split into atomic steps that each land a concrete "
     "file change (add/remove/modify), naming the exact file and the exact action. "
     "Every step's action must be a concrete write verb (Create/Add/Remove/Edit/"
-    "Refactor) — never "confirm", "check" or "verify", which change no file. "
+    "Refactor) — never 'confirm', 'check' or 'verify', which change no file. "
     "Output format (exact, one per line): `STEP n: <intent> — <files, optional>`. "
     f"4–{MAX_STEPS} steps. No other text. Loop rules (hard): at most 6 tool calls, "
     "then write the answer; never read the same file twice; `ls` instead of guessing paths."
