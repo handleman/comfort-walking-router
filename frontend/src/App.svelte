@@ -78,12 +78,10 @@
 
   let start = ''
   let end = ''
-  let preference = ''
   let route: Route | null = null
   let suggestionAttribution = ''
   let error = ''
   let loading = false
-  let manualOverride = false
   let savedRoutes: SavedRoute[] = []
   let prefs: Prefs | null = null
   let showPrefs = false
@@ -361,9 +359,7 @@
 
   async function submitRoute() {
     error = ''
-    const appliedPreference = manualOverride
-      ? preference || null
-      : prefs?.default_preference || null
+    const appliedPreference = prefs?.default_preference || null
     const query = JSON.stringify([start, end, appliedPreference, startCoords, endCoords])
     if (route && query === lastQuery) return
     loading = true
@@ -629,15 +625,6 @@
         {#if pickError}
           <p class="error" role="alert">{pickError}</p>
         {/if}
-        <label>
-          Preference
-          <select bind:value={preference}>
-            <option value="">No preference</option>
-            <option value="hot">Hot — prefer shade</option>
-            <option value="cloudy">Cloudy — prefer sun</option>
-          </select>
-        </label>
-        <label><input type="checkbox" bind:checked={manualOverride} /> Manual override</label>
         <button type="submit" disabled={loading}>
           {loading ? 'Routing…' : 'Find route'}
         </button>
@@ -750,8 +737,9 @@
           · comfort {route.comfort_score}/100
         </p>
       {/if}
-      <section class="prefs">
-        <h2>Preferences</h2>
+      <hr class="section-divider" />
+      <section class="prefs" aria-labelledby="prefs-title">
+        <h2 id="prefs-title">Preferences</h2>
         <button type="button" on:click={togglePrefs}>
           {showPrefs ? 'Hide preferences' : 'Edit preferences'}
         </button>
@@ -774,8 +762,9 @@
           <p class="error">{prefsError}</p>
         {/if}
       </section>
-      <section class="saved-routes">
-        <h2>Saved routes</h2>
+      <hr class="section-divider" />
+      <section class="saved-routes" aria-labelledby="saved-routes-title">
+        <h2 id="saved-routes-title">Saved routes</h2>
         {#if savedError}
           <p class="error">{savedError}</p>
         {/if}
@@ -786,6 +775,20 @@
             {#each savedRoutes as saved (saved.id)}
               <li>
                 <span class="saved-name">{saved.name}</span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+      <hr class="section-divider" />
+      <section class="saved-actions" aria-labelledby="saved-actions-title">
+        <h2 id="saved-actions-title">Route actions</h2>
+        {#if savedRoutes.length === 0}
+          <p class="empty">No saved routes yet.</p>
+        {:else}
+          <ul class="saved-list">
+            {#each savedRoutes as saved (saved.id)}
+              <li>
                 <span class="saved-actions">
                   <button type="button" on:click={() => handleRecall(saved.id)}>Recall</button>
                   <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
@@ -796,21 +799,7 @@
         {/if}
       </section>
       <Step label="Plan" active={currentStep === 'plan'}>
-        <form on:submit|preventDefault={submitRoute}>
-          <p class="hint">Set origin and destination on the map search card above.</p>
-          <label>
-            Preference
-            <select bind:value={preference}>
-              <option value="">No preference</option>
-              <option value="hot">Hot — prefer shade</option>
-              <option value="cloudy">Cloudy — prefer sun</option>
-            </select>
-          </label>
-          <label><input type="checkbox" bind:checked={manualOverride} /> Manual override</label>
-          <button type="submit" disabled={loading}>
-            {loading ? 'Routing…' : 'Find route'}
-          </button>
-        </form>
+        <p class="hint">Set origin and destination on the map search card above.</p>
       </Step>
       {#if error}
         <p class="error">{error}</p>
