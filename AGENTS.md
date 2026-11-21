@@ -132,4 +132,10 @@ Learning repo for spec-driven development + swarming agents / agentic autonomous
 - Spec before code: define requirements, acceptance criteria, and scope in `specs/` before implementing.
 - Update tasks/ACs in the same change as the implementation. Record completed work and remaining blockers explicitly (see `specs/001-example-app/tasks.md` T3/T7–T10 and `specs/011-dev-run/`).
 - Keep specs small and verifiable; link implementation back to spec items.
+- **Visual-check UI in the built-in browser.** For any UI work, verify the result
+  visually in the built-in browser (`tools.browser.*`), not just via tests —
+  tests and `npm run check` don't catch a map that renders no tiles or a control
+  that isn't visually divided. Check mobile sizes by resizing the canvas/viewport
+  or rendering a temporary iframe; don't assume desktop is enough. Screenshot and
+  look at it.
 - Prefer editing existing files over creating new ones; keep changes minimal per spec.

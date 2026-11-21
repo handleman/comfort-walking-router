@@ -64,9 +64,12 @@ The layout is **responsive** — one rule decides where the controls live:
 - **AC-2 — Floating top card.** The origin/destination fields render as one
   card over the map top (origin = my-location dot + "My location", destination =
   red pin), with a drag-handle divider and `⋯`/`↑↓` actions — the ONLY form.
-- **AC-3 — Responsive shell.** The sidebar is rendered **only** on desktop
-  (≥768px) and a bottom drawer **only** on mobile (<768px); on mobile the map
-  is the only main surface. Never both at once.
+- **AC-3 — Responsive shell + collapsible controls.** The sidebar is rendered
+  **only** on desktop (≥768px) and a bottom drawer **only** on mobile (<768px);
+  on mobile the map is the only main surface. Never both at once. Both the
+  sidebar and the drawer are **collapsible** (they can be drawn out / hidden and
+  restored, like Google Maps' handle) — the sidebar collapses out of the screen
+  on desktop exactly as the drawer does on mobile.
 - **AC-4 — Controls content.** The sidebar and the drawer each hold the route
   summary (duration · distance · arrival · terrain), Preferences, Saved routes
   and the action buttons; the drawer is collapsed by default. No transport-mode
