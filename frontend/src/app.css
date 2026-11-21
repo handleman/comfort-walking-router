@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens (AC-5 single source of truth).
+ * Tailwind v4 @theme: these become utilities like p-gap, text-h1, rounded-card.
+ */
+@theme {
+  /* Spacing scale (rem) */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2.5rem;
+
+  /* Type scale */
+  --text-h1: 1.5rem;
+  --text-h1--line-height: 2rem;
+  --text-h1--font-weight: 600;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.75rem;
+  --text-h2--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-caption: 0.875rem;
+  --text-caption--line-height: 1.25rem;
+
+  /* Radius */
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+
+  /* Colours (comfort-band palette untouched; neutrals for UI chrome) */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+}
+
