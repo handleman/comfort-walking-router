@@ -57,3 +57,8 @@ Hard-won lessons from real runs — read before "fixing" the swarm. See [GLOSSAR
   `delta_incomplete`, even though the coder changed the file. (036-T1's
   `Button.svelte`, 040-T10's `App.svelte`.) Use `frontend/src/App.svelte`
   everywhere; never a bare filename.
+- **A new component must be imported and rendered where it is used.** The coder
+  created `BottomDrawer.svelte`/`ControlsContent.svelte` but never imported them
+  in `App.svelte`, so they were orphaned and the verifier blocked (040-T3). Say
+  "import and render in `<file>`" explicitly in the brief — the coder's job is
+  create **and** wire, not just create.
