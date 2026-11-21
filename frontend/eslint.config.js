@@ -21,6 +21,11 @@ export default ts.config(
         extraFileExtensions: ['.svelte'],
       },
     },
+    rules: {
+      // typescript-eslint's no-unused-vars crashes on Svelte components
+      // (`getDefinedMessageData` TypeError); the base rule is enough here.
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
   },
   // Must stay last: turns off rules that conflict with Prettier formatting.
   ...svelte.configs['flat/prettier'],

@@ -145,7 +145,6 @@
 
   let arrival: ArrivalStatus | null = null
   let arrivalDismissed = false
-  let drawerOpen = false // mobile drawer starts collapsed
   let sidebarCollapsed = false // desktop sidebar keeps its own toggle state
 
   function evaluateArrival(sample: ArrivalSample) {
@@ -561,27 +560,6 @@
   <aside class="overlay-panel" class:collapsed={sidebarCollapsed}>
     <h1>Comfort Walking Router</h1>
 
-    <section class="prefs">
-      <h2>Preferences</h2>
-      <button type="button" on:click={togglePrefs}>
-        {showPrefs ? 'Hide preferences' : 'Edit preferences'}
-      </button>
-      {#if showPrefs && prefs}
-        <label>
-          Default preference
-          <select bind:value={prefs.default_preference}>
-            <option value="hot">Hot — prefer shade</option>
-            <option value="cloudy">Cloudy — prefer sun</option>
-          </select>
-        </label>
-        <label><input type="checkbox" bind:checked={prefs.prefer_lit} /> Prefer lit streets</label>
-        <label><input type="checkbox" bind:checked={prefs.avoid_traffic} /> Avoid busy roads</label>
-        <button type="button" on:click={() => handlePrefsSave()}>Save preferences</button>
-      {/if}
-      {#if prefsError}
-        <p class="error">{prefsError}</p>
-      {/if}
-    </section>
     {#if locateError}
       <div class="locate-notice" role="alert">
         {locateError}
@@ -601,73 +579,23 @@
       <p class="error">{error}</p>
     {/if}
 
-    <section class="saved-routes">
-      <h2>Saved routes</h2>
-      {#if savedError}
-        <p class="error">{savedError}</p>
-      {/if}
-      {#if savedRoutes.length === 0}
-        <p class="empty">No saved routes yet.</p>
-      {:else}
-        <ul class="saved-list">
-          {#each savedRoutes as saved (saved.id)}
-            <li>
-              <span class="saved-name">{saved.name}</span>
-              <span class="saved-actions">
-                <button type="button" on:click={() => handleRecall(saved.id)}>Recall</button>
-                <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
-              </span>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </section>
-
-    <section class="route-summary" aria-labelledby="route-summary-title">
-      <h2 id="route-summary-title">Route summary</h2>
-      {#if route}
-        <section class="result">
-          <div class="chip">
-            {route.preference_source === 'manual'
-              ? `Manual: ${route.applied_preference}`
-              : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
-          </div>
-          <button type="button" on:click={handleSaveRoute}>Save route</button>
-          <h2>{route.name}</h2>
-          <p class="stats">
-            {Math.round(route.duration_s / 60)} min ·
-            {(route.distance_m / 1000).toFixed(2)} km · arrival {formatArrivalTime(
-              route.duration_s,
-            )} · terrain {terrainLabel(route)}
-          </p>
-          <p class="score">comfort {route.comfort_score}/100</p>
-          {#if route.comfort_profile}
-            <ul class="comfort-legend">
-              {#each COMFORT_BANDS as b (b.band)}
-                <li class="comfort-band comfort-band--{b.band}">
-                  <span class="comfort-swatch" style="background:{b.colour}"></span>
-                  {b.band} · {b.range}/100
-                </li>
-              {/each}
-            </ul>
-            <ul class="comfort-segments">
-              {#each comfortRuns as run, index (index)}
-                <li class="comfort-segment comfort-band--{run.band}">{formatRun(run)}</li>
-              {/each}
-            </ul>
-          {:else}
-            <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
-          {/if}
-          <Attribution text={route.attribution ?? suggestionAttribution} />
-          <h3>Comfort factors</h3>
-          <ul class="factors">
-            {#each route.explanation as line, index (index)}
-              <li>{line}</li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-    </section>
+    <ControlsContent
+      {route}
+      {walkRoute}
+      profile={route?.comfort_profile ?? []}
+      {prefs}
+      {showPrefs}
+      {savedRoutes}
+      {savedError}
+      {prefsError}
+      {error}
+      {suggestionAttribution}
+      onTogglePrefs={togglePrefs}
+      onPrefsSave={() => handlePrefsSave()}
+      onSaveRoute={handleSaveRoute}
+      onRecall={handleRecall}
+      onDelete={handleDelete}
+    />
 
     <section class="walk">
       <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
@@ -689,110 +617,25 @@
 
   <!-- Mobile bottom drawer: same controls as the desktop sidebar, shown only
        below 768px so the sidebar and drawer are never visible together. -->
-  <section class="bottom-drawer" class:open={drawerOpen} aria-label="Walk controls">
-    <button
-      type="button"
-      class="drawer-toggle"
-      aria-expanded={drawerOpen}
-      on:click={() => (drawerOpen = !drawerOpen)}
-    >
-      {drawerOpen ? '▾ Hide controls' : '▴ Show controls'}
-    </button>
-    <div class="drawer-body">
-      <section class="route-summary" aria-labelledby="route-summary-title">
-        <h2 id="route-summary-title">Route summary</h2>
-        {#if route}
-          <p class="stats">
-            {Math.round(route.duration_s / 60)} min ·
-            {(route.distance_m / 1000).toFixed(2)} km · arrival {formatArrivalTime(
-              route.duration_s,
-            )} · terrain {terrainLabel(route)} · comfort {route.comfort_score}/100
-          </p>
-          <button type="button" on:click={handleSaveRoute}>Save route</button>
-        {:else}
-          <p class="empty">No route planned yet.</p>
-        {/if}
-      </section>
-      <hr class="section-divider" />
-      <section class="prefs" aria-labelledby="prefs-title">
-        <h2 id="prefs-title">Preferences</h2>
-        <button type="button" on:click={togglePrefs}>
-          {showPrefs ? 'Hide preferences' : 'Edit preferences'}
-        </button>
-        {#if showPrefs && prefs}
-          <label>
-            Default preference
-            <select bind:value={prefs.default_preference}>
-              <option value="hot">Hot — prefer shade</option>
-              <option value="cloudy">Cloudy — prefer sun</option>
-            </select>
-          </label>
-          <label><input type="checkbox" bind:checked={prefs.prefer_lit} /> Prefer lit streets</label
-          >
-          <label
-            ><input type="checkbox" bind:checked={prefs.avoid_traffic} /> Avoid busy roads</label
-          >
-          <button type="button" on:click={() => handlePrefsSave()}>Save preferences</button>
-        {/if}
-        {#if prefsError}
-          <p class="error">{prefsError}</p>
-        {/if}
-      </section>
-      <hr class="section-divider" />
-      <section class="saved-routes" aria-labelledby="saved-routes-title">
-        <h2 id="saved-routes-title">Saved routes</h2>
-        {#if savedError}
-          <p class="error">{savedError}</p>
-        {/if}
-        {#if savedRoutes.length === 0}
-          <p class="empty">No saved routes yet.</p>
-        {:else}
-          <ul class="saved-list">
-            {#each savedRoutes as saved (saved.id)}
-              <li>
-                <span class="saved-name">{saved.name}</span>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-      <hr class="section-divider" />
-      <section class="saved-actions" aria-labelledby="saved-actions-title">
-        <h2 id="saved-actions-title">Route actions</h2>
-        {#if savedRoutes.length === 0}
-          <p class="empty">No saved routes yet.</p>
-        {:else}
-          <ul class="saved-list">
-            {#each savedRoutes as saved (saved.id)}
-              <li>
-                <span class="saved-actions">
-                  <button type="button" on:click={() => handleRecall(saved.id)}>Recall</button>
-                  <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
-                </span>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-      {#if error}
-        <p class="error">{error}</p>
-      {/if}
-      <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
-      {#if !route}
-        <p class="empty">Plan a route first, then start the walk.</p>
-      {/if}
-      {#if arrival?.arrived && !arrivalDismissed}
-        <ArrivalCard
-          distanceMeters={arrival.distanceMeters}
-          durationMinutes={route ? route.duration_s / 60 : 0}
-          comfortScore={route ? route.comfort_score : 0}
-          topFactors={route ? route.explanation.slice(0, 3) : []}
-          onDismiss={dismissArrival}
-          onPlanAnother={planAnotherWalk}
-        />
-      {/if}
-    </div>
-  </section>
+  <BottomDrawer>
+    <ControlsContent
+      {route}
+      {walkRoute}
+      profile={route?.comfort_profile ?? []}
+      {prefs}
+      {showPrefs}
+      {savedRoutes}
+      {savedError}
+      {prefsError}
+      {error}
+      {suggestionAttribution}
+      onTogglePrefs={togglePrefs}
+      onPrefsSave={() => handlePrefsSave()}
+      onSaveRoute={handleSaveRoute}
+      onRecall={handleRecall}
+      onDelete={handleDelete}
+    />
+  </BottomDrawer>
 
   <!-- Sidebar toggle mirrors the bottom drawer's toggle (same class/aria/labels).
        Rendered as a sibling of <aside> inside <main> so it is never clipped by
@@ -849,9 +692,16 @@
       transition: transform 0.25s ease;
     }
 
+    /* T11: hide the mobile <BottomDrawer /> on desktop so the sidebar and
+       drawer are never visible together. :global() is required because the
+       .bottom-drawer class is scoped inside BottomDrawer.svelte. */
+    :global(.bottom-drawer) {
+      display: none;
+    }
+
     /* T10 step 6: these collapse/toggle rules are scoped to this
-       min-width: 768px block only; the mobile `.bottom-drawer` and
-       `.drawer-toggle` rules below remain untouched. */
+       min-width: 768px block only; mobile rendering is owned entirely by
+       the <BottomDrawer /> component's own styles. */
     /* T10 step 5 (rescue): the sidebar toggle is a sibling of <aside> inside
        <main>, absolutely positioned at the viewport's right edge so it is
        never clipped by the aside's `overflow-y: auto` and stays on-screen

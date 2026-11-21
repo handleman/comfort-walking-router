@@ -12,6 +12,7 @@
     mergeBandRuns,
   } from '../map/comfortBands'
   import type { ComfortProfileSegment } from '../map/comfortBands'
+  import type { LatLng } from '../navigation/interpolate'
   import Attribution from './Attribution.svelte'
 
   // Structural subset of App.svelte's Route: everything this component
@@ -31,7 +32,7 @@
 
   export let route: RouteSummary | null = null
   /** WalkControls route as `[lat, lng]` pairs; empty until a route exists. */
-  export let walkRoute: [number, number][] = []
+  export let walkRoute: LatLng[] = []
   export let profile: ComfortProfileSegment[] = []
   export let prefs: Prefs | null = null
   export let showPrefs = false
