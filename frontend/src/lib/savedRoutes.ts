@@ -74,6 +74,19 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T
 }
 
+// 503 = the saved-routes feature is off (no DATABASE_URL). Treat it as "nothing
+// saved yet", not an error, so a free deployment without a database is clean.
+const SERVICE_UNAVAILABLE = 503
+
+const NO_DB_PREFS: Prefs = {
+  default_preference: 'balanced',
+  shade: 0,
+  quiet: 0,
+  greenery: 0,
+  prefer_lit: false,
+  avoid_traffic: false,
+}
+
 /** POST a new saved route. */
 export async function saveRoute(name: string, snapshot: RouteSnapshot): Promise<SavedRoute> {
   const res = await fetch('/saved-routes', {
