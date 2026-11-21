@@ -1,0 +1,3 @@
+# 039 Corridor Reliability — Tasks
+
+- [ ] T1 (AC-1, AC-2, AC-3): Make the Overpass corridor fetch reliable so a real route gets a comfort profile. In `app/comfort.py` add a log line per endpoint attempt naming the endpoint and the failure, try three endpoints in order (`https://overpass-api.de/api/interpreter`, `https://overpass.kumi.systems/api/interpreter`, `https://overpass.private.coffee/api/interpreter`), raise the outer HTTP timeout default to 90 s (`OVERPASS_TIMEOUT_SECONDS`) while keeping the QL `[timeout:40]`, and keep the "data gap, never a 5xx" fallback. Add tests in `tests/` for the multi-mirror retry and the timeout path (mocked `requests`); `make test` green.
