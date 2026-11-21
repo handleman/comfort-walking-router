@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import comfort, fixtures, geocode_cache, geocoding, saved_routes
+from . import db as app_db
 from .cache import Cache
 from .config import get_mapbox_token
 from .geocoder import geocode_place
@@ -23,6 +24,19 @@ from .weather_cache import WeatherCache
 
 app = FastAPI(title="Comfort Walking Router")
 app.include_router(saved_routes.router)
+
+
+@app.on_event("startup")
+def _migrate_schema() -> None:
+    """Run saved-routes migrations at boot when a database is configured (035),
+    so a Render/Neon `DATABASE_URL` works without a separate migrate step. A
+    missing/unreachable DB is logged, not fatal — route/geocode do not need it."""
+    if not app_db.DATABASE_URL:
+        return
+    try:
+        app_db.run_migrations()
+    except Exception as exc:  # noqa: BLE001 - a down DB is a data gap, not a crash
+        logging.getLogger(__name__).warning("saved-routes migrations skipped: %s", exc)
 cache = Cache()
 mapbox = MapboxProvider(access_token=get_mapbox_token())
 open_meteo = OpenMeteoProvider()

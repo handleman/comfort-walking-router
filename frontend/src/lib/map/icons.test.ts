@@ -70,14 +70,17 @@ describe('walk-mode map divIcon configs', () => {
       expect(typeof icon.html).toBe('string')
       expect(icon.html.length).toBeGreaterThan(0)
       expect(icon.className.length).toBeGreaterThan(0)
-      expect(icon.iconSize).toEqual([28, 28])
+      expect(icon.iconSize).toHaveLength(2)
+      expect(icon.iconSize[0]).toBeGreaterThan(0)
       expect(icon.iconAnchor).toHaveLength(2)
       expect(icon.iconAnchor[0]).toBe(icon.iconSize[0] / 2)
     },
   )
 
-  it('anchors the person marker at its center', () => {
-    expect(personIcon().iconAnchor).toEqual([14, 14])
+  it('anchors the person marker at its center (bigger, white-ringed badge)', () => {
+    expect(personIcon().iconSize).toEqual([34, 34])
+    expect(personIcon().iconAnchor).toEqual([17, 17])
+    expect(personIcon().html).toContain('border:3px solid #fff')
   })
 
   it('anchors the endpoint pins at the teardrop tip', () => {

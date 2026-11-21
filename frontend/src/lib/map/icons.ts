@@ -49,7 +49,7 @@ export interface DivIconConfig {
  * `fill="currentColor"` so it inherits the marker's CSS color).
  */
 export const PERSON_WALKING_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">' +
+  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">' +
   '<path d="M9.5 1.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM6.44 3.75a.75.75 0 0 1 .73.75v3.06l-.01.02-.01.03-.01.02a.75.75 0 0 1-.16.26l-2.2 2.2 2.2 2.2a.75.75 0 1 1-1.06 1.06l-2.73-2.73a.75.75 0 0 1 0-1.06l2.2-2.2V4.5a.75.75 0 0 1 .75-.75h.3Z"/>' +
   '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M7.2 7.8l2.1 2.5-.7 3.9M7.2 7.8 5.5 10.2l-1.3 3.9"/>' +
   '</svg>'
@@ -84,11 +84,14 @@ export const END_PIN_LABEL = 'Walk destination'
 export function personIcon(): DivIconConfig {
   return {
     html:
-      `<span class="walk-icon walk-person" role="img" aria-label="${PERSON_ICON_LABEL}">` +
+      `<span class="walk-icon walk-person" role="img" aria-label="${PERSON_ICON_LABEL}" ` +
+      `style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;` +
+      `background:#1d4ed8;color:#fff;border:3px solid #fff;border-radius:50%;` +
+      `box-shadow:0 1px 5px rgba(0,0,0,.5);box-sizing:border-box;">` +
       `${PERSON_WALKING_SVG}</span>`,
     className: 'walk-person-marker',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
   }
 }
 
