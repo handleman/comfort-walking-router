@@ -1,6 +1,8 @@
 <script lang="ts">
   // Collapsed-by-default bottom drawer shell for mobile controls.
   // Renders whatever controls content is passed in via the default slot.
+  import { slide } from 'svelte/transition'
+
   let open = false
 
   function toggle() {
@@ -21,7 +23,7 @@
   </button>
 
   {#if open}
-    <div class="drawer-body" id="bottom-drawer-body">
+    <div class="drawer-body" id="bottom-drawer-body" transition:slide={{ duration: 200 }}>
       <slot />
     </div>
   {/if}
