@@ -20,6 +20,20 @@ def test_daily_quota_is_distinct():
     assert not is_quota_error(Http429("temporary 429"))
 
 
+def test_go_weekly_wall_is_quota():
+    # OpenCode Go's weekly subscription wall (2026-11-21): must stop the pilot
+    # as quota_exhausted, not retry into a crew_error.
+    msg = (
+        "Error code: 429 - {'type': 'error', 'error': {'type': "
+        "'GoUsageLimitError', 'message': 'OpenCode Go usage limit reached "
+        "(weekly, resets in 1d 5h).'}}"
+    )
+    assert is_quota_error(RuntimeError(msg))
+    from swarm.retry import classify_provider_error
+
+    assert classify_provider_error(RuntimeError(msg)) == "quota"
+
+
 def test_backoff_grows_and_caps():
     delays = [backoff_delay(i, jitter=0) for i in (1, 2, 3, 4, 9)]
     assert delays[:4] == [1.0, 2.0, 4.0, 8.0]

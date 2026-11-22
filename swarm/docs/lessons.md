@@ -73,3 +73,48 @@ Hard-won lessons from real runs — read before "fixing" the swarm. See [GLOSSAR
   `<section class="walk">` in `App.svelte`, so the sidebar showed Start/Stop
   twice. When wiring a component into a container, delete the old inline
   rendering of the same component.
+- **A wiring brief must name only the files that must change.** 040-T11's brief
+  named the two components being imported *and* `frontend/src/App.svelte`; the
+  delta guard then required all three to change, and a wiring task only changes
+  `App.svelte` → `delta_incomplete`. Name other files by component name, never
+  by path, unless the task must edit them.
+- **The coder imports but does not render.** 040-T11 passed the verifier with an
+  import and no template tag twice; the script-side import is easy, the markup
+  render + deleting the inline block is where it stops. A wiring brief must name
+  the exact template block to replace/remove ("render the tags in `<main>` and
+  delete `<section class="bottom-drawer">`"), not just "import and render".
+- **A verify-only task can never satisfy the delta guard.** 040-T12's deliverable
+  is running the gates, so its delta is empty by construction → `no_delta`. Do
+  not queue verify-only tasks: fold verification into the implementation task,
+  give it a real file deliverable, or run it by hand. Keep verify/regression
+  tasks **last** in `tasks.md` — a queue stops on them before the work.
+- **0 ms gate failures are infrastructure, not code.** All 12 e2e tests failed in
+  0–2 ms after an `npm ci` bumped Playwright: `chromium_headless_shell-1255` was
+  missing. `e2e.browsers()` used `any(exists)` across the install locations, so
+  a present full chromium hid the missing shell; every location must exist now
+  (`swarm/e2e.py`, test in `test_preflight.py`). Read the first failure's error
+  text before touching tests.
+- **A crash inside the linter is not a coder failure.** `@typescript-eslint/
+  no-unused-vars` threw `TypeError: Cannot read properties of undefined
+  (reading 'type')` on a `.svelte` file; the run ended `no_progress` although the
+  verifier had passed. A gate that prints a stack trace plus "Occurred while
+  linting" is tooling: fix the config (the rule is off for `.svelte`; the base
+  rule covers it), don't send the coder another round.
+- **A provider wall must be classified as quota, not retried.** OpenCode Go's
+  "usage limit reached (weekly)" was not in `QUOTA_HINTS`, so the pilot retried
+  until `crew_error` instead of stopping `quota_exhausted`. `retry.py` now
+  matches `usage limit reached` / `GoUsageLimitError` (test added); add a new
+  provider's exact wall text when onboarding it.
+- **`svelte-check` warnings are evidence of an unfinished removal.** 31 "Unused
+  CSS selector" warnings after 040-T11 pointed at the styles of the inline
+  controls that were supposed to be gone — cheap proof a removal task is not
+  done. Read the warnings, not just the error count.
+- **Orphaned-but-committed components still exist.** `BottomDrawer.svelte` and
+  `ControlsContent.svelte` were committed by an earlier run but never imported;
+  they are not scratch files. Check `git ls-files <path>` before deleting
+  anything that looks abandoned.
+- **Manual QA needs the backend, and `vite preview` is not the source.** With
+  the backend down, `/route` 500s and unproxied paths (`/suggestions`) return the
+  SPA HTML; and `vite preview` serves the prebuilt `dist/`, so an old build looks
+  like a fresh bug. Run `make dev` (or start uvicorn) and compare `dist/` vs
+  `src/` mtimes before believing a QA finding.

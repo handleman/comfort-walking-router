@@ -274,6 +274,32 @@ def test_installed_browser_binaries_pass(tmp_path):
     assert e2e_suite.browsers(tmp_path) == []
 
 
+def test_partially_installed_browsers_fail_preflight(tmp_path):
+    """Chromium present but the headless shell missing is still unrunnable.
+
+    2026-11-21: `any(exists)` passed while `chromium_headless_shell-1255` was
+    absent, so all 12 e2e tests failed in 0 ms. Every install location must
+    exist.
+    """
+    present = tmp_path / "ms-playwright" / "chromium-1"
+    present.mkdir(parents=True)
+    absent = tmp_path / "ms-playwright" / "chromium_headless_shell-1"
+    binary = tmp_path / "frontend" / "node_modules" / ".bin" / "playwright"
+    binary.parent.mkdir(parents=True, exist_ok=True)
+    binary.write_text(
+        "#!/bin/sh\n"
+        f"echo '  Install location:    {present}'\n"
+        f"echo '  Install location:    {absent}'\n"
+    )
+    binary.chmod(0o755)
+    from swarm import e2e as e2e_suite
+
+    problems = e2e_suite.browsers(tmp_path)
+    assert len(problems) == 1
+    assert "browsers are not installed" in problems[0]
+    assert "chromium_headless_shell" in problems[0]
+
+
 def test_no_playwright_binary_is_reported_once(tmp_path):
     """The missing binary is `available`'s problem, not two problems."""
     from swarm import e2e as e2e_suite

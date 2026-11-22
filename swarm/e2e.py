@@ -87,12 +87,20 @@ def browsers(repo_root: Path | None = None) -> list[str]:
         for line in (proc.stdout + proc.stderr).splitlines()
         if "Install location:" in line
     ]
-    if not locations or any(Path(path).exists() for path in locations):
+    if not locations:
+        return []
+    # Playwright installs several artefacts (chromium, ffmpeg, the headless
+    # shell); the suite needs ALL of them. A 2026-11-21 run had a full chromium
+    # but no `chromium_headless_shell`, and `any(exists)` let it through, so all
+    # 12 e2e tests died in 0 ms with "Executable doesn't exist".
+    missing = [path for path in locations if not Path(path).exists()]
+    if not missing:
         return []
     return [
         (
             "Playwright browsers are not installed "
-            "(run `npm --prefix frontend exec playwright install chromium`)"
+            "(missing: " + ", ".join(Path(p).name for p in missing) + "; run "
+            "`npm --prefix frontend exec playwright install chromium`)"
         )
     ]
 

@@ -28,7 +28,15 @@ RETRY_HINTS = (
     "504",
 )
 
-QUOTA_HINTS = ("free-models-per-day", "daily quota", "quota exceeded")
+QUOTA_HINTS = (
+    "free-models-per-day",
+    "daily quota",
+    "quota exceeded",
+    # OpenCode Go subscription wall (weekly/monthly): retrying is pointless and
+    # should stop the pilot cleanly as `quota_exhausted` instead of a crew_error.
+    "usage limit reached",
+    "gousagelimiterror",
+)
 
 
 def is_retryable(exc: BaseException) -> bool:
