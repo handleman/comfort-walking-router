@@ -62,3 +62,14 @@ Hard-won lessons from real runs — read before "fixing" the swarm. See [GLOSSAR
   in `App.svelte`, so they were orphaned and the verifier blocked (040-T3). Say
   "import and render in `<file>`" explicitly in the brief — the coder's job is
   create **and** wire, not just create.
+- **Removing the only trigger of a behaviour leaves the app unable to do it.**
+  040-T9 removed the old `Find route` form + `submitRoute()` (the only
+  `fetch('/route')`) and no task replaced the trigger, so the app could not plan
+  a route at all — found by manual QA. A task that removes a control must name
+  its replacement in the same brief, or a follow-up task must own the new
+  trigger.
+- **A component rendered in two places is a duplicate, not a feature.**
+  `WalkControls` was rendered by `ControlsContent` *and* by a leftover
+  `<section class="walk">` in `App.svelte`, so the sidebar showed Start/Stop
+  twice. When wiring a component into a container, delete the old inline
+  rendering of the same component.

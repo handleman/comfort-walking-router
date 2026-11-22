@@ -61,7 +61,7 @@ start() {
         colima start --cpu 4 --memory 8 --disk 60 >/dev/null
     fi
     if exists; then
-        running || { echo "starting $CONTAINER…" >&2; docker start "$CONTAINER" >/dev/null; }
+        running || { echo "starting ${CONTAINER}…" >&2; docker start "$CONTAINER" >/dev/null; }
     else
         echo "creating $CONTAINER from $IMAGE…" >&2
         # The account exists for public images; a missing credsStore otherwise
@@ -83,7 +83,7 @@ up)
     start
     ;;
 down)
-    running && { echo "stopping $CONTAINER…"; docker stop "$CONTAINER" >/dev/null; }
+    running && { echo "stopping ${CONTAINER}…"; docker stop "$CONTAINER" >/dev/null; }
     if [ "${2:-}" = "--all" ]; then
         colima stop >/dev/null 2>&1 || true
         echo "colima stopped"

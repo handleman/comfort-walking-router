@@ -29,16 +29,22 @@ The layout is **responsive** — one rule decides where the controls live:
    small box).
 2. **Floating top card** — a white rounded card over the top of the map with an
    **origin** row (blue my-location dot + "My location") and a **destination**
-   row (red pin + the address), a drag-handle divider, and `⋯`/`↑↓` action
-   icons. This is the ONLY form (no duplicate elsewhere).
+   row (red pin + the address), a drag-handle divider and an `↑↓` swap. The row
+   marker icons arm map-pick; there is no separate `⌖` or `⋯` button. This is
+   the ONLY form (no duplicate elsewhere).
 3. **Controls** — **sidebar on desktop only**, **collapsed bottom drawer on
    mobile**. Both hold the same content: the route summary, Preferences and
    Saved routes, and the action buttons. The drawer is collapsed by default and
-   expands like Google Maps'.
-4. **Geolocation is the default start** — the origin row shows the current
-   position and the map centres on it.
+   expands like Google Maps'; the sidebar collapses via the same kind of edge
+   handle.
+4. **Geolocation is the default start** — the app asks for location on start,
+   the origin row shows the current position (address or coordinates), and the
+   map centres on it. If no fix arrives, a modal asks for the start location
+   (text search or pick on map).
 5. **Material SVG icons** — every glyph is an inlined Material Symbols SVG from
    https://fonts.google.com/icons.
+6. **Auto-plan** — with both endpoints set the route is requested automatically;
+   there is no Find-route button. Swapping two set endpoints re-plans.
 
 ## Scope
 
@@ -63,23 +69,34 @@ The layout is **responsive** — one rule decides where the controls live:
   sidebar (desktop) overlays it, it does not shrink it into a small box.
 - **AC-2 — Floating top card.** The origin/destination fields render as one
   card over the map top (origin = my-location dot + "My location", destination =
-  red pin), with a drag-handle divider and `⋯`/`↑↓` actions — the ONLY form.
+  red pin), with a drag-handle divider and `↑↓` swap — the ONLY form. The row
+  marker icons (blue dot / red pin) are the map-pick triggers; there is no
+  separate `⌖` button and no `⋯` button. Clicking `↑↓` with both endpoints set
+  swaps them and re-plans.
 - **AC-3 — Responsive shell + collapsible controls.** The sidebar is rendered
   **only** on desktop (≥768px) and a bottom drawer **only** on mobile (<768px);
   on mobile the map is the only main surface. Never both at once. Both the
-  sidebar and the drawer are **collapsible** (they can be drawn out / hidden and
-  restored, like Google Maps' handle) — the sidebar collapses out of the screen
-  on desktop exactly as the drawer does on mobile.
+  sidebar and the drawer are **collapsible** via a Google-Maps-style edge
+  handle (a vertical pill on the sidebar's inner edge, click to collapse /
+  restore) — no separate toggle button.
 - **AC-4 — Controls content.** The sidebar and the drawer each hold the route
   summary (duration · distance · arrival · terrain), Preferences, Saved routes
-  and the action buttons; the drawer is collapsed by default. No transport-mode
-  selector.
-- **AC-5 — Geolocation default start.** With location granted, the origin shows
-  the current position and the map centres on it.
+  and the action buttons; the drawer is collapsed by default. Exactly one
+  WalkControls instance (Start/Stop/Auto-center) exists in the app. No
+  transport-mode selector.
+- **AC-5 — Geolocation default start.** The app asks for location on start
+  (browser API) and, with a fix, fills the origin with the current position
+  (reverse-geocoded address, or coordinates) and centres the map on it. If no
+  fix arrives (permission denied/unavailable), a modal asks for the start
+  location with a text search and a "Pick on map" option; it closes once an
+  origin is set.
 - **AC-6 — Material icons.** All glyphs use inlined Material Symbols SVGs.
 - **AC-7 — No regression.** `make e2e`, `npm run check`, `npm test` stay green;
   the e2e hooks (`.comfort-band`, `.comfort-legend`, `button.walk-start`, the
   search input) still resolve.
+- **AC-8 — Auto-plan.** With both endpoints set, the route is requested
+  automatically (no Find-route button) and re-requested after a swap of two set
+  endpoints.
 
 ## Success definition
 
