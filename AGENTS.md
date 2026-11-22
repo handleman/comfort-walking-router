@@ -53,6 +53,30 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
   the spec (`spec.md` → `plan.md` → `tasks.md`) before implementing, even when the
   harness itself is being changed directly (the swarm is not queued). Small,
   isolated one‑line fixes still bypass this flow.
+- **Model profiles are configuration, not capability** (the dark factory is
+  provider-agnostic). The same harness runs on **paid cloud, free cloud, local
+  Ollama, or a mix**; only `.env` changes. Three profiles are documented and
+  supported: `opencode-go` (paid subscription, current default), free OpenRouter
+  tiers, and all-local Ollama (`make swarm-local`). Rules:
+  - **One source of truth:** `swarm/llms.py` picks every model; a role var
+    (`SWARM_<ROLE>_MODEL`) plus `SWARM_<ROLE>_FALLBACK_MODEL` is the whole API.
+    Routing is by prefix — `ollama/*` local, `zen/*` Zen, `opencode-go/*` Go,
+    everything else OpenRouter.
+  - **Never assume a provider.** A fallback must be a model the machine can
+    actually serve: `preflight` checks Ollama tags, the OpenRouter list and the
+    Go `/models` catalogue before the first call. A dead fallback id is a bug
+    (2026‑11‑22: `opencode-go/qwen3.8-flash` sat in `SWARM_LOCAL_FALLBACK_MODEL`
+    as if it were an OpenRouter id).
+  - **Timeouts follow the profile:** `llms.crew_timeout_seconds()` gives local
+    profiles 900 s per crew call and cloud 300 s, so a local step is not cut
+    short and a hung cloud call does not eat the task (046 AC‑3).
+  - **Cost is honest in every profile:** local and `:free` models are $0 in
+    `swarm/usage.py`; a paid model with no price makes cost `None` and names
+    itself (`unpriced_models`) instead of faking a number.
+  - **Paid is opt‑in twice:** `SWARM_ALLOW_PAID=1` *and* `allow_paid=True` in
+    code. Switching profiles must never silently bill; switching to local must
+    never require a code change.
+
 - **Swarm Agent Skills** (044): operators add agent behaviour via YAML‑frontmatter
   skill files under `swarm/agents/skills/<role>.md`; the swarm auto‑discovers them
   and appends to `agent.skills` (additive). Missing files fall back to built‑in

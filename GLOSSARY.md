@@ -89,6 +89,10 @@ _Avoid_: worker, judge
 The internal `swarm/crew.py` factories that build the senior (`step`/`fix`) and conflict-resolver (`merge`/`stash`) agents from the shared constructor — they differ only by prompt text and `max_iter`. No public builder names or signatures changed.
 _Avoid_: duplicate constructor
 
+**Model profile**:
+The provider mix a run uses, chosen entirely by `.env`: paid cloud (`opencode-go/*`), free cloud (`openrouter/...:free`), local (`ollama/*`) or a mix. The harness is provider-agnostic — `swarm/llms.py` routes by prefix, every role has an explicit fallback, `preflight` checks each id against its provider's catalogue, and timeouts/cost accounting adapt (local = $0 and a 900 s crew cap, cloud = 300 s). Switching profiles is configuration, never a code change.
+_Avoid_: cloud-only harness, local-only harness, hardcoded model
+
 **Gate**:
 A verification command (`pytest`, `ruff`, `mypy`, `npm …`) run by QA; its exit code is the only source of "green".
 _Avoid_: check, test (gates include non-test checks)

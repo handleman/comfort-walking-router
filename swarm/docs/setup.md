@@ -68,6 +68,41 @@ the whole run to the fallbacks. Roles were `nemotron-3.5-super-vl:free`
 and `ollama/swarm-qa` as fallbacks, with free vision models on OpenRouter
 (`nemotron-3.5-super-vl`, fallback `gemma-4-31b-it`).
 
+### Local profile (Ollama) — supported, and the fastest way to check versatility
+
+The harness does not require a cloud provider. `make swarm-local` overrides every
+role for one run, and this block makes it the default in `.env`:
+
+```
+SWARM_PLANNER_MODEL=ollama/swarm-coder:latest
+SWARM_CODER_MODEL=ollama/swarm-coder:latest
+SWARM_REVIEWER_MODEL=ollama/swarm-qa:latest
+SWARM_SENIOR_MODEL=ollama/swarm-coder:latest
+SWARM_VERIFIER_MODEL=ollama/swarm-qa:latest
+SWARM_VISUAL_MODEL=ollama/swarm-qa:latest      # text-only: vision checks degrade to advisory
+SWARM_LOCAL_FALLBACK_MODEL=ollama/swarm-coder:latest
+SWARM_ALLOW_PAID=0
+```
+
+What changes automatically, with no code edit:
+
+- **Routing** — `ollama/*` goes to `OLLAMA_BASE_URL` (default
+  `http://localhost:11434`), `think:false` forced; no key needed.
+- **Preflight** — checks the model is actually pulled (`/api/tags`) instead of a
+  provider catalogue, and tells you the missing name.
+- **Timeouts** — `llms.crew_timeout_seconds()` gives a local profile **900 s** per
+  crew call (a 64k-context on-device step can exceed 5 min) and a cloud profile
+  300 s. `SWARM_OLLAMA_TIMEOUT_SECONDS` (default 1800) bounds one generation.
+- **Cost** — every `ollama/*` model is $0 in `swarm/usage.py`, so `run.json.cost`
+  is a real `0.0`, not `null`.
+- **Guard** — `SWARM_ALLOW_PAID=0` keeps a paid id from being dialled; local ids
+  never need the paid opt-in.
+
+A **hybrid** profile is just the same knobs mixed: paid coder, local reviewer,
+free-cloud planner. The only rule is that each fallback must be servable — the
+first provider-wide failure switches *that* role to its own fallback, so a hybrid
+run degrades per role instead of collapsing.
+
 ### Go caveats and the earlier Go pairing (2026-11-15)
 
 Local Ollama off (`SWARM_LOCAL_FIRST=0`), one subscription key serves every role,

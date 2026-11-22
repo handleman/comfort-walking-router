@@ -3180,9 +3180,9 @@ class SwarmFlow(Flow[SwarmState]):
                     # separate from the task wall budget. A single hung
                     # provider request must not eat the task: the timeout
                     # is min(SWARM_CREW_TIMEOUT_SECONDS, wall_remaining).
-                    crew_timeout = float(
-                        os.getenv("SWARM_CREW_TIMEOUT_SECONDS", "300") or 300
-                    )
+                    # 046 AC-3: profile aware — a local Ollama step may need
+                    # minutes, a cloud call must not hang for them.
+                    crew_timeout = llms.crew_timeout_seconds()
                     remaining = crew_timeout
                     # 022 AC-2: wall budget caps each crew call.
                     budget = int(getattr(self, "_wall_budget", 0) or 0)

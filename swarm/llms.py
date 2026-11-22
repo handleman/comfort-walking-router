@@ -126,6 +126,63 @@ ROLE_MODEL_VARS: tuple[tuple[str, str], ...] = (
 )
 
 
+# Every var that can point at a model: the five roles, the vision roles and the
+# shared fallbacks. Used by the "is this a local profile?" checks so the harness
+# behaves the same whether the operator picked cloud, local or a mix.
+ALL_MODEL_VARS: tuple[str, ...] = (
+    "SWARM_PLANNER_MODEL",
+    "SWARM_CODER_MODEL",
+    "SWARM_REVIEWER_MODEL",
+    "SWARM_SENIOR_MODEL",
+    "SWARM_VERIFIER_MODEL",
+    "SWARM_VISUAL_MODEL",
+    "SWARM_ACCEPT_MODEL",
+    "SWARM_CONFLICT_MODEL",
+    "SWARM_LOCAL_CODER_MODEL",
+    "SWARM_PLANNER_FALLBACK_MODEL",
+    "SWARM_CODER_FALLBACK_MODEL",
+    "SWARM_REVIEWER_FALLBACK_MODEL",
+    "SWARM_SENIOR_FALLBACK_MODEL",
+    "SWARM_VERIFIER_FALLBACK_MODEL",
+    "SWARM_VISUAL_FALLBACK_MODEL",
+    "SWARM_ACCEPT_FALLBACK_MODEL",
+    "SWARM_CONFLICT_FALLBACK_MODEL",
+    "SWARM_LOCAL_FALLBACK_MODEL",
+)
+
+
+def uses_local_models(env: Mapping[str, str] | None = None) -> bool:
+    """True when any configured role or fallback is a local `ollama/*` model.
+
+    The harness supports paid, free-cloud and local profiles equally; only the
+    timeouts differ, because an on-device generation can legitimately run for
+    minutes where a cloud call takes seconds.
+    """
+    source: Mapping[str, str] = os.environ if env is None else env
+    return any(
+        str(source.get(var, "")).strip().startswith("ollama/") for var in ALL_MODEL_VARS
+    )
+
+
+def crew_timeout_seconds(env: Mapping[str, str] | None = None) -> float:
+    """Hard cap for one crew call (046 AC-3), profile aware.
+
+    `SWARM_CREW_TIMEOUT_SECONDS` wins when set; otherwise a local profile gets
+    900 s (a 64k-context on-device step can exceed 5 min) and a cloud profile
+    300 s (a hung call must not eat the task).
+    """
+    source: Mapping[str, str] = os.environ if env is None else env
+    raw = str(source.get("SWARM_CREW_TIMEOUT_SECONDS", "") or "").strip()
+    if raw:
+        try:
+            value = float(raw)
+        except ValueError:
+            value = 0.0
+        if value > 0:
+            return value
+    return 900.0 if uses_local_models(source) else 300.0
+
+
 def verifier_model(env: Mapping[str, str] | None = None) -> str:
     """The verifier's model id: its own role, else the senior/free brain (019).
 

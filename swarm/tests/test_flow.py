@@ -70,10 +70,32 @@ def test_phase_timeout_raises_wall_budget(monkeypatch):
     assert __import__("time").monotonic() - started < 2.0
 
 
-def test_phase_timeout_env_default(monkeypatch):
-    """SWARM_CREW_TIMEOUT_SECONDS defaults to 300 when unset."""
-    monkeypatch.delenv("SWARM_CREW_TIMEOUT_SECONDS", raising=False)
-    import os as _os
+def test_phase_timeout_defaults_by_profile(monkeypatch):
+    """046 AC-3: the default crew cap follows the model profile.
 
-    timeout = float(_os.getenv("SWARM_CREW_TIMEOUT_SECONDS", "300") or 300)
-    assert timeout == 300.0
+    Cloud models answer in seconds, so a hung call stops at 300 s; a local
+    Ollama step can legitimately run for minutes, so the same harness allows
+    900 s. An explicit SWARM_CREW_TIMEOUT_SECONDS always wins.
+    """
+    from swarm import llms
+
+    monkeypatch.delenv("SWARM_CREW_TIMEOUT_SECONDS", raising=False)
+    for var in llms.ALL_MODEL_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+    # Cloud profile (the default checkout): 300 s.
+    monkeypatch.setenv("SWARM_CODER_MODEL", "opencode-go/glm-5.3-flash")
+    assert llms.uses_local_models() is False
+    assert llms.crew_timeout_seconds() == 300.0
+
+    # Local profile, including a local *fallback* only: 900 s.
+    monkeypatch.setenv("SWARM_CODER_MODEL", "opencode-go/glm-5.3-flash")
+    monkeypatch.setenv("SWARM_CODER_FALLBACK_MODEL", "ollama/swarm-coder:latest")
+    assert llms.uses_local_models() is True
+    assert llms.crew_timeout_seconds() == 900.0
+
+    # Explicit env always wins, whatever the profile.
+    monkeypatch.setenv("SWARM_CREW_TIMEOUT_SECONDS", "45")
+    assert llms.crew_timeout_seconds() == 45.0
+    monkeypatch.setenv("SWARM_CREW_TIMEOUT_SECONDS", "not-a-number")
+    assert llms.crew_timeout_seconds() == 900.0  # bad value → profile default
