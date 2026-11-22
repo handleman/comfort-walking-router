@@ -34,6 +34,7 @@ Restore the swarm to a fully autonomous "dark factory" state where these situati
 | `lock_held` | Another pilot's process holds the lock and is still alive | `lock_held` |
 | `checkpoint_stale` | Run checkpoint records all steps done but no final progress.json / commit; flow auto-redoes the coding phase | `checkpoint_stale` |
 | `phase_timeout` | A crew kickoff exceeded `SWARM_CREW_TIMEOUT_SECONDS`; daemon thread killed, budget charged | `phase_timeout` |
+| `needs_human` (retried) | The supervisor retries a red task overnight, then parks it as `retry_later` so the queue keeps moving | task's own `reason_code` |
 
 ## Acceptance Criteria
 
@@ -42,7 +43,8 @@ Restore the swarm to a fully autonomous "dark factory" state where these situati
 - [ ] A run whose checkpoint records all steps done but never committed triggers automatic coding-phase redo (`checkpoint_stale`).
 - [ ] Every `_kickoff` call uses `SWARM_CREW_TIMEOUT_SECONDS` (default 300) wrapping `bounded.run_bounded()`; exceeding it raises `_WallBudget`.
 - [ ] Before a new `swarm-run` starts, any running `swarm.tui` process is killed; lock acquisition succeeds.
-- [ ] No behavioural change to any existing builder or test: all 766 swarm tests continue to pass.
+- [ ] No behavioural change to any existing builder or test: all swarm tests continue to pass (773).
+- [ ] The supervisor never halts the queue on a `needs_human` stop: it retries (bounded), then parks the task as `retry_later` and moves on (`SWARM_SUPERVISE_NEEDS_HUMAN=0` opts out).
 
 ## Files Modified
 
