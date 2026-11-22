@@ -80,6 +80,7 @@ def test_supervisor_retries_then_marks_retry_later(tmp_path, monkeypatch):
         max_rounds=5,
         max_attempts=3,
         base_delay=1.0,
+        retry_file=retry_file,
     )
     assert attempts["n"] == 5
     assert sleeps[0] == 1.0 and 2.0 in sleeps
@@ -117,6 +118,61 @@ def test_supervisor_honours_stop_file(tmp_path):
         log=lambda _m: None,
     )
     assert code == 0 and calls == []
+
+
+def test_supervisor_retries_needs_human_then_parks(tmp_path, monkeypatch):
+    """046 AC-8: a red task is retried overnight, then parked — never a stop."""
+    runs = tmp_path / "swarm" / "runs"
+    runs.mkdir(parents=True)
+    retry_file = tmp_path / "retry_later.json"
+    calls: list[int] = []
+
+    def runner() -> int:
+        calls.append(1)
+        _run_dir(
+            tmp_path,
+            f"20260101-00000{len(calls)}-1-a",
+            {"spec": "040", "task": "T4", "status": "needs_human"},
+        )
+        return 1
+
+    monkeypatch.setattr(supervise, "latest_run", lambda runs=runs: _latest(runs))
+    monkeypatch.setenv("SWARM_SUPERVISE_NEEDS_HUMAN", "1")
+    code = supervise.supervise(
+        runner=runner,
+        runs=runs,
+        stop_file=tmp_path / "STOP",
+        sleep=lambda _s: None,
+        log=lambda _m: None,
+        max_attempts=2,
+        max_rounds=4,
+        retry_file=retry_file,
+    )
+    assert code == 1  # round cap, not a terminal stop
+    assert len(calls) == 4
+    assert "040/T4" in retry_file.read_text()
+
+
+def test_supervisor_stops_on_needs_human_when_disabled(tmp_path, monkeypatch):
+    runs = tmp_path / "swarm" / "runs"
+    runs.mkdir(parents=True)
+    calls: list[int] = []
+
+    def runner() -> int:
+        calls.append(1)
+        _run_dir(tmp_path, "20260101-000001-1-a", {"spec": "040", "task": "T4", "status": "needs_human"})
+        return 1
+
+    monkeypatch.setattr(supervise, "latest_run", lambda runs=runs: _latest(runs))
+    monkeypatch.setenv("SWARM_SUPERVISE_NEEDS_HUMAN", "0")
+    code = supervise.supervise(
+        runner=runner,
+        runs=runs,
+        stop_file=tmp_path / "STOP",
+        sleep=lambda _s: None,
+        log=lambda _m: None,
+    )
+    assert code == 1 and len(calls) == 1
 
 
 def test_report_summarizes_cost_and_roles(tmp_path):

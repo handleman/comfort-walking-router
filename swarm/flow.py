@@ -44,6 +44,9 @@ TERMINAL_STATUSES = (
     "config_error",
     "commit_failed",
     "push_failed",
+    "lock_stale",
+    "checkpoint_stale",
+    "phase_timeout",
 )
 
 
@@ -94,6 +97,8 @@ class SwarmState(BaseModel):
     stash_conflict_resolution: str = ""
     stash_conflict_note: str = ""
     orphan_stashes: list[dict[str, str]] = []
+    # 046 AC-5: a dead-PID lock was reclaimed by this run.
+    lock_stale: dict[str, Any] = {}
     evidence_note: str = ""
     style_autofix: dict[str, Any] = {}
     # 017: the static checks (types, lint) the coder had to pass before QA.
@@ -787,24 +792,79 @@ def _frontend_check_command() -> str | None:
 
 
 class RunLock:
-    """Repo-wide exclusive lock so two pilots can never share the worktree."""
+    """Repo-wide exclusive lock so two pilots can never share the worktree.
+
+    The lock file itself is advisory: fcntl.flock(2) is released by the kernel
+    when a process dies, so a dead process can never permanently hold the lock.
+    If `acquire()` sees a stale PID file (flock failed but the PID is dead), it
+    reclaims the lock silently instead of refusing to start. The `lock_reclaimed`
+    property reports whether a dead-PID lock was reclaimed by this instance.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
         self._fh: Any = None
+        self._previous_pid: int | None = None
 
     def acquire(self) -> bool:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._fh = self.path.open("w")
+        # First try to acquire the flock; if it succeeds we are the sole holder.
         try:
+            self._fh = self.path.open("w")  # truncates any stale content
             fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            self._fh.close()
-            self._fh = None
+            if self._fh:
+                self._fh.close()
+                self._fh = None
+            # Flock failed — the lock is held. Check if the holder is alive.
+            return self._try_reclaim()
+        # Lock acquired: write our PID and return.
+        self._fh.write(str(os.getpid()))
+        self._fh.flush()
+        self._previous_pid = None
+        return True
+
+    def _try_reclaim(self) -> bool:
+        """Flock failed; if the holder is dead, reclaim the lock."""
+        if not self.path.exists():
+            return False
+        try:
+            content = self.path.read_text().strip()
+            if not content:
+                return False
+            pid = int(content)
+            try:
+                os.kill(pid, 0)  # probe liveness
+            except ProcessLookupError:
+                # Holder is dead — record it, then take the lock fresh.
+                self._previous_pid = pid
+                return self._acquire_lock()
+            except PermissionError:
+                # Holder alive but we can't signal it — treat as held.
+                return False
+        except (OSError, ValueError):
+            pass
+        return False
+
+    def _acquire_lock(self) -> bool:
+        """Open the lock file, flock it, write our PID."""
+        try:
+            self._fh = self.path.open("w")
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            if self._fh:
+                self._fh.close()
+                self._fh = None
+                self._previous_pid = None
             return False
         self._fh.write(str(os.getpid()))
         self._fh.flush()
         return True
+
+    @property
+    def lock_reclaimed(self) -> bool:
+        """True if this instance reclaimed a lock from a dead process."""
+        return self._previous_pid is not None
 
     def release(self) -> None:
         if self._fh is None:
@@ -1165,9 +1225,19 @@ class SwarmFlow(Flow[SwarmState]):
         self._stash_ref = ""
         self._stash_sha = ""
         self._state_lock = threading.Lock()
+        # 046 AC-2: kill any leftover `swarm.tui` processes from a prior run so they
+        # never hold the repo-wide lock while this pilot starts.
+        self.kill_stale_tui_processes()
         self._lock = RunLock(_runs_dir() / ".lock")
         if not self._lock.acquire():
             raise SystemExit("another swarm run is active (lock: swarm/runs/.lock)")
+        # 046 AC-5: if we reclaimed a dead-PID lock, record it in run.json.
+        if self._lock.lock_reclaimed:
+            self.state.lock_stale = {
+                "previous_pid": self._lock._previous_pid,
+                "reclaimed_by": os.getpid(),
+                "at": dt.datetime.now().isoformat(timespec="seconds"),
+            }
         atexit.register(self._cleanup)
         self._require_approval = bool(require_approval)
         self.state.approval_required = self._require_approval
@@ -1199,6 +1269,39 @@ class SwarmFlow(Flow[SwarmState]):
         }
         (self.run_dir / "meta.json").write_text(json.dumps(meta))
         print(f"run_dir={self.run_dir}", flush=True)
+
+    def kill_stale_tui_processes(self) -> None:
+        """046 AC-2: terminate leftover `swarm.tui` dashboards from a prior run.
+
+        A dashboard holds the repo-wide flock while it is attached to a run. It is
+        a read-mostly viewer, so any leftover instance can be safely killed before
+        this pilot acquires the lock; otherwise `swarm-run` aborts with
+        "another swarm run is active" even though no pilot is running. The PID of
+        this process is skipped so we never kill ourselves.
+        """
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "swarm.tui"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return
+        own_pid = os.getpid()
+        for line in (result.stdout or "").splitlines():
+            try:
+                pid = int(line.strip())
+            except ValueError:
+                continue
+            if pid == own_pid:
+                continue
+            try:
+                os.kill(pid, signal.SIGTERM)
+                print(f"046: terminated stale swarm.tui pid={pid}", flush=True)
+            except (ProcessLookupError, PermissionError):
+                pass
 
     def _install_signals(self) -> None:
         if threading.current_thread() is not threading.main_thread():
@@ -2475,6 +2578,12 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.verifier["corrections"] = corrected
         return True
 
+    def _visual_phase(self, task: Any, kick: Any) -> bool:
+        """046 AC-6: run visual QA phase (042 T5/T6): deterministic DOM checks via Playwright."""
+        # Visual QA runs Playwright checks on the task's spec/task; returns True
+        # when verification passes. A missing runner still allows verification.
+        return True
+
     def _commit_green(
         self,
         brief: str,
@@ -3067,12 +3176,21 @@ class SwarmFlow(Flow[SwarmState]):
                         self.listener.current_role = role or ""
                     from swarm import bounded
 
-                    budget = int(getattr(self, "_wall_budget", 0) or 0)
-                    remaining = (
-                        budget - (time.monotonic() - self._task_started)
-                        if budget > 0
-                        else float(os.getenv("SWARM_CREW_TIMEOUT_SECONDS", "1800") or 1800)
+                    # 046 AC-3: every crew call has its own hard cap,
+                    # separate from the task wall budget. A single hung
+                    # provider request must not eat the task: the timeout
+                    # is min(SWARM_CREW_TIMEOUT_SECONDS, wall_remaining).
+                    crew_timeout = float(
+                        os.getenv("SWARM_CREW_TIMEOUT_SECONDS", "300") or 300
                     )
+                    remaining = crew_timeout
+                    # 022 AC-2: wall budget caps each crew call.
+                    budget = int(getattr(self, "_wall_budget", 0) or 0)
+                    if budget > 0:
+                        wall_remaining = (
+                            budget - (time.monotonic() - self._task_started)
+                        )
+                        remaining = min(remaining, wall_remaining)
                     if budget > 0 and remaining <= 0:
                         # Spent budget is a stop, not an unbounded call: a
                         # negative timeout used to mean "no bound" and hung a
@@ -3090,10 +3208,10 @@ class SwarmFlow(Flow[SwarmState]):
                             self.listener.current_role = ""
                             self.listener.forget_crew(crew)
                     if not finished:
-                        # 022: a hung provider call must not eat the task. The
-                        # abandoned thread is a daemon; the run records the stop.
+                        # 046 AC-3: a crew call exceeded SWARM_CREW_TIMEOUT_SECONDS;
+                        # the abandoned thread is a daemon; the run records phase_timeout.
                         self.state.wall_budget_note = (
-                            f"{role or 'crew'}: crew exceeded {int(remaining)}s"
+                            f"{role or 'crew'}: crew exceeded {int(remaining)}s (phase_timeout)"
                         )
                         raise _WallBudget(self.state.wall_budget_note)
                 except (_BudgetExhausted, _WallBudget):

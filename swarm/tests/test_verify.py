@@ -292,6 +292,7 @@ def _flow_stub(monkeypatch):
     )
     stub._verifier_record = types.MethodType(flow.SwarmFlow._verifier_record, stub)
     stub._verify_phase = types.MethodType(flow.SwarmFlow._verify_phase, stub)
+    stub._visual_phase = types.MethodType(flow.SwarmFlow._visual_phase, stub)
     stub._record_fix_round = types.MethodType(flow.SwarmFlow._record_fix_round, stub)
     # 026 AC-4: a correction cannot regress the static checks.
     stub._static_codes = dict

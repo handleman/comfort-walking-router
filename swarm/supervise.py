@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -39,6 +39,18 @@ RETRYABLE = {
 }
 TERMINAL = {"config_error"}
 DONE = {"green"}
+
+# 046 AC-8: the dark factory does not need an operator for a red task. A
+# `needs_human` stop is retried like a retryable stop (bounded by the same
+# attempt cap) so the queue keeps moving overnight; once the cap is spent the
+# task is parked as `retry_later` and the next task runs. `SWARM_SUPERVISE_NEEDS_HUMAN=0`
+# restores the stop-on-first-red behaviour.
+NEEDS_HUMAN_ENV = "SWARM_SUPERVISE_NEEDS_HUMAN"
+
+
+def needs_human_retry(env: Mapping[str, str] | None = None) -> bool:
+    source: Mapping[str, str] = os.environ if env is None else env
+    return str(source.get(NEEDS_HUMAN_ENV, "1")).strip().lower() not in {"0", "false", "off", "no"}
 
 
 @dataclass
@@ -118,9 +130,10 @@ def supervise(
     sleep: Callable[[float], None] = time.sleep,
     log: Callable[[str], None] = print,
     accept: Callable[[], int] | None = None,
+    retry_file: Path = RETRY_LATER,
 ) -> int:
     """Run/resume the queue until it is done. Returns the last exit code."""
-    attempts = load_attempts()
+    attempts = load_attempts(retry_file)
     run_once = runner or _default_runner
     for round_no in range(1, max_rounds + 1):
         if stop_file.exists():
@@ -132,11 +145,16 @@ def supervise(
             log("supervisor: no run produced — stopping")
             return code
         outcome = read_outcome(run_dir)
+        # 046 AC-8: a `needs_human` stop is retried like a retryable stop so an
+        # unattended night keeps moving; the attempt cap parks it eventually.
+        action = outcome.action
+        if action == "stop" and outcome.status == "needs_human" and needs_human_retry():
+            action = "retry"
         # run.json records the invocation prefix (`007`); park the canonical
         # directory name so the flow's own parked-task check matches it.
         key = task_key(runs.parent.parent, outcome.spec, outcome.task)
-        log(f"supervisor: {key} → {outcome.status} ({outcome.action})")
-        if outcome.action == "continue":
+        log(f"supervisor: {key} → {outcome.status} ({action})")
+        if action == "continue":
             log("supervisor: queue finished")
             # 043: final greenlight — run the spec acceptance pass once the
             # queue drains. On FAIL it exits non-zero; the queue stays parked.
@@ -144,14 +162,14 @@ def supervise(
                 log("supervisor: queue drained — running spec acceptance pass")
                 return accept()
             return code
-        if outcome.action == "stop":
+        if action == "stop":
             log(f"supervisor: terminal outcome {outcome.status} — stopping")
             return code
         attempts[key] = attempts.get(key, 0) + 1
-        save_attempts(attempts)
+        save_attempts(attempts, retry_file)
         if attempts[key] >= max_attempts:
             log(f"supervisor: {key} exhausted {max_attempts} attempts → retry_later")
-            mark_retry_later(key)
+            mark_retry_later(key, retry_file)
             # The queue skips parked tasks on the next resume; keep the pause
             # short so the remaining work still moves tonight.
             attempts[key] = 0

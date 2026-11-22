@@ -49,10 +49,12 @@ Verified command list and the repo's entrypoints / boundaries. See [GLOSSARY.md]
   **e2e evidence** — a brief naming `frontend/e2e/*` is green only with a recorded Playwright
   run (`reason_code=e2e_missing`, `make e2e`, `SWARM_E2E_EVIDENCE=0` off); **config errors are
   readable** (`run.json.error` + `human_log.txt`, preflight builds the crews' own factories);
-  **one retry authority** (`max_retry_limit=0` on every agent); and **the queue explains
-  itself** (`run.json.queue_reasons`, `open task <spec>/<T>: <reason>`, `make swarm-record
+  **one retry authority** (`max_retry_limit=0` on every agent, now shared via the internal
+  `_senior_agent(task, kind)` / `_conflict_resolver_agent(kind)` factories in `swarm/crew.py`,
+  which consolidate the two duplicated pairs into one shared constructor); and **the queue
+  explains itself** (`run.json.queue_reasons`, `open task <spec>/<T>: <reason>`, `make swarm-record
   SPEC=… TASK=…` for a manual completion). The **wall budget is terminal**
   (`run_bounded(None)` is the only unbounded mode, a spent budget refuses the call and raises
   `_WallBudget`), and `append`/`record_effect` no-op after the journal closes.
-- Swarm queue: the harness reads only unchecked `- [ ] T<n> (AC-…): brief` lines from `specs/product/*/tasks.md`, in directory order; authoring rules + scope/`--replan` notes are in `swarm/README.md` ("Adding a spec to the swarm todo list"). Harness specs (`009`, `012`–`033`) live in `specs/harness/` and are always skipped (the list is `HARNESS_SPECS` in `swarm/flow.py`, a backstop to the folder). The swarm does not edit spec files — mark `[x]` yourself after green (or rely on the 013 done ledger). Non-green statuses: `needs_human`, `awaiting_approval`, `commit_failed`, `push_failed`, `merge_failed`, `crew_error`, `quota_exhausted`, `budget_exhausted`, `interrupted`, `preflight_failed`.
+- Swarm queue: the harness reads only unchecked `- [ ] T<n> (AC-…): brief` lines from `specs/product/*/tasks.md`, in directory order; authoring rules + scope/`--replan` notes are in `swarm/README.md` ("Adding a spec to the swarm todo list"). Harness specs (`009`, `012`–`033`) live in `specs/harness/` and are always skipped (the list is `HARNESS_SPECS` in `swarm/flow.py`, a backstop to the folder). The swarm does not edit spec files — mark `[x]` yourself after green (or rely on the 013 done ledger). Non-green statuses: `needs_human`, `awaiting_approval`, `commit_failed`, `push_failed`, `merge_failed`, `crew_error`, `quota_exhausted`, `budget_exhausted`, `interrupted`, `preflight_failed`, `lock_stale`, `checkpoint_stale`, `phase_timeout`, `lock_held`.
 - Do not invent commands or config. Verify via manifests/scripts before claiming a workflow exists.
