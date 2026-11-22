@@ -164,23 +164,36 @@ def uses_local_models(env: Mapping[str, str] | None = None) -> bool:
     )
 
 
-def crew_timeout_seconds(env: Mapping[str, str] | None = None) -> float:
-    """Hard cap for one crew call (046 AC-3), profile aware.
+CREW_TIMEOUT_ENV = "SWARM_CREW_TIMEOUT_SECONDS"
+LOCAL_CREW_TIMEOUT_ENV = "SWARM_LOCAL_CREW_TIMEOUT_SECONDS"
 
-    `SWARM_CREW_TIMEOUT_SECONDS` wins when set; otherwise a local profile gets
-    900 s (a 64k-context on-device step can exceed 5 min) and a cloud profile
-    300 s (a hung call must not eat the task).
+
+def _positive_seconds(raw: object) -> float:
+    try:
+        value = float(str(raw or "").strip())
+    except (TypeError, ValueError):
+        return 0.0
+    return value if value > 0 else 0.0
+
+
+def crew_timeout_seconds(env: Mapping[str, str] | None = None) -> float:
+    """Hard cap for one crew call (046 AC-3), with a timeout per profile.
+
+    The two knobs are deliberately separate, mirroring the per-call timeouts
+    (`SWARM_LLM_FIX_TIMEOUT_SECONDS` vs `SWARM_OLLAMA_TIMEOUT_SECONDS`):
+
+    - local profile (`ollama/*` role or fallback) → `SWARM_LOCAL_CREW_TIMEOUT_SECONDS`
+      (default 900 s: a 64k-context on-device step can exceed 5 min);
+    - cloud profile → `SWARM_CREW_TIMEOUT_SECONDS` (default 300 s: a hung call
+      must not eat the task).
+
+    A cloud-sized cap is never inherited by a local run, so switching profiles
+    cannot silently truncate an on-device step.
     """
     source: Mapping[str, str] = os.environ if env is None else env
-    raw = str(source.get("SWARM_CREW_TIMEOUT_SECONDS", "") or "").strip()
-    if raw:
-        try:
-            value = float(raw)
-        except ValueError:
-            value = 0.0
-        if value > 0:
-            return value
-    return 900.0 if uses_local_models(source) else 300.0
+    if uses_local_models(source):
+        return _positive_seconds(source.get(LOCAL_CREW_TIMEOUT_ENV)) or 900.0
+    return _positive_seconds(source.get(CREW_TIMEOUT_ENV)) or 300.0
 
 
 def verifier_model(env: Mapping[str, str] | None = None) -> str:

@@ -70,32 +70,32 @@ def test_phase_timeout_raises_wall_budget(monkeypatch):
     assert __import__("time").monotonic() - started < 2.0
 
 
-def test_phase_timeout_defaults_by_profile(monkeypatch):
-    """046 AC-3: the default crew cap follows the model profile.
+def test_phase_timeout_has_one_knob_per_profile(monkeypatch):
+    """046 AC-3: cloud and local crew caps are separate knobs.
 
-    Cloud models answer in seconds, so a hung call stops at 300 s; a local
-    Ollama step can legitimately run for minutes, so the same harness allows
-    900 s. An explicit SWARM_CREW_TIMEOUT_SECONDS always wins.
+    A cloud-sized cap must never be inherited by a local run: an on-device step
+    legitimately runs for minutes, a hung cloud call must not.
     """
     from swarm import llms
 
-    monkeypatch.delenv("SWARM_CREW_TIMEOUT_SECONDS", raising=False)
-    for var in llms.ALL_MODEL_VARS:
+    for var in (*llms.ALL_MODEL_VARS, llms.CREW_TIMEOUT_ENV, llms.LOCAL_CREW_TIMEOUT_ENV):
         monkeypatch.delenv(var, raising=False)
 
-    # Cloud profile (the default checkout): 300 s.
+    # Cloud profile: 300 s default, SWARM_CREW_TIMEOUT_SECONDS overrides it.
     monkeypatch.setenv("SWARM_CODER_MODEL", "opencode-go/glm-5.3-flash")
     assert llms.uses_local_models() is False
     assert llms.crew_timeout_seconds() == 300.0
+    monkeypatch.setenv(llms.CREW_TIMEOUT_ENV, "45")
+    assert llms.crew_timeout_seconds() == 45.0
 
-    # Local profile, including a local *fallback* only: 900 s.
-    monkeypatch.setenv("SWARM_CODER_MODEL", "opencode-go/glm-5.3-flash")
+    # Local profile (even a local fallback alone): its own default and override;
+    # the cloud value (45) is not inherited.
     monkeypatch.setenv("SWARM_CODER_FALLBACK_MODEL", "ollama/swarm-coder:latest")
     assert llms.uses_local_models() is True
     assert llms.crew_timeout_seconds() == 900.0
+    monkeypatch.setenv(llms.LOCAL_CREW_TIMEOUT_ENV, "1500")
+    assert llms.crew_timeout_seconds() == 1500.0
 
-    # Explicit env always wins, whatever the profile.
-    monkeypatch.setenv("SWARM_CREW_TIMEOUT_SECONDS", "45")
-    assert llms.crew_timeout_seconds() == 45.0
-    monkeypatch.setenv("SWARM_CREW_TIMEOUT_SECONDS", "not-a-number")
-    assert llms.crew_timeout_seconds() == 900.0  # bad value → profile default
+    # A bad value falls back to the profile default, never to "unbounded".
+    monkeypatch.setenv(llms.LOCAL_CREW_TIMEOUT_ENV, "not-a-number")
+    assert llms.crew_timeout_seconds() == 900.0

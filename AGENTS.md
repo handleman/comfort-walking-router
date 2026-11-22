@@ -67,9 +67,11 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
     Go `/models` catalogue before the first call. A dead fallback id is a bug
     (2026‑11‑22: `opencode-go/qwen3.8-flash` sat in `SWARM_LOCAL_FALLBACK_MODEL`
     as if it were an OpenRouter id).
-  - **Timeouts follow the profile:** `llms.crew_timeout_seconds()` gives local
-    profiles 900 s per crew call and cloud 300 s, so a local step is not cut
-    short and a hung cloud call does not eat the task (046 AC‑3).
+  - **Timeouts follow the profile, one knob each:** `SWARM_CREW_TIMEOUT_SECONDS`
+    (cloud, default 300 s) and `SWARM_LOCAL_CREW_TIMEOUT_SECONDS` (local,
+    default 900 s) via `llms.crew_timeout_seconds()`. They are independent, so a
+    local step is never truncated by a cloud-sized cap and a hung cloud call
+    cannot eat the task (046 AC‑3).
   - **Cost is honest in every profile:** local and `:free` models are $0 in
     `swarm/usage.py`; a paid model with no price makes cost `None` and names
     itself (`unpriced_models`) instead of faking a number.

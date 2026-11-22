@@ -90,9 +90,11 @@ What changes automatically, with no code edit:
   `http://localhost:11434`), `think:false` forced; no key needed.
 - **Preflight** — checks the model is actually pulled (`/api/tags`) instead of a
   provider catalogue, and tells you the missing name.
-- **Timeouts** — `llms.crew_timeout_seconds()` gives a local profile **900 s** per
-  crew call (a 64k-context on-device step can exceed 5 min) and a cloud profile
-  300 s. `SWARM_OLLAMA_TIMEOUT_SECONDS` (default 1800) bounds one generation.
+- **Timeouts** — one knob per profile: `SWARM_LOCAL_CREW_TIMEOUT_SECONDS`
+  (default **900 s** per crew call — a 64k-context on-device step can exceed
+  5 min) for a local profile, `SWARM_CREW_TIMEOUT_SECONDS` (default 300 s) for
+  cloud. They are independent, so switching profiles never inherits the other
+  side's cap; `SWARM_OLLAMA_TIMEOUT_SECONDS` (default 1800) bounds one generation.
 - **Cost** — every `ollama/*` model is $0 in `swarm/usage.py`, so `run.json.cost`
   is a real `0.0`, not `null`.
 - **Guard** — `SWARM_ALLOW_PAID=0` keeps a paid id from being dialled; local ids

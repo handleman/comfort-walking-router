@@ -90,7 +90,7 @@ The internal `swarm/crew.py` factories that build the senior (`step`/`fix`) and 
 _Avoid_: duplicate constructor
 
 **Model profile**:
-The provider mix a run uses, chosen entirely by `.env`: paid cloud (`opencode-go/*`), free cloud (`openrouter/...:free`), local (`ollama/*`) or a mix. The harness is provider-agnostic — `swarm/llms.py` routes by prefix, every role has an explicit fallback, `preflight` checks each id against its provider's catalogue, and timeouts/cost accounting adapt (local = $0 and a 900 s crew cap, cloud = 300 s). Switching profiles is configuration, never a code change.
+The provider mix a run uses, chosen entirely by `.env`: paid cloud (`opencode-go/*`), free cloud (`openrouter/...:free`), local (`ollama/*`) or a mix. The harness is provider-agnostic — `swarm/llms.py` routes by prefix, every role has an explicit fallback, `preflight` checks each id against its provider's catalogue, and timeouts/cost accounting adapt (local = $0 and a 900 s crew cap via `SWARM_LOCAL_CREW_TIMEOUT_SECONDS`; cloud = 300 s via `SWARM_CREW_TIMEOUT_SECONDS`). Switching profiles is configuration, never a code change.
 _Avoid_: cloud-only harness, local-only harness, hardcoded model
 
 **Gate**:
