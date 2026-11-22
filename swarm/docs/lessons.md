@@ -118,3 +118,21 @@ Hard-won lessons from real runs — read before "fixing" the swarm. See [GLOSSAR
   SPA HTML; and `vite preview` serves the prebuilt `dist/`, so an old build looks
   like a fresh bug. Run `make dev` (or start uvicorn) and compare `dist/` vs
   `src/` mtimes before believing a QA finding.
+## 043 Spec Acceptance (final greenlight)
+
+- New: `swarm/acceptance.py` — end-of-batch spec acceptance pass for product specs with built work.
+  - picks specs that have ticked tasks (skips harness), builds frontend once, drives it via
+    `frontend/scripts/acceptance.mjs`, checks each AC (exists/absent/count/text/value_set/route_request),
+    global browser facts (tiles, leaflet, duplicate buttons, zero-size inputs, overflow,
+    console errors), and vision verdict (free VL model advisory).
+  - writes `<spec>/acceptance.md`, appends one unchecked `T<n>` fix task per failing AC
+    (dedupe open `acceptance`-tasks), exits non-zero on FAIL.
+  - wired into supervisor as AC-7: when queue drains (`outcome.action == "continue"`), runs
+    `make swarm-accept` (or `python -m swarm.acceptance [--no-vision] --no-queue ...`).
+  - env overrides: `SWARM_ACCEPT=0` disables hook, `SWARM_ACCEPT_VISION=0` skips vision call,
+    `SWARM_ACCEPT_QUEUE=0` only reports.
+- New: `frontend/scripts/acceptance.mjs` — Node Playwright runner reusing fixture backend
+  (`ROUTE_FIXTURES=1`), two viewports, screenshots, deterministic checks, JSON output.
+- New: `swarm/tests/test_acceptance.py` — 26 unit tests covering parsing, discovery,
+  merge, report, queue, vision.
+- Changelog: 758 swarm tests pass; 732 + 26 = 758 total.

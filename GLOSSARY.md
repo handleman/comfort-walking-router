@@ -128,3 +128,7 @@ _Avoid_: reviewer (that's the gate verdict; this checks the scenario)
 **Visual QA** (042):
 A planned agent that screenshots the built UI (desktop + mobile) and judges the rendering, so a visually broken app is never green.
 _Avoid_: visual regression (this is "is it obviously broken", not a pixel diff)
+
+**Spec acceptance pass** (043):
+The final greenlight: `make swarm-accept` runs every built product spec through a real browser (desktop + mobile), deterministic probes + a free vision model, appends fix tasks for failing ACs and exits non-zero on FAIL. It is the end-of-batch check, not a per-task one.
+_Avoid_: visual QA (042 is per-task; this is per-spec after the queue drains), e2e suite (that is gate evidence for one task)

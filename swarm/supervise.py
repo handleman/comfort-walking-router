@@ -117,6 +117,7 @@ def supervise(
     stop_file: Path = STOP_FILE,
     sleep: Callable[[float], None] = time.sleep,
     log: Callable[[str], None] = print,
+    accept: Callable[[], int] | None = None,
 ) -> int:
     """Run/resume the queue until it is done. Returns the last exit code."""
     attempts = load_attempts()
@@ -137,6 +138,11 @@ def supervise(
         log(f"supervisor: {key} → {outcome.status} ({outcome.action})")
         if outcome.action == "continue":
             log("supervisor: queue finished")
+            # 043: final greenlight — run the spec acceptance pass once the
+            # queue drains. On FAIL it exits non-zero; the queue stays parked.
+            if accept is not None:
+                log("supervisor: queue drained — running spec acceptance pass")
+                return accept()
             return code
         if outcome.action == "stop":
             log(f"supervisor: terminal outcome {outcome.status} — stopping")
@@ -189,7 +195,16 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     max_rounds = int(os.getenv("SWARM_SUPERVISE_ROUNDS", "20"))
     max_attempts = int(os.getenv("SWARM_SUPERVISE_ATTEMPTS", "3"))
-    return supervise(max_rounds=max_rounds, max_attempts=max_attempts)
+    if os.getenv("SWARM_ACCEPT_QUEUE", "1") != "0":
+        from swarm.acceptance import run as run_acceptance
+
+        def accept() -> int:
+            return run_acceptance(queue=True, build=True, log=print)
+    else:
+        accept = None
+    return supervise(
+        max_rounds=max_rounds, max_attempts=max_attempts, accept=accept
+    )
 
 
 if __name__ == "__main__":

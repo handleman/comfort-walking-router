@@ -21,6 +21,7 @@ make swarm-up                   # pilot in background + dashboard attached
 make swarm-up-local             # all-local pilot in background + dashboard attached
 make swarm-test                 # harness unit tests (no LLM, no network)
 make swarm-preflight            # validate models/keys/Ollama/venvs/gates (no LLM call)
+make swarm-accept               # spec acceptance pass (final greenlight; all built product specs)
 make e2e                        # browser suite: build + fixture backend + playwright test
 make swarm-record SPEC=014 TASK=T11  # standard trailers for a task finished by hand
 make swarm-approve             # grant approval for the last checkpoint task (or SPEC=001 TASK=T3)

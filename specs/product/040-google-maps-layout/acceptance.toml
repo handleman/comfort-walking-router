@@ -1,0 +1,86 @@
+[[check]]
+ac = "AC-1"
+kind = "exists"
+selector = "#map"
+viewport = "both"
+note = "Map container exists"
+
+[[check]]
+ac = "AC-1"
+kind = "min_count"
+selector = ".leaflet-tile"
+expect = 1
+viewport = "desktop"
+note = "Map tiles loaded (desktop)"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "input[placeholder='e.g. Marienplatz, Munich']"
+viewport = "both"
+note = "Origin search input exists"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "input[placeholder='e.g. Englischer Garten']"
+viewport = "both"
+note = "Destination search input exists"
+
+[[check]]
+ac = "AC-2"
+kind = "absent"
+selector = "button:has-text('More options')"
+viewport = "desktop"
+note = "No 'More options' button (removed)"
+
+[[check]]
+ac = "AC-3"
+kind = "exists"
+selector = ".sidebar-handle, [data-testid='sidebar-handle']"
+viewport = "desktop"
+note = "Sidebar edge handle exists (desktop)"
+
+[[check]]
+ac = "AC-3"
+kind = "absent"
+selector = ".sidebar-toggle, button:has-text('Hide controls')"
+viewport = "desktop"
+note = "No separate 'Hide controls' button"
+
+[[check]]
+ac = "AC-4"
+kind = "count"
+selector = "text=Start / Stop"
+expect = 0
+viewport = "both"
+note = "WalkControls not duplicated (count 0 duplicate labels)"
+
+[[check]]
+ac = "AC-5"
+kind = "exists"
+selector = "input[placeholder='e.g. Marienplatz, Munich']"
+viewport = "desktop"
+note = "Origin input present (geolocation or modal flow)"
+
+[[check]]
+ac = "AC-6"
+kind = "exists"
+selector = "svg[aria-label='my_location'], svg[aria-label='pin_drop']"
+viewport = "both"
+note = "Material icons inlined (my_location + pin_drop)"
+
+[[check]]
+ac = "AC-7"
+kind = "absent"
+selector = ".error, .console-error"
+viewport = "both"
+note = "No console errors"
+
+[[check]]
+ac = "AC-8"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Marienplatz, Munich"
+viewport = "desktop"
+note = "Auto-plan triggers /route when both endpoints set"

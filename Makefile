@@ -57,6 +57,9 @@ typecheck: ## Mypy typecheck (app + tests)
 swarm-run: ## Pilot run (starts colima+Postgres if needed): make swarm-run [SPEC=001] [TASK=T1]
 	@eval "$$(./swarm/db.sh up)"; ./swarm/run.sh $(SPEC) $(TASK)
 
+swarm-accept: ## Spec acceptance pass (final greenlight; all product specs)
+	swarm/.venv/bin/python -m swarm.acceptance $(ARGS)
+
 swarm-local: ## All-local pilot (Ollama Qwen for all roles, ignores cloud .env): make swarm-local [SPEC=001] [TASK=T1]
 	@eval "$$(./swarm/db.sh up)"; SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./swarm/run.sh $(SPEC) $(TASK)
 
