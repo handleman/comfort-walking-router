@@ -38,7 +38,11 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
   acceptance pass (043): every built product spec is checked in a real browser
   (desktop + mobile) against its ACs, failures append `T<n>` fix tasks back to
   `tasks.md`, and anything broken exits non-zero — the harness never lands a
-  visually broken spec as green.
+  visually broken spec as green. After every green feature task the supervisor's
+  acceptance hook automatically runs the per-feature acceptance pass
+  (`swarm/acceptance.py`), queuing fix tasks for failing ACs and recording the
+  verdict in run.json — the feature still goes green but regressions are flagged
+  for the operator.
 - Update tasks/ACs in the same change as the implementation; record completed
   work and blockers explicitly. Prefer editing existing files; keep changes
   minimal. Do not invent commands or config — verify via manifests/scripts.

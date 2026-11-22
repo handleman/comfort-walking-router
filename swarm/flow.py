@@ -4174,6 +4174,42 @@ class SwarmFlow(Flow[SwarmState]):
                     )
                     payload["done"]["recorded"] = True
                     self._delete_progress()
+                    # 043: per-feature acceptance pass — run visual checker on the spec
+                    # that just went green. Failing ACs queue fix tasks; verdict recorded.
+                    if os.getenv("SWARM_ACCEPT", "1") != "0":
+                        try:
+                            from swarm.acceptance import run as run_acceptance
+                            acceptance_result = run_acceptance(
+                                specs=[self.state.spec_dir],
+                                queue=True,
+                                build=True,
+                                log=print,
+                            )
+                            payload["acceptance"] = {
+                                "verdict": acceptance_result.verdict,
+                                "spec": self.state.spec_dir,
+                                "queued_fix_tasks": acceptance_result.queued,
+                                "reports": [
+                                    {
+                                        "spec": r.spec,
+                                        "verdict": r.verdict,
+                                        "counts": r.counts,
+                                    }
+                                    for r in acceptance_result.reports
+                                ],
+                            }
+                            if acceptance_result.verdict == "FAIL":
+                                print(
+                                    f"acceptance: {acceptance_result.verdict} on "
+                                    f"{self.state.spec_dir} — {acceptance_result.queued} fix task(s) queued",
+                                    flush=True,
+                                )
+                        except Exception as e:
+                            payload["acceptance"] = {
+                                "error": f"{type(e).__name__}: {e}",
+                                "spec": self.state.spec_dir,
+                            }
+                            print(f"acceptance error: {e}", flush=True)
                 else:
                     if rec.get("merge", "").startswith(("conflict", "switch")):
                         status = "merge_failed"

@@ -131,6 +131,9 @@ Green is deliberately strict (012 AC-4/AC-6):
    unrelated dirty work);
 4. approval is present only when the run was started with `--require-approval`;
 5. commit + push succeed. `commit_failed`/`push_failed`/`merge_failed` are not green.
+6. the 043 Spec Acceptance pass runs after a green task (unless `SWARM_ACCEPT=0`).
+   Its verdict and any queued fix tasks are recorded in `run.json.acceptance`; the task is still
+   recorded green in the done ledger, but the acceptance result flags regressions for the operator.
 
 Plan cache: planner output is saved to `swarm/runs/plans/<spec>-<task>.md` with a
 `<!-- plan-source: sha256 -->` header over `spec.md`+`plan.md`+`tasks.md`. A changed spec

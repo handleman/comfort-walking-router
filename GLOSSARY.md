@@ -130,5 +130,5 @@ A planned agent that screenshots the built UI (desktop + mobile) and judges the 
 _Avoid_: visual regression (this is "is it obviously broken", not a pixel diff)
 
 **Spec acceptance pass** (043):
-The final greenlight: `make swarm-accept` runs every built product spec through a real browser (desktop + mobile), deterministic probes + a free vision model, appends fix tasks for failing ACs and exits non-zero on FAIL. It is the end-of-batch check, not a per-task one.
-_Avoid_: visual QA (042 is per-task; this is per-spec after the queue drains), e2e suite (that is gate evidence for one task)
+The final greenlight: `make swarm-accept` runs every built product spec through a real browser (desktop + mobile), deterministic probes + a free vision model, appends fix tasks for failing ACs and exits non-zero on FAIL. It is the end-of-batch check, not a per-task one. After every green feature task the supervisor's acceptance hook automatically runs the per-feature acceptance pass (swarm/acceptance.py), queuing fix tasks for failing ACs and recording the verdict in run.json — the feature still goes green but regressions are flagged for the operator.
+_Avoid_: visual QA (042 is per-task; this is per-spec/per-feature after the queue drains or after each green task), e2e suite (that is gate evidence for one task)

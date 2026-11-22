@@ -50,7 +50,11 @@ decision that must not be made by a model (retries, scope, green, commit).
    `frontend/e2e/*`, and the run was not started with `--require-approval` (the
    one hold that exists). Then: branch per task → gates → `--no-ff` merge queue →
    commit with trailers (`Swarm-Task`, `-Task-Hash`, `-Spec-Hash`, `-Run`) →
-   push. Green-but-unconfirmed (a selected subset only) is `needs_human`.
+   push → **043 Spec Acceptance pass** runs on that spec (automatic, per-feature).
+   Failing ACs queue one `T<n>` fix task each (deduped against open
+   `acceptance`-tasks) and record the verdict in `run.json`. The task is still
+   recorded green in the done ledger; the acceptance result is stored alongside.
+   Green-but-unconfirmed (a selected subset only) is `needs_human`.
 10. **Record** — `run.json`, `events.jsonl`, `shell_log.jsonl`, `progress.json`,
     the journal, `human_log.txt`, the done ledger.
 
@@ -88,7 +92,9 @@ flowchart TD
     BR -->|"conflict or failed gate"| MF["merge_failed<br/>patch reversed, task stays open"]
     BR --> CM["commit with trailers<br/>Swarm-Task / -Task-Hash / -Spec-Hash / -Run"]
     CM --> PU["push (best effort)"]
-    PU --> R["run.json / events / journal /<br/>human_log.txt / done ledger"]
+    PU --> AP["043 Spec Acceptance<br/>per-feature on that spec"]
+    AP -->|"FAIL"| QF["queue fix tasks T<n><br/>record in run.json"]
+    AP --> R["run.json / events / journal /<br/>human_log.txt / done ledger"]
 ```
 
 ### The invariant that shapes everything
