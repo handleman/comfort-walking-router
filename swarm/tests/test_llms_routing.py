@@ -24,10 +24,11 @@ def test_local_override_uses_litellm_transport(monkeypatch):
 
 
 def test_a_paid_planner_needs_the_global_opt_in(monkeypatch):
-    """014-T6: a paid planner id was blocked at build time and the run died in 2 s.
+    """014-T6: a paid planner id must be blocked unless the operator opted in.
 
-    `SWARM_ALLOW_PAID=1` alone is not enough: the caller must opt in, which the
-    plan crew now does. Without the global flag the same call stays blocked.
+    One switch (2026-11-22): `SWARM_ALLOW_PAID=1` decides. The per-call
+    `allow_paid=` flag is accepted for compatibility but no longer gates, so the
+    same call cannot fail at run time because a builder passed the wrong flag.
     """
     import pytest
 

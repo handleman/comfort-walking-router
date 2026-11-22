@@ -75,9 +75,12 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
   - **Cost is honest in every profile:** local and `:free` models are $0 in
     `swarm/usage.py`; a paid model with no price makes cost `None` and names
     itself (`unpriced_models`) instead of faking a number.
-  - **Paid is opt‑in twice:** `SWARM_ALLOW_PAID=1` *and* `allow_paid=True` in
-    code. Switching profiles must never silently bill; switching to local must
-    never require a code change.
+  - **Paid is one switch:** `SWARM_ALLOW_PAID=1` in `.env` — the operator's
+    decision, in the same place the model ids live. `local` and `:free`/`-free`
+    ids never need it, so switching to a local profile requires no code change.
+    (The old rule also demanded `allow_paid=True` at each call site; that
+    duplicated one decision across every builder and died at run time when a
+    role was constructed with the wrong flag.)
 
 - **Swarm Agent Skills** (044): operators add agent behaviour via YAML‑frontmatter
   skill files under `swarm/agents/skills/<role>.md`; the swarm auto‑discovers them

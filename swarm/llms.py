@@ -84,13 +84,22 @@ def _model(env_var: str) -> str:
     return model
 
 
-def _guard(model: str, *, allow_paid: bool) -> None:
+def _guard(model: str, *, allow_paid: bool | None = None) -> None:
+    """Refuse a paid model id unless the operator opted in (SWARM_ALLOW_PAID=1).
+
+    One switch, not two (2026-11-22). The old rule required the env flag *and* a
+    per-call `allow_paid=True`; that duplicated one decision across every builder
+    and made a role constructed with the wrong flag die at run time (014-T6).
+    The env is now the single authority, and it is what the model ids in `.env`
+    already express. `allow_paid` stays accepted for call-site compatibility but
+    no longer gates anything.
+    """
     if ":free" in model or model.startswith("ollama/") or "contributor-free" in model or model.endswith("-free"):
         return
-    if _allow_paid() and allow_paid:
+    if _allow_paid():
         return
     raise PermissionError(
-        f"Paid model blocked: {model}. Set SWARM_ALLOW_PAID=1 and pass allow_paid=True to opt in."
+        f"Paid model blocked: {model}. Set SWARM_ALLOW_PAID=1 in .env to allow paid models."
     )
 
 
@@ -478,14 +487,14 @@ def planner_llm(*, allow_paid: bool = False) -> LLM:
     return _for_role("SWARM_PLANNER_MODEL", temperature=0.2, allow_paid=allow_paid)
 
 
-def _paid_ok(allow_paid: bool | None) -> bool:
-    """Explicit flag wins; `None` follows the global SWARM_ALLOW_PAID opt-in.
+def _paid_ok(allow_paid: bool | None = None) -> bool:
+    """Whether a paid model may be dialled — the env is the only authority.
 
     The QA reviewer, senior and verifier default to free models, but a daily
     free-tier quota wall leaves them with no usable free fallback. An operator
     who has set SWARM_ALLOW_PAID=1 and named a paid id may run them paid.
     """
-    return _allow_paid() if allow_paid is None else allow_paid
+    return _allow_paid()
 
 
 def reviewer_llm(*, allow_paid: bool | None = None) -> LLM:
