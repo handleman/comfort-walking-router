@@ -160,7 +160,8 @@ def load_skill_for_role(role: str) -> list[Skill] | None:
     skill_path = skill_file_for_role(role)
     if skill_path is not None:
         try:
-            loaded: list[Skill] = load_skill(str(skill_path))
+            content = skill_path.read_text(encoding="utf-8")
+            loaded: list[Skill] = load_skill(content)
             for s in loaded:
                 if s.disclosure_level not in (1, 2, _DISCLOSURE_INSTRUCTIONS):
                     s.disclosure_level = _DISCLOSURE_INSTRUCTIONS
