@@ -85,6 +85,10 @@ _Avoid_: backlog, list
 The swarm's agent roles. The coder writes code; QA runs the gates; the reviewer declares PASS/BLOCKED; the verifier (019) checks the code matches the brief; the senior does deep fixes.
 _Avoid_: worker, judge
 
+**Shared agent builder** (`_senior_agent` / `_conflict_resolver_agent`):
+The internal `swarm/crew.py` factories that build the senior (`step`/`fix`) and conflict-resolver (`merge`/`stash`) agents from the shared constructor — they differ only by prompt text and `max_iter`. No public builder names or signatures changed.
+_Avoid_: duplicate constructor
+
 **Gate**:
 A verification command (`pytest`, `ruff`, `mypy`, `npm …`) run by QA; its exit code is the only source of "green".
 _Avoid_: check, test (gates include non-test checks)

@@ -16,7 +16,10 @@ def test_every_agent_disables_CrewAI_retries():
     source = inspect.getsource(crew)
     agents = source.count("Agent(")
     pinned = source.count("max_retry_limit=AGENT_RETRY_LIMIT")
-    assert agents >= 9
+    # 045 dedup consolidated two duplicated pairs (senior step/fix, merge/stash
+    # resolvers) into shared factories, so the number of literal Agent(...)
+    # construction sites dropped from 9 to 7. Every site must still pin the limit.
+    assert agents >= 7
     assert pinned == agents, f"{agents - pinned} Agent(s) still let CrewAI retry"
 
 

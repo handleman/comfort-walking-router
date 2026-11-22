@@ -6,12 +6,6 @@ browser pass is not unit-tested (it needs Chromium); the pure functions are.
 
 from __future__ import annotations
 
-import json
-import tempfile
-from pathlib import Path
-
-import pytest
-
 from swarm.acceptance import (
     AcceptanceRun,
     Check,
@@ -20,9 +14,7 @@ from swarm.acceptance import (
     browser_plan,
     built_product_specs,
     global_failures,
-    judge_vision,
     load_checks,
-    load_criteria,
     merge_ac_verdicts,
     next_task_id,
     parse_criteria,
@@ -33,7 +25,6 @@ from swarm.acceptance import (
     spec_title,
     write_report,
 )
-
 
 # --- parsing ---------------------------------------------------------------
 

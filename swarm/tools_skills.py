@@ -14,14 +14,7 @@ from pathlib import Path
 from crewai.skills.loader import load_skill
 from crewai.skills.models import Skill, SkillFrontmatter
 
-# Off switch and config directory
-SKILLS_ENABLED = os.getenv("SWARM_SKILLS", "1") != "0"
-SKILLS_DIR = Path(os.getenv("SWARM_SKILLS_DIR", "swarm/agents/skills")).expanduser()
-
-# Mapping from agent role strings (as returned by agent_copy/kind names)
-# to the corresponding skill .md filename in swarm/agents/skills/.
-# If a role is not in this dict, the loader will try to match a filename
-# inferred from the role name.
+# Mapping from agent role strings to the corresponding skill .md filename.
 _ROLE_TO_SKILL_FILE: dict[str, str] = {
     "coder": "coder",
     "qa": "qa",
@@ -40,53 +33,56 @@ _ROLE_TO_SKILL_FILE: dict[str, str] = {
 _DISCLOSURE_INSTRUCTIONS = 2
 
 # Built-in default templates for roles with no operator file.
-# These produce minimal Skill objects so the run continues with no error.
 _DEFAULT_SKILL_TEMPLATES: dict[str, tuple[str, str]] = {
     "coder": (
         "coder",
-        (
-            "You implement one micro-step against the task brief with smallest coherent diffs. "
-            "Work from real module APIs; never invent functions or fields. "
-            "No gates, no network commands. Use Repo Create for new files, Repo Edit for existing. "
-            "Output: one line per file changed."
-        ),
+        ("You implement one micro-step against the task brief with smallest coherent diffs. "
+        "Work from real module APIs; never invent functions or fields. "
+        "No gates, no network commands. Use Repo Create for new files, Repo Edit for existing. "
+        "Output: one line per file changed."),
     ),
     "qa": (
         "qa",
-        (
-            "You are the only role that runs the project gates. Run every configured gate, report "
-            "each command, exit code, and failure output. List changed files via `git status`. "
-            "If no relevant change, verdict BLOCKED. End with exactly `VERDICT: PASS` or "
-            "`VERDICT: BLOCKED`."
-        ),
+        ("You are the only role that runs the project gates. Run every configured gate, report "
+        "each command, exit code, and failure output. List changed files via `git status`. "
+        "If no relevant change, verdict BLOCKED. End with exactly `VERDICT: PASS` or "
+        "`VERDICT: BLOCKED`."),
     ),
     "verifier": (
         "verifier",
-        (
-            "You verify the scenario, not the gates. Read-only: never write a file, never run a "
-            "gate, never commit. Check: every brief-named element exists; pieces connect "
-            "(endpoint mounted, real imports, contract matches); ACs addressed. Output FINDING/STEP "
-            "lines and `VERDICT: PASS|BLOCKED`."
-        ),
+        ("You verify the scenario, not the gates. Read-only: never write a file, never run a "
+        "gate, never commit. Check: every brief-named element exists; pieces connect "
+        "(endpoint mounted, real imports, contract matches); ACs addressed. Output FINDING/STEP "
+        "lines and `VERDICT: PASS|BLOCKED`."),
     ),
     "planner": (
         "planner",
-        (
-            "You decompose one spec task into LOGICAL micro-steps (STEP n lines), each mapping to "
-            "one acceptance criterion, with at most which files it may touch. Concrete write verbs "
-            "only (Create/Add/Remove/Edit/Refactor). Files must appear in the brief. 4-8 steps."
-        ),
+        ("You decompose one spec task into LOGICAL micro-steps (STEP n lines), each mapping to "
+        "one acceptance criterion, with at most which files it may touch. Concrete write verbs "
+        "only (Create/Add/Remove/Edit/Refactor). Files must appear in the brief. 4-8 steps."),
     ),
     "senior": (
         "senior",
-        (
-            "You are the senior escalation: fix COMPLETELY and coherently from QA's gate evidence. "
-            "Imports must resolve; sync/async must match; implementations match ABC signatures. "
-            "Diagnose type mismatches by reading the real API. Narrow last-resort suppression only "
-            "with explanation. Never delete/disable the feature or blanket-suppress."
-        ),
+        ("You are the senior escalation: fix COMPLETELY and coherently from QA's gate evidence. "
+        "Imports must resolve; sync/async must match; implementations match ABC signatures. "
+        "Diagnose type mismatches by reading the real API. Narrow last-resort suppression only "
+        "with explanation. Never delete/disable the feature or blanket-suppress."),
     ),
 }
+
+
+def skills_enabled() -> bool:
+    """Whether the skill injection is enabled (default on)."""
+    return os.getenv("SWARM_SKILLS", "1") != "0"
+
+
+def skills_dir() -> Path:
+    """The folder holding the role skill .md files."""
+    return Path(os.getenv("SWARM_SKILLS_DIR", "swarm/agents/skills")).expanduser()
+
+
+def _disclosure_level() -> int:
+    return _DISCLOSURE_INSTRUCTIONS
 
 
 def _default_skill(role: str) -> list[Skill]:
@@ -109,32 +105,24 @@ def _default_skill(role: str) -> list[Skill]:
         Skill(
             frontmatter=frontmatter,
             instructions=body,
-            path=SKILLS_DIR,
-            disclosure_level=_DISCLOSURE_INSTRUCTIONS,
+            path=skills_dir(),
+            disclosure_level=_disclosure_level(),
         )
     ]
 
 
 def skill_file_for_role(role: str) -> Path | None:
-    """Return the Path to the skill .md file for the given role string.
-
-    The search order is:
-    1. Exact match against ``_ROLE_TO_SKILL_FILE`` dict keys.
-    2. Fallback: ``<SKILLS_DIR>/<role>.md``.
-    """
-    if not SKILLS_ENABLED:
+    """Return the Path to the skill .md file for the given role string."""
+    if not skills_enabled():
         return None
 
-    # Normalise role: strip, lower, replace spaces+underscores with dash
     normalized = role.strip().lower().replace(" ", "-").replace("_", "-")
-    # Try exact lookup in mapping
     filename = _ROLE_TO_SKILL_FILE.get(normalized, normalized)
 
-    candidate = SKILLS_DIR / f"{filename}.md"
+    candidate = skills_dir() / f"{filename}.md"
     if candidate.is_file():
         return candidate
-    # Also try original role case as-is
-    candidate2 = SKILLS_DIR / f"{role}.md"
+    candidate2 = skills_dir() / f"{role}.md"
     if candidate2.is_file():
         return candidate2
     return None
@@ -143,18 +131,13 @@ def skill_file_for_role(role: str) -> Path | None:
 def load_skill_for_role(role: str) -> list[Skill] | None:
     """Load the Skill objects for a given agent role.
 
-    Reads the skill file from `SKILLS_DIR` using CrewAI's YAML-frontmatter
-    loader and returns a list of Skill objects (normally a single-element list).
-    Returns the built-in default template if no file is found or loading fails.
+    Reads the skill file from the configured skills dir using CrewAI's
+    YAML-frontmatter loader and returns a list of Skill objects. Returns the
+    built-in default template if no file is found or loading fails.
 
-    Args:
-        role: The agent role string that matches a skill .md file name.
-
-    Returns:
-        A list of Skill objects (usually length 1) — never None when skills are
-        enabled. Returns None only if SWARM_SKILLS=0.
+    Returns ``None`` only when skills are disabled (``SWARM_SKILLS=0``).
     """
-    if not SKILLS_ENABLED:
+    if not skills_enabled():
         return None
 
     skill_path = skill_file_for_role(role)
@@ -163,8 +146,8 @@ def load_skill_for_role(role: str) -> list[Skill] | None:
             content = skill_path.read_text(encoding="utf-8")
             loaded: list[Skill] = load_skill(content)
             for s in loaded:
-                if s.disclosure_level not in (1, 2, _DISCLOSURE_INSTRUCTIONS):
-                    s.disclosure_level = _DISCLOSURE_INSTRUCTIONS
+                if s.disclosure_level not in (1, _disclosure_level()):
+                    s.disclosure_level = _disclosure_level()
             return loaded
         except Exception as exc:  # noqa: BLE001 — never crash the swarm
             print(
@@ -172,25 +155,18 @@ def load_skill_for_role(role: str) -> list[Skill] | None:
                 file=sys.stderr,
             )
 
-    # No file or parse error → built-in default
     return _default_skill(role)
 
 
 def inject_skill_into_agent(role: str, agent: object) -> object:
     """Append the role's skill list to an Agent's ``skills`` attribute.
 
-    If skills are disabled (SWARM_SKILLS=0), the agent is returned unchanged.
-    If the agent already has skills, they are extended; otherwise a new list
-    is created from the loaded skill(s).
-
-    Args:
-        role: The agent role string (used to locate the skill .md file).
-        agent: A CrewAI Agent instance.
-
-    Returns:
-        The same agent instance with skills appended (or original if skills disabled).
+    If skills are disabled (SWARM_SKILLS=0), reset the agent's ``skills`` to an empty list
+    so no injection occurs and the agent starts clean. Existing skills are extended;
+    a new list is created from the loaded skill(s) otherwise.
     """
-    if not SKILLS_ENABLED:
+    if not skills_enabled():
+        agent.skills = []
         return agent
 
     skills = load_skill_for_role(role)

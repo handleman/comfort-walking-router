@@ -59,6 +59,12 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
   default templates. Off switches: `SWARM_SKILLS=0`, configurable dir
   `SWARM_SKILLS_DIR`.
 
+  **Shared internal builders (045):** `swarm/crew.py` exposes `_senior_agent(task, kind)` and
+  `_conflict_resolver_agent(kind)`. Both are byte-equivalent to the old inline
+  `Agent(...)` blocks for `build_senior_step_crew`/`build_senior_crew` and
+  `build_conflict_crew`/`build_stash_crew`; they only differ by prompt text and
+  `max_iter`. No public builder names or signatures changed.
+
   **Clarifying questions (044):**
   - Which core agent roles should ship with a skill file? (coder, qa, verifier,
     planner, senior, senior_step, test_author, conflict_resolver, stash_resolver?)

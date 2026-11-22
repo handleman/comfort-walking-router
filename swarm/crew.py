@@ -15,6 +15,7 @@ from swarm.llms import (
     reviewer_llm,
     senior_llm,
     verifier_llm,
+    visual_llm,
 )
 
 # Back-compat re-exports: flow.py and the tests import these from swarm.crew.
@@ -58,6 +59,7 @@ __all__ = [
     "build_stash_crew",
     "build_step_crew",
     "build_verify_crew",
+    "build_visual_qa_crew",
     "coder_role",
     "gate_commands_hint",
     "parse_steps",
@@ -180,17 +182,7 @@ def build_step_crew(
 
 def build_senior_step_crew(spec_dir: str, task: SpecTask, step_text: str, idx: int, total: int, last_error: str) -> Crew:
     """Senior Developer executes one micro-step the junior coder failed repeatedly."""
-    copy = prompts.agent_copy(task, "senior_step")
-    senior = Agent(
-        role=copy["role"],
-        goal=copy["goal"],
-        backstory=copy["backstory"],
-        llm=senior_llm(),
-        tools=_tools(role=copy["role"]),
-        verbose=False,
-        max_retry_limit=AGENT_RETRY_LIMIT,
-        max_iter=12,
-    )
+    senior = _senior_agent(task, "senior_step", max_iter=12)
     t_step = Task(
         description=prompts.senior_step_prompt(task, spec_dir, step_text, idx, total, last_error),
         expected_output=f"Step {idx} diff summary: files changed + one line each.",
@@ -233,6 +225,45 @@ def build_verify_crew(spec_dir: str, task: SpecTask, context_text: str) -> Crew:
     return Crew(agents=[verifier], tasks=[t_verify], process=Process.sequential, verbose=False)
 
 
+def build_visual_qa_crew(spec_dir: str, task: SpecTask, facts_text: str, screenshots: list[str]) -> Crew:
+    """042 Swarm Visual QA — read screenshots + facts, feed VL model for a verdict.
+
+    A read-only agent that never edits the repository: it inspects the DOM facts
+    from the Playwright runner and looks at the screenshots, then gives a verdict
+    (PASS or BLOCKED) plus findings. The harness parses the text and decides green.
+    """
+    agent = Agent(
+        role="Visual QA Verifier",
+        goal="Inspect screenshots and DOM facts to verify that the built UI renders correctly without obvious breakage.",
+        backstory=(
+            "You verify that the built UI actually renders correctly — not just that the tests pass. "
+            "You inspect screenshots and DOM facts (map tiles, forms, buttons, step labels) to check for "
+            "obvious visual breakage: blank map (0 tiles), missing forms, dead buttons, leftover step labels. "
+            "You never edit files or run gates. Your final answer is the deliverable: "
+            "FINDING lines (one per problem), and `VERDICT: PASS` or `VERDICT: BLOCKED`."
+        ),
+        llm=visual_llm(),
+        tools=[FullFileReadTool(), ShellTool(allow_gates=False, agent_role="visual_qa")],
+        verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
+        max_iter=6,
+    )
+    t_qa = Task(
+        description=(
+            f"Inspect the built UI for spec={spec_dir} task={task.id}. "
+            f"Facts: {facts_text}\n\n"
+            f"Screenshots provided: {screenshots}\n\n"
+            "Check for obvious visual breakage: blank map, missing forms, dead buttons, leftover step labels. "
+            "Then give exactly one `VERDICT: PASS` or `VERDICT: BLOCKED` line."
+        ),
+        expected_output=(
+            "FINDING lines (one per problem), then exactly `VERDICT: PASS` or `VERDICT: BLOCKED`."
+        ),
+        agent=agent,
+    )
+    return Crew(agents=[agent], tasks=[t_qa], process=Process.sequential, verbose=False)
+
+
 def build_review_crew(spec_dir: str, task: SpecTask, work_summary: str) -> Crew:
     """Reviewer only, after all micro-steps: run gates, paste evidence, give one verdict."""
     reviewer = _reviewer()
@@ -258,6 +289,77 @@ PLAN_ATTEMPTS = 2  # planner retries on unparseable output before giving up
 # 017: coder fix rounds for the static checks (types, lint) before QA sees the
 # work. A red type check is a one-line defect, not a QA round-trip.
 MAX_SELF_CHECK_ROUNDS = 2
+
+
+def _senior_agent(task: SpecTask, kind: str, *, max_iter: int) -> Agent:
+    """045 T1: shared Senior Developer builder.
+
+    `kind` is either ``"senior_step"`` (max_iter=12) or ``"senior"`` (max_iter=16).
+    The common construction comes from ``agent_copy(task, kind)`` plus
+    ``senior_llm()`` / ``_tools(role=...)``; skills are appended via 044.
+    """
+    from swarm.tools_skills import inject_skill_into_agent
+
+    copy = prompts.agent_copy(task, kind)
+    agent = Agent(
+        role=copy["role"],
+        goal=copy["goal"],
+        backstory=copy["backstory"],
+        llm=senior_llm(),
+        tools=_tools(role=copy["role"]),
+        verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
+        max_iter=max_iter,
+    )
+    # 044: append the swarm senior skill (from swarm/agents/skills/senior.md)
+    try:
+        agent = inject_skill_into_agent("senior", agent)
+    except Exception as e:  # noqa: BLE001 — skill injection must never fail the run
+        print(f"[crew] skill inject failed for {kind}: {e}", file=sys.stderr)
+    return agent
+
+
+def _conflict_resolver_agent(kind: str) -> Agent:
+    """045 T2/T5: shared conflict resolver builder.
+
+    `kind` selects between ``"merge"`` (merge conflict) and ``"stash"`` (git stash apply).
+    Both use ``conflict_llm(allow_paid=True)``, ``TrimmedFileReadTool``, ``EditTool``,
+    ``max_iter=10``, no shell/gates, and SCOPE_RULE in the backstory.
+    """
+    if kind == "merge":
+        role = "Merge Conflict Resolver"
+        goal = "Merge both sides of a conflicted --no-ff merge without losing either."
+        backstory = (
+            "You resolve git merge conflicts. Both sides are wanted: keep the task's "
+            "new behaviour AND the base branch's changes, merged coherently. "
+            "Remove every conflict marker (<<<<<<<, =======, >>>>>>>). "
+            "You never run gates or commits — the harness does that. " + SCOPE_RULE
+        )
+    elif kind == "stash":
+        role = "Stash Conflict Resolver"
+        goal = "Re-apply parked work on top of newer work without losing either side."
+        backstory = (
+            "You resolve a conflicted `git stash apply`. `Updated upstream` is the "
+            "current worktree: newer, already gated and merged. `Stashed changes` is "
+            "work parked by an earlier run. Keep both when they are different work. "
+            "If the stashed side is already present or clearly superseded (a "
+            "regenerated lockfile, the same edit applied twice), keep the current "
+            "version instead of duplicating it. Remove every conflict marker "
+            "(<<<<<<<, =======, >>>>>>>). You never run gates or commits — the "
+            "harness does that. " + SCOPE_RULE
+        )
+    else:
+        raise ValueError(f"unknown conflict resolver kind: {kind!r}")
+    return Agent(
+        role=role,
+        goal=goal,
+        backstory=backstory,
+        llm=conflict_llm(allow_paid=True),
+        tools=[TrimmedFileReadTool(), EditTool()],
+        verbose=False,
+        max_retry_limit=AGENT_RETRY_LIMIT,
+        max_iter=10,
+    )
 
 
 def build_test_author_crew(spec_dir: str, task: SpecTask, ac_text: str = "") -> Crew:
@@ -319,27 +421,13 @@ def build_conflict_crew(
     *,
     detail: str = "",
 ) -> Crew:
-    """016: one resolver for a `--no-ff` merge conflict. Read + edit only.
+    """016: one resolver for a --no-ff merge conflict. Read + edit only.
 
     No ShellTool at all: the harness runs the gates and stages the files, so the
     crew cannot mark its own work green.
     """
 
-    resolver = Agent(
-        role="Merge Conflict Resolver",
-        goal="Merge both sides of a conflicted --no-ff merge without losing either.",
-        backstory=(
-            "You resolve git merge conflicts. Both sides are wanted: keep the task's "
-            "new behaviour AND the base branch's changes, merged coherently. "
-            "Remove every conflict marker (<<<<<<<, =======, >>>>>>>). "
-            "You never run gates or commits — the harness does that. " + SCOPE_RULE
-        ),
-        llm=conflict_llm(allow_paid=True),
-        tools=[TrimmedFileReadTool(), EditTool()],
-        verbose=False,
-        max_retry_limit=AGENT_RETRY_LIMIT,
-        max_iter=10,
-    )
+    resolver = _conflict_resolver_agent("merge")
     files = "\n".join(f"- {p}" for p in conflicts)
     t_resolve = Task(
         description=(
@@ -369,26 +457,7 @@ def build_stash_crew(
     newer. Both are wanted unless the parked change is already present (the
     duplicate-merge case that used to make `--ours` the only safe choice).
     """
-
-    resolver = Agent(
-        role="Stash Conflict Resolver",
-        goal="Re-apply parked work on top of newer work without losing either side.",
-        backstory=(
-            "You resolve a conflicted `git stash apply`. `Updated upstream` is the "
-            "current worktree: newer, already gated and merged. `Stashed changes` is "
-            "work parked by an earlier run. Keep both when they are different work. "
-            "If the stashed side is already present or clearly superseded (a "
-            "regenerated lockfile, the same edit applied twice), keep the current "
-            "version instead of duplicating it. Remove every conflict marker "
-            "(<<<<<<<, =======, >>>>>>>). You never run gates or commits — the "
-            "harness does that. " + SCOPE_RULE
-        ),
-        llm=conflict_llm(allow_paid=True),
-        tools=[TrimmedFileReadTool(), EditTool()],
-        verbose=False,
-        max_retry_limit=AGENT_RETRY_LIMIT,
-        max_iter=10,
-    )
+    resolver = _conflict_resolver_agent("stash")
     files = "\n".join(f"- {p}" for p in conflicts)
     t_resolve = Task(
         description=(
@@ -449,17 +518,7 @@ def build_senior_crew(spec_dir: str, task: SpecTask, qa_report_text: str, qa_rev
 
     QA re-verifies afterwards in the flow (same contract as a normal fix round).
     """
-    copy = prompts.agent_copy(task, "senior")
-    senior = Agent(
-        role=copy["role"],
-        goal=copy["goal"],
-        backstory=copy["backstory"],
-        llm=senior_llm(),
-        tools=_tools(allow_gates=False, role=copy["role"]),
-        verbose=False,
-        max_retry_limit=AGENT_RETRY_LIMIT,
-        max_iter=16,
-    )
+    senior = _senior_agent(task, "senior", max_iter=16)
     t_fix = Task(
         description=prompts.senior_prompt(task, spec_dir, qa_report_text, qa_review),
         expected_output=(

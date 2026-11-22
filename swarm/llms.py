@@ -45,6 +45,10 @@ _fallback_roles: set[str] = set()
 # reachable. Configurable like the role models: `SWARM_LOCAL_FALLBACK_MODEL`.
 DEFAULT_LOCAL_FALLBACK = "ollama/swarm-coder:latest"
 
+# Vision model for 042 Swarm Visual QA (and the acceptance vision pass).
+MODEL_ENV = "SWARM_VISUAL_MODEL"
+VISION_ENV = "SWARM_ACCEPT_VISION"
+
 
 def local_fallback_model() -> str:
     """The shared local fallback; empty env falls back to the default."""
@@ -457,6 +461,38 @@ def conflict_llm(*, allow_paid: bool = True) -> LLM:
     if fallbacks_active("SWARM_CONFLICT_MODEL"):
         model = fallback_model("SWARM_CONFLICT_MODEL", allow_paid=allow_paid) or model
     return _build(model, temperature=0, allow_paid=allow_paid, timeout=_fix_timeout())
+
+
+def visual_model(*, allow_paid: bool | None = None) -> str:
+    """Return the vision model id. Defaults to OpenRouter's free VL model."""
+    model = os.getenv(MODEL_ENV, "").strip()
+    if not model:
+        model = os.getenv("SWARM_VISUAL_FALLBACK_MODEL", "").strip()
+    if not model:
+        raise RuntimeError(
+            "SWARM_VISUAL_MODEL (or SWARM_VISUAL_FALLBACK_MODEL) is not set; "
+            "copy .env.example to .env and set every SWARM_*_MODEL."
+        )
+    return model
+
+
+def visual_llm(*, allow_paid: bool | None = None) -> LLM:
+    """Visual QA agent (042): read screenshots + facts, feed free VL model for a verdict.
+
+    Primary: `SWARM_VISUAL_MODEL` (default `openrouter/nvidia/nemotron-3.5-super-vl:free`,
+    matching the planner's current free VL model); fallback `SWARM_VISUAL_FALLBACK_MODEL`
+    (`claude-haiku-5-5`). Routed via the existing `swarm.llms` layer with
+    `SWARM_ACCEPT_VISION` off-switch and per-task cost cap.
+    """
+    model = visual_model()
+    if not model:
+        raise RuntimeError(
+            "SWARM_VISUAL_MODEL (or SWARM_VISUAL_FALLBACK_MODEL) is not set; "
+            "copy .env.example and set every SWARM_*_MODEL."
+        )
+    if fallbacks_active("SWARM_VISUAL_MODEL"):
+        model = fallback_model("SWARM_VISUAL_MODEL", allow_paid=_paid_ok(allow_paid)) or model
+    return _build(model, temperature=0, allow_paid=_paid_ok(allow_paid), timeout=_fix_timeout())
 
 
 def verdict_fallback_llm() -> LLM:
