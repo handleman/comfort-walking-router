@@ -26,31 +26,49 @@ rules) is repo-specific.
 
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
 
-Current operator profile (**free tier**, 2026-11-22): every role is a free,
-tool-capable OpenRouter model and every role falls back to a **local Ollama**
-model that is actually pulled, so a provider blip or the account-wide free-model
-wall (1000 requests/day, resets 03:00 local) moves the run sideways instead of
-failing it. `SWARM_ALLOW_PAID=0` makes a paid id fail fast instead of billing.
+Current operator profile (**OpenCode Go**, 2026-11-22): every role is a Go
+model with tool calling and every fallback is a second Go model, so a provider
+blip moves sideways and nothing dials Ollama. Chosen for **cost per green task**:
+the measured workhorse carries the bulk roles, the cheap flash tiers take the
+judgement roles, and the flagship is reserved for escalation.
 
-| Role | Model | Fallback (local) |
-| --- | --- | --- |
-| Planner | `openrouter/nvidia/nemotron-3.5-super-vl:free` (1M ctx) | `ollama/swarm-coder:latest` |
-| Coder | `openrouter/nvidia/nemotron-3.5-super-vl:free` (1M ctx) | `ollama/swarm-coder:latest` |
-| Reviewer / QA | `openrouter/nvidia/nemotron-3.5-lightning:free` (1M ctx) | `ollama/swarm-qa:latest` |
-| Senior | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` (1M ctx) | `ollama/swarm-coder:latest` |
-| Verifier | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` (1M ctx) | `ollama/swarm-qa:latest` |
-| Visual QA / acceptance (042/043) | `openrouter/nvidia/nemotron-3.5-super-vl:free` (vision) | `openrouter/google/gemma-4-31b-it:free` (vision) |
-| Conflict resolver | the coder model | `ollama/swarm-coder:latest` |
+| Role | Model | $/M in–out | Fallback | $/M in–out |
+| --- | --- | --- | --- | --- |
+| Planner | `opencode-go/glm-5.3-flash` | 0.15–0.50 | `mimo-v2.6-flash` | 0.14–0.28 |
+| Coder | `opencode-go/glm-5.3-flash` | 0.15–0.50 | `mimo-v2.6-flash` | 0.14–0.28 |
+| Reviewer / QA | `opencode-go/mimo-v2.6-flash` | 0.14–0.28 | `qwen3.8-flash` | 0.15–0.47 |
+| Verifier | `opencode-go/qwen3.8-flash` | 0.15–0.47 | `mimo-v2.6-flash` | 0.14–0.28 |
+| Senior (escalation) | `opencode-go/deepseek-v4-pro` | 0.66–1.98 (2× peak) | `kimi-k2.7-code` | 0.95–4.00 |
+| Visual QA / acceptance (042/043) | `opencode-go/hy4-flash-free` | 0–0 | `claude-haiku-5-5` | 0.10–0.50 |
+| Conflict resolver | the coder model | — | `mimo-v2.6-flash` | 0.14–0.28 |
 
-The first `429 free-models-per-day` activates the fallback chain for the whole
-run (`swarm.flow._kickoff` → `activate_fallbacks()`), so an overnight run keeps
-working on local models instead of stopping; after the daily reset the next run
-starts on the cloud models again. A role without an explicit
-`SWARM_<ROLE>_FALLBACK_MODEL` ends at `SWARM_LOCAL_FALLBACK_MODEL`, which must be
-a model the machine can serve (`preflight` checks Ollama tags and the provider's
-model list).
+Why this split: the coder writes most tokens, so it keeps the flash tier with the
+best measured green rate in this repo (`glm-5.3-flash`: 111–271 s and
+$0.0075–0.0288 per task on three shapes, see below). QA and the verifier judge
+short outputs over large inputs, where `mimo-v2.6-flash` (0.14 in) and
+`qwen3.8-flash` are cheaper per call. Escalation is rare and short, so
+`deepseek-v4-pro` (flagship coding, no vision) is cheaper in expectation than
+paying a second fix round on a flash model. `hy4-flash-free` gives the vision
+roles a $0 tier with image understanding; `claude-haiku-5-5` is the paid
+fallback. Contributor/stealth tiers (`muse-spark-*-contributor`,
+`iceman-*-free`) are excluded: they train on the traffic.
 
-### Alternative profile: OpenCode Go (2026-11-15, rate-capped)
+`preflight` checks every id against the live Go catalogue
+(`SWARM_GO_BASE_URL/models`) before the first call, so a typo fails in seconds
+instead of mid-task. `swarm/usage.py` carries the prices (peak rate where a
+multiplier exists) so `SWARM_MAX_COST_PER_TASK` stays meaningful.
+
+### Alternative profile: free OpenRouter tiers (2026-11-22, quota-capped)
+
+Free, tool-capable OpenRouter models with local Ollama fallbacks; the account-wide
+free wall is 1000 requests/day (resets 03:00 local), and the first 429 switches
+the whole run to the fallbacks. Roles were `nemotron-3.5-super-vl:free`
+(planner/coder), `nemotron-3.5-lightning:free` (reviewer),
+`nemotron-3-ultra-550b-a55b:free` (senior/verifier), with `ollama/swarm-coder`
+and `ollama/swarm-qa` as fallbacks, with free vision models on OpenRouter
+(`nemotron-3.5-super-vl`, fallback `gemma-4-31b-it`).
+
+### Go caveats and the earlier Go pairing (2026-11-15)
 
 Local Ollama off (`SWARM_LOCAL_FIRST=0`), one subscription key serves every role,
 and each role falls back to a second Go model:

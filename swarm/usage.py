@@ -25,6 +25,13 @@ PRICES_USD_PER_M: dict[str, tuple[float, float]] = {
     "opencode-go/minimax-m3.1-flash": (0.15, 0.60),
     "opencode-go/kimi-k2.7-code": (0.95, 4.00),
     "opencode-go/glm-5.3": (1.40, 4.40),
+    # Read from the Go catalogue (`/models`, 2026-11-22). DeepSeek V4 Pro doubles
+    # on weekday peaks (01:00-04:00, 06:00-10:00 UTC): the peak rate is stored so
+    # a per-task cap never under-reads. hy4-flash-free is a $0 tier.
+    "opencode-go/mimo-v2.6-flash": (0.14, 0.28),
+    "opencode-go/deepseek-v4-pro": (1.32, 3.96),
+    "opencode-go/claude-haiku-5-5": (0.10, 0.50),
+    "opencode-go/hy4-flash-free": (0.0, 0.0),
     # OpenRouter list price (2026-11-14). The planner uses this id because the
     # free Nvidia planner 503s on its safety screener; an unknown price would
     # silently disable the per-task cost cap.

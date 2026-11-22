@@ -66,6 +66,7 @@ OPTIONAL_BINARIES = ("npm",)  # frontend gate only when vitest is installed
 
 DEFAULT_OLLAMA = "http://localhost:11434"
 DEFAULT_ZEN = "https://opencode.ai/zen/v1"
+DEFAULT_GO = "https://opencode.ai/inference/go/openai/v1"
 USER_AGENT = "comfort-walking-router/0.1 (swarm-preflight)"
 OPENROUTER_MODELS = "https://openrouter.ai/api/v1/models"
 
@@ -122,7 +123,7 @@ def _ping_model_ids(env: dict[str, str], fetch: Callable[..., Any]) -> dict[str,
         except Exception as e:
             raise RuntimeError(f"openrouter model list: {e}") from e
         avail["openrouter"] = {m["id"] for m in data.get("data", [])}
-    if any(provider(env.get(v, "")) == "zen" for v in ROLE_VARS):
+    if any(provider(env.get(v, "")) == "zen" for v in ROLE_VARS + OPTIONAL_ROLE_VARS):
         base = env.get("SWARM_ZEN_BASE_URL", DEFAULT_ZEN).rstrip("/")
         try:
             data = fetch(
@@ -132,6 +133,21 @@ def _ping_model_ids(env: dict[str, str], fetch: Callable[..., Any]) -> dict[str,
         except Exception as e:
             raise RuntimeError(f"zen model list: {e}") from e
         avail["zen"] = {m["id"] for m in data.get("data", [])}
+    if any(
+        provider(env.get(v, "")) == "opencode-go" for v in ROLE_VARS + OPTIONAL_ROLE_VARS
+    ):
+        # The Go catalogue is where the role ids live; a typo here would only
+        # surface after the first task, so check it before the first call.
+        base = env.get("SWARM_GO_BASE_URL", DEFAULT_GO).rstrip("/")
+        key = env.get("OPENCODE_GO_API_KEY") or env.get("OPENCODE_API_KEY", "")
+        try:
+            data = fetch(
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {key}", "User-Agent": USER_AGENT},
+            )
+        except Exception as e:
+            raise RuntimeError(f"opencode-go model list: {e}") from e
+        avail["opencode-go"] = {m["id"] for m in data.get("data", [])}
     return avail
 
 

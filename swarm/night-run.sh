@@ -39,20 +39,25 @@ if command -v colima >/dev/null 2>&1; then
     [ -n "${DATABASE_URL:-}" ] && export DATABASE_URL
 fi
 
-# The fallback chain ends at Ollama: make sure the server is up before the
-# first quota wall, or every fallback call is a connection refused.
-if ! curl -sf --max-time 5 http://localhost:11434/api/tags >/dev/null 2>&1; then
-    log "night-run: ollama is down — starting it"
-    nohup ollama serve >>"$LOG_DIR/night-ollama.log" 2>&1 &
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-        sleep 2
-        curl -sf --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1 && break
-    done
-fi
-if curl -sf --max-time 5 http://localhost:11434/api/tags >/dev/null 2>&1; then
-    log "night-run: ollama up"
+# Only start Ollama when a configured role or fallback actually points at it
+# (the Go profile does not; a local/free profile does). Starting it anyway just
+# burns RAM for the night.
+if grep -qE '^\s*SWARM_[A-Z_]*MODEL=ollama/' .env 2>/dev/null; then
+    if ! curl -sf --max-time 5 http://localhost:11434/api/tags >/dev/null 2>&1; then
+        log "night-run: ollama is configured but down — starting it"
+        nohup ollama serve >>"$LOG_DIR/night-ollama.log" 2>&1 &
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 2
+            curl -sf --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1 && break
+        done
+    fi
+    if curl -sf --max-time 5 http://localhost:11434/api/tags >/dev/null 2>&1; then
+        log "night-run: ollama up"
+    else
+        log "night-run: ollama still down — the fallback chain will fail"
+    fi
 else
-    log "night-run: ollama still down — the fallback chain will fail"
+    log "night-run: no ollama model configured — skipping the local server"
 fi
 
 # A queue night is long: give it room, but park a task after 3 red attempts so
