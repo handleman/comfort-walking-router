@@ -56,6 +56,22 @@ def test_missing_model_var_is_reported():
     assert any(p.check == "SWARM_SENIOR_MODEL" for p in problems)
 
 
+def test_verifier_model_is_optional_but_checked_when_set():
+    """The verifier may inherit the senior model; a set id must still be valid."""
+    base = _ok_env()
+    fetch = _tags("swarm-coder:latest", "swarm-qa:latest")
+    # Unset: documented default (senior model), no problem.
+    assert check(base, fetch=fetch, which=_which) == []
+    # Set to an unpulled Ollama model: reported.
+    env = _ok_env(SWARM_VERIFIER_MODEL="ollama/missing-model:latest")
+    problems = check(env, fetch=fetch, which=_which)
+    assert any(p.check == "ollama" and "missing-model" in p.detail for p in problems)
+    # Set to a paid cloud id with the guard on: reported.
+    env = _ok_env(SWARM_VERIFIER_MODEL="openrouter/deepseek/deepseek-v4.1-flash")
+    problems = check(env, offline=True, which=_which)
+    assert any(p.check == "SWARM_VERIFIER_MODEL" for p in problems)
+
+
 def test_whitespace_model_id_is_reported():
     env = _ok_env(SWARM_CODER_MODEL="ollama/swarm-coder:latest ")
     problems = check(env, fetch=_tags("swarm-coder:latest", "swarm-qa:latest"), which=_which)

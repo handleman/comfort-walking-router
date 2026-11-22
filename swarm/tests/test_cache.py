@@ -30,6 +30,9 @@ def test_building_an_ollama_llm_records_auto(monkeypatch):
 
 def test_a_rejected_hint_falls_back_to_the_plain_llm(monkeypatch):
     monkeypatch.delenv("SWARM_PROMPT_CACHE", raising=False)
+    # Hermetic: the paid guard reads the env, so opt in here instead of relying
+    # on the checkout's .env (which is free-only by default).
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "1")
     calls: list[dict] = []
     real = llms.LLM
 
@@ -51,6 +54,7 @@ def test_a_rejected_hint_falls_back_to_the_plain_llm(monkeypatch):
 
 def test_an_accepted_hint_is_recorded(monkeypatch):
     monkeypatch.delenv("SWARM_PROMPT_CACHE", raising=False)
+    monkeypatch.setenv("SWARM_ALLOW_PAID", "1")
     real = llms.LLM
     monkeypatch.setattr(llms, "LLM", lambda **kwargs: object())
     try:

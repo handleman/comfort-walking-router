@@ -26,17 +26,38 @@ rules) is repo-specific.
 
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
 
-Current operator profile (**OpenCode Go**, 2026-11-15): local Ollama is off
-(`SWARM_LOCAL_FIRST=0`), one subscription key serves every role, and each role
-falls back to a second Go model.
+Current operator profile (**free tier**, 2026-11-22): every role is a free,
+tool-capable OpenRouter model and every role falls back to a **local Ollama**
+model that is actually pulled, so a provider blip or the account-wide free-model
+wall (1000 requests/day, resets 03:00 local) moves the run sideways instead of
+failing it. `SWARM_ALLOW_PAID=0` makes a paid id fail fast instead of billing.
 
-| Role | Model | Cost (Go) |
+| Role | Model | Fallback (local) |
 | --- | --- | --- |
-| Planner | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
-| Coder | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
-| Reviewer / QA | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
-| Verifier | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
-| Senior / verdict fallback | `opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) | $0.15/$0.50 per M |
+| Planner | `openrouter/nvidia/nemotron-3.5-super-vl:free` (1M ctx) | `ollama/swarm-coder:latest` |
+| Coder | `openrouter/nvidia/nemotron-3.5-super-vl:free` (1M ctx) | `ollama/swarm-coder:latest` |
+| Reviewer / QA | `openrouter/nvidia/nemotron-3.5-lightning:free` (1M ctx) | `ollama/swarm-qa:latest` |
+| Senior | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` (1M ctx) | `ollama/swarm-coder:latest` |
+| Verifier | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` (1M ctx) | `ollama/swarm-qa:latest` |
+| Visual QA / acceptance (042/043) | `openrouter/nvidia/nemotron-3.5-super-vl:free` (vision) | `openrouter/google/gemma-4-31b-it:free` (vision) |
+| Conflict resolver | the coder model | `ollama/swarm-coder:latest` |
+
+The first `429 free-models-per-day` activates the fallback chain for the whole
+run (`swarm.flow._kickoff` → `activate_fallbacks()`), so an overnight run keeps
+working on local models instead of stopping; after the daily reset the next run
+starts on the cloud models again. A role without an explicit
+`SWARM_<ROLE>_FALLBACK_MODEL` ends at `SWARM_LOCAL_FALLBACK_MODEL`, which must be
+a model the machine can serve (`preflight` checks Ollama tags and the provider's
+model list).
+
+### Alternative profile: OpenCode Go (2026-11-15, rate-capped)
+
+Local Ollama off (`SWARM_LOCAL_FIRST=0`), one subscription key serves every role,
+and each role falls back to a second Go model:
+`opencode-go/glm-5.3-flash` (fallback `opencode-go/qwen3.8-flash`) for
+planner/coder/reviewer/verifier/senior at $0.15/$0.50 per M. Note that
+`opencode-go/qwen3.8-flash` is **not** an OpenRouter model id — only use it with
+the Go prefix and key.
 
 `opencode-go/*` is its own routing prefix: `OPENCODE_GO_API_KEY` (or
 `OPENCODE_API_KEY`) against `SWARM_GO_BASE_URL`

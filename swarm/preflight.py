@@ -42,6 +42,9 @@ ROLE_VARS = (
     "SWARM_REVIEWER_MODEL",
     "SWARM_SENIOR_MODEL",
 )
+# Roles with a documented default: the verifier reuses the senior brain when its
+# own id is absent, so an empty value is fine — a *set* value must still be real.
+OPTIONAL_ROLE_VARS = ("SWARM_VERIFIER_MODEL",)
 GATE_BINARIES = ("pytest", "ruff", "mypy")
 
 
@@ -325,9 +328,11 @@ def check(
         )
 
     # 1. Model ids present, free-guard, provider key present.
-    for var in ROLE_VARS:
+    for var in ROLE_VARS + OPTIONAL_ROLE_VARS:
         model = env.get(var, "").strip()
         if not model:
+            if var in OPTIONAL_ROLE_VARS:
+                continue  # documented default (verifier → senior model)
             problems.append(Problem(var, "not set (copy .env.example → .env and fill it in)"))
             continue
         if model != env.get(var, ""):
@@ -350,7 +355,11 @@ def check(
 
     # 2. Local/cloud model availability.
     if not offline:
-        ollama_roles = [env.get(v, "").strip() for v in ROLE_VARS if provider(env.get(v, "")) == "ollama"]
+        ollama_roles = [
+            env.get(v, "").strip()
+            for v in ROLE_VARS + OPTIONAL_ROLE_VARS
+            if provider(env.get(v, "")) == "ollama"
+        ]
         if ollama_roles:
             base = env.get("OLLAMA_BASE_URL", DEFAULT_OLLAMA)
             try:
@@ -369,7 +378,7 @@ def check(
         except Exception as e:  # noqa: BLE001
             problems.append(Problem("cloud", f"model list request failed: {e}"))
         else:
-            for var in ROLE_VARS:
+            for var in ROLE_VARS + OPTIONAL_ROLE_VARS:
                 model = env.get(var, "").strip()
                 prov = provider(model) if model else ""
                 if prov in avail and model_id(model) not in avail[prov]:
@@ -491,9 +500,10 @@ def main() -> int:
     ap.add_argument("--offline", action="store_true", help="skip provider model-list requests")
     args = ap.parse_args()
 
-    for var in ROLE_VARS:
+    for var in ROLE_VARS + OPTIONAL_ROLE_VARS:
         model = os.getenv(var, "")
-        print(f"{var:<24} {model or '<missing>':<58} {provider(model) if model else '-'}")
+        shown = model or ("<senior model>" if var in OPTIONAL_ROLE_VARS else "<missing>")
+        print(f"{var:<24} {shown:<58} {provider(model) if model else '-'}")
 
     # Reuse the crews' factories so a broken factory (not just a broken id) is
     # caught, with the same allow_paid/fallback flags the run uses.
