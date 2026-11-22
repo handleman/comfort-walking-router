@@ -23,6 +23,9 @@ make swarm-test                 # harness unit tests (no LLM, no network)
 make swarm-preflight            # validate models/keys/Ollama/venvs/gates (no LLM call)
 make swarm-accept               # spec acceptance pass (final greenlight; all built product specs) — run by the supervisor after the queue drains, and automatically per-feature after each green task via swarm/flow.py
 make e2e                        # browser suite: build + fixture backend + playwright test
+# Swarm Agent Skills (044): operators add agent behaviour via YAML-frontmatter
+# skill files under swarm/agents/skills/<role>.md; auto-discovered and appended
+# to agent.skills (additive). Off switches: SWARM_SKILLS=0, SWARM_SKILLS_DIR.
 make swarm-record SPEC=014 TASK=T11  # standard trailers for a task finished by hand
 make swarm-approve             # grant approval for the last checkpoint task (or SPEC=001 TASK=T3)
 make swarm-approve SPEC=001 TASK=T3  # grant approval for a specific held task

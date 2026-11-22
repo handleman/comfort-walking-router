@@ -46,6 +46,28 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
 - Update tasks/ACs in the same change as the implementation; record completed
   work and blockers explicitly. Prefer editing existing files; keep changes
   minimal. Do not invent commands or config — verify via manifests/scripts.
+- **Grill before spec, spec before code (no exceptions).** On any **non‑trivial**
+  request — a new harness capability (e.g. the Swarm Agent Skills folder/injection
+  from 044), a product behaviour, or a refactor — ask questions until the picture
+  is unambiguous: goal, scope, priorities, edge cases, interpretive choices. Write
+  the spec (`spec.md` → `plan.md` → `tasks.md`) before implementing, even when the
+  harness itself is being changed directly (the swarm is not queued). Small,
+  isolated one‑line fixes still bypass this flow.
+- **Swarm Agent Skills** (044): operators add agent behaviour via YAML‑frontmatter
+  skill files under `swarm/agents/skills/<role>.md`; the swarm auto‑discovers them
+  and appends to `agent.skills` (additive). Missing files fall back to built‑in
+  default templates. Off switches: `SWARM_SKILLS=0`, configurable dir
+  `SWARM_SKILLS_DIR`.
+
+  **Clarifying questions (044):**
+  - Which core agent roles should ship with a skill file? (coder, qa, verifier,
+    planner, senior, senior_step, test_author, conflict_resolver, stash_resolver?)
+  - Should each skill file be additive (append to existing backstory) or replace
+    the backstory wholesale?
+  - What should the built‑in default template say for roles with no operator file?
+  - Should injection be disabled per role, or only globally?
+  - Should the skills folder be versioned/published (038‑style pip package), or stay
+    repo‑local for now?
 
 ## Where to find more (load on demand)
 

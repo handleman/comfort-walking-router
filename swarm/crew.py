@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from crewai import Agent, Crew, Process, Task
@@ -104,7 +105,7 @@ def _coder(
         if model_kind == "local"
         else coder_llm(fix=kind in {"fix", "selfcheck"})
     )
-    return Agent(
+    agent = Agent(
         role=copy["role"],
         goal=copy["goal"],
         backstory=copy["backstory"],
@@ -114,11 +115,21 @@ def _coder(
         max_retry_limit=AGENT_RETRY_LIMIT,
         max_iter=max_iter,
     )
+    # 043: inject the swarm skill for this coder kind (from swarm/agents/skills/)
+    # into the agent. Additive to the backstory. Falls back to no skill if absent.
+    from swarm.tools_skills import inject_skill_into_agent
+
+    skill_role = "senior" if kind in {"senior", "senior_step"} else "coder"
+    try:
+        agent = inject_skill_into_agent(skill_role, agent)
+    except Exception as e:  # noqa: BLE001 — skill injection must never fail the run
+        print(f"[crew] skill inject failed for coder kind={kind}: {e}", file=sys.stderr)
+    return agent
 
 
 def _reviewer() -> Agent:
     copy = prompts.agent_copy(None, "qa")
-    return Agent(
+    agent = Agent(
         role=copy["role"],
         goal=copy["goal"],
         backstory=copy["backstory"],
@@ -134,6 +145,14 @@ def _reviewer() -> Agent:
         # stayed "unknown" and the run had no grounded reason.
         max_iter=12,
     )
+    # 043: inject the swarm QA skill (from swarm/agents/skills/qa.md)
+    from swarm.tools_skills import inject_skill_into_agent
+
+    try:
+        agent = inject_skill_into_agent("qa", agent)
+    except Exception as e:  # noqa: BLE001 — skill injection must never fail the run
+        print(f"[crew] skill inject failed for reviewer: {e}", file=sys.stderr)
+    return agent
 
 
 def build_step_crew(
