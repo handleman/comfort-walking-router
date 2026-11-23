@@ -25,3 +25,4 @@ controls surface at any size.
 - [ ] T19 (AC-1): Fix AC-1 (Full-bleed map): found 1 element(s); found 1 element(s); count 0 >= 1 (acceptance pass 2026-11-23)
 - [ ] T20 (AC-6): Fix AC-6 (Material icons): not found; not found (acceptance pass 2026-11-23)
 - [ ] T21 (AC-8): Fix AC-8 (Auto-plan): no /route request (acceptance pass 2026-11-23)
+- [ ] T22 (AC-1..AC-6): Add stable kebab-case `data-testid` attributes (no visual change) so the deterministic layout check (harness 052) can address the layout: `top-card` (the `TopSearchCard` root), `map` (the `#map` container), `sidebar` (the desktop `aside`), `drawer` (the mobile bottom drawer), `sidebar-handle`, `drawer-handle`, `origin-input`, `dest-input` (the two `SearchInput`s), `start-walk` (the `button.walk-start` in `WalkControls`), `comfort-legend` (the `.comfort-legend` list). Attributes only; `npm run check`, `npm test`, `make e2e` stay green.

@@ -35,6 +35,9 @@ tree and the queued fix tasks are durable — no operator step.
 - **Safety:** skip when nothing is staged (`git diff --cached --quiet`); never
   raise (a commit/push failure logs a note and the acceptance verdict stands);
   120 s timeouts.
+- **Held runs:** skip the commit when the run is approval-held
+  (`--require-approval`): nothing else is committed then, so committing only the
+  report would be odd (decision 2026-11-23).
 - **Off switch:** `SWARM_ACCEPT_COMMIT=0` (mirrors `SWARM_ACCEPT_QUEUE=0`).
 
 ## Non-goals
