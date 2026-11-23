@@ -44,6 +44,26 @@ def test_first_endpoint_fails_second_succeeds(capsys):
     assert "all endpoints failed" not in out
 
 
+def test_first_endpoint_fails_second_succeeds_mocked_requests():
+    """Same retry, but mocking `requests` at the provider level (039 T1)."""
+    from unittest.mock import MagicMock
+
+    bad = MagicMock()
+    bad.raise_for_status.side_effect = RuntimeError("502 all query workers are busy")
+    good = MagicMock()
+    good.json.return_value = {
+        "elements": [{"type": "node", "id": 1, "lat": 48.13, "lon": 11.57, "tags": {}}]
+    }
+
+    with patch.object(comfort.overpass.requests, "get", side_effect=[bad, good]) as get:
+        features = comfort._overpass_features("[out:json][timeout:40]")
+
+    assert get.call_count == 2
+    assert get.call_args_list[0].args[0] == URLS[0]
+    assert get.call_args_list[1].args[0] == URLS[1]
+    assert features and features[0]["properties"]["id"] == 1
+
+
 def test_all_endpoints_fail_returns_none(capsys):
     with patch.object(
         comfort.overpass,

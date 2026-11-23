@@ -165,10 +165,13 @@ def _overpass_features(query: str) -> list[dict[str, Any]] | None:
             features = overpass.fetch_overpass_features(url, query=query)
             if features:
                 return features
+            # A 200 with no features is still a data gap for this endpoint.
         except Exception as exc:  # noqa: BLE001 - try the next endpoint
-            print(f"overpass: attempt {attempt}/3 endpoint {url} failed, reason: {exc} — trying the next endpoint", flush=True)
+            print(f"overpass: attempt {attempt}/3 endpoint {url} failed: {exc} — trying the next endpoint", flush=True)
             continue
-        print(f"overpass: attempt {attempt}/3 endpoint {url} failed, reason: no features in response — trying the next endpoint", flush=True)
+        else:
+            print(f"overpass: attempt {attempt}/3 endpoint {url} failed: no features in response — trying the next endpoint", flush=True)
+            continue
     print("overpass: all endpoints failed — falling back to a weather-only score", flush=True)
     # Data gap, never a 5xx: all endpoints failed, so return None and the
     # caller scores the route on weather alone.
