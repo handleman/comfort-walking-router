@@ -4816,10 +4816,18 @@ def run_tasks(
                 mark_retry_later(f"{spec_dir}/{task_id}")
             todo_ids = _without_retry_later(spec_dir, todo_ids)
             task_id = _next_todo(all_ids, todo_ids, task_id)
-        # Spec done and green: advance to the next spec with tasks.
+        # Spec done and green: advance to the next spec with tasks. When there is
+        # no later spec, wrap around to the earliest still-open task — tasks can
+        # complete out of file order (e.g. an interrupted checkpoint resumed last
+        # and went green before earlier parked tasks), and a forward-only advance
+        # would strand them (2026-11-23: T12 green left T6/T16/T18/T1 open and the
+        # queue declared "finished").
         spec_dir = _spec_after(REPO_ROOT, spec_dir) or ""
         if not spec_dir:
-            return
+            nxt = _first_open_task(REPO_ROOT)
+            if nxt is None:
+                return
+            spec_dir = nxt[0]
         flow_spec = spec_dir
         spec_path, all_tasks = load_spec_tasks(REPO_ROOT, spec_dir, None)
         all_ids = [t.id for t in all_tasks]

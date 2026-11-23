@@ -836,7 +836,7 @@ def run(
             except OSError:
                 text = ""
             date = stamp[:4] + "-" + stamp[4:6] + "-" + stamp[6:8]
-            new_text, added = queue_fix_tasks(text, report.failures(), date=date)
+            new_text, added = queue_fix_tasks(text, report.failures, date=date)
             if added:
                 tasks_path.write_text(new_text)
                 report.queued = [line.split(" ", 2)[2][:120] for line in added]
