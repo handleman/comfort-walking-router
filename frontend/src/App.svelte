@@ -340,6 +340,9 @@
     if (!didCenterOnUser) {
       didCenterOnUser = true
       map.setView([lat, lng], 16)
+      // A fix arriving after a denied/pending start request (AC-5): the
+      // origin is now known, so the no-fix modal must not stay open.
+      startModalOpen = false
       // Pre-fill the origin with the first fix (AC-5): reverse geocode to an
       // address, falling back to "lat, lng" if the lookup fails. A manually
       // chosen origin is left untouched because this branch only runs when no
