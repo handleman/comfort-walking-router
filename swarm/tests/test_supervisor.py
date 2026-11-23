@@ -120,6 +120,39 @@ def test_supervisor_honours_stop_file(tmp_path):
     assert code == 0 and calls == []
 
 
+def test_supervisor_stops_when_resume_produces_no_new_run(tmp_path, monkeypatch):
+    """049 follow-up: an empty resume point must stop, never livelock.
+
+    Every remaining task was parked, so `run.sh --resume` prints "nothing to
+    resume" and produces no run dir; the old loop retried the stale outcome
+    forever (observed 2026-11-23: "all specs complete" on repeat).
+    """
+    runs = tmp_path / "swarm" / "runs"
+    runs.mkdir(parents=True)
+    _run_dir(
+        tmp_path,
+        "20260101-000001-1-a",
+        {"spec": "040", "task": "T6", "status": "needs_human"},
+    )
+    monkeypatch.setattr(supervise, "latest_run", lambda runs=runs: _latest(runs))
+    calls: list[int] = []
+
+    def runner() -> int:
+        calls.append(1)  # produces no new run dir (parked queue)
+        return 0
+
+    code = supervise.supervise(
+        runner=runner,
+        runs=runs,
+        stop_file=tmp_path / "STOP",
+        sleep=lambda _s: None,
+        log=lambda _m: None,
+        max_rounds=10,
+    )
+    assert code == 0
+    assert len(calls) == 1  # stopped after the first no-progress round
+
+
 def test_supervisor_retries_needs_human_then_parks(tmp_path, monkeypatch):
     """046 AC-8: a red task is retried overnight, then parked — never a stop."""
     runs = tmp_path / "swarm" / "runs"

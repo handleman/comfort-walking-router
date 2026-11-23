@@ -139,10 +139,22 @@ def supervise(
         if stop_file.exists():
             log(f"supervisor: {stop_file} present — stopping")
             return 0
+        before = latest_run(runs)
         code = run_once()
         run_dir = latest_run(runs)
         if run_dir is None:
             log("supervisor: no run produced — stopping")
+            return code
+        if before is not None and run_dir == before:
+            # 049 follow-up: `run.sh --resume` produced no new run. The resume
+            # point is empty because every remaining task is parked (retry_later),
+            # yet the last recorded outcome is retryable — so the old code retried
+            # it forever ("all specs complete" on a loop). Stop honestly instead.
+            outcome = read_outcome(run_dir)
+            log(
+                "supervisor: no new run — remaining tasks are parked "
+                f"(last: {outcome.status}); stopping"
+            )
             return code
         outcome = read_outcome(run_dir)
         # 046 AC-8: a `needs_human` stop is retried like a retryable stop so an
