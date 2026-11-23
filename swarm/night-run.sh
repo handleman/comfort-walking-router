@@ -26,11 +26,10 @@ log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" | tee -a "$LOG"; }
 
 log "night-run: starting in $REPO (dry=${SWARM_NIGHT_DRY:-0})"
 
-# One shot: drop the launchd job so tomorrow's night is an explicit decision.
-if [ "${SWARM_NIGHT_DRY:-0}" != "1" ]; then
-    launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null
-    rm -f "$PLIST"
-fi
+# NOTE (2026-11-23): do NOT `launchctl bootout` this job up here. Booting out the
+# job while it is running terminates this process, which silently stopped the
+# wrapper at 03:05 before the supervisor started — nothing ran all night. The
+# one-shot retirement now happens *after* the supervisor finishes, below.
 
 # The supervisor never starts the database; gates skip DB tests without
 # DATABASE_URL, but e2e and the acceptance pass want it. Best effort only.
@@ -73,4 +72,12 @@ fi
 
 log "night-run: starting supervisor (rounds=$SWARM_SUPERVISE_ROUNDS attempts=$SWARM_SUPERVISE_ATTEMPTS)"
 # caffeinate: no idle/disk sleep while the queue runs; the run itself may take hours.
-exec caffeinate -is ./swarm/.venv/bin/python -m swarm.supervise >>"$LOG" 2>&1
+caffeinate -is ./swarm/.venv/bin/python -m swarm.supervise >>"$LOG" 2>&1
+rc=$?
+
+# One shot: retire the launchd job now that the queue has finished (or stopped).
+# This is the safe place for it — the job is no longer running, so bootout does
+# not kill anything the run still needs.
+launchctl bootout "gui/$UID_NUM/$LABEL" 2>/dev/null
+rm -f "$PLIST"
+exit "$rc"
