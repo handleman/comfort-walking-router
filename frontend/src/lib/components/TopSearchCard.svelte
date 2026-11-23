@@ -4,7 +4,7 @@
    * Presentational two-row card floating over the map. Row 1 is the
    * origin (blue my-location dot + "My location" label), row 2 is the
    * destination (red pin marker). A drag-handle divider sits between
-   * the rows, and `⋯` / `↑↓` action icons live on the right. Each row
+   * the rows, and the `↑↓` swap action lives on the right. Each row
    * hosts the existing SearchInput combobox, keeping the ⌖ pick
    * buttons and the search placeholder text.
    *
@@ -15,7 +15,8 @@
    * - `baseUrl` is forwarded one-way to the SearchInput fetcher.
    * - `activePick` mirrors the page's active map-pick role ('start' |
    *   'end' | null) for the ⌖ buttons' aria-pressed state.
-   * Events: `pick` (PickRole), `swap`, `more`.
+   * Events: `pick` (PickRole), `swap`. (T14: the `⋯` more-options button
+   * and its `more` event were removed; Preferences lives in the panel.)
    */
   import { createEventDispatcher } from 'svelte'
   import SearchInput from './SearchInput.svelte'
@@ -43,7 +44,6 @@
   const dispatch = createEventDispatcher<{
     pick: PickRole
     swap: void
-    more: void
   }>()
 
   function beginPick(role: PickRole): void {
@@ -79,12 +79,6 @@
     <span class="drag-handle" aria-hidden="true">⠿</span>
     <span class="divider-line" aria-hidden="true"></span>
     <span class="divider-actions">
-      <button
-        type="button"
-        class="action-btn"
-        aria-label="More options"
-        on:click={() => dispatch('more', undefined)}>⋯</button
-      >
       <button
         type="button"
         class="action-btn"
