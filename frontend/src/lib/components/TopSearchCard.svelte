@@ -83,7 +83,11 @@
   </div>
 
   <div class="divider" role="separator" aria-label="Drag to reorder">
-    <span class="drag-handle" aria-hidden="true">⠿</span>
+    <span class="drag-handle" aria-hidden="true"
+      ><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+        ><path d={materialPaths.drag_handle} /></svg
+      ></span
+    >
     <span class="divider-line" aria-hidden="true"></span>
     <span class="divider-actions">
       <button

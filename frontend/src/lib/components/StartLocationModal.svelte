@@ -35,6 +35,8 @@
 
   // A typed suggestion chosen in the SearchInput closes the modal (AC-5).
   $: if (open && selected) onChosen(selected)
+  // Clear a stale selection when (re)opening so it doesn't instantly re-close.
+  $: if (!open && selected) selected = null
 
   function onPick(): void {
     dispatch('pick', 'start')
