@@ -25,6 +25,9 @@ export const share =
 export const close =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'
 
+export const dragHandle =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 9H4v2h16V9zM4 15h16v-2H4v2z"/></svg>'
+
 export const directionsWalk =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2V9.4l1.8-.7z"/></svg>'
 
@@ -46,6 +49,10 @@ export const materialPaths = {
   more_horiz: svgPath(moreHoriz),
   expand_more: svgPath(expandMore),
   tune: svgPath(tune),
+  directions_walk: svgPath(directionsWalk),
+  share: svgPath(share),
+  close: svgPath(close),
+  drag_handle: svgPath(dragHandle),
 } as const
 
 export const search =
@@ -62,6 +69,7 @@ export const materialIcons = {
   close,
   directions_walk: directionsWalk,
   search,
+  drag_handle: dragHandle,
 } as const
 
 export type MaterialIconName = keyof typeof materialIcons

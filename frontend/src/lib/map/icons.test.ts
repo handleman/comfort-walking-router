@@ -4,6 +4,21 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  close,
+  directionsWalk,
+  expandMore,
+  materialIcons,
+  materialPaths,
+  moreHoriz,
+  myLocation,
+  place,
+  search,
+  share,
+  svgPath,
+  swapVert,
+  tune,
+} from './material'
+import {
   END_PIN_LABEL,
   END_PIN_SVG,
   PERSON_ICON_LABEL,
@@ -92,5 +107,46 @@ describe('walk-mode map divIcon configs', () => {
     expect(startPinIcon().html).toContain('role="img"')
     expect(endPinIcon().html).toContain('role="img"')
     expect(personIcon().html).toContain('role="img"')
+  })
+})
+
+describe('inlined Material SVG exports (spec 040, task T20, AC-6)', () => {
+  it('exposes every inlined Material SVG as a 24x24 currentColor svg string', () => {
+    for (const svg of [
+      myLocation,
+      place,
+      swapVert,
+      moreHoriz,
+      expandMore,
+      tune,
+      share,
+      close,
+      directionsWalk,
+      search,
+    ]) {
+      expect(svg).toContain('<svg')
+      expect(svg).toContain('viewBox="0 0 24 24"')
+      expect(svg).toContain('fill="currentColor"')
+      expect(svg).toContain('</svg>')
+    }
+  })
+
+  it('extracts a non-empty path from the place glyph via svgPath', () => {
+    expect(svgPath(place).length).toBeGreaterThan(0)
+    expect(svgPath(place)).toMatch(/^M/)
+  })
+
+  it('maps each Material icon name to its svg in materialIcons', () => {
+    expect(materialIcons.my_location).toBe(myLocation)
+    expect(materialIcons.place).toBe(place)
+    expect(materialIcons.directions_walk).toBe(directionsWalk)
+    expect(materialIcons.search).toBe(search)
+  })
+
+  it('collects the raw path data for every icon in materialPaths', () => {
+    for (const path of Object.values(materialPaths)) {
+      expect(path.length).toBeGreaterThan(0)
+      expect(path).toMatch(/^M/)
+    }
   })
 })

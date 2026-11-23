@@ -22,7 +22,9 @@
   >
     <span class="pill" aria-hidden="true">
       <span class="pill-bar"></span>
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.more_horiz} /></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"
+        ><path d={open ? materialPaths.close : materialPaths.expand_more} /></svg
+      >
     </span>
   </button>
 

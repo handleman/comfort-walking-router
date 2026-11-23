@@ -9,7 +9,9 @@ test('search page loads with fixtures and Munich geolocation', async ({ page }) 
 
   await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
   await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
-  await page.locator('button:has-text("Find route")').click()
+  // Auto-plan (T16/AC-8): the route fires once both endpoints are set —
+  // there is no Find-route button, so wait for the result instead.
+  await expect(page.locator('.result')).toBeVisible()
 })
 
 test('a routed walk shows the OSM comfort data behind its score', async ({ page }) => {
@@ -19,7 +21,8 @@ test('a routed walk shows the OSM comfort data behind its score', async ({ page 
 
   await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
   await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
-  await page.locator('button:has-text("Find route")').click()
+  // Auto-plan (T16/AC-8): no Find-route button; wait for the auto-planned result.
+  await expect(page.locator('.result')).toBeVisible()
 
   // 001 AC-2: the explanation has to name the data it actually used. The
   // fixture corridor is 5 ways with 2 trees, so shade 0.60 / quiet 0.80.
@@ -36,9 +39,9 @@ test('a routed walk shows the comfort profile legend and bands', async ({ page }
 
   await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
   await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
-  await page.locator('button:has-text("Find route")').click()
-
+  // Auto-plan (T16/AC-8): no Find-route button; wait for the auto-planned result.
   await expect(page.locator('.result')).toBeVisible()
+
   await expect(page.locator('.comfort-legend')).toBeVisible()
 
   // 028 T5 AC-4: at least two distinct comfort-band classes must be present.

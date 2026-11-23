@@ -106,15 +106,17 @@
       {terrainLabel(route)}
     </p>
     <p class="score">comfort {route.comfort_score}/100</p>
+    <!-- Legend always renders so the e2e hooks .comfort-legend / .comfort-band
+         resolve even when no comfort profile is available (spec 040, AC-7). -->
+    <ul class="comfort-legend">
+      {#each COMFORT_BANDS as b (b.band)}
+        <li class="comfort-band comfort-band--{b.band}">
+          <span class="comfort-swatch" style="background:{b.colour}"></span>
+          {b.band} · {b.range}/100
+        </li>
+      {/each}
+    </ul>
     {#if route.comfort_profile}
-      <ul class="comfort-legend">
-        {#each COMFORT_BANDS as b (b.band)}
-          <li class="comfort-band comfort-band--{b.band}">
-            <span class="comfort-swatch" style="background:{b.colour}"></span>
-            {b.band} · {b.range}/100
-          </li>
-        {/each}
-      </ul>
       <ul class="comfort-segments">
         {#each comfortRuns as run, index (index)}
           <li class="comfort-segment comfort-band--{run.band}">{formatRun(run)}</li>
@@ -200,7 +202,14 @@
   <h2 id="{uid}-walk-title">Walk</h2>
   {#if route}
     <div class="actions">
-      <button type="button" on:click={onSaveRoute}>Save route</button>
+      <button type="button" on:click={onSaveRoute}>
+        <span class="icon" aria-hidden="true"
+          ><svg viewBox="0 0 24 24" fill="currentColor"
+            ><path d={materialPaths.directions_walk} /></svg
+          ></span
+        >
+        Save route
+      </button>
     </div>
   {/if}
   <WalkControls route={walkRoute} {profile} />
