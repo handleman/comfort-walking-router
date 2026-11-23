@@ -149,9 +149,11 @@
     clearEndCoords()
   }
 
-  // Auto-plan (T16/AC-8): whenever both endpoints are set, plan the route.
-  // Guarded so it never fires while either endpoint is unset and never
-  // re-fires for the same coordinate pair (no loop).
+  // Auto-plan (T16/T21, AC-8): whenever both endpoints are set, plan the route.
+  // This is the ONLY /route trigger: no Find-route button and no manual
+  // submit handler exists in the plan step (the ↑↓ swap stays bound to
+  // swapEndpoints on TopSearchCard). Guarded so it never fires while either
+  // endpoint is unset and never re-fires for the same coordinate pair (no loop).
   async function planRoute() {
     if (!startCoords || !endCoords) return
     error = ''
@@ -184,12 +186,19 @@
   }
 
   let lastPlannedKey = ''
-  $: {
-    const key = startCoords && endCoords ? `${startCoords.join(',')}>${endCoords.join(',')}` : ''
+  // Reactive statement depends only on the coords; all reads/writes of
+  // `lastPlannedKey` and `error` happen inside the plain function below,
+  // so the reactive graph cannot loop on them.
+  $: planAutoRoute(startCoords, endCoords)
+
+  function planAutoRoute(a: LatLng | null, b: LatLng | null) {
+    const key = a && b ? `${a.join(',')}>${b.join(',')}` : ''
     if (!key) {
-      // Either endpoint unset: never plan, and forget the last pair so
-      // re-entering the same pair later re-plans.
+      // Either endpoint unset: never plan, forget the last pair so
+      // re-entering the same pair later re-plans, and drop any stale
+      // error left by a previous attempt.
       lastPlannedKey = ''
+      error = ''
     } else if (key !== lastPlannedKey) {
       lastPlannedKey = key
       void planRoute()
