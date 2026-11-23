@@ -149,6 +149,7 @@
   let arrival: ArrivalStatus | null = null
   let arrivalDismissed = false
   let sidebarCollapsed = false // desktop sidebar keeps its own toggle state
+  let isDesktop = false // viewport state: which surface owns the controls (AC-3/AC-4)
 
   function evaluateArrival(sample: ArrivalSample) {
     if (!endCoords) return
@@ -182,6 +183,17 @@
   }
 
   onMount(() => {
+    // AC-3/AC-4: track the viewport breakpoint so only one surface renders
+    // the controls at a time. The CSS uses the same 768px value, so the
+    // drawer owns controls below 768px and the sidebar owns them at/above it.
+    const desktopQuery = window.matchMedia('(min-width: 768px)')
+    isDesktop = desktopQuery.matches
+    const syncViewport = (event: MediaQueryListEvent) => {
+      isDesktop = event.matches
+    }
+    desktopQuery.addEventListener('change', syncViewport)
+    onDestroy(() => desktopQuery.removeEventListener('change', syncViewport))
+
     // Ordered bootstrap: the container exists here (Svelte has mounted it),
     // so create the map, wire the OSM tile layer onto it, and only then
     // attach observers/handlers. Leaflet caches the container's initial
@@ -618,23 +630,25 @@
       <p class="error">{error}</p>
     {/if}
 
-    <ControlsContent
-      {route}
-      {walkRoute}
-      profile={route?.comfort_profile ?? []}
-      {prefs}
-      {showPrefs}
-      {savedRoutes}
-      {savedError}
-      {prefsError}
-      {error}
-      {suggestionAttribution}
-      onTogglePrefs={togglePrefs}
-      onPrefsSave={() => handlePrefsSave()}
-      onSaveRoute={handleSaveRoute}
-      onRecall={handleRecall}
-      onDelete={handleDelete}
-    />
+    {#if isDesktop}
+      <ControlsContent
+        {route}
+        {walkRoute}
+        profile={route?.comfort_profile ?? []}
+        {prefs}
+        {showPrefs}
+        {savedRoutes}
+        {savedError}
+        {prefsError}
+        {error}
+        {suggestionAttribution}
+        onTogglePrefs={togglePrefs}
+        onPrefsSave={() => handlePrefsSave()}
+        onSaveRoute={handleSaveRoute}
+        onRecall={handleRecall}
+        onDelete={handleDelete}
+      />
+    {/if}
 
     <section class="walk">
       {#if arrival?.arrived && !arrivalDismissed}
@@ -653,23 +667,25 @@
   <!-- Mobile bottom drawer: same controls as the desktop sidebar, shown only
        below 768px so the sidebar and drawer are never visible together. -->
   <BottomDrawer>
-    <ControlsContent
-      {route}
-      {walkRoute}
-      profile={route?.comfort_profile ?? []}
-      {prefs}
-      {showPrefs}
-      {savedRoutes}
-      {savedError}
-      {prefsError}
-      {error}
-      {suggestionAttribution}
-      onTogglePrefs={togglePrefs}
-      onPrefsSave={() => handlePrefsSave()}
-      onSaveRoute={handleSaveRoute}
-      onRecall={handleRecall}
-      onDelete={handleDelete}
-    />
+    {#if !isDesktop}
+      <ControlsContent
+        {route}
+        {walkRoute}
+        profile={route?.comfort_profile ?? []}
+        {prefs}
+        {showPrefs}
+        {savedRoutes}
+        {savedError}
+        {prefsError}
+        {error}
+        {suggestionAttribution}
+        onTogglePrefs={togglePrefs}
+        onPrefsSave={() => handlePrefsSave()}
+        onSaveRoute={handleSaveRoute}
+        onRecall={handleRecall}
+        onDelete={handleDelete}
+      />
+    {/if}
   </BottomDrawer>
 
   <!-- Google-Maps-style edge handle: a vertical pill centred on the panel's

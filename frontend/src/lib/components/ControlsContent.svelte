@@ -1,8 +1,13 @@
 <script lang="ts">
   // Shared controls content for the desktop sidebar and the mobile bottom
-  // drawer (spec 040, T3 / AC-4): route summary row, Preferences, Saved
-  // routes, and the walk action buttons. Walking only — no transport-mode
-  // selector. All state and handlers live in App.svelte and are passed in.
+  // drawer (spec 040, T3 / T12 / AC-3, AC-4). This component is the SINGLE
+  // content source for both surfaces: App.svelte renders exactly one
+  // <ControlsContent /> inside the <aside> and one inside <BottomDrawer>,
+  // and the two surfaces are never visible at the same time. It holds the
+  // route summary (duration · distance · arrival · terrain), Preferences,
+  // Saved routes, and the walk action buttons. Walking only — no
+  // transport-mode selector. All state and handlers live in App.svelte and
+  // are passed in.
   import WalkControls from '../WalkControls.svelte'
   import type { Prefs, SavedRoute } from '../savedRoutes'
   import {
@@ -50,6 +55,12 @@
   export let onRecall: (id: string) => void = () => {}
   export let onDelete: (id: string) => void = () => {}
 
+  // Per-instance suffix for the section heading ids. This component is used
+  // on both the desktop sidebar and the mobile bottom drawer, so the ids must
+  // not be fixed across instances (duplicate document ids would also make the
+  // drawer's `aria-labelledby` resolve to the first copy on the page).
+  const uid = `controls-${Math.random().toString(36).slice(2, 9)}`
+
   function formatArrivalTime(durationS: number): string {
     const arrival = new Date(Date.now() + durationS * 1000)
     return arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -79,8 +90,8 @@
   $: comfortRuns = route && route.comfort_profile ? mergeBandRuns(route.comfort_profile) : []
 </script>
 
-<section class="route-summary" aria-labelledby="route-summary-title">
-  <h2 id="route-summary-title">Route summary</h2>
+<section class="route-summary" aria-labelledby="{uid}-route-summary-title">
+  <h2 id="{uid}-route-summary-title">Route summary</h2>
   {#if route}
     <div class="chip">
       {route.preference_source === 'manual'
@@ -126,8 +137,8 @@
 
 <hr class="section-divider" />
 
-<section class="prefs" aria-labelledby="prefs-title">
-  <h2 id="prefs-title">Preferences</h2>
+<section class="prefs" aria-labelledby="{uid}-prefs-title">
+  <h2 id="{uid}-prefs-title">Preferences</h2>
   <button type="button" class="icon-btn" on:click={onTogglePrefs}>
     <span class="icon" aria-hidden="true"
       ><svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.tune} /></svg></span
@@ -153,8 +164,8 @@
 
 <hr class="section-divider" />
 
-<section class="saved-routes" aria-labelledby="saved-routes-title">
-  <h2 id="saved-routes-title">Saved routes</h2>
+<section class="saved-routes" aria-labelledby="{uid}-saved-routes-title">
+  <h2 id="{uid}-saved-routes-title">Saved routes</h2>
   {#if savedError}
     <p class="error">{savedError}</p>
   {/if}
@@ -185,8 +196,8 @@
 
 <hr class="section-divider" />
 
-<section class="walk" aria-labelledby="walk-title">
-  <h2 id="walk-title">Walk</h2>
+<section class="walk" aria-labelledby="{uid}-walk-title">
+  <h2 id="{uid}-walk-title">Walk</h2>
   {#if route}
     <div class="actions">
       <button type="button" on:click={onSaveRoute}>Save route</button>

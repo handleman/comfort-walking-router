@@ -20,10 +20,10 @@
     aria-label={open ? 'Collapse controls' : 'Expand controls'}
     on:click={toggle}
   >
-    <span class="pill" aria-hidden="true"
-      ><svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.more_horiz} /></svg
-      ></span
-    >
+    <span class="pill" aria-hidden="true">
+      <span class="pill-bar"></span>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.more_horiz} /></svg>
+    </span>
   </button>
 
   {#if open}
@@ -71,9 +71,25 @@
     color: var(--muted, #94a3b8);
   }
 
+  .pill {
+    position: relative;
+  }
+
   .pill :global(svg) {
     width: 100%;
     height: 100%;
+  }
+
+  /* Edge-handle bar: the visible affordance that the pill is draggable/clickable. */
+  .pill-bar {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--muted, #94a3b8);
   }
 
   .drawer-body {
