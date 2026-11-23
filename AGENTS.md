@@ -112,6 +112,9 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
 - **Harness lessons:** [swarm/docs/lessons.md](swarm/docs/lessons.md) — read
   before "fixing" the swarm.
 - **Commands & boundaries:** [docs/reference.md](docs/reference.md).
+- **Harness implementation order:** [specs/harness/ROADMAP.md](specs/harness/ROADMAP.md)
+  — the agreed top-to-bottom order for 051, bookkeeping, 052, T6, 050, 047,
+  038→048. Follow it; update its status boxes as work lands.
 - **Harness index:** [swarm/README.md](swarm/README.md) → `swarm/docs/*.md`.
 - **Runbooks:** [docs/runbooks/](docs/runbooks/) — local-postgres, e2e-suite,
   verification, deploy, overnight-runs.
