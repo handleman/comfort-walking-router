@@ -25,12 +25,14 @@ const baseUrl = plan.baseUrl
 const outDir = plan.outDir
 const views = plan.views || []
 const checks = plan.checks || []
+const layoutSpecs = plan.layout || []
 
 mkdirSync(outDir, { recursive: true })
 
 const screenshots = {}
 const viewFacts = {}
 const checkResults = []
+const layoutFacts = {}
 
 const browser = await chromium.launch({
   headless: true,
@@ -118,6 +120,68 @@ async function evaluateView(name, width, height) {
   facts.routeRequests = routeRequests
   routeRequests = 0
   viewFacts[name] = facts
+
+  // 052: geometry + control presence, deterministic and DOM-only.
+  if (layoutSpecs.length) {
+    const measured = await page.evaluate((specs) => {
+      const out = {}
+      const rect = (el) => {
+        const r = el.getBoundingClientRect()
+        const cs = getComputedStyle(el)
+        const visible =
+          el.offsetParent !== null &&
+          r.width > 0 &&
+          r.height > 0 &&
+          cs.visibility !== 'hidden' &&
+          cs.display !== 'none'
+        return {
+          x: r.x + window.scrollX,
+          y: r.y + window.scrollY,
+          w: r.width,
+          h: r.height,
+          visible,
+        }
+      }
+      for (const spec of specs) {
+        const regions = {}
+        const controls = {}
+        const peers = []
+        for (const [id, sel] of Object.entries(spec.regions || {})) {
+          const el = document.querySelector(sel)
+          if (el) regions[id] = rect(el)
+        }
+        for (const [id, sel] of Object.entries(spec.controls || {})) {
+          const els = Array.from(document.querySelectorAll(sel)).filter(
+            (el) => el.offsetParent !== null && el.getBoundingClientRect().width > 0,
+          )
+          const el = els[0]
+          controls[id] = el ? { ...rect(el), count: els.length } : { visible: false, count: 0 }
+          if (el) peers.push([id, el])
+        }
+        const overlaps = []
+        for (let i = 0; i < peers.length; i++) {
+          for (let j = i + 1; j < peers.length; j++) {
+            const [ia, ea] = peers[i]
+            const [ib, eb] = peers[j]
+            if (ea.contains(eb) || eb.contains(ea)) continue // ancestors are allowed to contain
+            const a = ea.getBoundingClientRect()
+            const b = eb.getBoundingClientRect()
+            const ix = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
+            const iy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top))
+            if (ix * iy > 0) overlaps.push(`${ia}~${ib}`)
+          }
+        }
+        out[spec.spec] = {
+          regions,
+          controls,
+          overlaps,
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        }
+      }
+      return out
+    }, layoutSpecs)
+    layoutFacts[name] = Object.values(measured)[0] || {}
+  }
 }
 
 async function runCheck(check) {
@@ -215,5 +279,6 @@ const result = {
   shots: screenshots,
   views: viewFacts,
   checks: checkResults,
+  layout: layoutFacts,
 }
 console.log(JSON.stringify(result))

@@ -96,6 +96,7 @@ class SpecReport:
     checks: list[Check]
     ac_verdicts: dict[str, dict[str, str]] = field(default_factory=dict)
     global_failures: list[str] = field(default_factory=list)
+    layout_failures: list[dict[str, str]] = field(default_factory=list)
     view_facts: dict[str, dict[str, Any]] = field(default_factory=dict)
     vision: dict[str, dict[str, str]] = field(default_factory=dict)
     shots: dict[str, str] = field(default_factory=dict)
@@ -103,7 +104,7 @@ class SpecReport:
 
     @property
     def verdict(self) -> str:
-        if self.global_failures:
+        if self.global_failures or self.layout_failures:
             return "FAIL"
         verdicts = [entry.get("verdict") for entry in self.ac_verdicts.values()]
         if "fail" in verdicts:
@@ -137,6 +138,7 @@ class SpecReport:
                     "file": check.file if check else "",
                 }
             )
+        out.extend(self.layout_failures)
         return out
 
 
@@ -600,6 +602,25 @@ def browser_plan(
                     "value": check.value,
                 }
             )
+    layout_specs: list[dict[str, Any]] = []
+    for spec in specs:
+        path = spec / "layout.toml"
+        if not path.is_file():
+            continue
+        from swarm import layout as _layout
+
+        try:
+            contract = _layout.load_layout(path)
+        except Exception:  # noqa: BLE001 - reported by _layout_issues at evaluate time
+            contract = None
+        if contract is not None:
+            layout_specs.append(
+                {
+                    "spec": spec.name,
+                    "regions": {k: r.selector for k, r in contract.regions.items()},
+                    "controls": {k: c.selector for k, c in contract.controls.items()},
+                }
+            )
     return {
         "baseUrl": base_url,
         "outDir": str(out_dir),
@@ -608,6 +629,7 @@ def browser_plan(
             for name, width, height in VIEWS
         ],
         "checks": checks,
+        "layout": layout_specs,
     }
 
 
@@ -828,6 +850,20 @@ def _commit_artifacts(
     }
 
 
+def _layout_issues(spec_dir: Path, browser: Mapping[str, Any]) -> list[Any]:
+    """052: evaluate `layout.toml` (when present) against the browser facts."""
+    from swarm import layout as _layout
+
+    path = Path(spec_dir) / "layout.toml"
+    if not path.is_file():
+        return []
+    try:
+        contract = _layout.load_layout(path)
+    except Exception as e:  # noqa: BLE001 - a broken contract is a reported failure
+        return [_layout.LayoutIssue("layout_toml", "layout.toml", f"unreadable: {e}", "AC-L")]
+    return _layout.evaluate(contract, browser.get("layout") or {})
+
+
 def run(
     *,
     repo: Path | None = None,
@@ -875,6 +911,17 @@ def run(
             browser=browser,
             shots=browser.get("shots") or {},
         )
+        layout_issues = _layout_issues(spec_dir, browser)
+        if layout_issues:
+            report.layout_failures = [
+                {
+                    "ac": issue.ac,
+                    "title": f"layout {issue.check} {issue.target}",
+                    "evidence": issue.detail,
+                    "file": "layout.toml",
+                }
+                for issue in layout_issues
+            ]
         if vision_judge is not None:
             judged = dict(vision_judge(report))
         elif os.getenv(VISION_ENV, "1").lower() != "0":
