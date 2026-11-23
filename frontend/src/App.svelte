@@ -596,7 +596,7 @@
     />
   {/if}
 
-  <aside class="overlay-panel" class:collapsed={sidebarCollapsed}>
+  <aside id="desktop-sidebar" class="overlay-panel" class:collapsed={sidebarCollapsed}>
     <h1>Comfort Walking Router</h1>
 
     {#if locateError}
@@ -672,17 +672,22 @@
     />
   </BottomDrawer>
 
-  <!-- Sidebar toggle mirrors the bottom drawer's toggle (same class/aria/labels).
-       Rendered as a sibling of <aside> inside <main> so it is never clipped by
-       the aside's `overflow-y: auto` and stays on-screen/clickable when the
-       collapsed panel is translated off-screen. -->
+  <!-- Google-Maps-style edge handle: a vertical pill centred on the panel's
+       inner edge. Rendered as a sibling of <aside> inside <main> so it is
+       never clipped by the aside's `overflow-y: auto` and stays reachable
+       when the collapsed panel is translated off-screen. -->
   <button
     type="button"
-    class="sidebar-toggle"
+    class="sidebar-handle"
+    class:collapsed={sidebarCollapsed}
+    aria-controls="desktop-sidebar"
     aria-expanded={!sidebarCollapsed}
+    aria-label={sidebarCollapsed ? 'Show controls' : 'Hide controls'}
     on:click={() => (sidebarCollapsed = !sidebarCollapsed)}
   >
-    {sidebarCollapsed ? '▴ Show controls' : '▾ Hide controls'}
+    <span class="sidebar-handle-chevron" aria-hidden="true">
+      {sidebarCollapsed ? '‹' : '›'}
+    </span>
   </button>
 </main>
 
@@ -721,6 +726,13 @@
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
   }
 
+  /* The Google-Maps-style edge handle is a desktop-only surface. It must be
+     hidden by default so that below 768px (where the mobile bottom drawer owns
+     the controls) it never renders as a static in-flow button over the map. */
+  .sidebar-handle {
+    display: none;
+  }
+
   @media (min-width: 768px) {
     aside {
       display: block;
@@ -737,30 +749,66 @@
     /* T10 step 6: these collapse/toggle rules are scoped to this
        min-width: 768px block only; mobile rendering is owned entirely by
        the <BottomDrawer /> component's own styles. */
-    /* T10 step 5 (rescue): the sidebar toggle is a sibling of <aside> inside
-       <main>, absolutely positioned at the viewport's right edge so it is
-       never clipped by the aside's `overflow-y: auto` and stays on-screen
-       (and clickable) even when the panel is translated off-screen by
-       `aside.collapsed`. Scoped to this min-width: 768px block so the mobile
-       drawer's `.drawer-toggle` CSS is untouched. */
-    .sidebar-toggle {
+    /* T17 step 1: Google-Maps-style edge handle replaces the old
+       `.sidebar-toggle` button. A vertical pill centred on the panel's inner
+       edge, absolutely positioned as a sibling of <aside> inside <main> so it
+       is never clipped by the aside's `overflow-y: auto` and stays reachable
+       even when the panel is translated off-screen by `aside.collapsed`.
+       Scoped to this min-width: 768px block so the mobile drawer's
+       `.drawer-toggle` CSS is untouched. */
+    .sidebar-handle {
       position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
-      width: 6.5rem;
+      top: 50%;
+      /* Straddle the sidebar's inner (left) edge: the aside is anchored at
+         right: 0 with width min(360px, 90vw), so its inner edge sits that far
+         from the viewport's right; the pill is centred on it. As a sibling of
+         <aside> inside <main>, it never moves when the panel collapses and
+         stays reachable in both states. */
+      right: calc(min(360px, 90vw) - 0.625rem);
+      transform: translateY(-50%);
+      width: 1.25rem;
+      height: 3rem;
+      padding: 0;
       border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 0.4rem 0;
-      text-align: center;
+      border-radius: 0.625rem;
       background: #fff;
+      box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       z-index: 1001;
       cursor: pointer;
     }
 
-    /* T10 step 4: slide the collapsed sidebar fully off-screen (right edge),
-       with the transition above animating restore back into view. */
+    .sidebar-handle:hover {
+      background: #f1f3f4;
+      box-shadow: 0 1px 6px rgb(0 0 0 / 0.3);
+    }
+
+    /* T17 step 3: when the panel collapses, the handle must stay fully
+       on-screen and clickable. The aside slides out to the right, so the
+       handle slides with the panel's inner edge to the viewport's right
+       edge: half the pill (0.625rem) remains visible at right: 0. */
+    .sidebar-handle.collapsed {
+      right: -0.625rem;
+    }
+
+    .sidebar-handle-chevron {
+      font-size: 0.9rem;
+      line-height: 1;
+      color: #5f6368;
+      user-select: none;
+    }
+
+    /* T10 step 4 / T17 step 3: slide the collapsed sidebar fully off-screen
+       (right edge), with the transition above animating restore back into
+       view. Translated past 100% by the shadow blur (8px) so no shadow edge
+       peeks back on-screen. The `.sidebar-handle` is a sibling of <aside>
+       inside <main>, so this transform never moves it: it stays fully
+       on-screen and clickable at right: 0 in both collapsed and expanded
+       states. */
     aside.collapsed {
-      transform: translateX(100%);
+      transform: translateX(calc(100% + 8px));
     }
   }
 
