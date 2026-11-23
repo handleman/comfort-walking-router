@@ -5,8 +5,9 @@
    * origin (blue my-location dot + "My location" label), row 2 is the
    * destination (red pin marker). A drag-handle divider sits between
    * the rows, and the `↑↓` swap action lives on the right. Each row
-   * hosts the existing SearchInput combobox, keeping the ⌖ pick
-   * buttons and the search placeholder text.
+   * hosts the existing SearchInput combobox; the row markers (blue
+   * my-location dot / red destination pin) are the map-pick triggers
+   * and the text inputs stay pure search fields.
    *
    * Two-way contract (Svelte 4 `export let` + `bind:` in markup):
    * - `startQuery` / `endQuery` mirror the SearchInput `query` values.
@@ -53,10 +54,16 @@
 
 <div class="top-search-card {extraClass}" role="group" aria-label="Route search">
   <div class="row row-origin">
-    <span class="marker marker-origin" aria-hidden="true">
-      <span class="dot"></span>
-      <span class="marker-label">My location</span>
-    </span>
+    <button
+      type="button"
+      class="marker marker-origin"
+      aria-label="Pick start on map"
+      aria-pressed={activePick === 'start'}
+      on:click={() => beginPick('start')}
+    >
+      <span class="dot" aria-hidden="true"></span>
+      <span class="marker-label" aria-hidden="true">My location</span>
+    </button>
     <span class="pick-row">
       <SearchInput
         {baseUrl}
@@ -65,13 +72,6 @@
         bind:query={startQuery}
         bind:selected={startSelected}
       />
-      <button
-        type="button"
-        class="pick-btn"
-        aria-pressed={activePick === 'start'}
-        aria-label="Pick start on map"
-        on:click={() => beginPick('start')}>⌖</button
-      >
     </span>
   </div>
 
@@ -89,9 +89,15 @@
   </div>
 
   <div class="row row-destination">
-    <span class="marker marker-destination" aria-hidden="true">
-      <span class="pin">📍</span>
-    </span>
+    <button
+      type="button"
+      class="marker marker-destination"
+      aria-label="Pick end on map"
+      aria-pressed={activePick === 'end'}
+      on:click={() => beginPick('end')}
+    >
+      <span class="pin" aria-hidden="true">📍</span>
+    </button>
     <span class="pick-row">
       <SearchInput
         {baseUrl}
@@ -100,13 +106,6 @@
         bind:query={endQuery}
         bind:selected={endSelected}
       />
-      <button
-        type="button"
-        class="pick-btn"
-        aria-pressed={activePick === 'end'}
-        aria-label="Pick end on map"
-        on:click={() => beginPick('end')}>⌖</button
-      >
     </span>
   </div>
 </div>
@@ -151,6 +150,21 @@
     align-items: center;
     gap: 0.25rem;
     flex-shrink: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0.25rem 0.4rem;
+    border-radius: 6px;
+    color: #555;
+  }
+
+  .marker:hover {
+    background: #f1f3f4;
+  }
+
+  .marker[aria-pressed='true'] {
+    background: #e8f0fe;
+    color: #1a73e8;
   }
 
   .marker-origin .dot {
@@ -201,8 +215,7 @@
     margin-left: auto;
   }
 
-  .action-btn,
-  .pick-btn {
+  .action-btn {
     border: none;
     background: transparent;
     cursor: pointer;
@@ -213,13 +226,7 @@
     color: #555;
   }
 
-  .action-btn:hover,
-  .pick-btn:hover {
+  .action-btn:hover {
     background: #f1f3f4;
-  }
-
-  .pick-btn[aria-pressed='true'] {
-    background: #e8f0fe;
-    color: #1a73e8;
   }
 </style>
