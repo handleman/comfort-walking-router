@@ -27,6 +27,11 @@ export interface NoFix {
 /** Outcome of the start geolocation request. */
 export type StartFixResult = StartFix | NoFix
 
+/** Type guard: true when the outcome is a resolved fix. */
+export function isStartFix(result: StartFixResult): result is StartFix {
+  return result.kind === 'fix'
+}
+
 /** Timeout for the one-shot position request, in milliseconds. */
 export const TIMEOUT_MS = 10_000
 

@@ -34,6 +34,19 @@ export function freshContextOptions(): {
 }
 
 /**
+ * Fill both search inputs (origin and destination) using the canonical
+ * placeholders rendered by TopSearchCard.svelte.
+ */
+export async function fillSearchInputs(
+  page: Page,
+  origin: string,
+  destination: string,
+): Promise<void> {
+  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill(origin)
+  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill(destination)
+}
+
+/**
  * Count requests whose URL matches the given pattern (substring or RegExp)
  * as they fire on the page. Returns a getter for the running total so a spec
  * can assert on the count after the interaction under test.
