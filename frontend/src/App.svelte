@@ -115,6 +115,10 @@
   let prefsError = ''
   let locateError = ''
   let didCenterOnUser = false
+  // Set once the geolocation pre-fill has written the origin; afterwards a
+  // manual origin (user-typed or map-picked) always wins and is never
+  // overwritten by a later fix.
+  let originPrefilled = false
   let currentMarker: L.Marker | null = null
   let walkerMarker: L.Marker | null = null
   let startCoords: [number, number] | null = null
@@ -189,6 +193,11 @@
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map)
+    // Ask the browser for the current position on start (AC-5) via
+    // map.locate; this is non-blocking — the page stays usable while
+    // permission is pending, and the first fix centres the map and
+    // pre-fills the origin later (a manual origin overrides it).
+    map.locate({ setView: false })
     // Defer to the next frame so the container has its final layout first.
     requestAnimationFrame(() => map?.invalidateSize())
     // Full-bleed map: re-measure whenever the viewport or overlay panel
@@ -252,7 +261,7 @@
     }
   }
 
-  function onLocationFound(e: L.LocationEvent) {
+  async function onLocationFound(e: L.LocationEvent) {
     locateError = ''
     if (!map) return
     const { lat, lng } = e.latlng
@@ -261,6 +270,35 @@
     if (!didCenterOnUser) {
       didCenterOnUser = true
       map.setView([lat, lng], 16)
+      // Pre-fill the origin with the first fix (AC-5): reverse geocode to an
+      // address, falling back to "lat, lng" if the lookup fails. A manually
+      // chosen origin is left untouched because this branch only runs when no
+      // origin is already set.
+      if (!originPrefilled && !start && !startSuggestion) {
+        // Fallback label matches reverseLabel's own empty-result fallback
+        // (toFixed(5)) so the origin reads the same either way.
+        const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+        let label: string
+        try {
+          label = (await reverseLabel(lat, lng))?.trim() || fallback
+        } catch {
+          label = fallback
+        }
+        // The geocode is async: a manual origin may have been typed/selected
+        // while we were waiting, so re-check before assigning so it is never
+        // clobbered by this first-fix pre-fill.
+        if (!start && !startSuggestion) {
+          start = label
+          setStartCoords([lat, lng])
+        }
+        // Guard the pre-fill: once applied (or once a manual origin exists),
+        // later fixes must never overwrite the user's origin.
+        originPrefilled = true
+      } else {
+        // A manual origin already exists: mark the pre-fill as settled so
+        // later fixes can never overwrite it either.
+        originPrefilled = true
+      }
     }
     if (currentMarker) {
       currentMarker.setLatLng([lat, lng])
@@ -308,6 +346,9 @@
       const label = await reverseLabel(e.latlng.lat, e.latlng.lng)
       const coords: [number, number] = [e.latlng.lat, e.latlng.lng]
       if (activePick === 'start') {
+        // A map-picked origin is manual: settle the geolocation pre-fill so a
+        // later fix (or the in-flight first-fix geocode) never overwrites it.
+        originPrefilled = true
         start = label
         setStartCoords(coords)
       } else {
