@@ -2,6 +2,7 @@
   // Collapsed-by-default bottom drawer shell for mobile controls.
   // Renders whatever controls content is passed in via the default slot.
   import { slide } from 'svelte/transition'
+  import { materialPaths } from '../map/material'
 
   let open = false
 
@@ -19,7 +20,10 @@
     aria-label={open ? 'Collapse controls' : 'Expand controls'}
     on:click={toggle}
   >
-    <span class="pill" aria-hidden="true"></span>
+    <span class="pill" aria-hidden="true"
+      ><svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.more_horiz} /></svg
+      ></span
+    >
   </button>
 
   {#if open}
@@ -61,11 +65,15 @@
   }
 
   .pill {
-    display: block;
-    width: 48px;
-    height: 5px;
-    border-radius: 9999px;
-    background: var(--muted, #94a3b8);
+    display: inline-flex;
+    width: 24px;
+    height: 24px;
+    color: var(--muted, #94a3b8);
+  }
+
+  .pill :global(svg) {
+    width: 100%;
+    height: 100%;
   }
 
   .drawer-body {
