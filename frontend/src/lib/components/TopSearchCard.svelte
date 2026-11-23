@@ -17,7 +17,10 @@
    * - `activePick` mirrors the page's active map-pick role ('start' |
    *   'end' | null) for the ⌖ buttons' aria-pressed state.
    * Events: `pick` (PickRole), `swap`. (T14: the `⋯` more-options button
-   * and its `more` event were removed; Preferences lives in the panel.)
+   * and its `more` event were removed; Preferences lives in the panel.
+   * T21/AC-8 (verified): no manual plan/submit affordance exists in this
+   * card — planning is automatic; the card exposes only the search rows
+   * (with their map-pick markers) and the swap control.)
    */
   import { createEventDispatcher } from 'svelte'
   import SearchInput from './SearchInput.svelte'
