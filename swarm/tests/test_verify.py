@@ -300,6 +300,77 @@ def _flow_stub(monkeypatch):
     return stub
 
 
+def _senior_on_block_stub(monkeypatch, *, blocked: bool, verify_result: bool):
+    """Minimal stub for SwarmFlow._senior_on_verifier_block (049)."""
+    from swarm import flow, tools_guarded
+
+    monkeypatch.setattr(tools_guarded, "run_delta", lambda baseline: [])
+    stub = types.SimpleNamespace(
+        state=types.SimpleNamespace(
+            verifier={"blocked": blocked, "findings": ["app/main.py — no /geocode"], "note": ""},
+            senior_used=False,
+            senior_rounds=0,
+            result="",
+        ),
+        _spec_dir="019-scenario-verifier",
+        _senior_on_block=False,
+    )
+    stub._senior_on_verifier_block = types.MethodType(
+        flow.SwarmFlow._senior_on_verifier_block, stub
+    )
+    stub._verify_phase = lambda task, kick: verify_result
+    return stub
+
+
+def test_senior_on_verifier_block_escalates_once_and_reverifies(monkeypatch):
+    """049 AC-1..AC-4: one senior round on a verifier block, then re-verify."""
+    stub = _senior_on_block_stub(monkeypatch, blocked=True, verify_result=True)
+    kicked: list[dict] = []
+
+    def kickoff(build, **kw):
+        kicked.append(kw)
+        return object(), "ok"
+
+    assert stub._senior_on_verifier_block(_task(), kickoff, None) is True
+    assert stub._senior_on_block is True
+    assert stub.state.senior_used is True
+    assert stub.state.senior_rounds == 1
+    assert stub.state.verifier["senior_escalation_on_block"] is True
+    assert len(kicked) == 1 and kicked[0]["role"] == "senior:verify"
+
+    # The per-run guard prevents a second escalation.
+    assert stub._senior_on_verifier_block(_task(), kickoff, None) is False
+    assert stub.state.senior_rounds == 1
+
+
+def test_senior_on_verifier_block_still_blocked_returns_false(monkeypatch):
+    """049 AC-3: the senior fix did not unblock — no loop, ends verifier_blocked."""
+    stub = _senior_on_block_stub(monkeypatch, blocked=True, verify_result=False)
+    kicked: list[dict] = []
+
+    def kickoff(build, **kw):
+        kicked.append(kw)
+        return object(), "ok"
+
+    assert stub._senior_on_verifier_block(_task(), kickoff, None) is False
+    assert stub.state.senior_rounds == 1
+    assert len(kicked) == 1
+
+
+def test_senior_on_verifier_block_skips_when_not_blocked(monkeypatch):
+    """049 AC-4: a non-blocked verifier never triggers the senior-on-block path."""
+    stub = _senior_on_block_stub(monkeypatch, blocked=False, verify_result=True)
+    kicked: list[dict] = []
+
+    def kickoff(build, **kw):
+        kicked.append(kw)
+        return object(), "ok"
+
+    assert stub._senior_on_verifier_block(_task(), kickoff, None) is False
+    assert stub.state.senior_rounds == 0
+    assert kicked == []
+
+
 def _blocked(step: str = "STEP 1: app/main.py — mount GET /geocode") -> str:
     return "FINDING: app/main.py — no /geocode route\n" + step + "\nVERDICT: BLOCKED"
 

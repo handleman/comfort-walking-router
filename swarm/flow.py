@@ -1185,6 +1185,8 @@ class SwarmFlow(Flow[SwarmState]):
         self._commit = commit
         self._interrupted = False
         self._verdict_retried = False
+        # 049 AC-4: the verifier-block senior escalation runs at most once per run.
+        self._senior_on_block = False
         self._started_monotonic = time.monotonic()
         self.state.started_at = dt.datetime.now().isoformat(timespec="seconds")
         from swarm.usage import env_float, env_int
@@ -2584,6 +2586,44 @@ class SwarmFlow(Flow[SwarmState]):
         # when verification passes. A missing runner still allows verification.
         return True
 
+    def _senior_on_verifier_block(self, task: Any, kickoff: Any, verify_kick: Any) -> bool:
+        """049: one bounded senior fix when the verifier blocked, then re-verify.
+
+        The senior-escalation loop is gated on `not verifier.blocked`, so a
+        `verifier_blocked` task previously went straight to `needs_human` without
+        the senior ever running. This gives it exactly one attempt, fed the
+        verifier's findings/report, then re-runs the verifier.
+
+        Returns True when the senior fix unblocked the verifier (the caller then
+        re-runs QA/gates and the task may still go green); False when there is
+        nothing to escalate (not blocked, or already tried), the senior call
+        failed, or the re-verify still blocks.
+        """
+        if not self.state.verifier.get("blocked") or self._senior_on_block:
+            return False
+        self._senior_on_block = True
+        self.state.senior_used = True
+        self.state.senior_rounds += 1
+        report = self.state.verifier.get("report") or "\n".join(
+            self.state.verifier.get("findings") or []
+        )
+        note = self.state.verifier.get("note") or ""
+        self.state.verifier["senior_escalation_on_block"] = True
+        from swarm.crew import build_senior_crew
+
+        try:
+            kickoff(
+                lambda report=report, note=note: build_senior_crew(
+                    self._spec_dir, task, report, note
+                ),
+                role="senior:verify",
+                step="senior-block",
+            )
+        except SystemExit as e:
+            self.state.result = f"senior-on-block failed: {e}"[:4000]
+            return False
+        return bool(self._verify_phase(task, verify_kick))
+
     def _commit_green(
         self,
         brief: str,
@@ -3770,6 +3810,13 @@ class SwarmFlow(Flow[SwarmState]):
                                 "senior path ended without a QA verdict after one repair"
                             )
                         break
+            if self._senior_on_verifier_block(task, _kickoff, _verify_kick):
+                # The senior fix unblocked the verifier: re-run QA and the gates
+                # on the new delta so the task can still go green.
+                changed = run_delta(self._baseline)
+                _review(task, work_summary)
+                gates, transcript, missing = self._gates_or_evidence(changed)
+                self._maybe_repair_verdict(task, gates, transcript)
             if (
                 self.state.gate_selection.get("mode") == "affected"
                 and _gates_green(gates)
