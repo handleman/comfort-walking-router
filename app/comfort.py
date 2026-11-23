@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -148,26 +147,31 @@ def _corridor_features(
 
 
 def _overpass_features(query: str) -> list[dict[str, Any]] | None:
-    """Fetch from the primary endpoint, then one mirror.
+    """Try the three Overpass endpoints in order.
 
     The public Overpass instance answers 502 "all query workers are busy" when it
     is at capacity (seen live 2026-11-15, which turned a real Munich route into a
-    weather-only score with no comfort data). One retry against a mirror is the
+    weather-only score with no comfort data). Retrying the mirrors is the
     difference between a data gap and a good route; anything worse is still a
     gap, never a failed route.
     """
-    urls = [overpass.OVERPASS_URL]
-    mirror = os.getenv("OVERPASS_MIRROR_URL", "https://overpass.kumi.systems/api/interpreter").strip()
-    if mirror and mirror not in urls:
-        urls.append(mirror)
-    for url in urls:
+    urls = (
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+    )
+    for attempt, url in enumerate(urls, start=1):
         try:
             features = overpass.fetch_overpass_features(url, query=query)
+            if features:
+                return features
         except Exception as exc:  # noqa: BLE001 - try the next endpoint
-            print(f"overpass: {url} failed ({exc}) — trying the next endpoint", flush=True)
+            print(f"overpass: attempt {attempt}/3 endpoint {url} failed, reason: {exc} — trying the next endpoint", flush=True)
             continue
-        if features:
-            return features
+        print(f"overpass: attempt {attempt}/3 endpoint {url} failed, reason: no features in response — trying the next endpoint", flush=True)
+    print("overpass: all endpoints failed — falling back to a weather-only score", flush=True)
+    # Data gap, never a 5xx: all endpoints failed, so return None and the
+    # caller scores the route on weather alone.
     return None
 
 

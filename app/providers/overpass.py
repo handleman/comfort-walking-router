@@ -27,12 +27,12 @@ def fetch_overpass_features(
     headers = {"User-Agent": user_agent}
     # A 3 km corridor with trees is ~9.5k elements and the public instance took
     # 40 s on a warm day (2026-11-15); 10 s looked like an outage. The QL timeout
-    # travels in the query itself, so the HTTP timeout is the outer bound.
-    timeout = float(os.getenv("OVERPASS_TIMEOUT_SECONDS", "45"))
-    params: dict[str, str | int] = {
-        "data": query,
-        "timeout": int(timeout),
-    }
+    # ([timeout:40]) travels in the query itself, so the outer HTTP timeout
+    # (OVERPASS_TIMEOUT_SECONDS, default 90 s, raised from 45) is the outer bound.
+    timeout = float(os.getenv("OVERPASS_TIMEOUT_SECONDS", "90"))
+    # The QL timeout ([timeout:40]) travels inside the query itself; a
+    # `timeout` query param here would override it, so only `data` is sent.
+    params: dict[str, str] = {"data": query}
     response = requests.get(url, params=params, headers=headers, timeout=timeout)
     response.raise_for_status()
     data = response.json()

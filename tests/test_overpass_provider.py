@@ -46,8 +46,9 @@ def test_fetch_overpass_features_passes_through_geometry(monkeypatch: pytest.Mon
     headers = captured["kwargs"].get("headers", {})
     assert "User-Agent" in headers
     assert headers["User-Agent"] == "TestAgent/1.0"
-    # Verify timeout was passed
+    # The QL timeout ([timeout:40]) travels in the query itself; the outer
+    # HTTP timeout (OVERPASS_TIMEOUT_SECONDS, default 90 s, raised from 45)
+    # is the outer bound and must not leak into the query params.
     params = captured["kwargs"].get("params", {})
-    assert "timeout" in params
-    # 45 s: a 3 km corridor is ~9.5k elements and took 40 s live (2026-11-15).
-    assert params["timeout"] == 45
+    assert "timeout" not in params
+    assert captured["kwargs"].get("timeout") == 90.0
