@@ -20,6 +20,7 @@
   <button
     type="button"
     class="walk-start"
+    aria-label="Start walk mode"
     on:click={() => start(route, profile)}
     disabled={$walkMode.active || route.length === 0}
   >

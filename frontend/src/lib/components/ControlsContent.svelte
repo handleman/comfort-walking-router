@@ -106,16 +106,6 @@
       {terrainLabel(route)}
     </p>
     <p class="score">comfort {route.comfort_score}/100</p>
-    <!-- Legend always renders so the e2e hooks .comfort-legend / .comfort-band
-         resolve even when no comfort profile is available (spec 040, AC-7). -->
-    <ul class="comfort-legend">
-      {#each COMFORT_BANDS as b (b.band)}
-        <li class="comfort-band comfort-band--{b.band}">
-          <span class="comfort-swatch" style="background:{b.colour}"></span>
-          {b.band} · {b.range}/100
-        </li>
-      {/each}
-    </ul>
     {#if route.comfort_profile}
       <ul class="comfort-segments">
         {#each comfortRuns as run, index (index)}
@@ -135,6 +125,17 @@
   {:else}
     <p class="empty">No route planned yet.</p>
   {/if}
+  <!-- Legend always renders (outside the {#if route} block) so the e2e hooks
+       .comfort-legend / .comfort-band resolve on the initial no-route page
+       as well as once a route exists (spec 040, AC-7). -->
+  <ul class="comfort-legend" aria-label="Comfort band legend">
+    {#each COMFORT_BANDS as b (b.band)}
+      <li class="comfort-band comfort-band--{b.band}">
+        <span class="comfort-swatch" style="background:{b.colour}"></span>
+        {b.band} · {b.range}/100
+      </li>
+    {/each}
+  </ul>
 </section>
 
 <hr class="section-divider" />
