@@ -46,6 +46,7 @@
   import TopSearchCard from './lib/components/TopSearchCard.svelte'
   import BottomDrawer from './lib/components/BottomDrawer.svelte'
   import ControlsContent from './lib/components/ControlsContent.svelte'
+  import StartLocationModal from './lib/components/StartLocationModal.svelte'
   import type { Suggestion } from './lib/search/suggestions'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
   import type { PickRole } from './lib/map/picker'
@@ -114,6 +115,8 @@
   let prefsError = ''
   let locateError = ''
   let didCenterOnUser = false
+  // AC-5: opens when the start geolocation request fails with no fix.
+  let startModalOpen = false
   // Set once the geolocation pre-fill has written the origin; afterwards a
   // manual origin (user-typed or map-picked) always wins and is never
   // overwritten by a later fix.
@@ -144,6 +147,53 @@
   } else if (endSuggestion) {
     endSuggestion = null
     clearEndCoords()
+  }
+
+  // Auto-plan (T16/AC-8): whenever both endpoints are set, plan the route.
+  // Guarded so it never fires while either endpoint is unset and never
+  // re-fires for the same coordinate pair (no loop).
+  async function planRoute() {
+    if (!startCoords || !endCoords) return
+    error = ''
+    try {
+      const response = await fetch('/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start,
+          end,
+          start_coords: startCoords,
+          end_coords: endCoords,
+        }),
+      })
+      if (!response.ok) {
+        let message = `Route planning failed (${response.status})`
+        try {
+          const data = await response.json()
+          message = data.message ?? message
+        } catch {
+          // Keep the status-based message when the body is not JSON.
+        }
+        throw new Error(message)
+      }
+      route = (await response.json()) as Route
+      drawRoute()
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  let lastPlannedKey = ''
+  $: {
+    const key = startCoords && endCoords ? `${startCoords.join(',')}>${endCoords.join(',')}` : ''
+    if (!key) {
+      // Either endpoint unset: never plan, and forget the last pair so
+      // re-entering the same pair later re-plans.
+      lastPlannedKey = ''
+    } else if (key !== lastPlannedKey) {
+      lastPlannedKey = key
+      void planRoute()
+    }
   }
 
   let arrival: ArrivalStatus | null = null
@@ -336,6 +386,29 @@
 
   function onLocationError(e: L.ErrorEvent) {
     locateError = e.message || 'Unable to determine your location.'
+    // AC-5: a failed/denied start request with no fix must ask for the
+    // origin. Once an origin is already chosen (fix pre-fill, typed
+    // suggestion, or map pick) a later geolocation error never re-opens it.
+    if (!originPrefilled && !start && !startSuggestion) {
+      startModalOpen = true
+    }
+  }
+
+  function handleStartChosen(suggestion: Suggestion) {
+    start = suggestion.label
+    startSuggestion = suggestion
+    setStartCoords([suggestion.lat, suggestion.lng])
+    originPrefilled = true
+    startModalOpen = false
+  }
+
+  function handleStartPick() {
+    beginPick('start')
+    startModalOpen = false
+  }
+
+  function handleStartModalClose() {
+    startModalOpen = false
   }
 
   function retryLocate() {
@@ -705,6 +778,21 @@
       {sidebarCollapsed ? '‹' : '›'}
     </span>
   </button>
+
+  <!-- AC-5: when start geolocation is unavailable/denied with no fix, ask for
+       the origin via the StartLocationModal overlay. Rendered as a sibling of
+       the other <main> overlays (aside, BottomDrawer, sidebar-handle) so it
+       floats above the map and never blocks the page; it closes when a typed
+       suggestion or a map pick chooses the origin. -->
+  {#if startModalOpen}
+    <StartLocationModal
+      bind:open={startModalOpen}
+      bind:selected={startSuggestion}
+      on:chosen={(e) => handleStartChosen(e.detail)}
+      on:pick={handleStartPick}
+      on:close={handleStartModalClose}
+    />
+  {/if}
 </main>
 
 <style>

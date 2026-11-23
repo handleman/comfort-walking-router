@@ -45,7 +45,14 @@
     dispatch('close')
     open = false
   }
+
+  // Escape dismisses the modal; it never blocks the rest of the page (AC-5).
+  function onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && open) onClose()
+  }
 </script>
+
+<svelte:window on:keydown={onKeydown} />
 
 {#if open}
   <div class="start-modal-backdrop" role="presentation">
