@@ -593,7 +593,6 @@
       {activePick}
       on:pick={(e) => beginPick(e.detail)}
       on:swap={swapEndpoints}
-      on:more={() => (showPrefs = !showPrefs)}
     />
   {/if}
 
