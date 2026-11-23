@@ -43,6 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DISABLE_ENV = "SWARM_ACCEPT"
 VISION_ENV = "SWARM_ACCEPT_VISION"
 QUEUE_ENV = "SWARM_ACCEPT_QUEUE"
+COMMIT_ENV = "SWARM_ACCEPT_COMMIT"
 MODEL_ENV = "SWARM_ACCEPT_MODEL"
 DEFAULT_VISION_MODEL = "openrouter/nvidia/nemotron-3.5-super-vl:free"
 VIEWS = (("desktop", 1280, 800), ("mobile", 390, 844))
@@ -764,6 +765,69 @@ def served_app(
 # ---------------------------------------------------------------------------
 
 
+def _should_commit(commit: bool | None, env: Mapping[str, str] | None = None) -> bool:
+    """051 AC-5: `commit=False` (a held run) or `SWARM_ACCEPT_COMMIT=0` off."""
+    source: Mapping[str, str] = os.environ if env is None else env
+    if commit is False:
+        return False
+    return str(source.get(COMMIT_ENV, "1")).strip().lower() not in {
+        "0",
+        "false",
+        "off",
+        "no",
+    }
+
+
+def _commit_artifacts(
+    repo_root: Path,
+    paths: list[Path],
+    subject: str,
+    log: Callable[[str], None],
+) -> dict[str, str]:
+    """Commit the acceptance artifacts this pass wrote (051).
+
+    `acceptance.md` and the queued `tasks.md` fix tasks are observation/queue
+    records, not task work, so they commit directly on the current branch
+    instead of the merge queue. Only the exact paths are staged; an unchanged
+    tree makes no commit; a failure is logged and never raised, so the
+    acceptance verdict always stands.
+    """
+    rel: list[str] = []
+    for path in paths:
+        try:
+            rel.append(str(Path(path).resolve().relative_to(repo_root.resolve())))
+        except (OSError, ValueError):
+            continue
+    if not rel:
+        return {}
+
+    def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            check=False,
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+    add = _git(["add", "--", *rel])
+    if add.returncode != 0:
+        log(f"acceptance: git add failed: {(add.stderr or '').strip()[-200:]}")
+        return {}
+    if _git(["diff", "--cached", "--quiet"]).returncode == 0:
+        return {}  # nothing changed since the last pass
+    commit = _git(["commit", "-m", subject])
+    if commit.returncode != 0:
+        log(f"acceptance: git commit failed: {(commit.stderr or '').strip()[-200:]}")
+        return {}
+    push = _git(["push"])
+    return {
+        "commit": "ok",
+        "push": "ok" if push.returncode == 0 else (push.stderr or "").strip()[-200:],
+    }
+
+
 def run(
     *,
     repo: Path | None = None,
@@ -774,6 +838,7 @@ def run(
     log: Callable[[str], None] = print,
     browser_runner: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     vision_judge: Callable[[SpecReport], Mapping[str, Any]] | None = None,
+    commit: bool | None = None,
 ) -> AcceptanceRun:
     """Run the pass; never raises for a failing requirement (the verdict says it)."""
     from swarm.spec_loader import resolve_spec_dir
@@ -795,6 +860,7 @@ def run(
     out_dir.mkdir(parents=True, exist_ok=True)
     runner = browser_runner or (lambda plan: run_browser(plan, repo=root))
     reports: list[SpecReport] = []
+    artifacts: list[Path] = []
 
     with contextlib.ExitStack() as stack:
         url = base_url
@@ -828,7 +894,7 @@ def run(
                 ],
                 report.vision,
             )
-        write_report(spec_dir, report)
+        artifacts.append(write_report(spec_dir, report))
         if queue and os.getenv(QUEUE_ENV, "1") != "0":
             tasks_path = spec_dir / "tasks.md"
             try:
@@ -839,6 +905,7 @@ def run(
             new_text, added = queue_fix_tasks(text, report.failures, date=date)
             if added:
                 tasks_path.write_text(new_text)
+                artifacts.append(tasks_path)
                 report.queued = [line.split(" ", 2)[2][:120] for line in added]
         reports.append(report)
         counts = report.counts
@@ -854,6 +921,17 @@ def run(
     if verdict == "PASS" and all(report.verdict == "UNVERIFIED" for report in reports):
         verdict = "UNVERIFIED"
     queued = sum(len(report.queued) for report in reports)
+    # 051: the pass' own artifacts are part of its work — commit them so a
+    # finished run leaves a clean tree instead of asking an operator to do it.
+    if artifacts and _should_commit(commit):
+        committed = _commit_artifacts(
+            root,
+            artifacts,
+            f"acceptance: {verdict} · {queued} fix task(s) queued ({stamp})",
+            log,
+        )
+        if committed.get("commit") == "ok" and committed.get("push") != "ok":
+            log(f"acceptance: artifacts committed, push failed: {committed.get('push')}")
     print(
         f"acceptance: {verdict} · {len(reports)} spec(s) · "
         f"{queued} fix task(s) queued · {out_dir}",

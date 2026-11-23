@@ -379,3 +379,99 @@ def test_main_returns_exit_code(monkeypatch):
     # No specs built → UNVERIFIED, exit 0
     result = main(["--spec", "999-no-such-spec"])
     assert result == 0
+
+# ---------------------------------------------------------------------------
+# 051: the pass commits its own artifacts
+# ---------------------------------------------------------------------------
+
+
+def test_should_commit_switch():
+    from swarm.acceptance import COMMIT_ENV, _should_commit
+
+    assert _should_commit(None, {}) is True
+    assert _should_commit(True, {}) is True
+    assert _should_commit(False, {}) is False  # held run / explicit opt-out
+    assert _should_commit(None, {COMMIT_ENV: "0"}) is False
+    assert _should_commit(True, {COMMIT_ENV: "off"}) is False
+
+
+def _git_repo(tmp_path):
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.test"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    return tmp_path
+
+
+def _commit_count(root):
+    import subprocess
+
+    out = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD"],
+        check=False,
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    return int(out.stdout.strip() or 0)
+
+
+def _committed_names(root):
+    import subprocess
+
+    out = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        check=False,
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    return set(out.stdout.split())
+
+
+def test_commit_artifacts_commits_only_the_given_paths(tmp_path):
+    from swarm.acceptance import _commit_artifacts
+
+    root = _git_repo(tmp_path)
+    (root / "specs").mkdir()
+    artifact = root / "specs" / "acceptance.md"
+    artifact.write_text("# verdict\n")
+    unrelated = root / "unrelated.txt"
+    unrelated.write_text("dirty\n")
+    logs: list[str] = []
+
+    result = _commit_artifacts(root, [artifact], "acceptance: test", logs.append)
+
+    assert result.get("commit") == "ok"
+    assert _commit_count(root) == 1
+    names = _committed_names(root)
+    assert "specs/acceptance.md" in names
+    assert "unrelated.txt" not in names
+
+
+def test_commit_artifacts_makes_no_empty_commit(tmp_path):
+    from swarm.acceptance import _commit_artifacts
+
+    root = _git_repo(tmp_path)
+    artifact = root / "acceptance.md"
+    artifact.write_text("# verdict\n")
+    _commit_artifacts(root, [artifact], "acceptance: one", print)
+    assert _commit_count(root) == 1
+
+    # Same content: no second commit, no error.
+    assert _commit_artifacts(root, [artifact], "acceptance: two", print) == {}
+    assert _commit_count(root) == 1
+
+
+def test_commit_artifacts_ignores_paths_outside_the_repo(tmp_path):
+    from swarm.acceptance import _commit_artifacts
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    root = _git_repo(repo)
+    outside = tmp_path / "outside.md"
+    outside.write_text("# x\n")
+    # Never raises, and nothing staged -> no commit.
+    assert _commit_artifacts(root, [outside], "acceptance: outside", print) == {}
+    assert _commit_count(root) == 0

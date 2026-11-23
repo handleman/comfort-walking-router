@@ -4349,6 +4349,9 @@ class SwarmFlow(Flow[SwarmState]):
                                 queue=True,
                                 build=True,
                                 log=print,
+                                # 051: this hook only runs after a committed
+                                # green, so the artifacts can be committed too.
+                                commit=True,
                             )
                             payload["acceptance"] = {
                                 "verdict": acceptance_result.verdict,
