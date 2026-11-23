@@ -39,7 +39,6 @@
   import { checkArrival } from './lib/navigation/arrival'
   import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
   import type { LatLng } from './lib/navigation/interpolate'
-  import WalkControls from './lib/WalkControls.svelte'
   import { clearRerouteWarning, flagOffRoute, onFix, walkMode } from './lib/walkMode'
   import { DRIFT_DISTANCE_THRESHOLD_M, distanceToRouteMeters } from './lib/navigation/drift'
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
@@ -639,10 +638,6 @@
     />
 
     <section class="walk">
-      <WalkControls route={walkRoute} profile={route?.comfort_profile ?? []} />
-      {#if !route}
-        <p class="empty">Plan a route first, then start the walk from the Review step.</p>
-      {/if}
       {#if arrival?.arrived && !arrivalDismissed}
         <ArrivalCard
           distanceMeters={arrival.distanceMeters}
