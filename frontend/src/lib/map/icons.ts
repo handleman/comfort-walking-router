@@ -1,30 +1,9 @@
 /*!
  * Walk-mode map marker icons — spec 014 (walk guidance UX), task T4 (AC-1, AC-2).
  *
- * The `person-walking` glyph below is based on Bootstrap Icons, which is
- * distributed under the MIT License:
- *
- *   MIT License
- *
- *   Copyright (c) 2019-2024 The Bootstrap Authors
- *
- *   Permission is hereby granted, free of charge, to any person obtaining a copy
- *   of this software and associated documentation files (the "Software"), to deal
- *   in the Software without restriction, including without limitation the rights
- *   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- *   copies of the Software, and to permit persons to whom the Software is
- *   furnished to do so, subject to the following conditions:
- *
- *   The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- *   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- *   THE SOFTWARE.
+ * The `directions_walk` glyph and the `place`-based endpoint pins are the
+ * inlined Material Symbols SVGs from `material.ts` (24x24 viewBox,
+ * `fill="currentColor"`).
  */
 
 /**
@@ -45,30 +24,31 @@ export interface DivIconConfig {
 }
 
 /**
- * Inline Bootstrap Icons `person-walking` SVG string (16x16 viewBox,
- * `fill="currentColor"` so it inherits the marker's CSS color).
+ * Material Symbols `directions_walk` SVG string (24x24 viewBox,
+ * `fill="currentColor"` so it inherits the marker's CSS color),
+ * reused from the inlined icon set in `material.ts`.
  */
-export const PERSON_WALKING_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">' +
-  '<path d="M9.5 1.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM6.44 3.75a.75.75 0 0 1 .73.75v3.06l-.01.02-.01.03-.01.02a.75.75 0 0 1-.16.26l-2.2 2.2 2.2 2.2a.75.75 0 1 1-1.06 1.06l-2.73-2.73a.75.75 0 0 1 0-1.06l2.2-2.2V4.5a.75.75 0 0 1 .75-.75h.3Z"/>' +
-  '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M7.2 7.8l2.1 2.5-.7 3.9M7.2 7.8 5.5 10.2l-1.3 3.9"/>' +
-  '</svg>'
+import { directionsWalk, place, svgPath } from './material'
 
-/** Shared teardrop pin shape (24x24 viewBox) used by both route-endpoint pins. */
-export const PIN_SHAPE_PATH = 'M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z'
+export const PERSON_WALKING_SVG = directionsWalk
 
-/** Blue start-pin SVG string with the "A" label (AC-1). */
+/**
+ * Material Symbols `place` glyph path (24x24 viewBox), extracted from the
+ * inlined `place` SVG in `material.ts` so the route-endpoint pins reuse the
+ * real icon shape from a single source of truth.
+ */
+export const PIN_SHAPE_PATH = svgPath(place)
+
+/** Blue start-pin SVG string based on the Material `place` glyph (AC-1). */
 export const START_PIN_SVG =
   `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" focusable="false">` +
   `<path fill="#1d4ed8" stroke="#ffffff" stroke-width="1.2" d="${PIN_SHAPE_PATH}"/>` +
-  `<text x="12" y="9" dy="0.32em" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#ffffff">A</text>` +
   `</svg>`
 
-/** Red end-pin SVG string with the "B" label (AC-2). */
+/** Red end-pin SVG string based on the Material `place` glyph (AC-2). */
 export const END_PIN_SVG =
   `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" focusable="false">` +
   `<path fill="#dc2626" stroke="#ffffff" stroke-width="1.2" d="${PIN_SHAPE_PATH}"/>` +
-  `<text x="12" y="9" dy="0.32em" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#ffffff">B</text>` +
   `</svg>`
 
 /** Accessible label announced for the live walker-position marker (AC-1). */
@@ -80,7 +60,7 @@ export const START_PIN_LABEL = 'Walk start'
 /** Accessible label announced for the red end pin (AC-2). */
 export const END_PIN_LABEL = 'Walk destination'
 
-/** Div-icon config for the live walker position (Bootstrap person glyph). */
+/** Div-icon config for the live walker position (Material `directions_walk`). */
 export function personIcon(): DivIconConfig {
   return {
     html:

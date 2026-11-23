@@ -14,6 +14,7 @@
   import type { ComfortProfileSegment } from '../map/comfortBands'
   import type { LatLng } from '../navigation/interpolate'
   import Attribution from './Attribution.svelte'
+  import { materialPaths } from '../map/material'
 
   // Structural subset of App.svelte's Route: everything this component
   // renders. App's full Route satisfies it.
@@ -127,7 +128,10 @@
 
 <section class="prefs" aria-labelledby="prefs-title">
   <h2 id="prefs-title">Preferences</h2>
-  <button type="button" on:click={onTogglePrefs}>
+  <button type="button" class="icon-btn" on:click={onTogglePrefs}>
+    <span class="icon" aria-hidden="true"
+      ><svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.tune} /></svg></span
+    >
     {showPrefs ? 'Hide preferences' : 'Edit preferences'}
   </button>
   {#if showPrefs && prefs}

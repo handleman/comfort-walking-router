@@ -30,9 +30,9 @@ describe('walk-mode map icon SVG strings', () => {
     expect(END_PIN_SVG).toContain(`d="${PIN_SHAPE_PATH}"`)
   })
 
-  it('labels the start pin "A" and the end pin "B"', () => {
-    expect(START_PIN_SVG).toContain('>A</text>')
-    expect(END_PIN_SVG).toContain('>B</text>')
+  it('labels the start pin "A" and the end pin "B" via aria-labels', () => {
+    expect(startPinIcon().html).toContain(`aria-label="${START_PIN_LABEL}"`)
+    expect(endPinIcon().html).toContain(`aria-label="${END_PIN_LABEL}"`)
   })
 
   it('colors the start pin blue and the end pin red (AC-1, AC-2)', () => {
@@ -44,7 +44,7 @@ describe('walk-mode map icon SVG strings', () => {
 
   it('renders the person-walking glyph for the live position marker', () => {
     expect(PERSON_WALKING_SVG).toContain('<svg')
-    expect(PERSON_WALKING_SVG).toContain('viewBox="0 0 16 16"')
+    expect(PERSON_WALKING_SVG).toContain('viewBox="0 0 24 24"')
     expect(PERSON_WALKING_SVG).toContain('<path')
   })
 })

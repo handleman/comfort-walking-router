@@ -1049,38 +1049,4 @@
     gap: 0.35rem 0.75rem;
     font-size: 0.8rem;
   }
-
-  .comfort-band,
-  .comfort-segment {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding-left: 0.4rem;
-  }
-
-  .comfort-band--good {
-    border-left: 4px solid #1a7f37;
-  }
-
-  .comfort-band--mixed {
-    border-left: 4px solid #b58900;
-  }
-
-  .comfort-band--poor {
-    border-left: 4px solid #b00020;
-  }
-
-  .comfort-swatch {
-    width: 12px;
-    height: 12px;
-    flex: none;
-    display: inline-block;
-  }
-
-  .comfort-unavailable {
-    margin: 0.5rem 0 0;
-    font-size: 0.85rem;
-    font-style: italic;
-    color: #666;
-  }
 </style>

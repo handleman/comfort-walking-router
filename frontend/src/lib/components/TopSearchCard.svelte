@@ -23,6 +23,7 @@
   import SearchInput from './SearchInput.svelte'
   import type { Suggestion } from '../search/suggestions'
   import type { PickRole } from '../map/picker'
+  import { materialPaths } from '../map/material'
 
   /** Origin query text; two-way bound with the host page. */
   export let startQuery = ''
@@ -61,7 +62,10 @@
       aria-pressed={activePick === 'start'}
       on:click={() => beginPick('start')}
     >
-      <span class="dot" aria-hidden="true"></span>
+      <span class="marker-icon marker-icon--origin" aria-hidden="true"
+        ><svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.my_location} /></svg
+        ></span
+      >
       <span class="marker-label" aria-hidden="true">My location</span>
     </button>
     <span class="pick-row">
@@ -83,7 +87,10 @@
         type="button"
         class="action-btn"
         aria-label="Swap origin and destination"
-        on:click={() => dispatch('swap', undefined)}>↑↓</button
+        on:click={() => dispatch('swap', undefined)}
+        ><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+          ><path d={materialPaths.swap_vert} /></svg
+        ></button
       >
     </span>
   </div>
@@ -96,7 +103,9 @@
       aria-pressed={activePick === 'end'}
       on:click={() => beginPick('end')}
     >
-      <span class="pin" aria-hidden="true">📍</span>
+      <span class="marker-icon marker-icon--place" aria-hidden="true"
+        ><svg viewBox="0 0 24 24" fill="currentColor"><path d={materialPaths.place} /></svg></span
+      >
     </button>
     <span class="pick-row">
       <SearchInput
@@ -167,13 +176,20 @@
     color: #1a73e8;
   }
 
-  .marker-origin .dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #1a73e8;
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 2px #1a73e8;
+  .marker-icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .marker-icon :global(svg) {
+    width: 100%;
+    height: 100%;
+  }
+
+  .marker-icon--origin {
+    color: #1a73e8;
   }
 
   .marker-label {
@@ -182,9 +198,7 @@
     white-space: nowrap;
   }
 
-  .marker-destination .pin {
-    font-size: 1rem;
-    line-height: 1;
+  .marker-icon--place {
     color: #d93025;
   }
 
