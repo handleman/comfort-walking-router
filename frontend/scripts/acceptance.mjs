@@ -125,21 +125,27 @@ async function evaluateView(name, width, height) {
   if (layoutSpecs.length) {
     const measured = await page.evaluate((specs) => {
       const out = {}
-      const rect = (el) => {
+      // NB: `offsetParent` is null for position:fixed elements (#map and the
+      // bottom drawer are fixed), so it must not gate visibility here.
+      const visibleOf = (el) => {
         const r = el.getBoundingClientRect()
         const cs = getComputedStyle(el)
-        const visible =
-          el.offsetParent !== null &&
+        return (
           r.width > 0 &&
           r.height > 0 &&
+          cs.display !== 'none' &&
           cs.visibility !== 'hidden' &&
-          cs.display !== 'none'
+          Number(cs.opacity || 1) > 0
+        )
+      }
+      const rect = (el) => {
+        const r = el.getBoundingClientRect()
         return {
           x: r.x + window.scrollX,
           y: r.y + window.scrollY,
           w: r.width,
           h: r.height,
-          visible,
+          visible: visibleOf(el),
         }
       }
       for (const spec of specs) {
@@ -151,9 +157,7 @@ async function evaluateView(name, width, height) {
           if (el) regions[id] = rect(el)
         }
         for (const [id, sel] of Object.entries(spec.controls || {})) {
-          const els = Array.from(document.querySelectorAll(sel)).filter(
-            (el) => el.offsetParent !== null && el.getBoundingClientRect().width > 0,
-          )
+          const els = Array.from(document.querySelectorAll(sel)).filter((el) => visibleOf(el))
           const el = els[0]
           controls[id] = el ? { ...rect(el), count: els.length } : { visible: false, count: 0 }
           if (el) peers.push([id, el])

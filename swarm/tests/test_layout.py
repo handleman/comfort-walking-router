@@ -174,3 +174,29 @@ visible_regions = ["Top / Card", "Map / Canvas"]
     contract = layout.load_layout(path)
     assert "Top / Card" in contract.regions
     assert contract.controls["Origin field"].ac == "AC-2"
+
+
+def test_a_control_can_be_limited_to_one_viewport(tmp_path):
+    """Drawer controls are asserted on desktop only while the drawer starts collapsed."""
+    toml = """
+[region.top-card]
+selector = "#top"
+[control.legend]
+selector = "#legend"
+regions = ["top-card"]
+viewports = ["desktop"]
+[expect.desktop]
+visible_regions = ["top-card"]
+[expect.mobile]
+visible_regions = ["top-card"]
+"""
+    path = tmp_path / "layout.toml"
+    path.write_text(toml)
+    contract = layout.load_layout(path)
+    assert contract.controls["legend"].viewports == ("desktop",)
+    facts = {
+        "desktop": {"regions": {"top-card": _rect(0, 0, 1280, 120)}, "controls": {"legend": _rect(10, 10, 200, 20)}, "overlaps": [], "overflow": False},
+        "mobile": {"regions": {"top-card": _rect(0, 0, 390, 120)}, "controls": {}, "overlaps": [], "overflow": False},
+    }
+    # legend absent on mobile is fine: it is desktop-only.
+    assert layout.evaluate(contract, facts) == []

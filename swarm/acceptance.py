@@ -1007,3 +1007,7 @@ def main(argv: list[str] | None = None) -> int:
         base_url=args.base_url,
     )
     return result.exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

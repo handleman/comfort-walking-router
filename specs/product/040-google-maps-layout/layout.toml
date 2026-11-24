@@ -1,0 +1,65 @@
+# 052: deterministic layout contract for 040-google-maps-layout.
+#
+# Read by swarm/acceptance.py; checked by the acceptance pass against the two
+# viewports (desktop 1280x800, mobile 390x844) from getBoundingClientRect — no
+# screenshots, no vision. A future Figma importer writes this same file.
+#
+# The app is an overlay layout: #map fills the viewport and the top card floats
+# over it, so there is no `above =` order assertion (that kind is for tiled
+# layouts). The regions that must not coexist are sidebar (desktop) / drawer
+# (mobile), enforced by `hidden_regions`.
+
+[region.top-card]
+selector = "[data-testid='top-card']"
+anchor   = "top-left"
+ac       = "AC-2"
+
+[region.map]
+selector = "[data-testid='map']"
+ac       = "AC-1"
+
+[region.sidebar]
+selector = "[data-testid='sidebar']"
+ac       = "AC-3"
+
+[region.drawer]
+selector = "[data-testid='drawer']"
+ac       = "AC-3"
+
+[control.origin-input]
+selector = "[data-testid='origin-input']"
+regions  = ["top-card"]
+ac       = "AC-2"
+
+[control.dest-input]
+selector = "[data-testid='dest-input']"
+regions  = ["top-card"]
+ac       = "AC-2"
+
+# The mobile drawer starts collapsed (BottomDrawer open = false), so its
+# controls are only in the DOM once expanded. Assert them on desktop (sidebar
+# open by default); the mobile-open state is a pending refinement (052 T4).
+[control.start-walk]
+selector = "[data-testid='start-walk']"
+regions  = ["sidebar", "drawer"]
+viewports = ["desktop"]
+unique   = true
+ac       = "AC-4"
+
+[control.comfort-legend]
+selector = "[data-testid='comfort-legend']"
+regions  = ["sidebar", "drawer"]
+viewports = ["desktop"]
+ac       = "AC-7"
+
+[expect.desktop]
+visible_regions = ["top-card", "map", "sidebar"]
+hidden_regions  = ["drawer"]
+
+[expect.mobile]
+visible_regions = ["top-card", "map", "drawer"]
+hidden_regions  = ["sidebar"]
+
+[tolerance]
+px      = 2
+overlap = 0

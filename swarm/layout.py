@@ -33,6 +33,7 @@ class Control:
     regions: tuple[str, ...] = ()
     unique: bool = False
     ac: str = "AC-L"
+    viewports: tuple[str, ...] = ()  # empty = every viewport
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ def load_layout(path: Path) -> LayoutContract:
             regions=tuple(val.get("regions") or ()),
             unique=bool(val.get("unique", False)),
             ac=str(val.get("ac", "AC-L")),
+            viewports=tuple(val.get("viewports") or ()),
         )
         for key, val in (data.get("control") or {}).items()
     }
@@ -138,6 +140,8 @@ def evaluate(contract: LayoutContract, facts: Mapping[str, Any]) -> list[LayoutI
                 ac = (contract.regions.get(rid) or Region(id=rid, selector="")).ac
                 issues.append(LayoutIssue("region_hidden", rid, f"{name}: region {rid} must be hidden", ac))
         for cid, control in contract.controls.items():
+            if control.viewports and name not in control.viewports:
+                continue
             rect = controls.get(cid)
             if not isinstance(rect, Mapping) or not rect.get("visible"):
                 issues.append(LayoutIssue("present", cid, f"{name}: control {cid} missing or invisible", control.ac))
