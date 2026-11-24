@@ -151,6 +151,9 @@ swarm-db-migrate: ## Upgrade the local Postgres schema to head
 smoke-live: ## Real providers (no fixtures): one Munich route, profile and weather
 	$(DB_ENV) .venv/bin/python -m swarm.smoke
 
+corridor-check: ## Live Overpass corridor probe (three mirrors; non-zero if none serve)
+	.venv/bin/python -m swarm.corridor_check
+
 swarm-preflight: ## Validate models/keys/Ollama/venvs/gates before a run
 	swarm/.venv/bin/python -m swarm.preflight
 

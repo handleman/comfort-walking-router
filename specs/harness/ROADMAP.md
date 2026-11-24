@@ -21,9 +21,10 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
    `npm check`/`npm test` on every task and the 043+052 acceptance pass verifies
    the hooks in a real browser (`layout_failures: NONE`). 040 is now fully
    closed (`open: []`, `resume_point: None`).*
-5. `[ ]` **050 — corridor reliability stand.** vcrpy cassettes, mocked
-   failover/timeout tests, `make corridor-check`, Playwright geolocation contract.
-   *Independent of 052; can run in parallel.*
+5. `[~]` **050 — corridor reliability stand.** *Live probe done (`swarm/corridor_check.py`,
+   `make corridor-check`, 3 tests); failover/timeout already covered by 039.
+   Deferred: vcrpy cassettes (recorded-corridor fixture covers it) and the
+   Playwright geolocation spec (blocked on the sandbox `make e2e` launch issue).*
 6. `[ ]` **047 — model-config consolidation.** One `swarm/model_config.py`;
    env names unchanged. *Quiet window — no live run.*
 7. `[ ]` **038 → 048 — productization.** 038 (`swarm.yaml` + `hq` CLI + `init`)
