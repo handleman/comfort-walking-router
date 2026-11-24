@@ -12,14 +12,11 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
    (direct commit; skip on held runs; `SWARM_ACCEPT_COMMIT=0` off).
 2. `[x]` **Bookkeeping.** *Done 2026-11-23.* Ticked 042 T1/T2, 043 T1–T6/T8,
    044 T1–T5, 045 T1/T2/T3/T5/T6. It also found real gaps — see below.
-3. `[~]` **052 — layout geometry + control presence** (+ product **040 T22**
-   data-testids). *Core done (`ab80782`): `swarm/layout.py` IR + pure evaluator,
-   acceptance wiring, `.mjs` fact collector, 10 tests. Remaining: 040
-   `layout.toml` (blocked on **T22**), the route-planned state, a real run.*
-   Deterministic DOM checks (`present`, `unique`, `in_region`,
-   `region_visible/hidden`, `region_order`, `no_overlap` peers-only,
-   `no_overflow`) from `layout.toml`; no pixels, no vision; gates + queues fixes;
-   Figma seam via the `data-testid` IR.
+3. `[x]` **052 — layout geometry + control presence** (+ product **040 T22**).
+   *Done (`3d63342`): `swarm/layout.py` IR + pure evaluator, acceptance wiring,
+   `.mjs` fact collector, 040 `layout.toml`, 11 tests; a live pass on 040 reports
+   `layout_failures: NONE` at desktop + mobile. Two refinements remain (route-
+   planned state, mobile-drawer-open state) — see the spec's T4.*
 4. `[ ]` **T6 re-scope.** With 052 in place, "verify the layout" is a harness run,
    so 040 T6 stops being an unfixable coder task (or retry with a longer cap).
 5. `[ ]` **050 — corridor reliability stand.** vcrpy cassettes, mocked
