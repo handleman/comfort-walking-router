@@ -1,6 +1,6 @@
 # 040-google-maps-layout — Acceptance
 
-Generated: 2026-11-24T10:58:42Z · Verdict: **FAIL** (3 failed · 5 passed · 0 unverified)
+Generated: 2026-11-24T10:59:57Z · Verdict: **FAIL** (3 failed · 5 passed · 0 unverified)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
