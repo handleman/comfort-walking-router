@@ -678,7 +678,7 @@
 <svelte:window on:keydown={onKeydown} />
 
 <main>
-  <div id="map" bind:this={mapElement}></div>
+  <div id="map" data-testid="map" bind:this={mapElement}></div>
 
   {#if currentStep === 'plan'}
     <TopSearchCard
@@ -693,7 +693,12 @@
     />
   {/if}
 
-  <aside id="desktop-sidebar" class="overlay-panel" class:collapsed={sidebarCollapsed}>
+  <aside
+    id="desktop-sidebar"
+    class="overlay-panel"
+    class:collapsed={sidebarCollapsed}
+    data-testid="sidebar"
+  >
     <h1>Comfort Walking Router</h1>
 
     {#if locateError}
@@ -780,6 +785,7 @@
   <button
     type="button"
     class="sidebar-handle"
+    data-testid="sidebar-handle"
     class:collapsed={sidebarCollapsed}
     aria-controls="desktop-sidebar"
     aria-expanded={!sidebarCollapsed}

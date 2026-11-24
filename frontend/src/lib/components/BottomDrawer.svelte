@@ -11,10 +11,11 @@
   }
 </script>
 
-<div class="bottom-drawer" data-open={open}>
+<div class="bottom-drawer" data-open={open} data-testid="drawer">
   <button
     type="button"
     class="grab-handle"
+    data-testid="drawer-handle"
     aria-expanded={open}
     aria-controls="bottom-drawer-body"
     aria-label={open ? 'Collapse controls' : 'Expand controls'}

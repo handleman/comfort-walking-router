@@ -19,6 +19,9 @@
   /** Whether the input is required for native form validation. */
   export let required = false
 
+  /** Stable test id rendered as `data-testid` on the component root. */
+  export let testId = ''
+
   /** Currently selected suggestion; bind to read the user's choice. */
   export let selected: Suggestion | null = null
 
@@ -85,7 +88,7 @@
   }
 </script>
 
-<div class="search-combobox">
+<div class="search-combobox" data-testid={testId || undefined}>
   <input
     type="text"
     role="combobox"
