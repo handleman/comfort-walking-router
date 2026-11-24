@@ -17,8 +17,10 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
    `.mjs` fact collector, 040 `layout.toml`, 11 tests; a live pass on 040 reports
    `layout_failures: NONE` at desktop + mobile. Two refinements remain (route-
    planned state, mobile-drawer-open state) — see the spec's T4.*
-4. `[ ]` **T6 re-scope.** With 052 in place, "verify the layout" is a harness run,
-   so 040 T6 stops being an unfixable coder task (or retry with a longer cap).
+4. `[x]` **T6 re-scope.** *Done 2026-11-24: retired as a coder task — QA runs
+   `npm check`/`npm test` on every task and the 043+052 acceptance pass verifies
+   the hooks in a real browser (`layout_failures: NONE`). 040 is now fully
+   closed (`open: []`, `resume_point: None`).*
 5. `[ ]` **050 — corridor reliability stand.** vcrpy cassettes, mocked
    failover/timeout tests, `make corridor-check`, Playwright geolocation contract.
    *Independent of 052; can run in parallel.*
@@ -39,6 +41,14 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
   work.
 - `[ ]` **049 T8 — real-run verify.** Needs one live run on a previously-parked
   task (piggyback on the next queue run).
+
+## Known issues (2026-11-24)
+
+- **`make e2e` cannot launch in the sandboxed agent shell**: `Failed to launch:
+  Error: spawn /bin/sh ENOENT` (the fixture backend starts; the Playwright
+  browser/webServer spawn fails). The swarm's own e2e runs have succeeded, so
+  this is an agent-shell environment limit, not a suite regression. Track e2e
+  results from a normal terminal.
 
 ## Dependencies
 
