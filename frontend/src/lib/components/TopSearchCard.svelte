@@ -56,7 +56,12 @@
   }
 </script>
 
-<div class="top-search-card {extraClass}" role="group" aria-label="Route search">
+<div
+  class="top-search-card {extraClass}"
+  role="group"
+  aria-label="Route search"
+  data-testid="top-card"
+>
   <div class="row row-origin">
     <button
       type="button"
@@ -74,6 +79,7 @@
     <span class="pick-row">
       <SearchInput
         {baseUrl}
+        testId="origin-input"
         placeholder="e.g. Marienplatz, Munich"
         required
         bind:query={startQuery}
@@ -117,6 +123,7 @@
     <span class="pick-row">
       <SearchInput
         {baseUrl}
+        testId="dest-input"
         placeholder="e.g. Englischer Garten"
         required
         bind:query={endQuery}

@@ -128,7 +128,7 @@
   <!-- Legend always renders (outside the {#if route} block) so the e2e hooks
        .comfort-legend / .comfort-band resolve on the initial no-route page
        as well as once a route exists (spec 040, AC-7). -->
-  <ul class="comfort-legend" aria-label="Comfort band legend">
+  <ul class="comfort-legend" data-testid="comfort-legend" aria-label="Comfort band legend">
     {#each COMFORT_BANDS as b (b.band)}
       <li class="comfort-band comfort-band--{b.band}">
         <span class="comfort-swatch" style="background:{b.colour}"></span>
