@@ -17,10 +17,12 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
    `.mjs` fact collector, 040 `layout.toml`, 11 tests; a live pass on 040 reports
    `layout_failures: NONE` at desktop + mobile. Two refinements remain (route-
    planned state, mobile-drawer-open state) — see the spec's T4.*
-4. `[x]` **T6 re-scope.** *Done 2026-11-24: retired as a coder task — QA runs
-   `npm check`/`npm test` on every task and the 043+052 acceptance pass verifies
-   the hooks in a real browser (`layout_failures: NONE`). 040 is now fully
-   closed (`open: []`, `resume_point: None`).*
+4. `[~]` **T6 — e2e specs to the 040 layout (reopened 2026-11-25).** The suite
+   was genuinely red: `playwright.config.ts` had `webServer.cwd: 'frontend'`
+   (resolves to `frontend/frontend`; fixed → `'.'`), and once it launched **11/12
+   specs failed** because they still click `Find route` (removed by T9, replaced
+   by auto-plan in T16). The swarm is updating `frontend/e2e/*.spec.ts`. My
+   earlier "retired" call was premature — corrected.
 5. `[~]` **050 — corridor reliability stand.** *Live probe done (`swarm/corridor_check.py`,
    `make corridor-check`, 3 tests); failover/timeout already covered by 039.
    Deferred: vcrpy cassettes (recorded-corridor fixture covers it) and the
