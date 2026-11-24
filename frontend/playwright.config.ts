@@ -43,7 +43,10 @@ export default defineConfig({
     {
       command: 'npm run preview -- --port 5173 --strictPort',
       url: 'http://localhost:5173',
-      cwd: 'frontend',
+      // webServer.cwd is relative to this config's directory (frontend/), so
+      // 'frontend' resolved to frontend/frontend and failed with
+      // "spawn /bin/sh ENOENT". '.' is the frontend package root.
+      cwd: '.',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
