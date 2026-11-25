@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { enableFixturesMode, planRoute, setGeolocation } from './helpers'
+import { enableFixturesMode, setGeolocation } from './helpers'
 
 // Spec 014, T10 (AC-8/AC-9): the attribution credit (provider + OSM) is shown
 // wherever a suggestion/route is displayed. The stubbed body mirrors the real
@@ -29,9 +29,13 @@ test('walk guidance shows the geocoder attribution for the picked suggestion', a
 
   await page.goto('/')
 
-  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
+  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
+  await page.locator('.suggestion').first().click()
 
-  await expect(page.locator('.route-summary')).toBeVisible()
+  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
+  await page.locator('button:has-text("Find route")').click()
+
+  await expect(page.locator('.result')).toBeVisible()
   await expect(page.locator('.attribution')).toBeVisible()
   await expect(page.locator('.attribution')).toContainText('Mapbox')
 })

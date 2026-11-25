@@ -1,14 +1,17 @@
 import { expect, test } from '@playwright/test'
 
-import { enableFixturesMode, planRoute, setGeolocation } from './helpers'
+import { enableFixturesMode, setGeolocation } from './helpers'
 
 test('walk mode finds a route with fixtures and Munich geolocation', async ({ page }) => {
   await enableFixturesMode(page)
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
 
-  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
-  await expect(page.locator('.route-summary')).toBeVisible()
+  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
+  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
+  await page.locator('button:has-text("Find route")').click()
+
+  await expect(page.locator('.result')).toBeVisible()
 })
 
 test('walk mode shows a marker at the origin after starting navigation', async ({ page }) => {
@@ -16,8 +19,10 @@ test('walk mode shows a marker at the origin after starting navigation', async (
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
 
-  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
-  await expect(page.locator('.route-summary')).toBeVisible()
+  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
+  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
+  await page.locator('button:has-text("Find route")').click()
+  await expect(page.locator('.result')).toBeVisible()
 
   await page.locator('button.walk-start').click()
   await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()
@@ -28,8 +33,10 @@ test('walk mode shows the reroute warning after drifting off route', async ({ pa
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
 
-  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
-  await expect(page.locator('.route-summary')).toBeVisible()
+  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
+  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
+  await page.locator('button:has-text("Find route")').click()
+  await expect(page.locator('.result')).toBeVisible()
 
   await page.locator('button.walk-start').click()
   await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()
@@ -46,8 +53,10 @@ test('walk mode shows the arrived banner after reaching the destination', async 
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
 
-  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
-  await expect(page.locator('.route-summary')).toBeVisible()
+  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
+  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
+  await page.locator('button:has-text("Find route")').click()
+  await expect(page.locator('.result')).toBeVisible()
 
   await page.locator('button.walk-start').click()
   await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()
