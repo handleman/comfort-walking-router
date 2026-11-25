@@ -1,6 +1,6 @@
 # 001-example-app — Acceptance
 
-Generated: 2026-11-25T22:38:15Z · Verdict: **FAIL** (0 failed · 0 passed · 4 unverified)
+Generated: 2026-11-25T22:38:46Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 4 unverified)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
@@ -11,6 +11,5 @@ Generated: 2026-11-25T22:38:15Z · Verdict: **FAIL** (0 failed · 0 passed · 4 
 
 ## Global checks
 
-- **FAIL** desktop: 1 interactive element(s) with zero size (button.grab-handle svelte-mldotw)
-- desktop: tiles=24 · leaflet=True · duplicateButtons=none · zeroSize=1 · overflow=False · routeRequests=0
+- desktop: tiles=24 · leaflet=True · duplicateButtons=none · zeroSize=0 · overflow=False · routeRequests=0
 - mobile: tiles=24 · leaflet=True · duplicateButtons=none · zeroSize=0 · overflow=False · routeRequests=0
