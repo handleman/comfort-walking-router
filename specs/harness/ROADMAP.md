@@ -50,6 +50,11 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
   at drain but does not re-enter the queue when fix tasks were queued; a FAIL
   stops instead of running the fixes. Small, pairs with the 052/T6 verification
   work.
+- `[ ]` **053 swarm hardening (2026-11-25).** Grounded reviewer blocks (a green-gates
+  block with no evidence must not start a fix round); reference-vs-required paths
+  in the delta guard; per-task write allowlist; e2e launch failure = `env`;
+  roster cap + `make swarm-health`. Design only. Reviewer model already flipped
+  to qwen3.8-flash.
 - `[ ]` **049 T8 — real-run verify.** Needs one live run on a previously-parked
   task (piggyback on the next queue run).
 
