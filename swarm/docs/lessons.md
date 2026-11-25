@@ -180,3 +180,41 @@ map, T23 (map) went green only after two tunings, and T6 needed a brief fix. Les
   while `.leaflet-container` was absent (0 tiles, 0 markers). Only the e2e suite
   and the acceptance global facts (`leaflet`, `tiles`) caught it — keep those
   facts running after every green task.
+## 2026-11-26 — a sleeping laptop looks exactly like a hung model
+
+T6's first verified migration run lost 55 minutes to a wall of silence, then
+recovered in seconds. Two lessons, both about signals the harness was missing.
+
+- **Host sleep is a silent stall, and the harness blamed the model.** The
+  verifier (`opencode-go/qwen3.8-flash`) was mid-call from 23:45:01; the next
+  event of any kind was `llm_timeout` at 00:40:40 — 55 minutes with zero LLM,
+  tool or shell events. `SWARM_LLM_TIMEOUT_SECONDS` is 180 s and the crew cap is
+  300 s, so neither could explain it: the process was suspended with the Mac.
+  On wake CrewAI surfaced `Failed to connect to OpenAI API: Request timed out`,
+  which reads exactly like a provider hang. The first diagnosis ("the Go API is
+  slow") was wrong; the run's own `mono` timestamps proved a gap, not latency.
+  *Improve:* (a) keep the host awake for the life of a flow —
+  `swarm/power.py` spawns `caffeinate -ims -w <pid>` on macOS
+  (`SWARM_KEEP_AWAKE=0` off, no-op elsewhere); (b) when consecutive events show
+  a `mono` gap above a threshold with no tool activity, record
+  `host_suspended` in `run.json` instead of a model error, so the operator sees
+  the machine slept rather than a provider failing.
+
+- **A deterministic guard is an invariant the brief must state.** T6's migration
+  was correct — all five specs converted, every gate 0, review `pass` — and was
+  reverted by the e2e weakening guard for dropping one assertion in `search`
+  (10→9) and `preferences` (7→6) while removing the old `.result` checks. The
+  guard was right to be loud (a spec that deletes checks is how a suite gets
+  weakened), but the brief never said the count was part of the contract, so the
+  coder had no way to know. *Improve:* any brief that edits `frontend/e2e/*`
+  states the invariants the guards enforce — "keep or raise each spec's
+  `expect(...)` count", "no test removed or skipped", "only the files this task
+  owns". A guard that can revert a green run must be legible in the task text,
+  or it converts a correct run into a round trip.
+
+- **Confirmed good:** 053's new machinery behaved as designed in its first live
+  run — the allowlist kept the coder from wandering (no `helpers.ts` edit), the
+  reference-vs-required rule let the five-spec delta go green, and the weakened
+  verdict was recorded loudly (`e2e_weakened` with the exact per-file counts)
+  instead of an opaque `e2e_unclassified`. The remaining cost was knowledge, not
+  code.

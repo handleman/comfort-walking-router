@@ -3377,6 +3377,12 @@ class SwarmFlow(Flow[SwarmState]):
                     return crew, str(out)[:8000]
             raise SystemExit(f"crew failed after retries, trace in {self.run_dir}/run.json") from last_err
 
+        # 053 follow-up: `_kickoff` is a closure, but the `gate` listener and the
+        # e2e self-heal run outside `run()`. Reaching them through `self` is what
+        # the repair loop always assumed; the first run to reach it (T6, 2026-11-26)
+        # died `AttributeError: 'SwarmFlow' object has no attribute '_kickoff'`.
+        self._kickoff = _kickoff
+
         def _review(task: Any, work_summary: str, *, role: str = "qa") -> bool:
             """Run QA; never let its transport failure become a run-level crew_error.
 
@@ -4133,6 +4139,11 @@ class SwarmFlow(Flow[SwarmState]):
             rounds = int(os.getenv("SWARM_MAX_INNER_ROUNDS", "2"))
         except ValueError:
             rounds = 2
+        kick = getattr(self, "_kickoff", None)
+        if kick is None:
+            # Never crash the listener: with no kicker, say so and stop.
+            state["stop"] = "e2e_unclassified: no kicker available"
+            return False
         for round_no in range(1, rounds + 1):
             state["rounds"] = round_no
             before = e2e_guard.facts_for(REPO_ROOT, specs)
@@ -4142,7 +4153,7 @@ class SwarmFlow(Flow[SwarmState]):
                 + roster_text
             )
             try:
-                self._kickoff(
+                kick(
                     lambda prompt=prompt: build_fix_crew(self._spec_dir, task, prompt),
                     role=f"e2e:repair{round_no}",
                     step=f"e2e{round_no}",
@@ -4950,6 +4961,11 @@ def _exit_soon(seconds: float = 5.0) -> None:
 
 
 def main() -> None:
+    # 2026-11-26: a sleeping laptop stalled a verifier call for 55 minutes and
+    # then surfaced as a fake model timeout. Hold the assertion for this process.
+    from swarm import power
+
+    power.keep_awake()
     ap = argparse.ArgumentParser()
     ap.add_argument("--spec", default=None)
     ap.add_argument("--task", default=None)
