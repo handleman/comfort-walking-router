@@ -136,3 +136,47 @@ Hard-won lessons from real runs — read before "fixing" the swarm. See [GLOSSAR
 - New: `swarm/tests/test_acceptance.py` — 26 unit tests covering parsing, discovery,
   merge, report, queue, vision.
 - Changelog: 758 swarm tests pass; 732 + 26 = 758 total.
+
+## 2026-11-25 — e2e migration, a dead map, and a reviewer that blocked without evidence
+
+The swarm failed T6 (e2e spec migration) three times, the e2e suite exposed a dead
+map, T23 (map) went green only after two tunings, and T6 needed a brief fix. Lessons:
+
+- **A reviewer block must be grounded in recorded evidence, not prose.** T23 ended
+  `review_verdict=blocked` with cause `test` while every recorded gate was green,
+  the verifier passed, and **no `pytest` run existed** in `shell_log.jsonl`. The
+  fix round then chased that non-existent failure, changed nothing, and the run
+  died `no_progress`. `block_is_grounded` matched nothing concrete yet a fix round
+  still ran. *Improve:* check the block against the recorded gates — all green +
+  verifier pass + a block with no failing gate/AC/file:line is
+  `reviewer_blocked_ungrounded`; stop, do not start a fix round.
+- **Judgement roles need reasoning, not the cheapest tier.** The reviewer was
+  `mimo-v2.6-flash` and blocked spuriously; `qwen3.8-flash` (the verifier's model)
+  let the same work pass. 047's profile put the cheap flash on judgement roles —
+  invert it: cheap on mechanical, reasoning on judging.
+- **"Use X from `path`" is a reference, not a required change.** T6 named
+  `frontend/e2e/helpers.ts` (the already-implemented `planRoute`); the delta guard
+  read the backtick path as required, saw it untouched, and stopped
+  `delta_incomplete` — after the coder had migrated all five specs. The 030
+  read-verb rule covers "Read X"; extend it to "use/from/see X".
+- **Off-scope e2e edits impose e2e on non-e2e tasks.** T23's coder edited
+  `frontend/e2e/helpers.ts` and `app/saved_routes.py`; the helper edit flipped
+  `e2e_required` on a map task, which then could never record a green suite.
+  *Improve:* a per-task write allowlist from the brief, reverting other writes
+  (global scope is too coarse); `e2e_required` should key off the task's target.
+- **A launch failure is `env`, not `unclassified`.** `playwright.config.ts` had
+  `webServer.cwd: 'frontend'` → `frontend/frontend` → `spawn /bin/sh ENOENT`. The
+  self-heal saw no parseable failures, stopped `e2e_unclassified`, and hid the
+  cause for three runs. A spawn/launch error is class `env` with the error text;
+  "no failures parsed" must say whether the suite ran at all.
+- **The e2e roster cap silently refuses big migrations.** `SWARM_MAX_INNER_TASKS`
+  defaults to 3; >3 failures → `e2e_roster_overflow`, no repair round. An
+  11-failure stale suite was unwinnable. Default higher, or batch the roster.
+- **Stale test config is silent paralysis.** The suite could not launch, and
+  nothing noticed until an explicit `make e2e`. A `make swarm-health` (or
+  preflight) smoke of the suites would fail fast instead of on the one task that
+  owns e2e.
+- **A dead map passed "gates".** `npm check/test` and the verifier were green
+  while `.leaflet-container` was absent (0 tiles, 0 markers). Only the e2e suite
+  and the acceptance global facts (`leaflet`, `tiles`) caught it — keep those
+  facts running after every green task.
