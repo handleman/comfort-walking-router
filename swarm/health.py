@@ -14,6 +14,31 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+_NOISE = (
+    "[webserver]",
+    "[vite-plugin-svelte]",
+    "list-style: none;",
+    "transform:",
+    "unused css selector",
+)
+
+
+def _tail(text: str, limit: int = 900) -> str:
+    """The useful end of a suite log: drop server/build chatter, keep the summary.
+
+    A real `make swarm-health` failure printed uvicorn startup lines and a CSS
+    warning instead of `9 failed / 3 skipped`, which is the only part an
+    operator can act on.
+    """
+    lines = [
+        line
+        for line in (text or "").splitlines()
+        if not any(marker in line.lower() for marker in _NOISE)
+    ]
+    cleaned = "\n".join(lines).strip()
+    return (cleaned or (text or "").strip())[-limit:]
+
+
 def _run(argv: list[str], *, label: str) -> str | None:
     try:
         proc = subprocess.run(
@@ -27,8 +52,7 @@ def _run(argv: list[str], *, label: str) -> str | None:
     except (OSError, subprocess.SubprocessError) as exc:
         return f"{label}: could not run: {exc}"
     if proc.returncode != 0:
-        tail = (proc.stdout + proc.stderr)[-600:].strip()
-        return f"{label}: exit {proc.returncode}\n{tail}"
+        return f"{label}: exit {proc.returncode}\n{_tail(proc.stdout + proc.stderr)}"
     return None
 
 

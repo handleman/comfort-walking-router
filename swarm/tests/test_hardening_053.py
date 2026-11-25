@@ -251,3 +251,18 @@ def test_swarm_health_fails_loudly(monkeypatch, tmp_path):
     problems = health.check()
     assert len(problems) == 2
     assert health.main() == 1
+
+
+def test_the_health_tail_keeps_the_suite_summary_not_server_noise():
+    from swarm import health
+
+    log = (
+        "[WebServer] INFO:     Uvicorn running on http://127.0.0.1:8000\n"
+        '[vite-plugin-svelte] Unused CSS selector ".comfort-segments"\n'
+        "  9 failed\n"
+        "  3 skipped"
+    )
+    tail = health._tail(log)
+    assert "9 failed" in tail
+    assert "Uvicorn running" not in tail
+    assert "vite-plugin-svelte" not in tail
