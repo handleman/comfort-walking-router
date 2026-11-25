@@ -182,23 +182,16 @@ def _positive_seconds(raw: object) -> float:
 
 
 def crew_timeout_seconds(env: Mapping[str, str] | None = None) -> float:
-    """Hard cap for one crew call (046 AC-3), with a timeout per profile.
+    """Hard cap for one crew call (046 AC-3), resolved by the profile (047 AC-4).
 
-    The two knobs are deliberately separate, mirroring the per-call timeouts
-    (`SWARM_LLM_FIX_TIMEOUT_SECONDS` vs `SWARM_OLLAMA_TIMEOUT_SECONDS`):
-
-    - local profile (`ollama/*` role or fallback) → `SWARM_LOCAL_CREW_TIMEOUT_SECONDS`
-      (default 900 s: a 64k-context on-device step can exceed 5 min);
-    - cloud profile → `SWARM_CREW_TIMEOUT_SECONDS` (default 300 s: a hung call
-      must not eat the task).
-
-    A cloud-sized cap is never inherited by a local run, so switching profiles
-    cannot silently truncate an on-device step.
+    One rule lives in `swarm.model_config.Profile.crew_timeout` so the dashboard,
+    preflight and the flow cannot drift: local profile →
+    `SWARM_LOCAL_CREW_TIMEOUT_SECONDS` (default 900 s), cloud →
+    `SWARM_CREW_TIMEOUT_SECONDS` (default 300 s).
     """
-    source: Mapping[str, str] = os.environ if env is None else env
-    if uses_local_models(source):
-        return _positive_seconds(source.get(LOCAL_CREW_TIMEOUT_ENV)) or 900.0
-    return _positive_seconds(source.get(CREW_TIMEOUT_ENV)) or 300.0
+    from swarm import model_config
+
+    return model_config.resolve_models(env).crew_timeout()
 
 
 def verifier_model(env: Mapping[str, str] | None = None) -> str:

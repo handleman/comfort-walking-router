@@ -103,3 +103,102 @@ def test_resolve_inherits_senior_for_the_verifier_and_local_fallback():
     assert profile.fallback("planner") == "ollama/swarm-coder:latest"
     assert profile.role("coder").free is False
     assert profile.paid_allowed is True
+
+
+# ---- 047 AC-4: the crew timeout is a profile property -----------------------
+
+
+def test_the_crew_timeout_follows_the_profile():
+    cloud = model_config.resolve_models(
+        {"SWARM_CODER_MODEL": "opencode-go/glm-5.3-flash"}
+    )
+    assert not cloud.local
+    assert cloud.crew_timeout() == 300.0
+
+    local = model_config.resolve_models({"SWARM_CODER_MODEL": "ollama/swarm-coder:latest"})
+    assert local.local
+    assert local.crew_timeout() == 900.0
+
+
+def test_each_profile_has_its_own_timeout_knob():
+    cloud = model_config.resolve_models(
+        {
+            "SWARM_CODER_MODEL": "opencode-go/glm-5.3-flash",
+            "SWARM_CREW_TIMEOUT_SECONDS": "42",
+            "SWARM_LOCAL_CREW_TIMEOUT_SECONDS": "7",
+        }
+    )
+    assert cloud.crew_timeout() == 42.0
+    local = model_config.resolve_models(
+        {
+            "SWARM_CODER_MODEL": "ollama/swarm-coder:latest",
+            "SWARM_CREW_TIMEOUT_SECONDS": "42",
+            "SWARM_LOCAL_CREW_TIMEOUT_SECONDS": "7",
+        }
+    )
+    assert local.crew_timeout() == 7.0
+
+
+def test_llms_delegates_the_timeout_to_the_profile():
+    from swarm import llms
+
+    assert llms.crew_timeout_seconds(
+        {"SWARM_CODER_MODEL": "ollama/swarm-coder:latest"}
+    ) == 900.0
+    assert llms.crew_timeout_seconds(
+        {"SWARM_CODER_MODEL": "opencode-go/glm-5.3-flash"}
+    ) == 300.0
+
+
+# ---- 047 AC-3: the router a role reports is the one it calls ----------------
+
+
+def test_the_flow_role_provider_reads_the_profile(monkeypatch):
+    from swarm import flow
+
+    monkeypatch.setenv("SWARM_CODER_MODEL", "opencode-go/glm-5.3-flash")
+    assert flow._role_provider("coder:step1") == "opencode-go"
+    monkeypatch.setenv("SWARM_REVIEWER_MODEL", "ollama/swarm-qa:latest")
+    assert flow._role_provider("qa") == "ollama"
+
+
+# ---- 047 AC-6: fallbacks are validated like primaries ----------------------
+
+
+def test_preflight_flags_a_paid_fallback_without_allow_paid():
+    from swarm import preflight
+
+    env = {
+        "SWARM_PLANNER_MODEL": "opencode-go/glm-5.3-flash",
+        "SWARM_CODER_MODEL": "opencode-go/glm-5.3-flash",
+        "SWARM_REVIEWER_MODEL": "opencode-go/qwen3.8-flash",
+        "SWARM_SENIOR_MODEL": "opencode-go/deepseek-v4-pro",
+        "SWARM_PLANNER_FALLBACK_MODEL": "opencode-go/mimo-v2.6-flash",
+        "SWARM_ALLOW_PAID": "0",
+        "OPENCODE_GO_API_KEY": "k",
+    }
+    problems = preflight.check(env, offline=True)
+    assert any(
+        p.check == "SWARM_PLANNER_FALLBACK_MODEL" and "paid fallback" in p.detail
+        for p in problems
+    )
+
+
+def test_preflight_flags_a_fallback_for_the_wrong_provider_key():
+    from swarm import preflight
+
+    env = {
+        "SWARM_PLANNER_MODEL": "opencode-go/glm-5.3-flash",
+        "SWARM_CODER_MODEL": "opencode-go/glm-5.3-flash",
+        "SWARM_REVIEWER_MODEL": "opencode-go/qwen3.8-flash",
+        "SWARM_SENIOR_MODEL": "opencode-go/deepseek-v4-pro",
+        "SWARM_PLANNER_FALLBACK_MODEL": "openrouter/nvidia/x:free",
+        "SWARM_ALLOW_PAID": "1",
+        "OPENCODE_GO_API_KEY": "k",
+        "OPENROUTER_API_KEY": "",
+    }
+    problems = preflight.check(env, offline=True)
+    assert any(
+        p.check == "SWARM_PLANNER_FALLBACK_MODEL" and "OpenRouter" in p.detail
+        for p in problems
+    )

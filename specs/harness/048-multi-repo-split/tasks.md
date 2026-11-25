@@ -9,12 +9,23 @@ order; every phase ends green.
 
 ## Phase 1 — history split
 - [x] T3 (AC-2): `git clone . /tmp/hq-src && git filter-repo --subdirectory-filter swarm/` → 228 commits, swarm-rooted, app/frontend/specs/product gone, 047/050/052 commits present. Verified (throwaway; the real repo is created in Phase 7).
-- [ ] T4 (AC-0): secret scan the filtered history (real `OPENROUTER_API_KEY` / `OPENCODE_API_KEY` / `MAPBOX_TOKEN` values); clean before any push.
+- [x] T4 (AC-0): secret scan the filtered history — 0 hits for the four real key/token values, 0 `.env`-shaped assignments, no `.env` ever committed (2026-11-26, `git log --all -p | grep -F -f <values>` + name scan).
 
 ## Phase 2 — factory packaging
-- [ ] T5 (AC-3): `handleman-hq/pyproject.toml` — name `handleman-hq`, import `swarm`, `hatchling` backend, `[project.scripts] hq = "swarm.cli:main"`; move core to `src/swarm/`.
-- [ ] T6 (AC-3): `swarm/cli.py` with `init/run/up/stop/dash/preflight/report/bench/--version`; `pip install -e .` exposes `hq`; `hq --version` prints the tag.
-- [ ] T7 (AC-7): factory unit tests under `tests/` pass (774+); `ruff` + `mypy` clean in `handleman-hq`.
+- [~] T5 (AC-3): `src/swarm/` core + `handleman-hq` pyproject (hatchling, `hq = swarm.cli:main`) done in `/tmp/hq-src2` (branch from `1c2d691`); `bench/` moved in; `swarm/paths.py` is the one `REPO_ROOT` (`SWARM_TARGET` else checkout). Test triage 56 → 21 failures; the rest need T5b/T9/T11.
+- [~] T6 (AC-3): `swarm/cli.py` implements `--version/init/run/preflight/report/bench` and `up/stop/dash` (queue scripts); `PYTHONPATH=src python -m swarm.cli --version` → `hq 0.2.0`; `hq init` writes `swarm.yaml`. `pip install -e .` still to verify.
+- [ ] T7 (AC-7): factory tests — **835 pass in the repo layout**; in the filtered factory layout **21 fail**, all app-coupled or source-path assertions. Split by T5b first.
+
+### Discovered — T5b (blocks T7)
+
+- [ ] T5b: split the tests that assert on a *target repo* from the ones that test the
+  *core*. The factory must pass with no `app/`, `frontend/`, `specs/product/` or
+  `Makefile`: `corridor_check`/`bench live`/`baseline` are drivers (T11), and tests
+  that read `specs/product/028-*`, `swarm/bench/...` or `swarm/<script>.sh` need
+  fixtures or a `pytest.mark.driver`. 21 remaining: 3 autoloop (branch/scope
+  strings), 2 bench_live + 2 replay (factory `Makefile`), 3 corridor_check (app
+  import), 4 prompts + 1 progress (spec fixtures), 2 sandbox (script paths),
+  3 search (source root), 1 gates/qa shell (PATH), 1 tui (spec dir name).
 
 ## Phase 3 — contract in core
 - [ ] T8 (AC-4): `swarm/contract.py` loads `swarm.yaml` (specs_dir/scope/gates/risk/e2e/db/python) with defaults reproducing today's behaviour.

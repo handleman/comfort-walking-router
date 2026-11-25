@@ -217,24 +217,25 @@ def _is_quota_error(e: BaseException) -> bool:
 
 
 def _role_provider(role: str) -> str:
-    """Provider of the model a role would call right now (fallback aware)."""
+    """Provider of the model a role would call right now (fallback aware, 047 AC-3).
+
+    Reads the same `Profile` the crews use, so a role's routing cannot disagree
+    with the model it actually calls. Kept fallback-aware: a quota wall switches
+    a role to its fallback at run time.
+    """
     try:
-        from swarm.llms import (
-            _allow_paid,
-            fallback_model,
-            fallbacks_active,
-            provider_of,
-        )
+        from swarm import model_config
+        from swarm.llms import _allow_paid, fallback_model, fallbacks_active
 
         var = _fallback_key(role)
-        model = ""
+        name = next(
+            (n for n, v in model_config.ROLE_MODEL_VARS if v == var), ""
+        )
+        profile = model_config.resolve_models()
+        model = profile.primary(name) if name else ""
         if fallbacks_active(var):
-            model = fallback_model(var, allow_paid=_allow_paid())
-        if not model:
-            model = os.getenv(var, "").strip()
-        if not model and var == "SWARM_VERIFIER_MODEL":
-            model = os.getenv("SWARM_SENIOR_MODEL", "").strip()
-        return provider_of(model)
+            model = fallback_model(var, allow_paid=_allow_paid()) or model
+        return model_config.provider(model) if model else "unknown"
     except Exception:
         return "unknown"
 
@@ -438,6 +439,10 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
         return "green"
     if status != "needs_human":
         return status
+    if payload.get("host_suspended"):
+        # The machine slept mid-run; a verifier "timeout" is a symptom, not the
+        # cause, and retrying it changes nothing until the host is kept awake.
+        return "host_suspended"
     if getattr(state, "wall_budget_note", ""):
         return "wall_budget"
     guard = getattr(state, "delta_guard", None) or {}
@@ -4356,6 +4361,15 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.finished_at = dt.datetime.now().isoformat(timespec="seconds")
         usage = self._usage_snapshot()
         cost = usage["cost_usd"]
+        # 2026-11-26: a suspended host is not a model timeout. Record the gap so
+        # the operator sees "the machine slept" instead of a provider failure.
+        from swarm import events as _events
+
+        try:
+            gap_seconds = float(os.getenv("SWARM_SUSPEND_GAP_SECONDS", "300"))
+        except ValueError:
+            gap_seconds = 300.0
+        suspended = _events.suspension_gap(self.run_dir / "events.jsonl", threshold=gap_seconds)
 
         payload: dict[str, Any] = {
             "spec": self.state.spec_dir,
@@ -4413,6 +4427,7 @@ class SwarmFlow(Flow[SwarmState]):
                 ),
             },
             "budget_note": self.state.budget_note,
+            "host_suspended": suspended,
             "done": {"task_hash": task_hash_value, "spec_hash": spec_hash_value, "recorded": False},
             "resumed_from_step": self.state.resumed_from_step,
             "recovery": self.state.recovery,

@@ -37,7 +37,7 @@ except ImportError:  # python-dotenv is optional for the unit tests
 
 # Roles that the crew actually instantiates (zen fallback is Phase 1 / T13).
 # 047: the role list lives in swarm.model_config (the one table).
-from swarm.model_config import OPTIONAL_ROLE_VARS, ROLE_VARS
+from swarm.model_config import FALLBACK_VARS, OPTIONAL_ROLE_VARS, ROLE_VARS
 
 GATE_BINARIES = ("pytest", "ruff", "mypy")
 
@@ -357,11 +357,36 @@ def check(
                 Problem(var, "uses OpenCode Go but OPENCODE_GO_API_KEY is empty")
             )
 
+    # 1b. Fallback ids are real model ids too (047 AC-6). The 2026-11-22 bug was
+    # a Go id sitting in SWARM_LOCAL_FALLBACK_MODEL as if it were OpenRouter:
+    # nothing validated it until the first call after a quota wall.
+    for var in FALLBACK_VARS:
+        model = env.get(var, "").strip()
+        if not model:
+            continue
+        prov = provider(model)
+        if not is_free_model(model) and not allow_paid:
+            problems.append(
+                Problem(var, f"paid fallback {model} (needs SWARM_ALLOW_PAID=1 + allow_paid)")
+            )
+        if prov == "openrouter" and not env.get("OPENROUTER_API_KEY"):
+            problems.append(
+                Problem(var, "fallback uses OpenRouter but OPENROUTER_API_KEY is empty")
+            )
+        if prov == "zen" and not env.get("OPENCODE_API_KEY"):
+            problems.append(Problem(var, "fallback uses Zen but OPENCODE_API_KEY is empty"))
+        if prov == "opencode-go" and not (
+            env.get("OPENCODE_GO_API_KEY") or env.get("OPENCODE_API_KEY")
+        ):
+            problems.append(
+                Problem(var, "fallback uses OpenCode Go but OPENCODE_GO_API_KEY is empty")
+            )
+
     # 2. Local/cloud model availability.
     if not offline:
         ollama_roles = [
             env.get(v, "").strip()
-            for v in ROLE_VARS + OPTIONAL_ROLE_VARS
+            for v in ROLE_VARS + OPTIONAL_ROLE_VARS + FALLBACK_VARS
             if provider(env.get(v, "")) == "ollama"
         ]
         if ollama_roles:
@@ -382,7 +407,7 @@ def check(
         except Exception as e:  # noqa: BLE001
             problems.append(Problem("cloud", f"model list request failed: {e}"))
         else:
-            for var in ROLE_VARS + OPTIONAL_ROLE_VARS:
+            for var in ROLE_VARS + OPTIONAL_ROLE_VARS + FALLBACK_VARS:
                 model = env.get(var, "").strip()
                 prov = provider(model) if model else ""
                 if prov in avail and model_id(model) not in avail[prov]:

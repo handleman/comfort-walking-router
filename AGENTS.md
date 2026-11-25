@@ -53,40 +53,17 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
   the spec (`spec.md` → `plan.md` → `tasks.md`) before implementing, even when the
   harness itself is being changed directly (the swarm is not queued). Small,
   isolated one‑line fixes still bypass this flow.
-- **Model profiles are configuration, not capability** (the dark factory is
-  provider-agnostic). The same harness runs on **paid cloud, free cloud, local
-  Ollama, or a mix**; only `.env` changes. Three profiles are documented and
-  supported: `opencode-go` (paid subscription, current default), free OpenRouter
-  tiers, and all-local Ollama (`make swarm-local`). Rules:
-  - **One source of truth:** `swarm/llms.py` picks every model; a role var
-    (`SWARM_<ROLE>_MODEL`) plus `SWARM_<ROLE>_FALLBACK_MODEL` is the whole API.
-    Routing is by prefix — `ollama/*` local, `zen/*` Zen, `opencode-go/*` Go,
-    everything else OpenRouter.
-  - **Never assume a provider.** A fallback must be a model the machine can
-    actually serve: `preflight` checks Ollama tags, the OpenRouter list and the
-    Go `/models` catalogue before the first call. A dead fallback id is a bug
-    (2026‑11‑22: `opencode-go/qwen3.8-flash` sat in `SWARM_LOCAL_FALLBACK_MODEL`
-    as if it were an OpenRouter id).
-  - **Timeouts follow the profile, one knob each:** `SWARM_CREW_TIMEOUT_SECONDS`
-    (cloud, default 300 s) and `SWARM_LOCAL_CREW_TIMEOUT_SECONDS` (local,
-    default 900 s) via `llms.crew_timeout_seconds()`. They are independent, so a
-    local step is never truncated by a cloud-sized cap and a hung cloud call
-    cannot eat the task (046 AC‑3).
-  - **Cost is honest in every profile:** local and `:free` models are $0 in
-    `swarm/usage.py`; a paid model with no price makes cost `None` and names
-    itself (`unpriced_models`) instead of faking a number.
-  - **Judgement needs reasoning, not the cheapest tier.** Optimise cost per
-    *green task*: cheap models on mechanical roles, a reasoning-capable model on
-    reviewer/verifier. Evidence (2026‑11‑25): the cheapest reviewer blocked a
-    task that every gate and the verifier had passed, with no recorded failure —
-    an ungrounded block that burnt a fix round. A reviewer that can be wrong is
-    not cheap at any price.
-  - **Paid is one switch:** `SWARM_ALLOW_PAID=1` in `.env` — the operator's
-    decision, in the same place the model ids live. `local` and `:free`/`-free`
-    ids never need it, so switching to a local profile requires no code change.
-    (The old rule also demanded `allow_paid=True` at each call site; that
-    duplicated one decision across every builder and died at run time when a
-    role was constructed with the wrong flag.)
+- **Model profiles are configuration, not capability** — paid cloud, free cloud,
+  local Ollama, or a mix; only `.env` changes. One source of truth
+  (`swarm/model_config.py`, consumed by `swarm/llms.py`): routing by prefix, one
+  `SWARM_<ROLE>_MODEL` + `SWARM_<ROLE>_FALLBACK_MODEL` pair per role, and
+  `SWARM_ALLOW_PAID=1` for paid ids. `preflight` validates every id *and every
+  fallback* against its provider's catalogue. Timeouts are per profile
+  (`Profile.crew_timeout()`: cloud 300 s, local 900 s), cost is honest
+  (`swarm/usage.py`), and **judgement roles need a reasoning-capable model** —
+  cheap models are for mechanical work only (2026‑11‑25: a cheapest-tier reviewer
+  blocked a green task with no evidence). Full rules and the profile table:
+  [swarm/docs/setup.md](swarm/docs/setup.md).
 
 - **Swarm Agent Skills** (044): operators add agent behaviour via YAML‑frontmatter
   skill files under `swarm/agents/skills/<role>.md`; the swarm auto‑discovers them

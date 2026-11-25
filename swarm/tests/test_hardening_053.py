@@ -266,3 +266,50 @@ def test_the_health_tail_keeps_the_suite_summary_not_server_noise():
     assert "9 failed" in tail
     assert "Uvicorn running" not in tail
     assert "vite-plugin-svelte" not in tail
+
+
+# ---- 053 follow-up: host sleep is recorded, not read as a model timeout -----
+
+
+def test_a_silent_gap_is_recorded_as_host_suspension(tmp_path):
+    from swarm import events
+
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        '{"type": "llm_started", "at": "a", "mono": 10.0}\n'
+        '{"type": "llm_timeout", "at": "b", "mono": 3610.0}\n'
+    )
+    gap = events.suspension_gap(path, threshold=300)
+    assert gap == {"gap_seconds": 3600.0, "after": "a", "resumed": "b"}
+
+
+def test_a_busy_run_has_no_suspension_record(tmp_path):
+    from swarm import events
+
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        "\n".join(
+            f'{{"type": "llm_started", "at": "x", "mono": {10.0 + i}}}'
+            for i in range(20)
+        )
+    )
+    assert events.suspension_gap(path, threshold=300) is None
+
+
+def test_a_missing_event_log_is_not_a_suspension(tmp_path):
+    from swarm import events
+
+    assert events.suspension_gap(tmp_path / "nope.jsonl", threshold=1) is None
+
+
+def test_the_reason_code_names_host_suspension():
+    from swarm.flow import _reason_code
+
+    state = types.SimpleNamespace(
+        ungrounded_block=False,
+        no_progress=False,
+        verifier={"verdict": "error"},
+        review_verdict="",
+    )
+    payload = {"host_suspended": {"gap_seconds": 3600.0}}
+    assert _reason_code("needs_human", payload, state) == "host_suspended"

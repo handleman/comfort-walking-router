@@ -7,6 +7,7 @@ so it captures any crew run in the same process. TUI drains .events live;
 
 from __future__ import annotations
 
+import itertools
 import json
 import queue
 import threading
@@ -227,3 +228,41 @@ class SwarmListener:
                     f.write(json.dumps(payload) + "\n")
             except Exception:
                 pass
+
+
+def suspension_gap(path: Path, *, threshold: float = 300.0) -> dict[str, object] | None:
+    """The largest silent gap between events, when it looks like host sleep.
+
+    A suspended laptop produces a gap with **no** events of any kind, then a
+    client-side `Request timed out` on wake — indistinguishable from a provider
+    hang unless the gap is recorded (2026-11-26: 55 silent minutes read as a
+    model timeout). A slow model still emits `llm_started`/`chunk`, so a large
+    gap with no activity is the discriminator.
+    """
+    try:
+        lines = Path(path).read_text().splitlines()
+    except OSError:
+        return None
+    stamps: list[tuple[float, str]] = []
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        mono = event.get("mono")
+        if isinstance(mono, (int, float)):
+            stamps.append((float(mono), str(event.get("at") or "")))
+    if len(stamps) < 2:
+        return None
+    best = (0.0, "", "")
+    for (before, at_before), (after, at_after) in itertools.pairwise(stamps):
+        gap = after - before
+        if gap > best[0]:
+            best = (gap, at_before, at_after)
+    if best[0] < threshold:
+        return None
+    return {
+        "gap_seconds": round(best[0], 1),
+        "after": best[1],
+        "resumed": best[2],
+    }
