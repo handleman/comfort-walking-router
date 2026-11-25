@@ -44,7 +44,7 @@ def _rate(model: str) -> tuple[float, float] | None:
     """Price lookup tolerant of CrewAI stripping the routing prefix."""
     if model in PRICES_USD_PER_M:
         return PRICES_USD_PER_M[model]
-    for prefix in ("zen/", "openrouter/"):
+    for prefix in ("opencode-go/", "zen/", "openrouter/"):
         if prefix + model in PRICES_USD_PER_M:
             return PRICES_USD_PER_M[prefix + model]
     return None

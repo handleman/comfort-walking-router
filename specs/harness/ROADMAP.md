@@ -1,99 +1,71 @@
 # Harness implementation order
 
-**Agreed 2026-11-23. Follow top to bottom.** Update the status box as work lands;
-do not reorder without a reason written next to the item.
+**Revised 2026-11-25** after the T23/T6 session. Follow top to bottom; update the
+status box as work lands.
 
 Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
 
-## Order
+## Done
 
-1. `[x]` **051 — acceptance artifacts commit.** *Done 2026-11-23 (`0855cbc`).*
-   The pass commits its own `acceptance.md` + queued `tasks.md` fix tasks
-   (direct commit; skip on held runs; `SWARM_ACCEPT_COMMIT=0` off).
-2. `[x]` **Bookkeeping.** *Done 2026-11-23.* Ticked 042 T1/T2, 043 T1–T6/T8,
-   044 T1–T5, 045 T1/T2/T3/T5/T6. It also found real gaps — see below.
-3. `[x]` **052 — layout geometry + control presence** (+ product **040 T22**).
-   *Done (`3d63342`): `swarm/layout.py` IR + pure evaluator, acceptance wiring,
-   `.mjs` fact collector, 040 `layout.toml`, 11 tests; a live pass on 040 reports
-   `layout_failures: NONE` at desktop + mobile. Two refinements remain (route-
-   planned state, mobile-drawer-open state) — see the spec's T4.*
-4. `[~]` **T6 — e2e specs to the 040 layout (reopened 2026-11-25).** The suite
-   was genuinely red: `playwright.config.ts` had `webServer.cwd: 'frontend'`
-   (resolves to `frontend/frontend`; fixed → `'.'`), and once it launched **11/12
-   specs failed** because they still click `Find route` (removed by T9, replaced
-   by auto-plan in T16) and assert `.result` (now `.route-summary`). Migrated
-   (`3ac5d79`): fixture-backed `/geocode`, `planRoute`/`chooseSuggestion`
-   helpers, all specs updated → **5 passed / 3 skipped / 4 failed** (the 4 are
-   walk-mode marker rendering, an app-behaviour issue).
-5. `[~]` **050 — corridor reliability stand.** *Live probe done (`swarm/corridor_check.py`,
-   `make corridor-check`, 3 tests); failover/timeout already covered by 039.
-   Deferred: vcrpy cassettes (recorded-corridor fixture covers it) and the
-   Playwright geolocation spec (blocked on the sandbox `make e2e` launch issue).*
-6. `[~]` **047 — model-config consolidation.** *Core done 2026-11-25: one
-   `swarm/model_config.py` (router, free predicate, `ROLES`, `Profile` + CLI);
-   `usage`/`llms`/`preflight` delegate; `ROLE_MODEL_VARS`/`ROLE_VARS` derived; 6
-   golden tests (802 total). Remaining: timeouts into `Profile`, fallback
-   validation, `flow._role_provider`, docs, a real-run check.*
-7. `[~]` **038 → 048 — productization.** 048 Phase 0-1 done 2026-11-25: full
-   bundle backup (`/tmp/comfort-full-20261125.bundle`), filter-repo 2.47.0, and
-   the swarm subtree split verified in a throwaway clone (228 commits, app gone).
-   Remaining: src layout + `hq` CLI + `swarm.yaml` (Phase 2-3), driver relocation,
-   then the public repo/release (Phase 7).
+- `[x]` **051** acceptance artifacts commit — `0855cbc`.
+- `[x]` **Bookkeeping** — `2e6aeb3` (ticked 042 T1/T2, 043 T1–T6/T8, 044, 045).
+- `[x]` **052** layout geometry + control presence — `3d63342` (live
+  `layout_failures: NONE`).
+- `[x]` **040 T23** the map never initialised (`onDestroy` inside `onMount`) —
+  swarm-authored `c7b559c`.
+- `[x]` cost bug: `usage._rate` missed the `opencode-go/` prefix, so the dollar
+  cap could not fire — fixed.
+- `[x]` reviewer model `mimo-v2.6-flash` → `qwen3.8-flash` (it blocked without
+  evidence). Lesson: judgement roles need reasoning, not the cheapest tier.
 
-## Discovered during bookkeeping (2026-11-23) — inserted into the verification track
+## Phase A — make the harness trustworthy (now)
 
-- `[ ]` **042 T3/T4 — visual phase integration.** `_visual_phase` is a stub that
-  returns `True`; `build_visual_qa_crew`/`visual.py` exist but are never invoked,
-  there is no `SWARM_VISUAL_QA` switch and no `visual_blocked` stop. Real work,
-  and it belongs with 052 (verification quality).
-- `[ ]` **043 T7 — acceptance re-queue.** The supervisor runs the acceptance pass
-  at drain but does not re-enter the queue when fix tasks were queued; a FAIL
-  stops instead of running the fixes. Small, pairs with the 052/T6 verification
-  work.
-- `[ ]` **053 swarm hardening (2026-11-25).** Grounded reviewer blocks (a green-gates
-  block with no evidence must not start a fix round); reference-vs-required paths
-  in the delta guard; per-task write allowlist; e2e launch failure = `env`;
-  roster cap + `make swarm-health`. Design only. Reviewer model already flipped
-  to qwen3.8-flash.
-- `[ ]` **049 T8 — real-run verify.** Needs one live run on a previously-parked
-  task (piggyback on the next queue run).
+1. `[~]` **053 swarm hardening (2026-11-25).** Grounded reviewer blocks (a
+   green-gates block with no evidence must not start a fix round); reference-vs-
+   required paths in the delta guard; per-task write allowlist; e2e launch
+   failure = `env`; roster cap + `make swarm-health`. *Design: `specs/harness/
+   053-swarm-hardening-2026-11-25/`.*
+2. `[ ]` **Re-run T6 (e2e specs) + T24 (acceptance fix)** with 053 in place —
+   both are verification-shaped, which is what 053 hardens. The coder's partial
+   migration was reverted (a repeated lint/verifier block).
+3. `[ ]` **`make swarm-health`** — one command that runs `pytest` + the e2e
+   suite so a broken test stand fails fast.
 
-## Known issues (2026-11-24)
+## Phase B — close cheap leftovers
 
-- **`make e2e` cannot launch in the sandboxed agent shell**: `Failed to launch:
-  Error: spawn /bin/sh ENOENT` (the fixture backend starts; the Playwright
-  browser/webServer spawn fails). The swarm's own e2e runs have succeeded, so
-  this is an agent-shell environment limit, not a suite regression. Track e2e
-  results from a normal terminal.
+4. `[ ]` **047 leftovers** — timeouts into `Profile`, fallback-id validation,
+   `flow._role_provider`, docs. (Cost prefix + reviewer model already done.)
+5. `[ ]` **050 leftovers** — vcrpy cassette (or fixture-backed parse test) + the
+   four-state Playwright geolocation contract.
+
+## Phase C — productization (the original goal, last)
+
+6. `[ ]` **048 Phase 2–3** — `src/swarm/` layout, `hq` CLI (`[project.scripts]`),
+   `swarm.yaml` contract, driver relocation.
+7. `[ ]` **048 Phase 7** — create `handleman/handleman-hq`, push the filtered
+   228-commit history, tag `v0.2.0`, app pins `git+…@v0.2.0`.
+8. `[ ]` **038** — any ejectable-contract bits not folded into 048.
+
+## Open 053 follow-ups (from the session)
+
+- `[ ]` **042 T3/T4** visual phase integration — `_visual_phase` is a stub.
+- `[ ]` **043 T7** acceptance re-queue — the supervisor does not re-enter the
+  queue after queuing fixes.
+- `[ ]` **049 T8** real-run verify.
+- `[ ]` **`done.json` cache key** uses the invocation prefix (`040/T23`) while
+  trailers are canonical; `is_done` is right via trailers, but tooling lies.
+
+## Known issues
+
+- Go-API timeouts make runs slow (a T6 run reached 50 min); if they persist,
+  raise the LLM/crew timeouts or move a role to a faster model.
+- `tasks.md` checkboxes are intentionally stale; the commit-trailer ledger is the
+  source of truth (`make swarm-report`, not the checkboxes).
 
 ## Dependencies
 
 ```
-051 → bookkeeping → 052 → T6 re-scope
-                       ├─ 042 T3/T4
-                       └─ 043 T7
-050 ─────────────────────┘   (parallel)
-047 ─────────────────────────→ 038 → 048
+053 ─→ T6 + T24 ─→ swarm-health
+047 ─────────────────────────→ 048 (Phase 2-3) ─→ 048 (Phase 7)
+050 (parallel, independent)
 ```
-
-- 052 needs 040 **T22** (the swarm adds `data-testid`; the harness consumes).
-- 048 realizes 038; do 047 first so the extracted factory has one model-config
-  source.
-- 050 and 052 touch different surfaces — safe to run in the same period.
-
-## Definition of done (each item)
-
-- code + tests, `pytest swarm/tests/ -q`, `ruff check swarm/`, `mypy app tests`
-  green; the spec's tasks ticked; committed with the spec slug in the message.
-- Product tasks (T22, T6) go through the **queue** (`specs/product/`), not direct
-  edits.
-
-## Why this order (one line each)
-
-- **Verification first:** a factory that cannot trust its own green does not
-  deserve its own repo (051 → 052 → T6, plus the 042/043 gaps found above).
-- **Bookkeeping second:** cheap, and it makes the remaining list actionable.
-- **App reliability next:** 050 is orthogonal and strengthens 039.
-- **Cleanup before the split:** 047 removes duplicated config knowledge *before*
-  it is copied into a second repo.
-- **Productization last:** 038/048 are the irreversible-ish steps.
