@@ -33,7 +33,7 @@
     attribution?: string
   }
 
-  import { onDestroy, onMount } from 'svelte'
+  import { onMount } from 'svelte'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
   import { checkArrival } from './lib/navigation/arrival'
@@ -251,7 +251,6 @@
       isDesktop = event.matches
     }
     desktopQuery.addEventListener('change', syncViewport)
-    onDestroy(() => desktopQuery.removeEventListener('change', syncViewport))
 
     // Ordered bootstrap: the container exists here (Svelte has mounted it),
     // so create the map, wire the OSM tile layer onto it, and only then
@@ -276,11 +275,6 @@
       map?.invalidateSize()
     })
     resizeObserver.observe(mapElement)
-    onDestroy(() => {
-      resizeObserver.disconnect()
-      map?.remove()
-      map = null
-    })
     ensureToken()
     // Continuous position fixes (spec 007, T10): watch geolocation from page
     // load so every fix fires `locationfound`, feeding onFix, the drift check,
@@ -308,8 +302,12 @@
       wasWalkActive = state.active
     })
     return () => {
+      desktopQuery.removeEventListener('change', syncViewport)
       unsubscribeWalkMode()
       map?.stopLocate()
+      resizeObserver.disconnect()
+      map?.remove()
+      map = null
     }
   })
 
@@ -829,6 +827,14 @@
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+  }
+
+  /* AC-1: the map is full-bleed behind every overlay (sidebar, drawer, cards),
+     so the desktop sidebar overlays it instead of shrinking it. Leaflet needs
+     an explicit size, hence the absolute inset-0 sizing. */
+  #map {
+    position: absolute;
+    inset: 0;
   }
 
   /* Desktop sidebar: floating overlay above the map. Single breakpoint source
