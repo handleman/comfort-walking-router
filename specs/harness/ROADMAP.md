@@ -75,6 +75,7 @@ now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/
 - `[ ]` **043 T7** acceptance re-queue — the supervisor does not re-enter the
   queue after queuing fixes.
 - `[ ]` **049 T8** real-run verify.
+- `[ ]` **040 T25 modal recovery** — choosing a suggestion inside `StartLocationModal` does not close it and the click never reaches the option's handler (T25 run 2026-11-26 parked `e2e_rounds_exhausted`; the coder's SearchInput edit was correctly blocked by the reviewer and reverted).
 - `[ ]` **Acceptance coverage (new, 2026-11-26)** — 10 product specs have no
   `acceptance.toml`; they report unverified (not failing). Writing checks per
   spec is the remaining work for a true "every AC is checked in a browser".
