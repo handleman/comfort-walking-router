@@ -27,8 +27,11 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
    `make corridor-check`, 3 tests); failover/timeout already covered by 039.
    Deferred: vcrpy cassettes (recorded-corridor fixture covers it) and the
    Playwright geolocation spec (blocked on the sandbox `make e2e` launch issue).*
-6. `[ ]` **047 — model-config consolidation.** One `swarm/model_config.py`;
-   env names unchanged. *Quiet window — no live run.*
+6. `[~]` **047 — model-config consolidation.** *Core done 2026-11-25: one
+   `swarm/model_config.py` (router, free predicate, `ROLES`, `Profile` + CLI);
+   `usage`/`llms`/`preflight` delegate; `ROLE_MODEL_VARS`/`ROLE_VARS` derived; 6
+   golden tests (802 total). Remaining: timeouts into `Profile`, fallback
+   validation, `flow._role_provider`, docs, a real-run check.*
 7. `[ ]` **038 → 048 — productization.** 038 (`swarm.yaml` + `hq` CLI + `init`)
    then 048 (multi-repo split). *Last: highest risk.*
 

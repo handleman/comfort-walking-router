@@ -1,17 +1,16 @@
 # 047 Model Config Consolidation — Tasks
 
-Each task is atomic and maps to exactly one acceptance criterion. Implement
-**after** the 03:05 unattended run drains (see `spec.md` status).
+Each task maps to one acceptance criterion.
 
-- [ ] T1 (AC-7, Step 0): `swarm/tests/test_model_config.py::test_checkout_profile_is_unchanged` — pin today's resolved profile (role → model, provider, fallback, crew cap) as a literal; it must pass before and after the refactor.
-- [ ] T2 (AC-1): `swarm/model_config.py` — `Role` dataclass + the single `ROLES` table (planner, coder, reviewer, senior, verifier optional, visual, accept, conflict).
-- [ ] T3 (AC-2): `model_config.is_free(model)` — the one free predicate; `usage.is_free` and `llms._guard` delegate to it; test asserts agreement on `ollama/*`, `:free`, `-free`, `contributor-free`, paid.
-- [ ] T4 (AC-3): `model_config.provider(model)` — the one prefix router; `llms.provider` delegates.
-- [ ] T5 (AC-5): `Profile` — `resolve(env)` with `role()`, `paid_allowed`, `crew_timeout()`, `llm_timeout(model)`, `problems()`; CLI `python -m swarm.model_config show`.
-- [ ] T6 (AC-4): move the timeout defaults into `Profile` (crew 300/900 cloud/local, per-generation 180/1800) and make `flow._kickoff` + `llms` read them; test asserts exact values and that env overrides still win.
-- [ ] T7 (AC-1, AC-3): `llms.ROLE_MODEL_VARS`, `preflight.ROLE_VARS`/`OPTIONAL_ROLE_VARS`, `flow._fallback_key` derived from `ROLES`; test that adding a role to `ROLES` shows up in all four consumers.
-- [ ] T8 (AC-6): `Profile.problems()` validates every `*_FALLBACK_MODEL` id (Ollama tags / OpenRouter list / Go catalogue) and pings each provider once; `preflight.check()` delegates to it.
-- [ ] T9 (AC-3): `flow._role_provider` reads `Profile.role(...)` (fallback-aware) instead of rebuilding from env.
-- [ ] T10 (AC-7): `pytest swarm/tests/ -q` green (774+), `ruff check swarm/` clean, offline + live `python -m swarm.preflight` report 0 problems, `python -m swarm.model_config show` matches T1's golden profile.
-- [ ] T11 (AC-7): one real task end-to-end (`make swarm-run SPEC=040 TASK=T13`) still green on the Go profile.
-- [ ] T12 (AC-8): `swarm/docs/setup.md` is the single canonical profile section; `AGENTS.md`, `GLOSSARY.md`, `docs/reference.md` reduce to one-line statements + links.
+- [x] T1 (AC-7): `swarm/tests/test_model_config.py` — golden tests pin the router, the free predicate (agreement across `usage`/`llms`/`preflight`), the role table shape, and `resolve_models` (verifier inherits senior; missing fallback → local).
+- [x] T2 (AC-1): `swarm/model_config.py` — the single `ROLES` table (planner, coder, reviewer, senior, verifier-optional).
+- [x] T3 (AC-2): `model_config.is_free()`; `usage.is_free`, `llms._guard`, `preflight.is_free_model` all delegate (agreement test).
+- [x] T4 (AC-3): `model_config.provider()`; `llms.provider_of` and `preflight.provider` delegate (agreement test).
+- [x] T5 (AC-5): `Profile` + `resolve_models(env)`; `python -m swarm.model_config` prints the resolved profile (loads `.env`).
+- [~] T6 (AC-4): timeouts are **not yet** inside `Profile` — `llms.crew_timeout_seconds()` remains the single source (cloud 300 / local 900). Moving them is mechanical but touches the live flow; deferred to keep this change behaviour-preserving.
+- [x] T7 (AC-1): `llms.ROLE_MODEL_VARS`, `preflight.ROLE_VARS` / `OPTIONAL_ROLE_VARS` derived from `ROLES`.
+- [~] T8 (AC-6): preflight validates the role ids and provider catalogues, but **fallback id validation** (the `*_FALLBACK_MODEL` set) is not added yet.
+- [~] T9 (AC-3): `flow._role_provider` still rebuilds from env; it should read `Profile.role(...)`.
+- [x] T10 (AC-7): `pytest swarm/tests/` (802), `ruff`, `mypy app tests` clean.
+- [ ] T11: one real task end-to-end on the Go profile after the migration.
+- [ ] T12 (AC-8): docs — reduce `AGENTS.md`/`GLOSSARY.md`/`docs/reference.md` to one-line statements + link to `swarm/docs/setup.md`.

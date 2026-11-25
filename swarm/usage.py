@@ -51,12 +51,10 @@ def _rate(model: str) -> tuple[float, float] | None:
 
 
 def is_free(model: str) -> bool:
-    return (
-        model.startswith("ollama/")
-        or ":free" in model
-        or model.endswith("-free")
-        or "contributor-free" in model
-    )
+    """047: delegate to the one predicate in swarm.model_config."""
+    from swarm.model_config import is_free as _is_free
+
+    return _is_free(model)
 
 
 def estimate_cost(per_model: dict[str, tuple[int, int]]) -> float | None:

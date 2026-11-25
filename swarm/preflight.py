@@ -36,15 +36,9 @@ except ImportError:  # python-dotenv is optional for the unit tests
     pass
 
 # Roles that the crew actually instantiates (zen fallback is Phase 1 / T13).
-ROLE_VARS = (
-    "SWARM_PLANNER_MODEL",
-    "SWARM_CODER_MODEL",
-    "SWARM_REVIEWER_MODEL",
-    "SWARM_SENIOR_MODEL",
-)
-# Roles with a documented default: the verifier reuses the senior brain when its
-# own id is absent, so an empty value is fine — a *set* value must still be real.
-OPTIONAL_ROLE_VARS = ("SWARM_VERIFIER_MODEL",)
+# 047: the role list lives in swarm.model_config (the one table).
+from swarm.model_config import OPTIONAL_ROLE_VARS, ROLE_VARS
+
 GATE_BINARIES = ("pytest", "ruff", "mypy")
 
 
@@ -81,13 +75,10 @@ class Problem:
 
 
 def provider(model: str) -> str:
-    if model.startswith("ollama/"):
-        return "ollama"
-    if model.startswith("zen/"):
-        return "zen"
-    if model.startswith("opencode-go/"):
-        return "opencode-go"
-    return "openrouter"
+    """047: one router from swarm.model_config."""
+    from swarm.model_config import provider as _provider
+
+    return _provider(model)
 
 
 def model_id(model: str) -> str:
@@ -98,13 +89,10 @@ def model_id(model: str) -> str:
 
 
 def is_free_model(model: str) -> bool:
-    """Mirror of `swarm.llms._guard` (free prefixes/policies)."""
-    return (
-        ":free" in model
-        or model.startswith("ollama/")
-        or "contributor-free" in model
-        or model.endswith("-free")
-    )
+    """047: delegate to the one predicate in swarm.model_config."""
+    from swarm.model_config import is_free
+
+    return is_free(model)
 
 
 def _get_json(url: str, *, headers: dict[str, str] | None = None, timeout: float = 8.0) -> Any:

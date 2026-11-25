@@ -94,7 +94,9 @@ def _guard(model: str, *, allow_paid: bool | None = None) -> None:
     already express. `allow_paid` stays accepted for call-site compatibility but
     no longer gates anything.
     """
-    if ":free" in model or model.startswith("ollama/") or "contributor-free" in model or model.endswith("-free"):
+    from swarm.model_config import is_free as _is_free
+
+    if _is_free(model):
         return
     if _allow_paid():
         return
@@ -126,14 +128,8 @@ def fallbacks_active(role: str | None = None) -> bool:
 
 
 # Roles shown by the dashboard, in display order.
-ROLE_MODEL_VARS: tuple[tuple[str, str], ...] = (
-    ("planner", "SWARM_PLANNER_MODEL"),
-    ("coder", "SWARM_CODER_MODEL"),
-    ("reviewer", "SWARM_REVIEWER_MODEL"),
-    ("senior", "SWARM_SENIOR_MODEL"),
-    ("verifier", "SWARM_VERIFIER_MODEL"),
-)
-
+# 047: derived from the one role table in swarm.model_config.
+from swarm.model_config import ROLE_MODEL_VARS
 
 # Every var that can point at a model: the five roles, the vision roles and the
 # shared fallbacks. Used by the "is this a local profile?" checks so the harness
@@ -258,16 +254,10 @@ def fallback_roles() -> list[str]:
 
 
 def provider_of(model: str) -> str:
-    """Provider a model id routes to (''/'?' → unknown)."""
-    if model.startswith("ollama/"):
-        return "ollama"
-    if model.startswith("zen/"):
-        return "zen"
-    if model.startswith("opencode-go/"):
-        return "opencode-go"
-    if model.startswith("openrouter/"):
-        return "openrouter"
-    return "unknown" if not model or model == "?" else "openrouter"
+    """Provider a model id routes to (''/'?' → unknown). 047: one router."""
+    from swarm.model_config import provider as _provider
+
+    return _provider(model)
 
 
 def _callable(model: str) -> bool:
