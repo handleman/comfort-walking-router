@@ -217,24 +217,25 @@ def _is_quota_error(e: BaseException) -> bool:
 
 
 def _role_provider(role: str) -> str:
-    """Provider of the model a role would call right now (fallback aware)."""
+    """Provider of the model a role would call right now (fallback aware, 047 AC-3).
+
+    Reads the same `Profile` the crews use, so a role's routing cannot disagree
+    with the model it actually calls. Kept fallback-aware: a quota wall switches
+    a role to its fallback at run time.
+    """
     try:
-        from swarm.llms import (
-            _allow_paid,
-            fallback_model,
-            fallbacks_active,
-            provider_of,
-        )
+        from swarm import model_config
+        from swarm.llms import _allow_paid, fallback_model, fallbacks_active
 
         var = _fallback_key(role)
-        model = ""
+        name = next(
+            (n for n, v in model_config.ROLE_MODEL_VARS if v == var), ""
+        )
+        profile = model_config.resolve_models()
+        model = profile.primary(name) if name else ""
         if fallbacks_active(var):
-            model = fallback_model(var, allow_paid=_allow_paid())
-        if not model:
-            model = os.getenv(var, "").strip()
-        if not model and var == "SWARM_VERIFIER_MODEL":
-            model = os.getenv("SWARM_SENIOR_MODEL", "").strip()
-        return provider_of(model)
+            model = fallback_model(var, allow_paid=_allow_paid()) or model
+        return model_config.provider(model) if model else "unknown"
     except Exception:
         return "unknown"
 

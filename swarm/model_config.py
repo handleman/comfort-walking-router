@@ -68,6 +68,15 @@ ROLES: tuple[Role, ...] = (
 ROLE_MODEL_VARS: tuple[tuple[str, str], ...] = tuple((r.name, r.model_var) for r in ROLES)
 ROLE_VARS: tuple[str, ...] = tuple(r.model_var for r in ROLES if not r.optional)
 OPTIONAL_ROLE_VARS: tuple[str, ...] = tuple(r.model_var for r in ROLES if r.optional)
+FALLBACK_VARS: tuple[str, ...] = tuple(r.fallback_var for r in ROLES)
+
+# 046 AC-3 / 047 AC-4: one knob per profile. A cloud-sized cap must never
+# truncate an on-device step, and a local cap must never let a hung cloud call
+# eat the task.
+CREW_TIMEOUT_ENV = "SWARM_CREW_TIMEOUT_SECONDS"
+LOCAL_CREW_TIMEOUT_ENV = "SWARM_LOCAL_CREW_TIMEOUT_SECONDS"
+CLOUD_CREW_TIMEOUT = 300.0
+LOCAL_CREW_TIMEOUT = 900.0
 
 
 @dataclass(frozen=True)
@@ -83,6 +92,13 @@ class Model:
 class Profile:
     models: dict[str, Model] = field(default_factory=dict)
     paid_allowed: bool = False
+    # Resolved once from the same env snapshot as the models (047 AC-4).
+    local: bool = False
+    crew_timeout_seconds: float = CLOUD_CREW_TIMEOUT
+
+    def crew_timeout(self) -> float:
+        """Hard cap for one crew call, by profile (046 AC-3)."""
+        return self.crew_timeout_seconds
 
     def role(self, name: str) -> Model:
         return self.models.get(name, Model(role=name, model=""))
@@ -92,6 +108,14 @@ class Profile:
 
     def fallback(self, name: str) -> str:
         return self.role(name).fallback
+
+
+def _positive_seconds(raw: object) -> float:
+    try:
+        value = float(str(raw or "").strip())
+    except (TypeError, ValueError):
+        return 0.0
+    return value if value > 0 else 0.0
 
 
 def resolve_models(env: Mapping[str, str] | None = None) -> Profile:
@@ -112,9 +136,20 @@ def resolve_models(env: Mapping[str, str] | None = None) -> Profile:
             provider=provider(model),
             free=is_free(model),
         )
+    local = any(
+        str(m.model or "").startswith("ollama/")
+        or str(m.fallback or "").startswith("ollama/")
+        for m in out.values()
+    )
+    if local:
+        timeout = _positive_seconds(source.get(LOCAL_CREW_TIMEOUT_ENV)) or LOCAL_CREW_TIMEOUT
+    else:
+        timeout = _positive_seconds(source.get(CREW_TIMEOUT_ENV)) or CLOUD_CREW_TIMEOUT
     return Profile(
         models=out,
         paid_allowed=str(source.get("SWARM_ALLOW_PAID", "0")).strip() == "1",
+        local=local,
+        crew_timeout_seconds=timeout,
     )
 
 
@@ -136,7 +171,10 @@ def main() -> int:
             f"{role.name:9} {m.model or '<unset>':46} {m.provider or '-':12} "
             f"{'free' if m.free else 'paid':5} {m.fallback or '-'}"
         )
-    print(f"paid_allowed={profile.paid_allowed}")
+    print(
+        f"profile={'local' if profile.local else 'cloud'} "
+        f"crew_timeout={profile.crew_timeout():.0f}s paid_allowed={profile.paid_allowed}"
+    )
     return 0
 
 
