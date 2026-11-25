@@ -3411,6 +3411,11 @@ class SwarmFlow(Flow[SwarmState]):
             self._set_review(review_out)
             return True
 
+        # Same reason as `_kickoff`: the gate listener's e2e self-heal calls QA
+        # outside `run()`. The first repair round to reach it (T6, 2026-11-26)
+        # died `AttributeError: no attribute '_review'`.
+        self._review = _review
+
         def _verify_kick(build: Any, role: str) -> Any:
             """Verifier crews are not steps and never run a gate (019)."""
             return _kickoff(build, role=role, step="verify")
@@ -4140,9 +4145,11 @@ class SwarmFlow(Flow[SwarmState]):
         except ValueError:
             rounds = 2
         kick = getattr(self, "_kickoff", None)
-        if kick is None:
-            # Never crash the listener: with no kicker, say so and stop.
-            state["stop"] = "e2e_unclassified: no kicker available"
+        review = getattr(self, "_review", None)
+        if kick is None or review is None:
+            # Never crash the listener: with no kicker/reviewer, say so and stop.
+            missing = "kicker" if kick is None else "reviewer"
+            state["stop"] = f"e2e_unclassified: no {missing} available"
             return False
         for round_no in range(1, rounds + 1):
             state["rounds"] = round_no
@@ -4176,7 +4183,7 @@ class SwarmFlow(Flow[SwarmState]):
                 return False
             # QA re-runs the gates and the suite (the e2e task prompt names it),
             # so the new evidence is QA's, not the repair crew's.
-            self._review(task, "inner roster repair: " + roster_text[:400])
+            review(task, "inner roster repair: " + roster_text[:400])
             classified, last = _triage()
             state["failed"] = [f.as_dict() for f in classified]
             exit_value = last.get("exit")

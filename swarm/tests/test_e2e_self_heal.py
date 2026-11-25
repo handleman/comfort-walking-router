@@ -251,6 +251,16 @@ def test_the_self_heal_stops_cleanly_without_a_kicker(tmp_path, monkeypatch):
     assert calls == []
 
 
+def test_the_self_heal_stops_cleanly_without_a_reviewer(tmp_path, monkeypatch):
+    """2026-11-26: `_review` is also a closure and the real flow had no attribute."""
+    stub, calls = _flow_stub(tmp_path, monkeypatch)
+    _with_specs(tmp_path, "e2e/walk-mode.spec.ts")
+    del stub._review
+    assert stub._e2e_self_heal() is False
+    assert stub.state.e2e_self_heal["stop"] == "e2e_unclassified: no reviewer available"
+    assert calls == []
+
+
 def test_a_weakened_repair_is_reverted_and_stops(tmp_path, monkeypatch):
     stub, calls = _flow_stub(tmp_path, monkeypatch)
     spec = tmp_path / "frontend" / "e2e"
