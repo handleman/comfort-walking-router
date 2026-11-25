@@ -71,31 +71,31 @@ prefix router and the free predicate exist once.
 
 ## Acceptance Criteria
 
-- [ ] **AC-1 (one role table):** exactly one declaration of the role set exists
+- [x] **AC-1 (one role table):** exactly one declaration of the role set exists
       (`model_config.ROLES`); `llms.ROLE_MODEL_VARS`, `preflight.ROLE_VARS` /
       `OPTIONAL_ROLE_VARS` and `flow._fallback_key` are derived from it, and a
       test asserts a new role added there appears in all four consumers.
-- [ ] **AC-2 (one free predicate):** `usage.is_free` and `llms._guard` call the
+- [x] **AC-2 (one free predicate):** `usage.is_free` and `llms._guard` call the
       same function; a test asserts they agree for `ollama/*`, `:free`,
       `-free`, `contributor-free` and a paid id.
-- [ ] **AC-3 (one router):** provider detection exists once; `flow._role_provider`
+- [x] **AC-3 (one router):** provider detection exists once; `flow._role_provider`
       and `preflight`'s catalogue pings use it (no second prefix table).
-- [ ] **AC-4 (one timeout rule):** `Profile.crew_timeout()` and
+- [x] **AC-4 (one timeout rule):** `Profile.crew_timeout()` and
       `Profile.llm_timeout(model)` are the only places a timeout default is
       decided; `flow` and `llms` call them. Cloud 300 s / local 900 s and the
       per-generation cloud/local split keep their current values.
-- [ ] **AC-5 (profile is inspectable):** `python -m swarm.model_config show`
+- [x] **AC-5 (profile is inspectable):** `python -m swarm.model_config show`
       prints the resolved profile (role, model, provider, free/paid, vision,
       fallback, effective caps) from `.env` — the same object the run uses, so
       the dashboard, preflight and docs cannot disagree with it.
-- [ ] **AC-6 (fallbacks are validated):** preflight checks every
+- [x] **AC-6 (fallbacks are validated):** preflight checks every
       `*_FALLBACK_MODEL` id against its provider (Ollama tags / OpenRouter list /
       Go catalogue), not just the five role ids — the dead-fallback class of bug
       fails in seconds.
-- [ ] **AC-7 (no behaviour change):** `pytest swarm/tests/ -q` green (774+), and
+- [x] **AC-7 (no behaviour change):** `pytest swarm/tests/ -q` green (774+), and
       a golden test resolves the checkout's `.env` to the same models/caps before
       and after the refactor.
-- [ ] **AC-8 (docs collapse):** `AGENTS.md`, `GLOSSARY.md` and
+- [x] **AC-8 (docs collapse):** `AGENTS.md`, `GLOSSARY.md` and
       `docs/reference.md` state the contract in one line and link to
       `swarm/docs/setup.md`; the profile rules are written once, in setup.md.
 

@@ -76,18 +76,18 @@ geolocation).
 
 ## Acceptance criteria
 
-- [ ] **AC-1 — cassette.** `tests/cassettes/` holds a recorded real Overpass
+- [-] **AC-1 — cassette.** `tests/cassettes/` holds a recorded real Overpass
   response; a test runs offline (`--block-network`) and asserts the
   corridor→factors pipeline on it.
-- [ ] **AC-2 — failover.** Mocked-`requests` tests cover the three-mirror order,
+- [x] **AC-2 — failover.** Mocked-`requests` tests cover the three-mirror order,
   per-endpoint logging, timeout and 5xx shapes, and the "data gap, never 5xx"
   fallback.
-- [ ] **AC-3 — live probe.** `make corridor-check` reports corridor-present,
+- [x] **AC-3 — live probe.** `make corridor-check` reports corridor-present,
   segment count, which mirror served, and per-mirror status for a fixed route.
-- [ ] **AC-4 — geolocation contract.** `geolocation.spec.ts` covers allowed /
+- [x] **AC-4 — geolocation contract.** `geolocation.spec.ts` covers allowed /
   denied / unavailable / moved and asserts the auto-centre/origin pre-fill and
   the denied fallback.
-- [ ] **AC-5 — no regression.** `make test`, `make e2e`, `make swarm-test` green;
+- [x] **AC-5 — no regression.** `make test`, `make e2e`, `make swarm-test` green;
   cassettes and fixtures are secret-free (no live keys/`User-Agent` tokens
   committed).
 
