@@ -439,6 +439,10 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
         return "green"
     if status != "needs_human":
         return status
+    if payload.get("host_suspended"):
+        # The machine slept mid-run; a verifier "timeout" is a symptom, not the
+        # cause, and retrying it changes nothing until the host is kept awake.
+        return "host_suspended"
     if getattr(state, "wall_budget_note", ""):
         return "wall_budget"
     guard = getattr(state, "delta_guard", None) or {}
@@ -4288,6 +4292,15 @@ class SwarmFlow(Flow[SwarmState]):
         self.state.finished_at = dt.datetime.now().isoformat(timespec="seconds")
         usage = self._usage_snapshot()
         cost = usage["cost_usd"]
+        # 2026-11-26: a suspended host is not a model timeout. Record the gap so
+        # the operator sees "the machine slept" instead of a provider failure.
+        from swarm import events as _events
+
+        try:
+            gap_seconds = float(os.getenv("SWARM_SUSPEND_GAP_SECONDS", "300"))
+        except ValueError:
+            gap_seconds = 300.0
+        suspended = _events.suspension_gap(self.run_dir / "events.jsonl", threshold=gap_seconds)
 
         payload: dict[str, Any] = {
             "spec": self.state.spec_dir,
@@ -4345,6 +4358,7 @@ class SwarmFlow(Flow[SwarmState]):
                 ),
             },
             "budget_note": self.state.budget_note,
+            "host_suspended": suspended,
             "done": {"task_hash": task_hash_value, "spec_hash": spec_hash_value, "recorded": False},
             "resumed_from_step": self.state.resumed_from_step,
             "recovery": self.state.recovery,
