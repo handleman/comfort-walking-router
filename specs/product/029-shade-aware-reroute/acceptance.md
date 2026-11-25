@@ -1,6 +1,6 @@
 # 029-shade-aware-reroute — Acceptance
 
-Generated: 2026-11-25T22:38:46Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 5 unverified)
+Generated: 2026-11-25T22:39:28Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 5 unverified)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |

@@ -1,6 +1,6 @@
 # 040-google-maps-layout — Acceptance
 
-Generated: 2026-11-25T22:38:46Z · Verdict: **FAIL** (1 failed · 7 passed · 0 unverified)
+Generated: 2026-11-25T22:39:28Z · Verdict: **PASS** (0 failed · 8 passed · 0 unverified)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
@@ -10,7 +10,7 @@ Generated: 2026-11-25T22:38:46Z · Verdict: **FAIL** (1 failed · 7 passed · 0 
 | AC-4 | PASS | probe | count 0 vs expect 0; count 0 vs expect 0 |
 | AC-5 | PASS | probe | found 1 element(s) |
 | AC-6 | PASS | probe | count 7 >= 3; count 6 >= 3 |
-| AC-7 | FAIL | probe | 2 console error(s): Failed to load resource: the server responded with a status of 503 (Service Unavailable) \| Failed to load resource: the server responded with a status of 503 (Service Unavailable); 2 console error(s): Failed to load resource: the server responded with a status of 503 (Service Unavailable) \| Failed to load resource: the server responded with a status of 503 (Service Unavailable) |
+| AC-7 | PASS | probe | 0 console error(s); 0 console error(s) |
 | AC-8 | PASS | probe | /route request fired |
 
 ## Global checks
