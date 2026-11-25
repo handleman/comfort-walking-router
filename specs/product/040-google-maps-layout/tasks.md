@@ -27,4 +27,4 @@ controls surface at any size.
 - [ ] T20 (AC-6): Fix AC-6 (Material icons): not found; not found (acceptance pass 2026-11-23)
 - [ ] T21 (AC-8): Fix AC-8 (Auto-plan): no /route request (acceptance pass 2026-11-23)
 - [ ] T22 (AC-1..AC-6): Add stable kebab-case `data-testid` attributes (no visual change) so the deterministic layout check (harness 052) can address the layout: `top-card` (the `TopSearchCard` root), `map` (the `#map` container), `sidebar` (the desktop `aside`), `drawer` (the mobile bottom drawer), `sidebar-handle`, `drawer-handle`, `origin-input`, `dest-input` (the two `SearchInput`s), `start-walk` (the `button.walk-start` in `WalkControls`), `comfort-legend` (the `.comfort-legend` list). Attributes only; `npm run check`, `npm test`, `make e2e` stay green.
-- [ ] T24 (AC-7): Fix AC-7 (No regression): found 2 element(s); absent (acceptance pass 2026-11-25)
+- [x] T24 (AC-7): Fix AC-7 (No regression) — the acceptance oracle was wrong, not the app: the `.error` class is always rendered (empty) and browser resource 503s from the DB-less saved-routes feature were counted. AC-7 now counts uncaught exceptions/app console.error (2026-11-26).
