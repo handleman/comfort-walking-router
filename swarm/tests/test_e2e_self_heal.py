@@ -240,6 +240,40 @@ def test_the_phase_is_off_with_the_env_switch(tmp_path, monkeypatch):
     assert calls == []
 
 
+def test_the_harness_runs_a_suite_qa_never_ran(tmp_path, monkeypatch):
+    """T6 2026-11-26: review PASS, all gates 0, zero recorded e2e executions.
+
+    The harness must run the known command itself (and record it) instead of
+    spending a repair round, then treat a green suite as evidence.
+    """
+    from swarm import evidence
+
+    stub, calls = _flow_stub(tmp_path, monkeypatch)
+    _with_specs(tmp_path, "e2e/walk-mode.spec.ts")
+    log = tmp_path / "shell_log.jsonl"
+    log.write_text("")  # QA never ran the suite
+    stub._evidence_hash = lambda: "h"
+
+    def run_deterministically(specs):
+        calls.append("harness-e2e")
+        evidence.append_execution(
+            log,
+            agent="harness-e2e",
+            argv=["npm", "--prefix", "frontend", "run", "test:e2e"],
+            exit_code=0,
+            duration_ms=5,
+            changed_after="h",
+            tail="  9 passed (13.3s)",
+        )
+
+    stub._run_e2e_deterministically = run_deterministically
+    assert stub._e2e_self_heal() is True
+    state = stub.state.e2e_self_heal
+    assert state["stop"] == ""
+    assert state.get("recovered") is True
+    assert calls == ["harness-e2e"]
+
+
 def test_the_self_heal_stops_cleanly_without_a_kicker(tmp_path, monkeypatch):
     """2026-11-26: the real flow had no `_kickoff` attribute and the listener
     crashed with AttributeError before it could record any stop."""

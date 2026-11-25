@@ -4058,6 +4058,62 @@ class SwarmFlow(Flow[SwarmState]):
         print(f"e2e weakening: {e2e_guard.weaken_reason(problems)} → reverted", flush=True)
         return result
 
+    def _run_e2e_deterministically(self, specs: list[str]) -> None:
+        """Run the browser suite when QA recorded none (2026-11-26).
+
+        T6's QA answered PASS without ever executing `test:e2e` (0 recorded
+        executions), so the evidence guard could only stop `e2e_unclassified`.
+        The command is known and deterministic: the harness runs it itself and
+        records it in `shell_log`, so evidence, triage and reason codes stay the
+        same as an agent's run. A launch failure is recorded as-is (class `env`
+        downstream), never as "the suite passed".
+        """
+        import time as _time
+
+        from swarm import e2e as _e2e
+        from swarm import evidence as _evidence
+
+        argv = ["npm", "--prefix", "frontend", "run", "test:e2e"]
+        if specs:
+            argv += ["--", *specs]
+        started = _time.monotonic()
+        code = 1
+        tail = ""
+        try:
+            build = subprocess.run(
+                ["npm", "run", "build"],
+                cwd=_e2e.FRONTEND,
+                capture_output=True,
+                text=True,
+                timeout=600,
+                check=False,
+            )
+            suite = subprocess.run(
+                ["npx", "playwright", "test", *specs],
+                cwd=_e2e.FRONTEND,
+                capture_output=True,
+                text=True,
+                timeout=1800,
+                check=False,
+            )
+            code = int(suite.returncode)
+            tail = suite.stdout + suite.stderr
+            if build.returncode != 0:
+                code = int(build.returncode)
+                tail = build.stdout + build.stderr + "\n" + tail
+        except (OSError, subprocess.SubprocessError) as exc:
+            tail = f"e2e launch failed: {exc}"
+        print(f"$ {' '.join(argv)}  (harness-run) exit={code}", flush=True)
+        _evidence.append_execution(
+            self.run_dir / _evidence.SHELL_LOG,
+            agent="harness-e2e",
+            argv=argv,
+            exit_code=code,
+            duration_ms=int((_time.monotonic() - started) * 1000),
+            changed_after=self._evidence_hash(),
+            tail=tail,
+        )
+
     def _e2e_self_heal(self) -> bool:
         """027: triage a red recorded suite and run the inner repair roster.
 
@@ -4066,7 +4122,7 @@ class SwarmFlow(Flow[SwarmState]):
         `run.json.e2e_self_heal.stop` as the reason. Never raises: this runs on
         the way to a status decision.
         """
-        from swarm import e2e_guard, e2e_triage, evidence, inner
+        from swarm import e2e, e2e_guard, e2e_triage, evidence, inner
         from swarm.crew import build_fix_crew
         from swarm.spec_loader import load_spec_tasks
         from swarm.tools_guarded import run_delta
@@ -4098,9 +4154,22 @@ class SwarmFlow(Flow[SwarmState]):
             return e2e_triage.classify_run(runs, spec_exists=exists)
 
         classified, last = _triage()
+        if not classified and not evidence.e2e_executions(
+            evidence.read_executions(self.run_dir / evidence.SHELL_LOG)
+        ):
+            # QA never ran it. Do not spend a repair round on a suite that was
+            # never executed; run the known command and record the evidence.
+            self._run_e2e_deterministically(e2e.specs_in(self.state.brief or ""))
+            classified, last = _triage()
         state["class"] = e2e_triage.primary_class(classified)
         state["failed"] = [f.as_dict() for f in classified]
         if not classified:
+            if last and last.get("exit") is not None and int(last["exit"]) == 0:
+                # The harness-run suite passed at this delta: the task has the
+                # evidence it needed, so green may proceed.
+                state["stop"] = ""
+                state["recovered"] = True
+                return True
             # 053 AC-4: a suite that never launched is an environment fault, not
             # "unclassifiable failures". A spawn/launch/ECONNREFUSED tail means
             # the stand is broken; say so instead of hiding it for three runs.
