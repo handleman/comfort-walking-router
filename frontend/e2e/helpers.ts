@@ -86,6 +86,22 @@ export async function planRoute(page: Page, origin: string, destination: string)
   const response = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().includes('/route'),
   )
+  // The first geolocation fix pre-fills the origin and closes any open
+  // suggestion list: typing before it lands races the fix (flaky under
+  // parallel workers). Wait for the pre-fill, but do not fail a spec that
+  // deliberately has no fix.
+  await page
+    .waitForFunction(
+      () =>
+        (
+          document.querySelector(
+            'input[placeholder="e.g. Marienplatz, Munich"]',
+          ) as HTMLInputElement | null
+        )?.value !== '',
+      undefined,
+      { timeout: 10000 },
+    )
+    .catch(() => {})
   await chooseSuggestion(page, 'input[placeholder="e.g. Marienplatz, Munich"]', origin)
   await chooseSuggestion(page, 'input[placeholder="e.g. Englischer Garten"]', destination)
   return (await response).status()
