@@ -205,6 +205,26 @@ def search(
     query = (q or "").strip()
     if not query:
         return []
+    # ROUTE_FIXTURES makes the whole route flow hermetic — the route endpoint
+    # already honours it, but suggestions used to hit the live geocoder, so the
+    # e2e dropdown was empty and auto-plan never fired (2026-11-25).
+    from . import fixtures
+
+    if fixtures.route_fixtures_enabled():
+        try:
+            fi_lat, fi_lng = fixtures.recorded_geocode(query)
+        except ValueError:
+            return []
+        return [
+            Suggestion(
+                id=f"fixture:{query}",
+                label=query,
+                lat=fi_lat,
+                lng=fi_lng,
+                type="place",
+                attribution="",
+            )
+        ]
     if _mapbox_token():
         return _search_mapbox(query, lat, lng, limit)
     return _search_photon(query, lat, lng, limit)

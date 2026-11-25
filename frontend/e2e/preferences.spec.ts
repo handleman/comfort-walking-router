@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-import { enableFixturesMode, countRequestsMatching, setGeolocation } from './helpers'
+import { enableFixturesMode, countRequestsMatching, planRoute, setGeolocation } from './helpers'
 
 // Preferences live in Postgres (spec 005, ADR-007); without DATABASE_URL the
 // panel correctly shows an API error. That is a human gate, not a UI regression.
@@ -24,32 +24,23 @@ test('saved cloudy default_preference is applied to the routed result', async ({
   await page.locator('.prefs select').selectOption('cloudy')
   await page.getByRole('button', { name: 'Save preferences' }).click()
 
-  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
-  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
-  await page.locator('button:has-text("Find route")').click()
+  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
 
-  await expect(page.locator('.result .chip')).toContainText('cloudy')
-  await expect(page.locator('.result ul.factors')).toBeVisible()
-  await expect(page.locator('.result ul.factors')).toContainText('cloud cover')
+  await expect(page.locator('.route-summary .chip')).toContainText('cloudy')
+  await expect(page.locator('.route-summary ul.factors')).toBeVisible()
+  await expect(page.locator('.route-summary ul.factors')).toContainText('cloud cover')
 })
 
-test('repeating an identical route query renders the cached result without a second external call', async ({
-  page,
-}) => {
+test('auto-plan fires exactly one /route for a set of endpoints', async ({ page }) => {
   await enableFixturesMode(page)
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
 
   const routeRequestCount = countRequestsMatching(page, '/route')
 
-  await page.locator('input[placeholder="e.g. Marienplatz, Munich"]').fill('Marienplatz, Munich')
-  await page.locator('input[placeholder="e.g. Englischer Garten"]').fill('Englischer Garten')
-  await page.locator('button:has-text("Find route")').click()
+  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
 
-  await expect(page.locator('.result .chip')).toBeVisible()
-
-  await page.locator('button:has-text("Find route")').click()
-
-  await expect(page.locator('.result .chip')).toBeVisible()
+  await expect(page.locator('.route-summary .chip')).toBeVisible()
+  // The auto-plan dedupes an identical endpoint pair: one POST /route.
   expect(routeRequestCount()).toBe(1)
 })

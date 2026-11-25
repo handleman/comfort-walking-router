@@ -61,3 +61,36 @@ export function countRequestsMatching(page: Page, urlPattern: string | RegExp): 
   })
   return () => count
 }
+
+/**
+ * Type into a search input and pick the first suggestion. The 040 auto-plan
+ * needs a *selected* endpoint (not typed text), so a spec must choose one.
+ */
+export async function chooseSuggestion(
+  page: Page,
+  inputSelector: string,
+  query: string,
+): Promise<void> {
+  await page.locator(inputSelector).fill(query)
+  const option = page.locator('[role="option"]').first()
+  await option.waitFor({ state: 'visible', timeout: 10000 })
+  await option.click()
+}
+
+/**
+ * Plan a route the 040 way: choose both suggestions; the app auto-fires
+ * `POST /route` (there is no Find-route button). Returns the response status
+ * so the spec never races the request.
+ */
+export async function planRoute(
+  page: Page,
+  origin: string,
+  destination: string,
+): Promise<number> {
+  const response = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().includes('/route'),
+  )
+  await chooseSuggestion(page, 'input[placeholder="e.g. Marienplatz, Munich"]', origin)
+  await chooseSuggestion(page, 'input[placeholder="e.g. Englischer Garten"]', destination)
+  return (await response).status()
+}

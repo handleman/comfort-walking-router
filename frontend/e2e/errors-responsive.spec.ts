@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-import { enableFixturesMode, setGeolocation } from './helpers'
+import { enableFixturesMode, planRoute, setGeolocation } from './helpers'
 
 test.use({ viewport: { width: 390, height: 844 } })
 
@@ -21,9 +21,7 @@ test('search page is usable at 390px with no horizontal overflow', async ({ page
   await expect(destinationInput).toBeVisible()
   await expect(destinationInput).toBeEnabled()
 
-  await originInput.fill('Marienplatz, Munich')
-  await destinationInput.fill('Englischer Garten')
-  await page.locator('button:has-text("Find route")').click()
+  await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
 
   await expect(page.locator('#map')).toBeVisible()
   await expect(page.locator('.leaflet-container')).toBeVisible()
