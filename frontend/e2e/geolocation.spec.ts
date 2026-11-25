@@ -1,0 +1,71 @@
+import { expect, test } from '@playwright/test'
+
+import { enableFixturesMode, setGeolocation } from './helpers'
+
+/**
+ * 050 AC-4: the four-state geolocation contract.
+ *
+ * The rest of the suite grants a fixed position and moves on; this spec pins
+ * what the app does in each state — a fix renders the current-position marker,
+ * a new fix moves it, a denial and an unavailable provider both ask for the
+ * origin instead of leaving a dead map.
+ */
+
+const START_INPUT = 'input[placeholder="e.g. Marienplatz, Munich"]'
+const START_MODAL = '[role="dialog"][aria-label="Choose start location"]'
+
+test('geolocation: an allowed fix renders the current-position marker', async ({
+  page,
+  context,
+}) => {
+  await enableFixturesMode(page)
+  await setGeolocation(page, 48.137, 11.575)
+  await page.goto('/')
+
+  await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible()
+  // The first fix pre-fills the origin (reverse-geocoded against the fixture).
+  await expect(page.locator(START_INPUT)).not.toHaveValue('')
+})
+
+test('geolocation: a new position moves the marker', async ({ page, context }) => {
+  await enableFixturesMode(page)
+  await setGeolocation(page, 48.137, 11.575)
+  await page.goto('/')
+
+  const marker = page.locator('.leaflet-marker-icon').first()
+  await expect(marker).toBeVisible()
+  const before = await marker.evaluate((el) => (el as HTMLElement).style.transform)
+
+  await context.setGeolocation({ latitude: 48.142, longitude: 11.581, accuracy: 10 })
+
+  await expect
+    .poll(async () => marker.evaluate((el) => (el as HTMLElement).style.transform))
+    .not.toBe(before)
+})
+
+test('geolocation: a denied permission asks for the origin', async ({ page, context }) => {
+  await enableFixturesMode(page)
+  await context.clearPermissions()
+  await page.goto('/')
+
+  await expect(page.locator(START_MODAL)).toBeVisible()
+  await expect(page.getByText('Where do you want to start?')).toBeVisible()
+})
+
+test('geolocation: an unavailable provider asks for the origin', async ({ page }) => {
+  await enableFixturesMode(page)
+  await page.addInitScript(() => {
+    const unavailable = (ok: unknown, fail?: (error: unknown) => void) =>
+      fail?.({ code: 2, message: 'Position unavailable' })
+    Object.defineProperty(navigator, 'geolocation', {
+      value: {
+        watchPosition: unavailable,
+        getCurrentPosition: unavailable,
+        clearWatch: () => {},
+      },
+    })
+  })
+  await page.goto('/')
+
+  await expect(page.locator(START_MODAL)).toBeVisible()
+})
