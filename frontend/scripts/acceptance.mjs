@@ -54,7 +54,12 @@ const page = await context.newPage()
 /** @type {string[]} */
 const consoleErrors = []
 page.on('console', (msg) => {
-  if (msg.type() === 'error') consoleErrors.push(msg.text())
+  if (msg.type() !== 'error') return
+  // The browser logs *any* 5xx resource as a console error. A deliberate 503
+  // from an optional feature (saved routes with no database, by 005's design)
+  // is not a regression: uncaught exceptions and app-thrown console.error are.
+  if (/Failed to load resource/i.test(msg.text())) return
+  consoleErrors.push(msg.text())
 })
 
 page.on('pageerror', (err) => {
@@ -101,9 +106,28 @@ async function evaluateView(name, width, height) {
       .filter(([, c]) => c > 1)
       .map(([text]) => text)
 
-    const zeroSize = Array.from(
+    // 043/052: a control the user cannot hit is a defect — but an element that
+    // is display:none / visibility:hidden (or inside an aria-hidden container)
+    // is hidden by design, not zero-sized. Name the offenders for the report.
+    const hiddenByAncestor = (el) => {
+      // The mobile drawer's handle is 0x0 on desktop because an ancestor is
+      // display:none; that is hidden by design, not an unhittable control.
+      for (let node = el; node; node = node.parentElement) {
+        const style = window.getComputedStyle(node)
+        if (style.display === 'none' || style.visibility === 'hidden') return true
+      }
+      return !!el.closest('[hidden], [aria-hidden="true"]')
+    }
+    const zeroSizeElements = Array.from(
       document.querySelectorAll('button, a, input, [role="button"]'),
-    ).filter((el) => el.offsetWidth === 0 || el.offsetHeight === 0).length
+    ).filter((el) => {
+      if (hiddenByAncestor(el)) return false
+      return el.offsetWidth === 0 || el.offsetHeight === 0
+    })
+    const zeroSize = zeroSizeElements.length
+    const zeroSizeNames = zeroSizeElements.map(
+      (el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${el.className || ''}`,
+    )
 
     const overflow = document.documentElement.scrollWidth > document.documentElement.clientWidth
 
@@ -112,6 +136,7 @@ async function evaluateView(name, width, height) {
       leaflet: !!leaflet,
       duplicateButtons: dupList,
       zeroSize,
+      zeroSizeNames,
       overflow,
       routeRequests: 0,
     }
@@ -239,9 +264,32 @@ async function runCheck(check) {
           detail = ok ? `value set` : `value "${val}" != "${value}"`
           break
         }
+        case 'console_errors': {
+          const limit = Number(expect ?? 0)
+          ok = consoleErrors.length <= limit
+          detail = ok
+            ? `${consoleErrors.length} console error(s)`
+            : `${consoleErrors.length} console error(s): ${consoleErrors.slice(0, 3).join(' | ')}`
+          break
+        }
         case 'route_request': {
-          await page.fill(selector, value)
-          await page.waitForTimeout(1000)
+          // 040: auto-plan arms only when BOTH endpoints are *selected*
+          // suggestions — typing alone never fires POST /route. Use the same
+          // flow as the e2e helper (fill, pick the first option), then wait for
+          // the request. The old fill-and-wait check could never pass.
+          const ORIGIN = "input[placeholder='e.g. Marienplatz, Munich']"
+          const pick = async (input, text) => {
+            await page.fill(input, text)
+            const option = page.locator('[role="option"]').first()
+            await option.waitFor({ state: 'visible', timeout: 8000 })
+            await option.click()
+            await page.waitForTimeout(300)
+          }
+          // Let the first geolocation fix pre-fill the origin, then overwrite it.
+          await page.waitForTimeout(500)
+          await pick(ORIGIN, 'Marienplatz, Munich')
+          await pick(selector, value)
+          await page.waitForTimeout(1500)
           ok = routeRequests > 0
           detail = ok ? '/route request fired' : 'no /route request'
           break

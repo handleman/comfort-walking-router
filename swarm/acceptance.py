@@ -55,9 +55,12 @@ CHECK_KINDS = (
     "text",
     "value_set",
     "route_request",
+    "console_errors",
 )
 
 _AC_RE = re.compile(r"^\s*[-*]?\s*\*\*(AC-\d+)\s*[—–:-]\s*(.+?)\*\*\s*(.*)$")
+# 043 follow-up: older specs write `- [x] AC-1: …` instead of a bold title.
+_AC_PLAIN_RE = re.compile(r"^\s*[-*]\s*\[[ xX]?\]\s*(AC-\d+)\s*[:.\-—–]\s*(.+)$")
 _TASK_LINE_RE = re.compile(r"^- \[[ xX]\] (T\d+)\b", re.MULTILINE)
 _OPEN_TASK_RE = re.compile(r"^- \[ \] T\d+\b.*$", re.MULTILINE)
 
@@ -164,6 +167,17 @@ def parse_criteria(text: str) -> list[Criterion]:
     current: Criterion | None = None
     for line in (text or "").splitlines():
         match = _AC_RE.match(line)
+        if not match:
+            plain = _AC_PLAIN_RE.match(line)
+            if plain:
+                if current is not None:
+                    out.append(current)
+                current = Criterion(
+                    id=plain.group(1),
+                    title=plain.group(2).strip().rstrip(".")[:120],
+                    text="",
+                )
+                continue
         if match:
             if current is not None:
                 out.append(current)
@@ -363,8 +377,10 @@ def global_failures(views: Mapping[str, Mapping[str, Any]]) -> list[str]:
                 f"{name}: duplicate visible controls: {', '.join(duplicates[:5])}"
             )
         if int(facts.get("zeroSize") or 0):
+            names = [str(n) for n in (facts.get("zeroSizeNames") or [])]
+            suffix = f" ({'; '.join(names[:3])})" if names else ""
             failures.append(
-                f"{name}: {int(facts['zeroSize'])} interactive element(s) with zero size"
+                f"{name}: {int(facts['zeroSize'])} interactive element(s) with zero size{suffix}"
             )
         if facts.get("overflow"):
             failures.append(f"{name}: horizontal overflow")

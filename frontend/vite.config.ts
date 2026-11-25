@@ -2,7 +2,10 @@ import { configDefaults, defineConfig } from 'vitest/config'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 
-const backend = 'http://localhost:8000'
+// The acceptance stand starts the API on a free port and exports this;
+// the e2e config keeps :8000. A hardcoded target made every acceptance
+// /geocode and /route call miss the server it had just started.
+const backend = process.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
 // Every app API prefix. `server.proxy` covers `vite dev`; `preview` is a
 // different server and does NOT inherit it, so the Playwright suite (which runs

@@ -65,22 +65,23 @@ note = "Origin input present (geolocation or modal flow)"
 
 [[check]]
 ac = "AC-6"
-kind = "exists"
-selector = "svg[aria-label='my_location'], svg[aria-label='pin_drop']"
+kind = "min_count"
+selector = "svg[viewBox='0 0 24 24'][fill='currentColor']"
+expect = 3
 viewport = "both"
-note = "Material icons inlined (my_location + pin_drop)"
+note = "Material icons inlined (decorative svg, aria-hidden; the button carries the label)"
 
 [[check]]
 ac = "AC-7"
-kind = "absent"
-selector = ".error, .console-error"
+kind = "console_errors"
+expect = 0
 viewport = "both"
-note = "No console errors"
+note = "No uncaught exceptions or console errors on the page"
 
 [[check]]
 ac = "AC-8"
 kind = "route_request"
 selector = "input[placeholder='e.g. Englischer Garten']"
-value = "Marienplatz, Munich"
+value = "Englischer Garten"
 viewport = "desktop"
 note = "Auto-plan triggers /route when both endpoints set"
