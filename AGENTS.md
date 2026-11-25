@@ -75,6 +75,12 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
   - **Cost is honest in every profile:** local and `:free` models are $0 in
     `swarm/usage.py`; a paid model with no price makes cost `None` and names
     itself (`unpriced_models`) instead of faking a number.
+  - **Judgement needs reasoning, not the cheapest tier.** Optimise cost per
+    *green task*: cheap models on mechanical roles, a reasoning-capable model on
+    reviewer/verifier. Evidence (2026‑11‑25): the cheapest reviewer blocked a
+    task that every gate and the verifier had passed, with no recorded failure —
+    an ungrounded block that burnt a fix round. A reviewer that can be wrong is
+    not cheap at any price.
   - **Paid is one switch:** `SWARM_ALLOW_PAID=1` in `.env` — the operator's
     decision, in the same place the model ids live. `local` and `:free`/`-free`
     ids never need it, so switching to a local profile requires no code change.

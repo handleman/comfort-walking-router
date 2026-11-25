@@ -154,6 +154,9 @@ smoke-live: ## Real providers (no fixtures): one Munich route, profile and weath
 corridor-check: ## Live Overpass corridor probe (three mirrors; non-zero if none serve)
 	.venv/bin/python -m swarm.corridor_check
 
+swarm-health: ## Run the app + e2e suites; non-zero if the test stand is broken
+	.venv/bin/python -m swarm.health
+
 swarm-preflight: ## Validate models/keys/Ollama/venvs/gates before a run
 	swarm/.venv/bin/python -m swarm.preflight
 

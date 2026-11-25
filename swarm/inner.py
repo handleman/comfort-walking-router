@@ -26,7 +26,7 @@ from swarm.spec_loader import SpecTask, parse_tasks_md
 
 INNER_DIR = "inner"
 E2E_SCOPE = ("frontend/e2e/",)
-MAX_TASKS = 3
+MAX_TASKS = 12  # 053 AC-5: a stale-suite migration has ~11 failures
 SPEC_TEXT = """# Inner roster — e2e repair ({spec_id}/{task_id})
 
 Generated from a red Playwright run. This is a *repair* roster, not new product

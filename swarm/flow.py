@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -355,6 +355,37 @@ def block_is_grounded(text: str) -> bool:
     cites a test, a file:line, a failing command, or an AC.
     """
     return bool(_GROUNDED_RE.search(text or ""))
+
+
+def task_writable_paths(state: Any, step_paths: Iterable[str] = ()) -> set[str]:
+    """053 AC-3: the files this task may write (empty = no restriction)."""
+    from swarm.guards import task_allowlist
+
+    return task_allowlist(getattr(state, "brief", "") or "", step_paths)
+
+
+def ungrounded_block(
+    gates: Mapping[str, int] | None,
+    review_verdict: str,
+    verifier: Mapping[str, Any] | None,
+    review_text: str,
+) -> bool:
+    """053 AC-1: a BLOCKED verdict that no recorded evidence backs.
+
+    On 2026-11-25 the cheapest reviewer blocked T23 with cause `test` while every
+    recorded gate was green, the verifier had passed, and no `pytest` had run.
+    The fix loop then chased a failure that did not exist, changed nothing, and
+    the task parked `no_progress`. A block must cite something checkable *and*
+    contradict a recorded signal; otherwise it is a stop, not a repair.
+    """
+    if str(review_verdict or "") != "blocked":
+        return False
+    if not _gates_green(gates or {}):
+        return False
+    verdict = verifier or {}
+    if verdict.get("blocked") or verdict.get("unstable"):
+        return False
+    return not block_is_grounded(review_text)
 
 
 def judge_verdict(
@@ -2886,12 +2917,23 @@ class SwarmFlow(Flow[SwarmState]):
         return reverted
 
     def _revert_out_of_scope(self, changed: list[str]) -> list[str]:
-        """015 AC-10: undo out-of-scope writes instead of stopping the queue."""
+        """015 AC-10 + 053 AC-3: undo writes outside the scope *and* the task."""
         if os.getenv("SWARM_REVERT_OUT_OF_SCOPE", "1") != "1":
             return []
+        from swarm.guards import allowlist_violations
         from swarm.tools_guarded import scope_violations
 
         bad = scope_violations(changed, _resolve_scope())
+        if os.getenv("SWARM_TASK_ALLOWLIST", "1") != "0":
+            allow = getattr(self, "_allow_cache", None)
+            if allow is None:
+                allow = task_writable_paths(
+                    getattr(self, "state", None), getattr(self, "_step_paths", []) or []
+                )
+                self._allow_cache = allow
+            for path in allowlist_violations(changed, allow):
+                if path not in bad:
+                    bad.append(path)
         # An operator editing the tree during a run is attributed to the run;
         # keep their content before reverting it instead of deleting it.
         return self._revert_paths(bad, reason="out-of-scope writes")
@@ -3406,6 +3448,11 @@ class SwarmFlow(Flow[SwarmState]):
             steps, trimmed_steps = plan_scope.scope_steps(
                 REPO_ROOT, self._spec_dir, str(task.id), steps, task.brief
             )
+            # 053 AC-3: the plan's own step targets are part of the writable set,
+            # so a legitimate plan step is never reverted as "off-scope".
+            from swarm.prompts import brief_paths as _brief_paths
+
+            self._step_paths = [p for step in steps for p in _brief_paths(step)]
             if trimmed_steps:
                 print(
                     f"plan scope: dropped {len(trimmed_steps)} step(s) owned by another task",
@@ -3617,6 +3664,23 @@ class SwarmFlow(Flow[SwarmState]):
                 self._record_best_delta(gates)
                 code_rounds = 0
                 verdict_rounds = 0
+                # 053 AC-1: a block that cites nothing while every gate is green
+                # and the verifier passed is ungrounded — do not spend a fix round
+                # chasing it (2026-11-25: the cheapest reviewer blocked a green
+                # task with no recorded failure; the fix round changed nothing).
+                if ungrounded_block(
+                    gates,
+                    self.state.review_verdict,
+                    self.state.verifier,
+                    self.state.review_text,
+                ):
+                    self.state.ungrounded_block = True
+                    print(
+                        "ungrounded block: gates green + verifier pass, nothing "
+                        "checkable cited → needs_human (no fix round)",
+                        flush=True,
+                    )
+                    break
                 while (
                     not _gates_green(gates) or self.state.review_verdict == "blocked"
                 ) and code_rounds < self._max_fix_rounds:
@@ -3902,6 +3966,19 @@ class SwarmFlow(Flow[SwarmState]):
             return {}
 
         changed = list(getattr(self.state, "changed_files", []) or [])
+        # 053 AC-3: a stray `frontend/e2e/` write on a map task must not impose
+        # an e2e run on it; only the task's own allowlist decides.
+        if os.getenv("SWARM_TASK_ALLOWLIST", "1") != "0":
+            from swarm.guards import allowlist_violations
+
+            allow = getattr(self, "_allow_cache", None)
+            if allow is None:
+                allow = task_writable_paths(
+                    getattr(self, "state", None), getattr(self, "_step_paths", []) or []
+                )
+                self._allow_cache = allow
+            stray = set(allowlist_violations(changed, allow))
+            changed = [path for path in changed if path not in stray]
         if not ev.e2e_required(self.state.brief, changed):
             return {}
         try:
@@ -4013,6 +4090,16 @@ class SwarmFlow(Flow[SwarmState]):
         state["class"] = e2e_triage.primary_class(classified)
         state["failed"] = [f.as_dict() for f in classified]
         if not classified:
+            # 053 AC-4: a suite that never launched is an environment fault, not
+            # "unclassifiable failures". A spawn/launch/ECONNREFUSED tail means
+            # the stand is broken; say so instead of hiding it for three runs.
+            launch = e2e_triage.launch_error(last)
+            if launch:
+                state["class"] = "env"
+                state["ran"] = False
+                state["stop"] = "e2e_env"
+                state["error"] = launch
+                return False
             state["stop"] = "e2e_unclassified"
             return False
         if state["class"] in ("env", "flaky", "unclassified"):

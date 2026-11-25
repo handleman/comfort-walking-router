@@ -20,7 +20,7 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
 
 ## Phase A — make the harness trustworthy (now)
 
-1. `[~]` **053 swarm hardening (2026-11-25).** Grounded reviewer blocks (a
+1. `[x]` **053 swarm hardening (2026-11-25).** Grounded reviewer blocks (a
    green-gates block with no evidence must not start a fix round); reference-vs-
    required paths in the delta guard; per-task write allowlist; e2e launch
    failure = `env`; roster cap + `make swarm-health`. *Design: `specs/harness/

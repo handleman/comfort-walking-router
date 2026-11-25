@@ -137,6 +137,9 @@ _READ_VERBS = frozenset(
         "read", "explain", "document", "describe", "reference", "see", "note",
         "summarise", "summarize", "outline", "mention", "cover", "mirror",
         "compare", "quote", "list",
+        # 053 AC-2: "use X from `path`", "via", "import" are references too —
+        # naming an already-implemented helper must not demand a change to it.
+        "use", "using", "from", "via", "import", "reuse", "reusing", "exists",
     }
 )
 _E2E_PATH_RE = re.compile(r"frontend/e2e/[\w./-]+")
@@ -161,6 +164,24 @@ def e2e_required(brief: str, changed: Iterable[str] = ()) -> bool:
         if not (_READ_VERBS & set(re.findall(r"[a-z]+", clause))):
             return True
     return False
+
+
+def is_referenced(brief: str, path: str) -> bool:
+    """True when every mention of `path` sits in a reference clause (053 AC-2).
+
+    A brief that says "use `planRoute` from `helpers.ts`" references a file it
+    does not have to change; the delta guard must not then require a write to it.
+    Ownership mentions (`edit`/`change`/...) keep the path required.
+    """
+    text = (brief or "").replace("\\", "/")
+    mentions = [m.start() for m in re.finditer(re.escape(path), text)]
+    if not mentions:
+        return False
+    for pos in mentions:
+        clause = _CLAUSE_RE.split(text[:pos])[-1].lower()
+        if not (_READ_VERBS & set(re.findall(r"[a-z]+", clause))):
+            return False  # at least one ownership mention -> required
+    return True
 
 
 def e2e_enabled(env: Any = None) -> bool:

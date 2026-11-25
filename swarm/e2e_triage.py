@@ -110,6 +110,28 @@ def failing_tests(executions: list[dict[str, Any]]) -> list[FailedTest]:
     return out
 
 
+# 053 AC-4: a suite that never launched is an environment fault. These markers
+# come from a real failure ("spawn /bin/sh ENOENT" after a bad `webServer.cwd`),
+# and they must be loud instead of hiding as "no parseable failures".
+_LAUNCH_MARKERS = (
+    "spawn",
+    "enoent",
+    "failed to launch",
+    "webserver",
+    "econnrefused",
+    "executable doesn't exist",
+)
+
+
+def launch_error(run: dict[str, Any] | None) -> str:
+    """The launch-error text when the suite never ran, else "" (053 AC-4)."""
+    text = str((run or {}).get("tail") or "")
+    low = text.lower()
+    if any(marker in low for marker in _LAUNCH_MARKERS):
+        return text[-300:].strip() or "suite failed to launch"
+    return ""
+
+
 def latest_suite_run(executions: list[dict[str, Any]]) -> dict[str, Any] | None:
     """The last recorded e2e execution (any agent, any hash)."""
     from swarm import evidence

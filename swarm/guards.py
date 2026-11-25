@@ -32,7 +32,7 @@ of them can make a green run red.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Container, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -176,6 +176,65 @@ def note_quota(
     return hits[key] >= max(1, limit)
 
 
+# 053 AC-3: files a task may write without being its own deliverable. A
+# dependency install (`npm install`) touching a lockfile is not an off-scope
+# product edit, and reverting it would break the build that just passed.
+_ALWAYS_ALLOWED = frozenset(
+    {
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "uv.lock",
+        "poetry.lock",
+        "requirements.txt",
+        "requirements-dev.txt",
+    }
+)
+
+
+def task_allowlist(brief: str, steps: Iterable[str] = ()) -> set[str]:
+    """053 AC-3: the files this task may write (empty set = no restriction).
+
+    Derived from the brief's *ownership* paths (+ the plan's step targets) and
+    their parent directories, so a coder can add a sibling file but not wander
+    into another area. On 2026-11-25 T23's coder edited
+    `frontend/e2e/helpers.ts`, which flipped `e2e_required` on a map task and
+    made a green map unreachable; the global scope (`frontend/`) was too coarse
+    to catch it.
+    """
+    from swarm import evidence as _ev
+    from swarm.prompts import brief_paths
+
+    allow: set[str] = set()
+    for text in [brief, *steps]:
+        if not text:
+            continue
+        for path in brief_paths(str(text)):
+            if path.startswith("specs/") or _ev.is_referenced(str(text), path):
+                continue
+            allow.add(path)
+            parent = path.rsplit("/", 1)[0] if "/" in path else ""
+            if parent:
+                allow.add(parent + "/")
+    return allow
+
+
+def allowlist_violations(changed: Iterable[str], allow: Container[str]) -> list[str]:
+    """Writes outside the task's own allowlist (053 AC-3); empty allow = none."""
+    if not allow:
+        return []
+    bad: list[str] = []
+    for raw in changed:
+        path = str(raw).replace("\\", "/").strip()
+        if not path or path in _ALWAYS_ALLOWED:
+            continue
+        if any(path == entry or path.startswith(entry) for entry in allow):
+            continue
+        bad.append(path)
+    return bad
+
+
 def summary_of(record: Mapping[str, Any]) -> str:
     """One line for `human_log.txt` for any guard record."""
     if "reason" in record:
@@ -214,7 +273,19 @@ def delta_record(
         # (007-T2 stopped here on 2026-11-16).
         named = sorted({str(path).strip() for path in expected if str(path).strip()})
     else:
-        named = [path for path in brief_paths(brief) if not path.startswith("specs/")]
+        from swarm import evidence as _ev
+
+        # 053 AC-2: a bare filename that does not exist at the repo root is
+        # shorthand for a reference ("... already in `helpers.ts`"), not a
+        # deliverable. Only directory-qualified (or existing root) paths can be
+        # `missing`; and a purely referenced path is never required.
+        named = [
+            path
+            for path in brief_paths(brief)
+            if not path.startswith("specs/")
+            and ("/" in path or (repo_root / path).exists())
+            and not _ev.is_referenced(brief, path)
+        ]
     missing = [
         path for path in named if path not in touched and not (repo_root / path).exists()
     ]

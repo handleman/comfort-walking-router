@@ -26,17 +26,18 @@ rules) is repo-specific.
 
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
 
-Current operator profile (**OpenCode Go**, 2026-11-22): every role is a Go
-model with tool calling and every fallback is a second Go model, so a provider
-blip moves sideways and nothing dials Ollama. Chosen for **cost per green task**:
-the measured workhorse carries the bulk roles, the cheap flash tiers take the
-judgement roles, and the flagship is reserved for escalation.
+Current operator profile (**OpenCode Go**, 2026-11-25): every role is a Go model
+with tool calling and every fallback is a second Go model, so a provider blip
+moves sideways and nothing dials Ollama. Chosen for **cost per green task, not
+cost per token**: the measured workhorse carries the bulk roles, the flagship is
+reserved for escalation, and the **judgement roles get a reasoning-capable
+model** — the cheapest tier belongs on mechanical work.
 
 | Role | Model | $/M in–out | Fallback | $/M in–out |
 | --- | --- | --- | --- | --- |
 | Planner | `opencode-go/glm-5.3-flash` | 0.15–0.50 | `mimo-v2.6-flash` | 0.14–0.28 |
 | Coder | `opencode-go/glm-5.3-flash` | 0.15–0.50 | `mimo-v2.6-flash` | 0.14–0.28 |
-| Reviewer / QA | `opencode-go/mimo-v2.6-flash` | 0.14–0.28 | `qwen3.8-flash` | 0.15–0.47 |
+| Reviewer / QA | `opencode-go/qwen3.8-flash` | 0.15–0.47 | `mimo-v2.6-flash` | 0.14–0.28 |
 | Verifier | `opencode-go/qwen3.8-flash` | 0.15–0.47 | `mimo-v2.6-flash` | 0.14–0.28 |
 | Senior (escalation) | `opencode-go/deepseek-v4-pro` | 0.66–1.98 (2× peak) | `kimi-k2.7-code` | 0.95–4.00 |
 | Visual QA / acceptance (042/043) | `opencode-go/hy4-flash-free` | 0–0 | `claude-haiku-5-5` | 0.10–0.50 |
@@ -44,9 +45,14 @@ judgement roles, and the flagship is reserved for escalation.
 
 Why this split: the coder writes most tokens, so it keeps the flash tier with the
 best measured green rate in this repo (`glm-5.3-flash`: 111–271 s and
-$0.0075–0.0288 per task on three shapes, see below). QA and the verifier judge
-short outputs over large inputs, where `mimo-v2.6-flash` (0.14 in) and
-`qwen3.8-flash` are cheaper per call. Escalation is rare and short, so
+$0.0075–0.0288 per task on three shapes, see below). **Do not put the cheapest
+tier on a judgement role.** On 2026-11-25 the reviewer was `mimo-v2.6-flash`
+(0.14–0.28, the cheapest) and blocked T23 with cause `test` while every recorded
+gate was green, the verifier passed, and no `pytest` had run — an ungrounded
+block that burnt a fix round and parked the task. Switching the reviewer to
+`qwen3.8-flash` (the verifier's model) let the same work pass. A reviewer that
+can be wrong is not cheap at any price; judgement is reasoning work. Escalation
+is rare and short, so
 `deepseek-v4-pro` (flagship coding, no vision) is cheaper in expectation than
 paying a second fix round on a flash model. `hy4-flash-free` gives the vision
 roles a $0 tier with image understanding; `claude-haiku-5-5` is the paid
