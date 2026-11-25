@@ -266,7 +266,17 @@
     // map.locate; this is non-blocking — the page stays usable while
     // permission is pending, and the first fix centres the map and
     // pre-fills the origin later (a manual origin overrides it).
-    map.locate({ setView: false })
+    // 2026-11-26: a browser without the Geolocation API made map.locate()
+    // throw inside onMount, so the start-location modal never opened and the
+    // page looked broken. Ask for the origin instead.
+    const hasGeolocation = Boolean(navigator.geolocation)
+    if (hasGeolocation) {
+      map.locate({ setView: false })
+    } else {
+      onLocationError({
+        message: 'Geolocation is not available in this browser.',
+      } as L.ErrorEvent)
+    }
     // Defer to the next frame so the container has its final layout first.
     requestAnimationFrame(() => map?.invalidateSize())
     // Full-bleed map: re-measure whenever the viewport or overlay panel
@@ -279,7 +289,9 @@
     // Continuous position fixes (spec 007, T10): watch geolocation from page
     // load so every fix fires `locationfound`, feeding onFix, the drift check,
     // and arrival detection for the whole walk, not just the first fix.
-    map.locate({ watch: true, setView: false, maxZoom: 16, enableHighAccuracy: true })
+    if (hasGeolocation) {
+      map.locate({ watch: true, setView: false, maxZoom: 16, enableHighAccuracy: true })
+    }
     map.on('locationfound', onLocationFound)
     map.on('locationerror', onLocationError)
     map.on('click', onMapClick)

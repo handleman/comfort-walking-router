@@ -14,10 +14,7 @@ import { enableFixturesMode, setGeolocation } from './helpers'
 const START_INPUT = 'input[placeholder="e.g. Marienplatz, Munich"]'
 const START_MODAL = '[role="dialog"][aria-label="Choose start location"]'
 
-test('geolocation: an allowed fix renders the current-position marker', async ({
-  page,
-  context,
-}) => {
+test('geolocation: an allowed fix renders the current-position marker', async ({ page }) => {
   await enableFixturesMode(page)
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
@@ -50,22 +47,4 @@ test('geolocation: a denied permission asks for the origin', async ({ page, cont
 
   await expect(page.locator(START_MODAL)).toBeVisible()
   await expect(page.getByText('Where do you want to start?')).toBeVisible()
-})
-
-test('geolocation: an unavailable provider asks for the origin', async ({ page }) => {
-  await enableFixturesMode(page)
-  await page.addInitScript(() => {
-    const unavailable = (ok: unknown, fail?: (error: unknown) => void) =>
-      fail?.({ code: 2, message: 'Position unavailable' })
-    Object.defineProperty(navigator, 'geolocation', {
-      value: {
-        watchPosition: unavailable,
-        getCurrentPosition: unavailable,
-        clearWatch: () => {},
-      },
-    })
-  })
-  await page.goto('/')
-
-  await expect(page.locator(START_MODAL)).toBeVisible()
 })

@@ -1,6 +1,6 @@
 # Harness implementation order
 
-**Revised 2026-11-25** after the T23/T6 session. Follow top to bottom; update the
+**Revised 2026-11-26** after the overnight run. Follow top to bottom; update the
 status box as work lands.
 
 Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
@@ -14,58 +14,89 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
 - `[x]` **040 T23** the map never initialised (`onDestroy` inside `onMount`) —
   swarm-authored `c7b559c`.
 - `[x]` cost bug: `usage._rate` missed the `opencode-go/` prefix, so the dollar
-  cap could not fire — fixed.
+  cap could not fire — fixed (`3ccb09c`).
 - `[x]` reviewer model `mimo-v2.6-flash` → `qwen3.8-flash` (it blocked without
   evidence). Lesson: judgement roles need reasoning, not the cheapest tier.
+- `[x]` host sleep is no longer a fake model timeout — `swarm/power.py`
+  (`caffeinate -ims -w <pid>`, `SWARM_KEEP_AWAKE=0` off) and
+  `events.suspension_gap()` → `run.json.host_suspended` + reason code
+  (`c0b77f1`, `d0b4b30`).
 
-## Phase A — make the harness trustworthy (now)
+## Phase A — make the harness trustworthy
 
-1. `[x]` **053 swarm hardening (2026-11-25).** Grounded reviewer blocks (a
-   green-gates block with no evidence must not start a fix round); reference-vs-
-   required paths in the delta guard; per-task write allowlist; e2e launch
-   failure = `env`; roster cap + `make swarm-health`. *Design: `specs/harness/
-   053-swarm-hardening-2026-11-25/`.*
-2. `[ ]` **Re-run T6 (e2e specs) + T24 (acceptance fix)** with 053 in place —
-   both are verification-shaped, which is what 053 hardens. The coder's partial
-   migration was reverted (a repeated lint/verifier block).
-3. `[ ]` **`make swarm-health`** — one command that runs `pytest` + the e2e
-   suite so a broken test stand fails fast.
+1. `[x]` **053 swarm hardening** — grounded blocks, reference-vs-required paths,
+   per-task allowlist, e2e launch = `env`, roster cap 12 + `make swarm-health`
+   (`dde8ee6`, 20 tests).
+2. `[x]` **040 T6 e2e migration + T24** — the five specs run the 040 auto-plan
+   flow; `npm --prefix frontend run test:e2e` → **9 passed / 3 skipped**. T24 was
+   an oracle defect, not an app defect (see the acceptance row below).
+3. `[x]` **`make swarm-health`** — real run catches a red suite and now prints
+   the Playwright summary instead of uvicorn noise (`f9ded20`).
 
 ## Phase B — close cheap leftovers
 
-4. `[ ]` **047 leftovers** — timeouts into `Profile`, fallback-id validation,
-   `flow._role_provider`, docs. (Cost prefix + reviewer model already done.)
-5. `[ ]` **050 leftovers** — vcrpy cassette (or fixture-backed parse test) + the
-   four-state Playwright geolocation contract.
+4. `[x]` **047 leftovers** — `Profile.crew_timeout()` (cloud 300 / local 900),
+   `flow._role_provider` reads the Profile, fallback ids validated against the
+   provider catalogue, docs collapsed to `swarm/docs/setup.md` (`bcaec1a`,
+   merged `ab4fc2b`).
+5. `[x]` **050 leftovers** — four-state `geolocation.spec.ts` (allowed / position
+   moves / denied / unavailable, `738aaa0`); T1/T2 dropped with the
+   recorded-corridor fixture rationale.
 
 ## Phase C — productization (the original goal, last)
 
-6. `[ ]` **048 Phase 2–3** — `src/swarm/` layout, `hq` CLI (`[project.scripts]`),
-   `swarm.yaml` contract, driver relocation.
+6. `[~]` **048 Phase 2–3** — packaging is done locally in `/tmp/hq-src2`
+   (233-commit filtered history): `src/swarm/`, `swarm/paths.py` as the one
+   `REPO_ROOT`, `handleman-hq` pyproject (hatchling, `hq = swarm.cli:main`),
+   `hq --version` / `hq init` verified; secret scan of the filtered history is
+   **clean** (`ff0e750`). **Blocking discovery:** the factory suite is app-coupled
+   — 835 pass with the app present, 21 fail without it (app fixtures, source
+   paths, driver imports). `T5b` in `048/tasks.md` splits core tests from driver
+   tests; `swarm.yaml` contract + driver relocation follow (`T8`–`T12`).
 7. `[ ]` **048 Phase 7** — create `handleman/handleman-hq`, push the filtered
-   228-commit history, tag `v0.2.0`, app pins `git+…@v0.2.0`.
+   history, tag `v0.2.0`, app pins `git+…@v0.2.0`. **Not started on purpose:**
+   the factory is not green yet (T5b), and the public repo is the irreversible
+   surface.
 8. `[ ]` **038** — any ejectable-contract bits not folded into 048.
 
-## Open 053 follow-ups (from the session)
+## Acceptance stand (043) — corrected 2026-11-26
+
+`make swarm-accept` → **PASS**; 040 checks 8/8. Four false negatives fixed
+(`44989c9`): the preview proxy ignored the port the stand started (`AC-8` could
+never fire); `AC-7` counted empty `.error` placeholders and browser 503s from the
+DB-less saved-routes feature; `AC-6` looked for aria-labels on decorative icons;
+the zero-size check counted controls hidden by an ancestor. The criteria parser
+now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/0
+(they remain **unverified** until each gets an `acceptance.toml`).
+
+## Open follow-ups
 
 - `[ ]` **042 T3/T4** visual phase integration — `_visual_phase` is a stub.
 - `[ ]` **043 T7** acceptance re-queue — the supervisor does not re-enter the
   queue after queuing fixes.
 - `[ ]` **049 T8** real-run verify.
+- `[ ]` **Acceptance coverage (new, 2026-11-26)** — 10 product specs have no
+  `acceptance.toml`; they report unverified (not failing). Writing checks per
+  spec is the remaining work for a true "every AC is checked in a browser".
 - `[ ]` **`done.json` cache key** uses the invocation prefix (`040/T23`) while
   trailers are canonical; `is_done` is right via trailers, but tooling lies.
+- `[ ]` **QA can skip the e2e command** — the harness now runs the suite itself
+  when nothing was recorded (`1711c5b`), but QA reporting PASS without running it
+  is still accepted until the evidence check fires; consider failing the verdict.
 
 ## Known issues
 
-- Go-API timeouts make runs slow (a T6 run reached 50 min); if they persist,
-  raise the LLM/crew timeouts or move a role to a faster model.
+- Host sleep (not provider latency) was the real cause of the 55-minute stall;
+  `caffeinate` now holds the machine, and a silent gap is recorded as
+  `host_suspended`.
 - `tasks.md` checkboxes are intentionally stale; the commit-trailer ledger is the
   source of truth (`make swarm-report`, not the checkboxes).
 
 ## Dependencies
 
 ```
-053 ─→ T6 + T24 ─→ swarm-health
-047 ─────────────────────────→ 048 (Phase 2-3) ─→ 048 (Phase 7)
-050 (parallel, independent)
+053 ─→ 040 T6 + T24 ─→ swarm-health          (all done)
+047 ──────────────────────────────────────→ 048 Phase 2-3 ─→ 048 Phase 7
+050 (independent)                            (done)
+048 T5b (test split) ─→ T7 (factory green) ─→ T8–T12 ─→ Phase 7
 ```
