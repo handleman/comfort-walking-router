@@ -82,11 +82,7 @@ export async function chooseSuggestion(
  * `POST /route` (there is no Find-route button). Returns the response status
  * so the spec never races the request.
  */
-export async function planRoute(
-  page: Page,
-  origin: string,
-  destination: string,
-): Promise<number> {
+export async function planRoute(page: Page, origin: string, destination: string): Promise<number> {
   const response = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().includes('/route'),
   )

@@ -76,6 +76,9 @@ def client(
 
     monkeypatch.setattr(saved_routes, "_lookup_holder_id", fake_lookup)
     monkeypatch.setattr(saved_routes, "routes_repo", fake_repo)
+    # bearer_holder 503s when DATABASE_URL is unset; tests are hermetic, so
+    # pretend one is configured (auth/repo are faked below anyway).
+    monkeypatch.setattr("app.db.DATABASE_URL", "postgres://test/test")
     with TestClient(fastapi_app) as test_client:
         yield test_client
 
