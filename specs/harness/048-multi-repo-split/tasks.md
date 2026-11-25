@@ -5,10 +5,10 @@ order; every phase ends green.
 
 ## Phase 0 — greenline
 - [ ] T1 (AC-0): `git tag pre-split`; `git status --short` empty; `make test` (214), `make e2e`, `pytest swarm/tests/` (774), `ruff check .`, `mypy app tests` all green.
-- [ ] T2 (AC-0): `brew install git-filter-repo`; `git bundle create /tmp/comfort-full.bundle --all`.
+- [x] T2 (AC-0): `brew install git-filter-repo` (2.47.0); `git bundle create /tmp/comfort-full-20261125.bundle --all` (1.7 MB).
 
 ## Phase 1 — history split
-- [ ] T3 (AC-2): in a clone, `git filter-repo --subdirectory-filter swarm/` → `swarm/` rooted history for `handleman-hq`; verify `git log -- swarm/flow.py` traces to the 009 harness commits.
+- [x] T3 (AC-2): `git clone . /tmp/hq-src && git filter-repo --subdirectory-filter swarm/` → 228 commits, swarm-rooted, app/frontend/specs/product gone, 047/050/052 commits present. Verified (throwaway; the real repo is created in Phase 7).
 - [ ] T4 (AC-0): secret scan the filtered history (real `OPENROUTER_API_KEY` / `OPENCODE_API_KEY` / `MAPBOX_TOKEN` values); clean before any push.
 
 ## Phase 2 — factory packaging

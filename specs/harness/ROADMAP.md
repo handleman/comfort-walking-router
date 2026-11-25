@@ -21,8 +21,10 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
    was genuinely red: `playwright.config.ts` had `webServer.cwd: 'frontend'`
    (resolves to `frontend/frontend`; fixed → `'.'`), and once it launched **11/12
    specs failed** because they still click `Find route` (removed by T9, replaced
-   by auto-plan in T16). The swarm is updating `frontend/e2e/*.spec.ts`. My
-   earlier "retired" call was premature — corrected.
+   by auto-plan in T16) and assert `.result` (now `.route-summary`). Migrated
+   (`3ac5d79`): fixture-backed `/geocode`, `planRoute`/`chooseSuggestion`
+   helpers, all specs updated → **5 passed / 3 skipped / 4 failed** (the 4 are
+   walk-mode marker rendering, an app-behaviour issue).
 5. `[~]` **050 — corridor reliability stand.** *Live probe done (`swarm/corridor_check.py`,
    `make corridor-check`, 3 tests); failover/timeout already covered by 039.
    Deferred: vcrpy cassettes (recorded-corridor fixture covers it) and the
@@ -32,8 +34,11 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
    `usage`/`llms`/`preflight` delegate; `ROLE_MODEL_VARS`/`ROLE_VARS` derived; 6
    golden tests (802 total). Remaining: timeouts into `Profile`, fallback
    validation, `flow._role_provider`, docs, a real-run check.*
-7. `[ ]` **038 → 048 — productization.** 038 (`swarm.yaml` + `hq` CLI + `init`)
-   then 048 (multi-repo split). *Last: highest risk.*
+7. `[~]` **038 → 048 — productization.** 048 Phase 0-1 done 2026-11-25: full
+   bundle backup (`/tmp/comfort-full-20261125.bundle`), filter-repo 2.47.0, and
+   the swarm subtree split verified in a throwaway clone (228 commits, app gone).
+   Remaining: src layout + `hq` CLI + `swarm.yaml` (Phase 2-3), driver relocation,
+   then the public repo/release (Phase 7).
 
 ## Discovered during bookkeeping (2026-11-23) — inserted into the verification track
 
