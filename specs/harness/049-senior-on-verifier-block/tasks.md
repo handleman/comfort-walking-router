@@ -9,4 +9,4 @@ Each task maps to one acceptance criterion.
 - [x] T5 (AC-5): `swarm/flow.py` — set `senior_used`, increment `senior_rounds`, and add a `verifier` note (`senior_escalation_on_block`) for the dashboard/report.
 - [x] T6 (AC-6): `swarm/tests/test_verify.py` — fixture tests: (a) block → one senior round → re-verify passes → green path; (b) block → one senior round → re-verify still blocked → `verifier_blocked`; (c) non-blocked → no escalation; assert `senior_rounds` never exceeds 1.
 - [x] T7 (AC-6): `pytest swarm/tests/` (777), `ruff check swarm/`, `mypy app tests` all green.
-- [ ] T8 (verify): real run on a parked task shows `senior_used: true`, one senior round, a re-verify, and a green or honestly-still-blocked outcome.
+- [x] T8 (verify): real run on a parked task shows `senior_used: true`, one senior round, a re-verify, and a green or honestly-still-blocked outcome.
