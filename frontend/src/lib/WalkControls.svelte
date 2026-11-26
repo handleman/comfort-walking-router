@@ -36,7 +36,7 @@
     Stop
   </button>
   <label class="walk-auto-center">
-    <input type="checkbox" bind:checked={$autoCenter} />
+    <input type="checkbox" bind:checked={$autoCenter} aria-label="Auto-center on the walker" />
     Auto-center
   </label>
 </div>
