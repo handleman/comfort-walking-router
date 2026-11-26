@@ -1,10 +1,10 @@
 # 005-saved-routes — Acceptance
 
-Generated: 2026-11-26T13:41:37Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 7 n/a)
+Generated: 2026-11-26T16:12:32Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 7 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | N/A | declared | needs a running Postgres and a save/recall interaction |
+| AC-1 | N/A | declared | live-only: save/recall/delete needs Postgres; `make swarm-db-up && make accept-live` (live.toml, acceptance-live.md) |
 | AC-2 | N/A | declared | prefs persistence is database behaviour |
 | AC-3 | N/A | declared | migrations are database behaviour |
 | AC-4 | N/A | declared | cache regression is backend behaviour |
