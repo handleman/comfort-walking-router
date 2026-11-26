@@ -54,8 +54,8 @@ Notes:
 
 ## Queue lane — MCP (OAuth) or REST, then a cached IR (factory spec 057)
 
-> Planned in `handleman-hq` spec **057-figma-design-support**. Until it ships,
-> the queue has no design lane; the operator lane above is the only Figma path.
+> Implemented in `handleman-hq` **v0.6.3** (spec 057). The queue can read a
+> design over MCP with first-run OAuth or over REST; both write the same cache.
 
 The queue supports **both** Figma transports and writes the same cache:
 
@@ -84,7 +84,7 @@ The queue supports **both** Figma transports and writes the same cache:
    → `figma_auth_required` with the URL. Remote host: SSH-forward the callback
    port or use `hq figma auth --paste`.
 
-Management commands (planned): `hq figma auth`, `hq figma status`,
+Management commands: `hq figma auth`, `hq figma status`,
 `hq figma logout`, `hq design sync [--transport mcp|rest]`.
 
 ```bash

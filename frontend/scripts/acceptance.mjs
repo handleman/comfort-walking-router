@@ -34,6 +34,7 @@ const viewFacts = {}
 const checkResults = []
 const selftest = []
 const layoutFacts = {}
+let designFacts = {}
 
 const browser = await chromium.launch({
   headless: true,
@@ -577,7 +578,7 @@ try {
     await runCheck(check)
   }
 
-  const designFacts = await collectDesignFacts()
+  designFacts = await collectDesignFacts()
 
   if (plan.selftest) {
     for (const check of checks) {

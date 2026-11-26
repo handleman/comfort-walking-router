@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-26 (design lane wired into acceptance)
+- **Design-aware acceptance (v0.6.3).** The runner collects computed CSS variables, region rects and per-view screenshots for any spec with `design.toml`; the harness reports `design_token`/`design_region`/`design_screenshot` failures in `acceptance.md` and fails the verdict. `hq design verify` runs the same evaluator. The app has no `design.toml` yet, so the strict pass is unchanged and green.
+- The MCP read-tool cache is kept under `designs/<key>/mcp/`; `hq figma status` reports `configured:false` when there is no design block. Factory 940 tests, ruff + audit clean; app pinned **v0.6.3**.
 ## 2026-11-26 (Figma lane implemented)
 - **MCP + first-run OAuth in the harness (v0.6.2).** `hq figma auth|status|logout` uses the remote Figma MCP server (discovery, DCR, PKCE, loopback callback); with no token a run/preflight prints the URL, waits for the browser redirect, stores the token 0600 and continues. Headless runs fail typed with `figma_auth_required` + the URL.
 - **`hq design sync|check|brief|verify`** — MCP (read-only tool allowlist, budget, per-node cache) or REST (`FIGMA_TOKEN`) into one atomic `designs/<key>/` cache (IR, brief, renders, tokens, lock). `transport: auto|mcp|rest`.
