@@ -1,6 +1,6 @@
 # 004-weather-sun — Acceptance
 
-Generated: 2026-11-26T13:34:32Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 4 n/a)
+Generated: 2026-11-26T13:41:37Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 4 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
@@ -9,6 +9,12 @@ Generated: 2026-11-26T13:34:32Z · Verdict: **PASS** (0 failed · 1 passed · 0 
 | AC-3 | PASS | probe | found 1 element(s) |
 | AC-4 | N/A | declared | cache/TTL is backend behaviour |
 | AC-5 | N/A | declared | pytest/ruff/mypy gates |
+
+## Oracle self-test
+
+| AC | Kind | Verdict | Detail |
+| --- | --- | --- | --- |
+| AC-3 | exists | OK | not found (after removing 1 node(s)) |
 
 ## Global checks
 
