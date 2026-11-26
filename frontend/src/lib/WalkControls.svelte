@@ -30,6 +30,8 @@
   <button
     type="button"
     class="walk-stop"
+    data-testid="stop-walk"
+    aria-label="Stop walk mode"
     on:click={() => stop()}
     disabled={!$walkMode.active && !$walkMode.arrived}
   >
