@@ -1,6 +1,6 @@
 # 014-walk-guidance-ux — Acceptance
 
-Generated: 2026-11-26T13:26:21Z · Verdict: **FAIL** (1 failed · 2 passed · 0 unverified · 6 n/a)
+Generated: 2026-11-26T13:30:44Z · Verdict: **FAIL** (1 failed · 2 passed · 0 unverified · 6 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
