@@ -3,7 +3,7 @@
 
 .PHONY: dev dev-setup dev-setup-python dev-backend dev-frontend test lint typecheck e2e \
 	swarm-run swarm-dash swarm-up swarm-test swarm-local swarm-up-local \
-	swarm-stop swarm-approve swarm-preflight \
+	swarm-stop swarm-approve swarm-preflight provider-audit \
 	swarm-supervise swarm-report swarm-log swarm-night swarm-record \
 	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live swarm-parallel \
 	swarm-replay swarm-replay-off swarm-replay-one swarm-replay-paid \
@@ -157,6 +157,9 @@ corridor-check: ## Live Overpass corridor probe (three mirrors; non-zero if none
 
 swarm-health: ## Run the app + e2e suites; non-zero if the test stand is broken
 	harness/.venv/bin/python -m swarm.drivers.health
+
+provider-audit: ## Key-free reachability probe across every supported provider
+	harness/.venv/bin/python -m swarm.provider_audit
 
 swarm-preflight: ## Validate models/keys/Ollama/venvs/gates before a run
 	harness/.venv/bin/python -m swarm.preflight
