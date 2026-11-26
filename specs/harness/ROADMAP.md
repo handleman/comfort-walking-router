@@ -74,6 +74,12 @@ the zero-size check counted controls hidden by an ancestor. The criteria parser
 now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/0
 (they remain **unverified** until each gets an `acceptance.toml`).
 
+- `[x]` **054 T6 test-first UI** — the fix and senior prompts carry QA's suite
+  tail (failing spec + error), and the self-heal's repair crew gets the digest;
+  success is the recorded suite passing at the delta.
+- `[x]` **054 T8 no-regression** — 855 swarm / 197 app tests, ruff + mypy green.
+
+**054 is complete.**
 - `[x]` **054 T3 oracle self-test** — `swarm-accept --selftest` mutates each
   check's target and requires the check to fail (040: every mutatable check OK;
   absent/count=0 reported UNSUPPORTED, not silently green); uncovered ACs are a

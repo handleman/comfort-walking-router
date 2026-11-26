@@ -69,7 +69,7 @@ Make every signal the harness trusts *earned*:
 - [x] **AC-5 (factory audit).** `make factory-audit` (or the 048 checklist) fails
   on tracked caches/binaries, a missing `.gitignore`/`.dockerignore`/LICENSE, a
   `.env`, or a blob > 1 MB, and runs before any push.
-- [ ] **AC-6 (test-first UI).** When a task's failing evidence is a named spec,
+- [x] **AC-6 (test-first UI).** When a task's failing evidence is a named spec,
   the fix crew receives that spec (or its failure tail) as the oracle and its
   success is that spec passing at the current delta.
 - [x] **AC-7 (core/driver split).** Factory tests are marked core vs driver;

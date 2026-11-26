@@ -128,3 +128,25 @@ def test_a_harness_run_clears_the_unsupported_flag(tmp_path, monkeypatch):
     stub._e2e_self_heal = types.MethodType(flow.SwarmFlow._e2e_self_heal, stub)
     assert stub._e2e_self_heal() is True
     assert stub.state.review_unsupported is False
+
+
+# ---- AC-6: the fix crew gets the failing spec and its tail -----------------
+
+
+def test_the_fix_prompt_carries_the_failing_spec_and_tail():
+    from swarm import prompts
+    from swarm.spec_loader import SpecTask
+
+    task = SpecTask(
+        id="T6", ac_refs=("AC-7",), brief="Migrate `frontend/e2e/walk-mode.spec.ts`."
+    )
+    review = (
+        '  ✘ 1 [chromium] › e2e/walk-mode.spec.ts:17:1 › marker\n'
+        '    Error: locator.click: Timeout 5000ms exceeded.'
+    )
+    out = prompts.fix_prompt(task, "040-x", "npm test:e2e exit=1", review)
+    assert "e2e/walk-mode.spec.ts:17:1" in out
+    assert "locator.click" in out
+    # ... and the same evidence goes to the senior escalation, not just the first round
+    senior = prompts.senior_prompt(task, "040-x", "npm test:e2e exit=1", review)
+    assert "locator.click" in senior
