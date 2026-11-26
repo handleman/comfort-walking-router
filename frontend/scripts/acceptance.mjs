@@ -215,7 +215,7 @@ async function evaluateView(name, width, height) {
 }
 
 async function runOne(check, viewName) {
-  const { kind, selector, expect, value } = check
+  const { kind, selector, expect, value, origin } = check
   const view = views.find((v) => v.name === viewName)
   if (!view) return null
   await page.setViewportSize({ width: view.width, height: view.height })
@@ -288,18 +288,37 @@ async function runOne(check, viewName) {
         // flow as the e2e helper (fill, pick the first option), then wait for
         // the request. The old fill-and-wait check could never pass.
         const ORIGIN = "input[placeholder='e.g. Marienplatz, Munich']"
+        const originText = origin || 'Marienplatz, Munich'
         const pick = async (input, text) => {
           await page.fill(input, text)
-          const option = page.locator('[role="option"]').first()
+          // Scope to this input's combobox and wait for an option that matches
+          // the typed text: the other input's list can still be on screen for
+          // the debounce interval and would otherwise be clicked instead.
+          const option = page
+            .locator('.search-combobox', { has: page.locator(input) })
+            .locator('[role="option"]', { hasText: text })
+            .first()
           await option.waitFor({ state: 'visible', timeout: 8000 })
           await option.click()
           await page.waitForTimeout(300)
         }
         // Let the first geolocation fix pre-fill the origin, then overwrite it.
         await page.waitForTimeout(500)
-        await pick(ORIGIN, 'Marienplatz, Munich')
+        // A geolocation fix already counts as a selected origin; overwrite an
+        // editable input only when it is rendered.
+        if (await page.locator(ORIGIN).count()) {
+          await pick(ORIGIN, originText)
+          // Overwriting an origin that already has a destination makes the app
+          // plan against the old pair; let that settle so the assertion below
+          // is about the destination pick that follows.
+          await page.waitForTimeout(1000)
+        }
+        routeRequests = 0
         await pick(selector, value)
-        await page.waitForTimeout(1500)
+        const deadline = Date.now() + 8000
+        while (routeRequests === 0 && Date.now() < deadline) {
+          await page.waitForTimeout(100)
+        }
         ok = routeRequests > 0
         detail = ok ? '/route request fired' : 'no /route request'
         break
@@ -385,7 +404,16 @@ try {
     await evaluateView(view.name, view.width, view.height)
   }
 
+  // Each spec starts on a fresh page: interaction checks (007 starts a walk,
+  // which replaces the top search card) must not leak into the next spec.
+  // Checks within one spec stay sequential because later checks may read the
+  // state an earlier one produced (route summary, live walk controls).
+  let currentSpec = null
   for (const check of checks) {
+    if (check.spec !== currentSpec) {
+      await go(baseUrl)
+      currentSpec = check.spec
+    }
     await runCheck(check)
   }
 

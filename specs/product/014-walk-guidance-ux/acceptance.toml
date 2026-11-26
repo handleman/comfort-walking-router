@@ -16,8 +16,10 @@ viewport = "desktop"
 ac = "AC-5"
 kind = "route_request"
 selector = "input[placeholder='e.g. Englischer Garten']"
-value = "Englischer Garten"
+value = "Marienplatz, Munich"
+origin = "Englischer Garten"
 viewport = "desktop"
+note = "A distinct pair, so the app's same-pair guard does not suppress the request"
 
 [[not_applicable]]
 ac = "AC-1"

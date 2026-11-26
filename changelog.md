@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-26 (acceptance isolation, v0.4.9)
+- **Acceptance checks no longer leak state.** The runner reloads at each spec boundary: 007's walk-start probe left the app in walk mode, hiding the top search card and failing 014/028/040. Checks inside a spec stay sequential (route summary, live controls).
+- **`route_request` is honest.** The `/route` counter resets per check, the origin may be declared in `acceptance.toml` (`origin = ...`), and 014 AC-5 now proves a distinct pair. 028 AC-2 became N/A: the corridor fetch count is a backend assertion the DOM cannot observe.
+- **042 queue soak green.** 040 T26 (Stop `aria-label` + testid) and T27 (Auto-center label) went through coder → gates → verifier → acceptance → merge. The soak also found `swarm-supervise` still hard-coding `swarm/run.sh` (fixed in v0.4.8) and the stale task-brief path.
 ## 2026-11-26 (interaction acceptance + soak)
 - **Acceptance interaction checks.** `acceptance.toml` gained `click`/`wait_for`; 007 now plans a route, starts a walk and waits for the live Stop button (1 passed, 7 declared N/A).
 - **Queue soak.** Two accessibility tasks (T26 Stop aria-label + testid, T27 Auto-center label) exercise the full loop unattended — coder, QA gates, verifier, acceptance hook, merge.

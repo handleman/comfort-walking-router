@@ -10,13 +10,6 @@ value = "Englischer Garten"
 viewport = "desktop"
 note = "POST /route returns a comfort profile for a planned route"
 
-[[check]]
-ac = "AC-2"
-kind = "route_request"
-selector = "input[placeholder='e.g. Englischer Garten']"
-value = "Englischer Garten"
-viewport = "mobile"
-note = "The same route works at mobile size (no extra corridor call is observable in the DOM)"
 
 [[check]]
 ac = "AC-4"
@@ -39,6 +32,10 @@ kind = "exists"
 selector = "[data-testid='comfort-legend']"
 viewport = "desktop"
 note = "Comfort legend is rendered and addressable"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "the corridor fetch count / cache hit is a backend assertion (tests/test_route_comfort.py); the DOM cannot observe it"
 
 [[not_applicable]]
 ac = "AC-3"
