@@ -66,7 +66,7 @@ Make every signal the harness trusts *earned*:
 - [ ] **AC-4 (reconcile fix tasks).** Before a task tagged `acceptance` runs, its
   AC is re-evaluated; a now-passing AC closes the task with the verdict instead of
   spending a round.
-- [ ] **AC-5 (factory audit).** `make factory-audit` (or the 048 checklist) fails
+- [x] **AC-5 (factory audit).** `make factory-audit` (or the 048 checklist) fails
   on tracked caches/binaries, a missing `.gitignore`/`.dockerignore`/LICENSE, a
   `.env`, or a blob > 1 MB, and runs before any push.
 - [ ] **AC-6 (test-first UI).** When a task's failing evidence is a named spec,
