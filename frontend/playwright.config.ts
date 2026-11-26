@@ -4,6 +4,10 @@ const baseURL = process.env.BASE_URL || 'http://localhost:5173'
 
 export default defineConfig({
   testDir: './e2e',
+  // 054 AC-1: build before any suite run (see e2e/global-setup.ts). The preview
+  // server serves dist/, so without this a raw `npx playwright test` can test
+  // the previous build and report a false pass/fail.
+  globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: true,

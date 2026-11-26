@@ -52,7 +52,7 @@ Make every signal the harness trusts *earned*:
 
 ## Acceptance criteria
 
-- [ ] **AC-1 (fresh build).** Every path that runs the suite builds first: the
+- [x] **AC-1 (fresh build).** Every path that runs the suite builds first: the
   `test:e2e` script (or the preview webServer) cannot serve a stale `dist/`, and
   the e2e record carries the build time/hash. A test edits a component, runs the
   suite without an explicit build, and sees the change.

@@ -74,6 +74,10 @@ the zero-size check counted controls hidden by an ancestor. The criteria parser
 now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/0
 (they remain **unverified** until each gets an `acceptance.toml`).
 
+- `[x]` **054 T1 fresh build** — `frontend/e2e/global-setup.ts` builds before any
+  suite run (`npx playwright test`, the npm script, `swarm.e2e`); the stale
+  `dist/` signal is gone (`da142e0`-era doc, code this change).
+
 ## Open follow-ups
 
 - `[ ]` **042 T3/T4** visual phase integration — `_visual_phase` is a stub.
