@@ -1,0 +1,14 @@
+# 008 AC-1: live-only. The hermetic stand forces ROUTE_FIXTURES=1; this plan
+# serves the same build against the real provider with the operator's token.
+# Run with `make accept-live` (never part of the strict gate).
+[target]
+kind = "local"
+
+[[check]]
+ac = "AC-1"
+kind = "live_route"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+origin = "Marienplatz, Munich"
+viewport = "desktop"
+note = "POST /route answers from Mapbox with distance/time; the route renders"

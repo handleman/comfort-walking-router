@@ -14,3 +14,4 @@
 
 <!-- Human gate, not queued (no code change): one real-GPS smoke off-CI plus a manual sim-walk
      demo; then run `npm run check` + `npm test` + `make test`/`lint`/`typecheck` and tick 007 AC-8. -->
+- [ ] T9 (AC-3): **Show the GPS-denied state.** `GpsProvider` exposes `permissionDeniedMessage` and falls back to the simulated walk, but no component renders it, so AC-3's "shows message + offers simulated mode" is only half-true. Render the message in `frontend/src/lib/WalkControls.svelte` (e.g. "Location denied — simulating the walk") and keep the `e2e/geolocation.spec.ts` scenarios green. Verify: `npm --prefix frontend run check`, `npm --prefix frontend run lint`, `npm --prefix frontend test -- --run`.

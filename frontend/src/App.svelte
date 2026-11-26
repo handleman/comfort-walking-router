@@ -166,6 +166,11 @@
           end,
           start_coords: startCoords,
           end_coords: endCoords,
+          // 004 AC-3: a saved preference is the manual override. Omit it when
+          // unset so the backend's weather auto-rule still decides.
+          ...(prefs?.default_preference ? { preference: prefs.default_preference } : {}),
+          prefer_lit: prefs?.prefer_lit ?? false,
+          avoid_traffic: prefs?.avoid_traffic ?? false,
         }),
       })
       if (!response.ok) {

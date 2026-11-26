@@ -60,6 +60,7 @@ make swarm-test    # harness install check (hq --version + preflight)
 make e2e           # browser suite (build + fixture backend + playwright)
 make swarm-health   # app tests + e2e; non-zero when the stand is broken
 make swarm-accept   # spec acceptance pass (ARGS="--selftest --strict")
+make accept-live    # live-only ACs: real Mapbox, Postgres, the Render deployment
 
 cd frontend && npm run check && npm run build
 ```
@@ -78,7 +79,7 @@ The app venv (`.venv`) and the harness venv (`harness/.venv`) are separate; do n
 
 | Command | Proves |
 | --- | --- |
-| `make test` | 214 app pytest (route contract, comfort scoring, saved-routes DB paths). |
+| `make test` | 218 app pytest (route contract, comfort scoring, saved-routes DB paths). |
 | `make lint` | `ruff check .` — style + enabled static rules. |
 | `make typecheck` | `mypy app tests` — backend type safety. |
 | `make swarm-test` | 724 harness unit tests (queue, guards, prompts, ledger). |
@@ -108,6 +109,37 @@ results are cached in SQLite for 5 minutes to stay well inside provider rate lim
 OpenStreetMap" plus any listed data providers. Photon/OSM results: "© OpenStreetMap contributors",
 with Photon/Komoot credited as the geocoder. If you display a map alongside suggestions, keep the
 map's own attribution control intact (Leaflet's, plus Mapbox's when a Mapbox token is used).
+
+### Live-only acceptance
+
+The strict pass is hermetic (`ROUTE_FIXTURES=1`, no database), so a few ACs are
+declared `live-only` in `acceptance.toml` instead of being faked there:
+
+| Spec | AC | Needs |
+| --- | --- | --- |
+| 008 mapbox-routing | AC-1 | real Mapbox (the `.env` token) |
+| 004 weather-sun | AC-3 | manual prefs persist (Postgres) |
+| 005 saved-routes | AC-1 | save/recall/delete (Postgres) |
+| 035 free-deployment | AC-1/AC-2 | https://comfort-walking-router.onrender.com/ |
+
+Each declares a `live.toml`; `make accept-live` serves the same build with
+fixtures **off** and drives it, writes `acceptance-live.md` next to
+`acceptance.md`, and skips (not fails) the database specs when Postgres is down
+(`make swarm-db-up` first). It is opt-in because it is network/quota dependent;
+the strict gate stays deterministic.
+
+### Design from Figma
+
+The Figma design is being prepared. Two lanes are documented in
+[docs/figma.md](docs/figma.md):
+
+- **Operator (OpenCode):** the remote Figma MCP server in `opencode.json`
+  (`https://mcp.figma.com/mcp`, OAuth via `/mcps`) plus the
+  `figma-implement` skill.
+- **Queue (harness):** a committed design cache fetched by `hq design sync`
+  (factory spec 057), with deterministic token/region/screenshot checks. The
+  draft product spec is `specs/product/041-figma-redesign/` (do not queue until
+  the file link and frames are filled).
 
 ## CrewAI swarm (learning goal 2)
 

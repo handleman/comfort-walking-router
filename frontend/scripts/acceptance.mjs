@@ -77,6 +77,26 @@ async function go(url) {
   await page.waitForTimeout(500)
 }
 
+/** Fill a combobox and click the suggestion that matches the typed text. */
+async function pickSuggestion(input, text) {
+  await page.fill(input, text)
+  // Match the first word, not the whole typed string: live geocoders insert
+  // a postal code ("Marienplatz, 80331 Munich, Germany"), while fixtures echo
+  // the query exactly. Scoping to this input's combobox avoids the other
+  // input's list; the hint avoids a stale list from this input's last query.
+  const hint =
+    String(text)
+      .split(/[,\s]+/)
+      .filter(Boolean)[0] || String(text)
+  const option = page
+    .locator('.search-combobox', { has: page.locator(input) })
+    .locator('[role="option"]', { hasText: hint })
+    .first()
+  await option.waitFor({ state: 'visible', timeout: 8000 })
+  await option.click()
+  await page.waitForTimeout(300)
+}
+
 async function evaluateView(name, width, height) {
   await page.setViewportSize({ width, height })
   await page.waitForTimeout(300)
@@ -220,6 +240,10 @@ async function runOne(check, viewName) {
   if (!view) return null
   await page.setViewportSize({ width: view.width, height: view.height })
   await page.waitForTimeout(200)
+  if (check.url) {
+    await page.goto(check.url, { waitUntil: 'networkidle', timeout: 90000 })
+    await page.waitForTimeout(500)
+  }
 
   let ok = false
   let detail = ''
@@ -274,6 +298,93 @@ async function runOne(check, viewName) {
         detail = 'visible'
         break
       }
+      case 'select': {
+        await page.selectOption(selector, String(value))
+        ok = true
+        detail = `selected ${value}`
+        break
+      }
+      case 'no_match': {
+        const needle = String(value)
+        const found = await page.evaluate((n) => {
+          const html = document.documentElement.outerHTML
+          const resources = performance.getEntriesByType('resource').map((entry) => entry.name)
+          return html.includes(n) || resources.some((url) => url.includes(n))
+        }, needle)
+        ok = !found
+        detail = ok ? `"${needle}" absent` : `"${needle}" present`
+        break
+      }
+      case 'location_denied': {
+        await context.clearPermissions()
+        try {
+          await go(check.url || baseUrl)
+          await page.waitForTimeout(1500)
+          const dialog = page.locator("[role='dialog'][aria-label='Choose start location']")
+          ok = (await dialog.count()) > 0
+          detail = ok
+            ? 'start-location dialog shown on denied geolocation'
+            : 'no dialog after denying geolocation'
+        } finally {
+          await context.grantPermissions(['geolocation'])
+          await go(check.url || baseUrl)
+        }
+        break
+      }
+      case 'geo_step': {
+        const markerStyle = () =>
+          page.locator(selector).evaluate((el) => el.getAttribute('style') || '')
+        const before = await markerStyle()
+        const [dlat, dlng] = String(value || '0.001,0.001')
+          .split(',')
+          .map(Number)
+        await context.setGeolocation({
+          latitude: 48.137 + dlat,
+          longitude: 11.575 + dlng,
+          accuracy: 10,
+        })
+        await page.waitForTimeout(1500)
+        const after = await markerStyle()
+        ok = before !== after
+        detail = ok
+          ? 'marker moved after a new geolocation fix'
+          : 'marker style unchanged after a fix'
+        break
+      }
+      case 'live_route': {
+        // Live lane: the real provider answers with distance/time. Waits for
+        // the response (a live OSM corridor can take tens of seconds).
+        const ORIGIN = "input[placeholder='e.g. Marienplatz, Munich']"
+        const originText = origin || 'Marienplatz, Munich'
+        await page.waitForTimeout(500)
+        if (await page.locator(ORIGIN).count()) {
+          await pickSuggestion(ORIGIN, originText)
+          await page.waitForTimeout(1000)
+        }
+        // Attach a catch immediately: if the pick below fails, the pending
+        // promise must not reject unhandled when the browser closes.
+        const pending = page
+          .waitForResponse(
+            (res) => res.url().includes('/route') && res.request().method() === 'POST',
+            { timeout: 180000 },
+          )
+          .catch(() => null)
+        await pickSuggestion(selector, value)
+        const response = await pending
+        if (!response) {
+          ok = false
+          detail = 'no /route response (the destination suggestion was not selected)'
+          break
+        }
+        const body = await response.json().catch(() => null)
+        ok = Boolean(
+          response.ok() && body && Number(body.distance_m) > 0 && Number(body.duration_s) > 0,
+        )
+        detail = ok
+          ? `${Math.round(body.distance_m)} m / ${Math.round(body.duration_s)} s`
+          : `${response.status()} ${JSON.stringify(body).slice(0, 140)}`
+        break
+      }
       case 'console_errors': {
         const limit = Number(expect ?? 0)
         ok = consoleErrors.length <= limit
@@ -289,32 +400,19 @@ async function runOne(check, viewName) {
         // the request. The old fill-and-wait check could never pass.
         const ORIGIN = "input[placeholder='e.g. Marienplatz, Munich']"
         const originText = origin || 'Marienplatz, Munich'
-        const pick = async (input, text) => {
-          await page.fill(input, text)
-          // Scope to this input's combobox and wait for an option that matches
-          // the typed text: the other input's list can still be on screen for
-          // the debounce interval and would otherwise be clicked instead.
-          const option = page
-            .locator('.search-combobox', { has: page.locator(input) })
-            .locator('[role="option"]', { hasText: text })
-            .first()
-          await option.waitFor({ state: 'visible', timeout: 8000 })
-          await option.click()
-          await page.waitForTimeout(300)
-        }
         // Let the first geolocation fix pre-fill the origin, then overwrite it.
         await page.waitForTimeout(500)
         // A geolocation fix already counts as a selected origin; overwrite an
         // editable input only when it is rendered.
         if (await page.locator(ORIGIN).count()) {
-          await pick(ORIGIN, originText)
+          await pickSuggestion(ORIGIN, originText)
           // Overwriting an origin that already has a destination makes the app
           // plan against the old pair; let that settle so the assertion below
           // is about the destination pick that follows.
           await page.waitForTimeout(1000)
         }
         routeRequests = 0
-        await pick(selector, value)
+        await pickSuggestion(selector, value)
         const deadline = Date.now() + 8000
         while (routeRequests === 0 && Date.now() < deadline) {
           await page.waitForTimeout(100)
@@ -355,8 +453,14 @@ async function runCheck(check) {
 async function runSelftest(check) {
   const { spec, ac, kind, selector, expect } = check
   const verdict = { spec, ac, kind, selector, verdict: 'unsupported', detail: '' }
-  if (kind === 'wait_for') {
-    verdict.detail = 'interaction check; mutation would only time out'
+  if (
+    kind === 'wait_for' ||
+    kind === 'no_match' ||
+    kind === 'live_route' ||
+    kind === 'location_denied' ||
+    kind === 'geo_step'
+  ) {
+    verdict.detail = 'no reversible mutation'
     return verdict
   }
   if (kind === 'absent' || (kind === 'count' && Number(expect) === 0)) {

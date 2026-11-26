@@ -41,6 +41,11 @@ The **harness** that builds it is the published
   first; one task maps to one AC.
 - **Visual-check UI in the built-in browser.** A map can render no tiles while
   tests pass; check desktop and mobile sizes and look at the screenshot.
+- **Live-only ACs.** The strict pass is hermetic (`ROUTE_FIXTURES=1`, no DB);
+  ACs that need the real Mapbox provider, Postgres, or the Render deployment
+  declare `live.toml` and are checked by `make accept-live` (writes
+  `acceptance-live.md`; DB specs skip when Postgres is down). Never fake them in
+  the strict stand.
 - **Final greenlight.** `make swarm-accept` (043) checks every built product spec
   in a real browser against its ACs (desktop + mobile). Failures append `T<n>` fix
   tasks back to `tasks.md` and exit non-zero; `--selftest` also proves the oracle
@@ -70,6 +75,8 @@ The **harness** that builds it is the published
   [run guards](https://github.com/handleman/handleman-hq/blob/main/docs/run-guards.md),
   [lessons](https://github.com/handleman/handleman-hq/blob/main/docs/lessons.md).
 - **Commands & boundaries:** [docs/reference.md](docs/reference.md).
+- **Figma:** [docs/figma.md](docs/figma.md) — OpenCode MCP lane (operator) and the
+  cached design lane for the queue (factory spec 057).
 - **Runbooks:** [docs/runbooks/](docs/runbooks/) — local-postgres, e2e-suite,
   verification, deploy, overnight-runs.
 - **This repo's harness history:** [specs/harness/ROADMAP.md](specs/harness/ROADMAP.md)

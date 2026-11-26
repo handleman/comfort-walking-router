@@ -1,11 +1,11 @@
-# 035 is the deployment contract; a local acceptance stand cannot verify Render.
+# 035 is the deployment contract; the strict stand is local.
 [[not_applicable]]
 ac = "AC-1"
-note = "needs the public Render URL"
+note = "live-only: `make accept-live` drives https://comfort-walking-router.onrender.com/ (live.toml, acceptance-live.md)"
 
 [[not_applicable]]
 ac = "AC-2"
-note = "needs the public deployment"
+note = "live-only: `make accept-live` plans a route on the public deployment (live.toml, acceptance-live.md)"
 
 [[not_applicable]]
 ac = "AC-3"

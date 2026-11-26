@@ -1,7 +1,7 @@
-# 008 requires the Mapbox provider; the acceptance stand uses fixtures.
+# 008 requires the Mapbox provider; the strict stand uses fixtures.
 [[not_applicable]]
 ac = "AC-1"
-note = "needs a real Mapbox token (fixtures backend here)"
+note = "live-only: fixtures stand here; `make accept-live` calls the real Mapbox provider (live.toml, acceptance-live.md)"
 
 [[not_applicable]]
 ac = "AC-2"

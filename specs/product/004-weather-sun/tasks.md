@@ -5,3 +5,4 @@
 - [x] T3 (AC-4): Weather cache in `app/weather_cache.py` (SQLite, ~30 min TTL, keyed by rounded midpoint) with tests in `tests/test_weather_cache.py`.
 - [x] T4 (AC-1, AC-4): Wire weather + auto-rule into `POST /route` in `app/main.py` with caller fallback on failure; add `applied_preference`, `preference_source`, `weather` to `contracts/route.json` and test in `tests/test_route_weather.py`.
 - [x] T5 (AC-3): Add the source chip (`Auto: …` / `Manual`) and manual-override toggle to `frontend/src/App.svelte`; keep `npm run check` green.
+- [x] T6 (AC-3): The prefs UI saved `default_preference`/`prefer_lit`/`avoid_traffic` but `POST /route` never sent them, so the chip could never show `Manual:`; `planRoute` now forwards them (omits an unset preference so the weather rule still decides). Verified live with the DB up (`make accept-live`).

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-26 (Figma design support)
+- **OpenCode lane:** `opencode.json` adds the remote Figma MCP server (`https://mcp.figma.com/mcp`, OAuth via `/mcps`); a `figma-implement` skill carries the frame-link → metadata → design context → tokens → screenshot → implement → verify workflow. No token is stored in the repo.
+- **Queue lane (spec):** factory spec 057 defines `hq design sync` (Figma REST → committed IR/PNG/tokens/brief/lock), offline prompts, typed stale/missing stops, and deterministic token/region/screenshot checks. Product draft: `specs/product/041-figma-redesign/` (file/frames TBD).
+- **Docs:** [docs/figma.md](docs/figma.md) covers both lanes, seats, desktop fallback and security.
 ## 2026-11-26 (acceptance isolation, v0.4.9)
 - **Acceptance checks no longer leak state.** The runner reloads at each spec boundary: 007's walk-start probe left the app in walk mode, hiding the top search card and failing 014/028/040. Checks inside a spec stay sequential (route summary, live controls).
 - **`route_request` is honest.** The `/route` counter resets per check, the origin may be declared in `acceptance.toml` (`origin = ...`), and 014 AC-5 now proves a distinct pair. 028 AC-2 became N/A: the corridor fetch count is a backend assertion the DOM cannot observe.

@@ -1,7 +1,28 @@
-# 004: the weather preference is API-side; the manual control is visible.
-[[not_applicable]]
+# 004: the summary chip renders applied_preference + preference_source; the
+# manual override needs the prefs endpoint (Postgres) and lives in live.toml.
+[[check]]
 ac = "AC-1"
-note = "applied_preference/preference_source are response fields"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+note = "plan a route so the summary/chip exists"
+
+[[check]]
+ac = "AC-1"
+kind = "text"
+selector = "section.route-summary:visible .chip"
+expect = "Auto:"
+viewport = "desktop"
+note = "preference_source=auto is rendered"
+
+[[check]]
+ac = "AC-1"
+kind = "text"
+selector = "section.route-summary:visible .chip"
+expect = "°C"
+viewport = "desktop"
+note = "the weather snapshot is rendered"
 
 [[not_applicable]]
 ac = "AC-2"

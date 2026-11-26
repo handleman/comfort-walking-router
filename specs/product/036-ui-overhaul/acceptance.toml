@@ -21,9 +21,19 @@ kind = "exists"
 selector = "[data-testid='drawer']"
 viewport = "mobile"
 
-[[not_applicable]]
+[[check]]
 ac = "AC-3"
-note = "inline location control is part of the top card (040)"
+kind = "exists"
+selector = "button[aria-label='Pick start on map']"
+viewport = "both"
+note = "use-my-location control attached to the origin row"
+
+[[check]]
+ac = "AC-3"
+kind = "exists"
+selector = "button[aria-label='Pick end on map']"
+viewport = "both"
+note = "map-pick control attached to the destination row"
 
 [[not_applicable]]
 ac = "AC-5"

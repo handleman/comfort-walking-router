@@ -1,4 +1,10 @@
-# 014: geolocation/autocomplete/map-pick. Interaction states are e2e-owned.
+# 014: geolocation/autocomplete/map-pick/walk. Movement and arrival are e2e-owned.
+[[check]]
+ac = "AC-1"
+kind = "location_denied"
+viewport = "desktop"
+note = "denied geolocation asks for the start location (StartLocationModal)"
+
 [[check]]
 ac = "AC-3"
 kind = "exists"
@@ -21,25 +27,51 @@ origin = "Englischer Garten"
 viewport = "desktop"
 note = "A distinct pair, so the app's same-pair guard does not suppress the request"
 
-[[not_applicable]]
-ac = "AC-1"
-note = "permission grant/deny needs the browser permission harness"
-
-[[not_applicable]]
+[[check]]
 ac = "AC-2"
-note = "glyph is a map divIcon, asserted by the e2e suite"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+note = "a route so Start is enabled"
 
-[[not_applicable]]
+[[check]]
+ac = "AC-2"
+kind = "click"
+selector = "[data-testid='start-walk']"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-2"
+kind = "wait_for"
+selector = ".walk-person-marker"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = ".walk-person-marker svg"
+viewport = "desktop"
+note = "the walker marker is the inlined person-walking glyph"
+
+[[check]]
 ac = "AC-6"
-note = "moving marker needs a walk session"
+kind = "geo_step"
+selector = ".walk-person-marker"
+value = "0.001,0.001"
+viewport = "desktop"
+note = "a new geolocation fix moves the marker"
+
+[[check]]
+ac = "AC-8"
+kind = "no_match"
+value = "pk."
+viewport = "desktop"
+note = "the Mapbox token is backend-only: no token prefix in the page or its resources"
 
 [[not_applicable]]
 ac = "AC-7"
-note = "arrival needs walking into the radius"
-
-[[not_applicable]]
-ac = "AC-8"
-note = "token discipline is a bundle/request assertion"
+note = "arrival needs walking into the radius; the e2e suite drives the fix sequence"
 
 [[not_applicable]]
 ac = "AC-9"

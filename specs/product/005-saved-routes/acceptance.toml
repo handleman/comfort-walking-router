@@ -1,7 +1,7 @@
 # 005: saved routes need a database and save/recall interaction.
 [[not_applicable]]
 ac = "AC-1"
-note = "needs a running Postgres and a save/recall interaction"
+note = "live-only: save/recall/delete needs Postgres; `make swarm-db-up && make accept-live` (live.toml, acceptance-live.md)"
 
 [[not_applicable]]
 ac = "AC-2"

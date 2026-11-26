@@ -7,7 +7,7 @@
 	swarm-supervise swarm-report swarm-log swarm-night swarm-record \
 	swarm-bench swarm-bench-build swarm-bench-baseline swarm-bench-live swarm-parallel \
 	swarm-replay swarm-replay-off swarm-replay-one swarm-replay-paid \
-	swarm-db-up swarm-db-down swarm-db-status swarm-db-migrate smoke-live
+	swarm-db-up swarm-db-down swarm-db-status swarm-db-migrate smoke-live accept-live
 
 PYTHON ?= $(shell command -v python3.12 || command -v python3)
 VENV ?= .venv
@@ -59,6 +59,10 @@ swarm-run: ## Pilot run (starts colima+Postgres if needed): make swarm-run [SPEC
 
 swarm-accept: ## Spec acceptance pass (final greenlight; all product specs)
 	harness/.venv/bin/python -m swarm.drivers.acceptance $(ARGS)
+
+accept-live: ## Live-only ACs: real Mapbox, local Postgres, the Render deployment
+	@test -x harness/.venv/bin/python || { echo "harness venv missing: see README"; exit 2; }
+	$(DB_ENV) harness/.venv/bin/python harness/live_acceptance.py $(ARGS)
 
 swarm-local: ## All-local pilot (Ollama Qwen for all roles, ignores cloud .env): make swarm-local [SPEC=001] [TASK=T1]
 	@eval "$$(./harness/db.sh up)"; SWARM_PLANNER_MODEL=ollama/qwen3.5:9b SWARM_REVIEWER_MODEL=ollama/qwen3.5:9b ./harness/run.sh $(SPEC) $(TASK)

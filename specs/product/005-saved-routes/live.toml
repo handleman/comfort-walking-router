@@ -1,0 +1,64 @@
+# 005 AC-1: save -> list -> recall -> delete needs the local Postgres.
+# `make accept-live` runs this only when DATABASE_URL is up.
+[target]
+kind = "local"
+requires_db = true
+
+[[check]]
+ac = "AC-1"
+kind = "live_route"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+note = "plan a route so Save route is offered"
+
+[[check]]
+ac = "AC-1"
+kind = "click"
+selector = "section.walk:visible button:has-text('Save route')"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "wait_for"
+selector = "section.saved-routes:visible .saved-list li"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "exists"
+selector = "section.saved-routes:visible .saved-name"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "click"
+selector = "section.saved-routes:visible button:has-text('Recall')"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "text"
+selector = "section.route-summary:visible"
+expect = "Marienplatz, Munich"
+viewport = "desktop"
+note = "recall restores the scored route"
+
+[[check]]
+ac = "AC-1"
+kind = "click"
+selector = "section.saved-routes:visible button:has-text('Delete')"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "wait_for"
+selector = "section.saved-routes:visible .empty"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "text"
+selector = "section.saved-routes:visible"
+expect = "No saved routes yet."
+viewport = "desktop"
