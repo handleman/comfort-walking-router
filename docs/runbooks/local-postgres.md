@@ -22,7 +22,7 @@ and `make swarm-stop` stops it.
 ## How DATABASE_URL reaches the app
 
 The app reads `DATABASE_URL` from `os.environ` at import (`app/db.py`), not from
-`.env`. The Makefile exports it: `DB_ENV := $(shell ./swarm/db.sh env)` prefixes
+`.env`. The Makefile exports it: `DB_ENV := $(shell ./harness/db.sh env)` prefixes
 `make test|e2e|swarm-run|swarm-bench-live|smoke-live` with `DATABASE_URL=…` when
 the container is running. `app/env.py` loads the repo `.env` at import (for
 `MAPBOX_TOKEN` and friends); python-dotenv never overrides an existing export,

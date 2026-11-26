@@ -1,6 +1,6 @@
 # Runbook: unattended swarm runs (overnight)
 
-**Applies to:** the CrewAI dark-factory pilot (`swarm/`), macOS host.
+**Applies to:** the CrewAI dark-factory pilot (`src/swarm/`), macOS host.
 **Goal:** let the queue run for hours without a human, without losing work to sleep, a locked screen, or a closed lid.
 
 ## TL;DR
@@ -24,7 +24,7 @@ Only system sleep is a threat. `make swarm-night` prevents it explicitly:
 
 ```make
 swarm-night:
-	caffeinate -is swarm/.venv/bin/python -m swarm.supervise
+	caffeinate -is harness/.venv/bin/python -m swarm.supervise
 ```
 
 - `-i` blocks **idle** system sleep; `-s` blocks **system** sleep while on AC power.
@@ -43,7 +43,7 @@ swarm-night:
    ```bash
    tmux new -s swarm 'make swarm-night'   # re-attach: tmux attach -t swarm
    ```
-4. **Single writer.** The harness takes `swarm/runs/.lock`. Stop any running pilot first (`make swarm-stop`); two pilots cannot share a repo.
+4. **Single writer.** The harness takes `harness/runs/.lock`. Stop any running pilot first (`make swarm-stop`); two pilots cannot share a repo.
 5. **Preflight once.** `make swarm-preflight` catches bad model ids/keys/Ollama/venvs before hours are wasted.
 
 ## Verify it is actually protected
@@ -58,13 +58,13 @@ make swarm-report    # green count, cost, stop reasons
 
 ## If it is interrupted anyway
 
-The supervisor is the safety net (`swarm/supervise.py`):
+The supervisor is the safety net (`swarm.supervise`):
 
 | Outcome | Supervisor action |
 | --- | --- |
 | `interrupted`, `crew_error`, `quota_exhausted`, `budget_exhausted`, commit/push/merge failures | restart with backoff (30 s base → 600 s cap) |
 | `config_error` (bad key/base URL/HTML response) | stop immediately — no local fix exists |
-| task exhausted `SWARM_SUPERVISE_ATTEMPTS` (3) | park in `swarm/runs/retry_later.json`, continue with the next runnable task |
+| task exhausted `SWARM_SUPERVISE_ATTEMPTS` (3) | park in `harness/runs/retry_later.json`, continue with the next runnable task |
 
 Resume is cheap by design: completed micro-steps are not re-executed, and a drifted
 checkpoint redoes only its last step (015 AC-7).
@@ -72,7 +72,7 @@ checkpoint redoes only its last step (015 AC-7).
 Where to look after a wake:
 
 ```bash
-cat swarm/runs/latest            # newest run id
+cat harness/runs/latest            # newest run id
 make swarm-dash                  # live; press h for the human log
 make swarm-report                # p50/p90, cost per green, stop reasons
 ```

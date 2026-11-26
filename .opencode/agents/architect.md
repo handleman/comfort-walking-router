@@ -50,7 +50,7 @@ When you run as a subagent you cannot interview the user directly. Put each roun
 ## Repo rules (from AGENTS.md)
 
 - Specs are the source of truth: `spec.md` → `plan.md` → `tasks.md`.
-- Route by target. Product behaviour (`app/`, `frontend/`) goes to `specs/product/NNN-name/`. Harness machinery (`swarm/`, the harness, its constraints) goes to `specs/harness/NNN-name/` and is never queued.
+- Route by target. Product behaviour (`app/`, `frontend/`) goes to `specs/product/NNN-name/`. Harness machinery (`src/swarm/`, the harness, its constraints) goes to `specs/harness/NNN-name/` and is never queued.
 - For harness work, follow the agreed order in `specs/harness/ROADMAP.md` and update its status boxes as decisions land.
 - Keep specs small and verifiable. One task maps to one AC.
 - Never invent commands or config — verify against manifests and scripts.
@@ -65,6 +65,6 @@ When you run as a subagent you cannot interview the user directly. Put each roun
 
 ## Boundaries
 
-- Edit only `specs/**`, `docs/**`, `GLOSSARY.md` and `GLOSSARY-MAP.md`. Do not touch `app/`, `frontend/`, `swarm/`, `tests/`, configuration, or any code.
+- Edit only `specs/**`, `docs/**`, `GLOSSARY.md` and `GLOSSARY-MAP.md`. Do not touch `app/`, `frontend/`, `src/swarm/`, `tests/`, configuration, or any code.
 - No shell and no nested subagents. Ask the parent or the user to run commands and tests.
 - Finish with a short summary of files changed, decisions made, and open questions.

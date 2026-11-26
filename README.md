@@ -3,7 +3,7 @@
 Greenfield learning repo. Two goals, one product:
 
 1. **Spec-driven development** — spec → plan → tasks → implement, small verifiable slices.
-2. **Swarming agents / agentic autonomous loops with CrewAI** — a measured, cloud-first swarm (local Ollama as an opt-in offline mode) that implements the specs task-by-task (`specs/009-swarm-harness/`, `swarm/docs/`).
+2. **Swarming agents / agentic autonomous loops** — the published [**handleman-hq**](https://github.com/handleman/handleman-hq) harness (CrewAI, provider-agnostic, local Ollama supported) implements the specs task-by-task. This repo consumes the package; it no longer vendors it.
 
 Product under both loops: comfort-first walking router ("Google Maps for walks") — start/end → comfort-scored route + why-explanation (shade + sun + quiet from OSM).
 
@@ -13,7 +13,7 @@ Product under both loops: comfort-first walking router ("Google Maps for walks")
 - Order of work: `docs/roadmap.md`
 - Rules: `.specify/memory/constitution.md`, `AGENTS.md`
 - Decisions: `docs/architecture/` (ADRs 001–013)
-- Harness docs: `swarm/README.md` (intro + run commands + index) → `swarm/docs/*.md`
+- Harness: [`handleman-hq`](https://github.com/handleman/handleman-hq) — installed in `harness/.venv`, configured by `swarm.yaml`
 
 ## Specs
 | Spec | State | What |
@@ -39,7 +39,7 @@ Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 1. Read `docs/mission.md` → `docs/roadmap.md` → the spec you care about.
 2. Secrets: copy `.env.example` → `.env` (gitignored, ADR-006). Never commit keys.
 3. App: `make dev` → UI at http://localhost:5173, API docs at http://localhost:8000/docs. First run creates `.venv` and installs frontend deps; `make dev-setup` pre-installs only.
-4. Swarm: `make swarm-up` (pilot in background + dashboard attached), `make swarm-dash` (attach to current pilot), `make swarm-test` (unit tests). Pilot writes `swarm/runs/<ts>-<pid>-<rand>/run.json`. Full usage: `swarm/README.md`.
+4. Harness: `make swarm-up` (pilot in background + dashboard attached), `make swarm-dash` (attach), `make swarm-test` (install check: `hq --version` + `preflight`), `make swarm-health` (app tests + e2e). Runs land in `harness/runs/<ts>-<pid>-<rand>/run.json`. Docs: [`handleman-hq`](https://github.com/handleman/handleman-hq#readme).
 
 ## Development commands
 
@@ -56,8 +56,10 @@ Each spec: `spec.md` → `plan.md` → `tasks.md` (`contracts/` when needed).
 make test          # app pytest (tests/)
 make lint          # ruff check .
 make typecheck     # mypy app tests
-make swarm-test    # harness pytest (swarm/.venv)
+make swarm-test    # harness install check (hq --version + preflight)
 make e2e           # browser suite (build + fixture backend + playwright)
+make swarm-health   # app tests + e2e; non-zero when the stand is broken
+make swarm-accept   # spec acceptance pass (ARGS="--selftest --strict")
 
 cd frontend && npm run check && npm run build
 ```
@@ -70,7 +72,7 @@ Single app test:
 
 Last verified 2026-11-16: **214 app tests + 724 harness tests** pass, ruff/mypy clean, Vite build OK, `make e2e` **12 passed** (fixture backend + `vite preview`).
 
-The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not mix them.
+The app venv (`.venv`) and the harness venv (`harness/.venv`) are separate; do not mix them. The harness is a dependency (`handleman-hq`), not a second copy of the source.
 
 ## Verification
 
@@ -85,7 +87,7 @@ The app venv (`.venv`) and the swarm venv (`swarm/.venv`) are separate; do not m
 | `make swarm-preflight` | models/keys/venvs/gates usable before the first LLM call. |
 
 Runbooks: [local-postgres](docs/runbooks/local-postgres.md), [e2e-suite](docs/runbooks/e2e-suite.md),
-[verification](docs/runbooks/verification.md), [deploy](docs/runbooks/deploy.md). Harness internals: [`swarm/docs/`](swarm/docs/).
+[verification](docs/runbooks/verification.md), [deploy](docs/runbooks/deploy.md). Harness internals: [handleman-hq docs](https://github.com/handleman/handleman-hq/tree/main/docs).
 
 **Live deployment:** https://comfort-walking-router.onrender.com/ (Render free tier, auto-redeploys on every commit to `main`).
 
@@ -111,7 +113,7 @@ map's own attribution control intact (Leaflet's, plus Mapbox's when a Mapbox tok
 
 A measured, cloud-first swarm that implements unchecked `specs/*/tasks.md` tasks one
 at a time. Each phase is a small CrewAI crew with its own model role; a Flow
-(`swarm/flow.py`) sequences them and owns what a model must not decide — retries,
+(the harness flow) sequences them and owns what a model must not decide — retries,
 scope, green, commit. **Green is QA's gate evidence** (exit codes recorded in the
 run's `shell_log.jsonl`), never a model's prose; the verifier, self-check and
 correction crews run under their own roles so their work can never count as gate
@@ -126,27 +128,29 @@ make swarm-test      # harness unit tests (no LLM, no network)
 make swarm-preflight # models/keys/venvs/gates before the first LLM call
 ```
 
-Every task writes `swarm/runs/<ts>-<pid>-<rand>/` (`run.json`, `events.jsonl`,
+Every task writes `harness/runs/<ts>-<pid>-<rand>/` (`run.json`, `events.jsonl`,
 `shell_log.jsonl`, `progress.json`, `journal.db`, `human_log.txt`); the dashboard
 (`make swarm-dash`) shows the queue, models/fallbacks, budget gauges, gates and recent
 runs (ADR-011). Green runs commit on `swarm/<spec>-<task>`, push, and `--no-ff` merge
 into the base branch (`merge_failed` stops a conflict); `SWARM_MERGE_MODE=direct` opts
-out, `./swarm/run.sh 001 T3 --no-commit` skips the commit.
+out, `./harness/run.sh 001 T3 --no-commit` skips the commit.
 
-**Documentation**: [`swarm/README.md`](swarm/README.md) is the entry point — intro,
-run commands and an index of one file per topic under [`swarm/docs/`](swarm/docs/).
-Start with [`how-it-works.md`](swarm/docs/how-it-works.md) (roles, phase order, flow
-diagram, the invariant); then
-[`run-guards.md`](swarm/docs/run-guards.md) (the deterministic stops and their off
-switches), [`queue.md`](swarm/docs/queue.md) (task format, adding a spec) and
-[`usage-and-budgets.md`](swarm/docs/usage-and-budgets.md) (tokens, cost, caps).
+**Documentation**: the harness docs live with the factory — [README](https://github.com/handleman/handleman-hq#readme),
+[how it works](https://github.com/handleman/handleman-hq/blob/main/docs/how-it-works.md),
+[model usage](https://github.com/handleman/handleman-hq/blob/main/docs/model-usage.md).
+Start with [how-it-works](https://github.com/handleman/handleman-hq/blob/main/docs/how-it-works.md)
+(roles, phase order, flow diagram, the invariant); then
+[run-guards](https://github.com/handleman/handleman-hq/blob/main/docs/run-guards.md)
+(the deterministic stops and their off switches),
+[queue](https://github.com/handleman/handleman-hq/blob/main/docs/queue.md) and
+[usage-and-budgets](https://github.com/handleman/handleman-hq/blob/main/docs/usage-and-budgets.md).
 
 Economics: `make swarm-report` (cost per green task, tokens per role, fix rate, stops) and
 `make swarm-supervise` (unattended queue with retry/backoff). Per-run budgets
 (`SWARM_MAX_TOKENS`/`SWARM_MAX_COST_USD`/`SWARM_MAX_RUNTIME_SECONDS`) stop a runaway
-loop with `budget_exhausted`; `make swarm-sandbox` runs the pilot in Docker with the
-repo as the only writable mount and `.env` masked (ADR-012, `colima start` on macOS).
+loop with `budget_exhausted`. The container sandbox lives in the factory image
+(`handleman-hq`).
 
 ## Status
 - App: MVP flow runs end-to-end (`POST /route` → geocode → OSRM → SQLite cache → Leaflet route + explanation). Comfort score is neutral until `001-T3` + T7–T10 wire Overpass/scoring; the UI states that explicitly.
-- Swarm harness: implemented (`swarm/`, `Makefile` targets), 676 harness tests green; guards and off switches in `swarm/docs/run-guards.md`. See `changelog.md` for history.
+- Harness: the published [handleman-hq](https://github.com/handleman/handleman-hq) package (pinned `v0.3.3`) in `harness/.venv`, configured by `swarm.yaml`; this repo keeps the queue, specs and run traces (`harness/runs/`). See `changelog.md`.

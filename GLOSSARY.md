@@ -86,11 +86,11 @@ The swarm's agent roles. The coder writes code; QA runs the gates; the reviewer 
 _Avoid_: worker, judge
 
 **Shared agent builder** (`_senior_agent` / `_conflict_resolver_agent`):
-The internal `swarm/crew.py` factories that build the senior (`step`/`fix`) and conflict-resolver (`merge`/`stash`) agents from the shared constructor — they differ only by prompt text and `max_iter`. No public builder names or signatures changed.
+The internal `swarm.crew` factories that build the senior (`step`/`fix`) and conflict-resolver (`merge`/`stash`) agents from the shared constructor — they differ only by prompt text and `max_iter`. No public builder names or signatures changed.
 _Avoid_: duplicate constructor
 
 **Model profile**:
-The provider mix a run uses, chosen entirely by `.env` (paid cloud, free cloud, local Ollama, or a mix). The harness is provider-agnostic: `swarm/model_config.py` routes and resolves, `preflight` validates ids and fallbacks, cost and timeouts follow the profile. See [swarm/docs/setup.md](swarm/docs/setup.md).
+The provider mix a run uses, chosen entirely by `.env` (paid cloud, free cloud, local Ollama, or a mix). The harness is provider-agnostic: `swarm.model_config` routes and resolves, `preflight` validates ids and fallbacks, cost and timeouts follow the profile. See [setup](https://github.com/handleman/handleman-hq/blob/main/docs/setup.md).
 
 **Gate**:
 A verification command (`pytest`, `ruff`, `mypy`, `npm …`) run by QA; its exit code is the only source of "green".
@@ -121,7 +121,7 @@ Whether a spec builds the app (queued) or improves the swarm itself (never queue
 _Avoid_: type, category
 
 **Pilot** (a **run**):
-One execution of one task, from kickoff to commit or a typed stop. Writes `swarm/runs/<ts>/`.
+One execution of one task, from kickoff to commit or a typed stop. Writes `harness/runs/<ts>/`.
 _Avoid_: session, job
 
 **Fix round** (a **correction**):
@@ -137,9 +137,9 @@ A planned agent that screenshots the built UI (desktop + mobile) and judges the 
 _Avoid_: visual regression (this is "is it obviously broken", not a pixel diff)
 
 **Agent skill** (044):
-A YAML‑frontmatter markdown file under `swarm/agents/skills/<role>.md` that the swarm auto‑discovers and appends to that agent's CrewAI `skills` list (additive to the backstory). Filename = role key; missing files fall back to a built‑in default template.
+A YAML‑frontmatter markdown file under `harness/agents/skills/<role>.md` that the swarm auto‑discovers and appends to that agent's CrewAI `skills` list (additive to the backstory). Filename = role key; missing files fall back to a built‑in default template.
 _Avoid_: prompt, backstory (a skill is a separate, operator‑editable capability layer)
 
 **Spec acceptance pass** (043):
-The final greenlight: `make swarm-accept` runs every built product spec through a real browser (desktop + mobile), deterministic probes + a free vision model, appends fix tasks for failing ACs and exits non-zero on FAIL. It is the end-of-batch check, not a per-task one. After every green feature task the supervisor's acceptance hook automatically runs the per-feature acceptance pass (swarm/acceptance.py), queuing fix tasks for failing ACs and recording the verdict in run.json — the feature still goes green but regressions are flagged for the operator.
+The final greenlight: `make swarm-accept` runs every built product spec through a real browser (desktop + mobile), deterministic probes + a free vision model, appends fix tasks for failing ACs and exits non-zero on FAIL. It is the end-of-batch check, not a per-task one. After every green feature task the supervisor's acceptance hook automatically runs the per-feature acceptance pass (`make swarm-accept`), queuing fix tasks for failing ACs and recording the verdict in run.json — the feature still goes green but regressions are flagged for the operator.
 _Avoid_: visual QA (042 is per-task; this is per-spec/per-feature after the queue drains or after each green task), e2e suite (that is gate evidence for one task)

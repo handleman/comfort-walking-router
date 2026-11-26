@@ -21,7 +21,7 @@ scenarios are deterministic and never call a live provider.
 The 026 run-guards rule: a task whose delta touches `frontend/e2e/*` is green
 only with a recorded Playwright run (`e2e_missing` otherwise). The suite is that
 evidence — the harness records the execution in the run's `shell_log.jsonl` and
-derives green from it, never from a model's claim. `swarm/evidence.py` matches
+derives green from it, never from a model's claim. `swarm.evidence` matches
 the exact argv (`npm --prefix frontend run build`, then
 `npm --prefix frontend run test:e2e`).
 
