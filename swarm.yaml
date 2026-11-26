@@ -38,7 +38,7 @@ risk:
     2: [app/, frontend/src/, frontend/lib/, contracts/]
     3: [swarm/, specs/, .github/, docker/, requirements, pyproject.toml, app/auth, auth, migrations, payments, secrets, infra]
 db:
-  script: swarm/db.sh
+  script: harness/db.sh
 python:
   venv: .venv
 harness_specs:

@@ -6,9 +6,10 @@
 *.key
 
 # Python — backend, swarm harness (venv, caches, test/coverage)
+.venv
 .venv/
 venv/
-swarm/.venv/
+harness/.venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -21,6 +22,7 @@ htmlcov/
 
 # Node / Svelte / Vite — frontend/
 node_modules/
+frontend/node_modules
 frontend/node_modules/
 frontend/dist/
 frontend/build/
@@ -36,8 +38,8 @@ frontend/playwright-report/
 *.sqlite-journal
 *.osm
 *.pbf
-swarm/runs/
-swarm/*.log
+harness/runs/
+harness/*.log
 
 # OS / editors
 .DS_Store
