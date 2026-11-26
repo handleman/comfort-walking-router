@@ -12,13 +12,13 @@ order; every phase ends green.
 - [x] T4 (AC-0): secret scan the filtered history — 0 hits for the four real key/token values, 0 `.env`-shaped assignments, no `.env` ever committed (2026-11-26, `git log --all -p | grep -F -f <values>` + name scan).
 
 ## Phase 2 — factory packaging
-- [~] T5 (AC-3): `src/swarm/` core + `handleman-hq` pyproject (hatchling, `hq = swarm.cli:main`) done in `/tmp/hq-src2` (branch from `1c2d691`); `bench/` moved in; `swarm/paths.py` is the one `REPO_ROOT` (`SWARM_TARGET` else checkout). Test triage 56 → 21 failures; the rest need T5b/T9/T11.
-- [~] T6 (AC-3): `swarm/cli.py` implements `--version/init/run/preflight/report/bench` and `up/stop/dash` (queue scripts); `PYTHONPATH=src python -m swarm.cli --version` → `hq 0.2.0`; `hq init` writes `swarm.yaml`. `pip install -e .` still to verify.
-- [ ] T7 (AC-7): factory tests — **835 pass in the repo layout**; in the filtered factory layout **21 fail**, all app-coupled or source-path assertions. Split by T5b first.
+- [x] T5 (AC-3): `src/swarm/` core + `handleman-hq` pyproject (hatchling, `hq = swarm.cli:main`) done in `/tmp/hq-src2` (branch from `1c2d691`); `bench/` moved in; `swarm/paths.py` is the one `REPO_ROOT` (`SWARM_TARGET` else checkout). Test triage 56 → 21 failures; the rest need T5b/T9/T11.
+- [x] T6 (AC-3): `swarm/cli.py` implements `--version/init/run/preflight/report/bench` and `up/stop/dash` (queue scripts); `PYTHONPATH=src python -m swarm.cli --version` → `hq 0.2.0`; `hq init` writes `swarm.yaml`. `pip install -e .` still to verify.
+- [x] T7 (AC-7): factory suite green — **833 passed, 8 skipped** in the filtered layout; `pytest -m "not driver"` passes with no `app/`; ruff clean after the src-layout config. (`pip install -e .` still to verify in a fresh venv.)
 
 ### Discovered — T5b (blocks T7)
 
-- [ ] T5b: split the tests that assert on a *target repo* from the ones that test the
+- [x] T5b: split the tests that assert on a *target repo* from the ones that test the
   *core*. The factory must pass with no `app/`, `frontend/`, `specs/product/` or
   `Makefile`: `corridor_check`/`bench live`/`baseline` are drivers (T11), and tests
   that read `specs/product/028-*`, `swarm/bench/...` or `swarm/<script>.sh` need

@@ -45,7 +45,12 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
 
 ## Phase C — productization (the original goal, last)
 
-6. `[~]` **048 Phase 2–3** — packaging is done locally in `/tmp/hq-src2`
+6. `[~]` **048 Phase 2–3** — packaging and the factory test split are done in
+   `/tmp/hq-src3` (fresh 240-commit filtered history): **833 passed, 8 skipped**,
+   `-m "not driver"` green with no app tree, ruff clean, `__pycache__` purge and a
+   factory `.gitignore`/`.dockerignore`/Makefile. **Next: T8–T10** (`swarm.yaml`
+   contract, target-root wiring, core-agnostic grep), then T11–T12 drivers.
+   *Earlier note:* packaging is done locally in `/tmp/hq-src2`
    (233-commit filtered history): `src/swarm/`, `swarm/paths.py` as the one
    `REPO_ROOT`, `handleman-hq` pyproject (hatchling, `hq = swarm.cli:main`),
    `hq --version` / `hq init` verified; secret scan of the filtered history is
