@@ -1,0 +1,41 @@
+# 028 acceptance checks. The route is planned first: later checks read the
+# summary the auto-plan renders (040 flow — both endpoints are selected
+# suggestions, so `route_request` is the only way to produce a route here).
+
+[[check]]
+ac = "AC-1"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+note = "POST /route returns a comfort profile for a planned route"
+
+[[check]]
+ac = "AC-2"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "mobile"
+note = "The same route works at mobile size (no extra corridor call is observable in the DOM)"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "section.route-summary"
+viewport = "desktop"
+note = "Route summary is visible"
+
+[[check]]
+ac = "AC-4"
+kind = "min_count"
+selector = ".comfort-band"
+expect = 3
+viewport = "desktop"
+note = "Three comfort bands in the legend"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='comfort-legend']"
+viewport = "desktop"
+note = "Comfort legend is rendered and addressable"

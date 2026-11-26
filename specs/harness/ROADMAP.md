@@ -108,9 +108,10 @@ now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/
 - `[x]` **049 T8** real-run verify — the senior escalation ran on T6's verifier
   block (2026-11-26, `senior:verify1`) and the run recovered.
 - `[ ]` **040 T25 modal recovery** — choosing a suggestion inside `StartLocationModal` does not close it and the click never reaches the option's handler (T25 run 2026-11-26 parked `e2e_rounds_exhausted`; the coder's SearchInput edit was correctly blocked by the reviewer and reverted).
-- `[ ]` **Acceptance coverage (new, 2026-11-26)** — 10 product specs have no
-  `acceptance.toml`; they report unverified (not failing). Writing checks per
-  spec is the remaining work for a true "every AC is checked in a browser".
+- `[~]` **Acceptance coverage** — 040 (8/8), **028** and **039** now have
+  `acceptance.toml` checks and pass; every uncovered AC is a loud configuration
+  warning. Remaining specs: 001, 004, 005, 006, 007, 008, 010, 011, 014, 029, 035,
+  036 (many are API/infra ACs with no browser surface).
 - `[x]` **`done.json` cache key** — `record_done` normalises through
   `spec_dir_name`, so the cache and the trailers agree.
 - `[ ]` **QA can skip the e2e command** — the harness now runs the suite itself

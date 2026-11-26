@@ -1,0 +1,17 @@
+# 039 acceptance checks: the planned route must show the OSM corridor it used.
+
+[[check]]
+ac = "AC-1"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+note = "A route plans against the fixture backend"
+
+[[check]]
+ac = "AC-1"
+kind = "text"
+selector = "section.route-summary"
+expect = "Comfort data: OSM corridor"
+viewport = "desktop"
+note = "The summary names the corridor data it used"
