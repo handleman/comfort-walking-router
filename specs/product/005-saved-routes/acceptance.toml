@@ -1,0 +1,28 @@
+# 005: saved routes need a database and save/recall interaction.
+[[not_applicable]]
+ac = "AC-1"
+note = "needs a running Postgres and a save/recall interaction"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "prefs persistence is database behaviour"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "migrations are database behaviour"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "cache regression is backend behaviour"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "pytest/ruff/mypy gates"
+
+[[not_applicable]]
+ac = "AC-6"
+note = "cross-holder access is an API authorization check"
+
+[[not_applicable]]
+ac = "AC-7"
+note = "retention sweep is a database job"

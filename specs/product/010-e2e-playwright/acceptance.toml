@@ -1,0 +1,20 @@
+# 010 describes the browser suite itself; the suite IS this stand.
+[[not_applicable]]
+ac = "AC-1"
+note = "the suite is the acceptance stand, not a page"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "test inventory, not a page"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "asserted by the suite's own tests"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "artifacts are produced by Playwright"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "pytest/ruff/mypy gates"

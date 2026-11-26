@@ -1,0 +1,32 @@
+# 007: walk mode needs interaction (start/stop/drift) and a moving fix.
+[[not_applicable]]
+ac = "AC-1"
+note = "needs starting a walk and observing the marker"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "simulated movement needs a walk session"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "permission denial needs the browser permission harness"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "sustained drift needs a moving fix sequence"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "reroute-query interaction"
+
+[[not_applicable]]
+ac = "AC-6"
+note = "auto-center toggle interaction"
+
+[[not_applicable]]
+ac = "AC-7"
+note = "arrival needs walking into the radius"
+
+[[not_applicable]]
+ac = "AC-8"
+note = "pytest/ruff/mypy gates"

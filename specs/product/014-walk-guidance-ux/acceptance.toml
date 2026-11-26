@@ -1,0 +1,44 @@
+# 014: geolocation/autocomplete/map-pick. Interaction states are e2e-owned.
+[[check]]
+ac = "AC-3"
+kind = "exists"
+selector = "button[aria-label='Pick start on map']"
+viewport = "both"
+
+[[check]]
+ac = "AC-4"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-5"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+
+[[not_applicable]]
+ac = "AC-1"
+note = "permission grant/deny needs the browser permission harness"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "glyph is a map divIcon, asserted by the e2e suite"
+
+[[not_applicable]]
+ac = "AC-6"
+note = "moving marker needs a walk session"
+
+[[not_applicable]]
+ac = "AC-7"
+note = "arrival needs walking into the radius"
+
+[[not_applicable]]
+ac = "AC-8"
+note = "token discipline is a bundle/request assertion"
+
+[[not_applicable]]
+ac = "AC-9"
+note = "gates/documentation"

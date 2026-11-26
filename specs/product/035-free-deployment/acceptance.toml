@@ -1,0 +1,24 @@
+# 035 is the deployment contract; a local acceptance stand cannot verify Render.
+[[not_applicable]]
+ac = "AC-1"
+note = "needs the public Render URL"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "needs the public deployment"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "needs a real phone + HTTPS"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "secret hygiene is a repo/CI check"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "billing is an account fact"
+
+[[not_applicable]]
+ac = "AC-6"
+note = "documentation"

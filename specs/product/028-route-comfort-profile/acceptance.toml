@@ -39,3 +39,15 @@ kind = "exists"
 selector = "[data-testid='comfort-legend']"
 viewport = "desktop"
 note = "Comfort legend is rendered and addressable"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "honest gap when the corridor is unavailable — backend behaviour"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "pytest/ruff/mypy gates"
+
+[[not_applicable]]
+ac = "AC-6"
+note = "documentation"

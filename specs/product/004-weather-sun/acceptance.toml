@@ -1,0 +1,22 @@
+# 004: the weather preference is API-side; the manual control is visible.
+[[not_applicable]]
+ac = "AC-1"
+note = "applied_preference/preference_source are response fields"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "auto-rule is unit-tested with fixtures, not a browser surface"
+
+[[check]]
+ac = "AC-3"
+kind = "exists"
+selector = "section.prefs"
+viewport = "desktop"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "cache/TTL is backend behaviour"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "pytest/ruff/mypy gates"

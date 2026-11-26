@@ -1,0 +1,20 @@
+# 006: scoring toggles are exercised by the scorer tests, not the browser.
+[[not_applicable]]
+ac = "AC-1"
+note = "scoring matrix is unit-tested on a fixture pair"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "lit-route preference is a scoring/explanation assertion"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "traffic avoidance is a scoring assertion"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "regression is covered by the 001 suite"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "pytest/ruff/mypy gates"

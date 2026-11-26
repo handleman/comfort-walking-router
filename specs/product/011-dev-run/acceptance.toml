@@ -1,0 +1,29 @@
+# 011: the dev-run contract; only the browser smoke has a page.
+[[not_applicable]]
+ac = "AC-1"
+note = "make dev is a process contract"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "npm dev/build are process contracts"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "contract agreement is asserted by the app tests"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "#map"
+viewport = "both"
+
+[[check]]
+ac = "AC-4"
+kind = "min_count"
+selector = ".leaflet-tile"
+expect = 1
+viewport = "desktop"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "documentation/gates"

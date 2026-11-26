@@ -1,0 +1,20 @@
+# 029 needs a drift walk with two corridors; unit tests own the comparison.
+[[not_applicable]]
+ac = "AC-1"
+note = "compareReroutes is unit-tested"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "store verdicts are unit-tested"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "three branches are unit-tested"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "no new requests is a network assertion"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "gates"

@@ -1,0 +1,28 @@
+# 001: the route flow and its explanation (AC-3/AC-4 are API/gates).
+[[check]]
+ac = "AC-1"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "exists"
+selector = "section.route-summary"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-2"
+kind = "text"
+selector = "section.route-summary"
+expect = "Comfort data: OSM corridor"
+viewport = "desktop"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "SQLite cache: backend behaviour, no browser surface"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "pytest/ruff/mypy gates"

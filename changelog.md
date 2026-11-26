@@ -1,5 +1,7 @@
 # Changelog
 
+## 2026-11-26 (acceptance coverage)
+- **`make swarm-accept --strict` passes 14/14.** Seven specs now have real browser probes (001, 004, 011, 014, 028, 036, 040), seven declare their non-UI ACs with `[[not_applicable]]` (005, 006, 007, 008, 010, 029, 035) — N/A, not unverified. No AC is silently unchecked; the strict pass is now the gate.
 ## 2026-11-26 (v0.4.0)
 - **The app owns its drivers.** `swarm.yaml` declares `drivers.e2e` (`drivers/e2e.sh`: the npm suite, returning the harness's JSON result with the suite tail) and `drivers.db` (`harness/db.sh`). `swarm-health` and the flow's deterministic suite run go through the driver (`source: target`); acceptance and smoke stay packaged until they diverge. Harness pinned at **v0.4.0**.
 ## 2026-11-26

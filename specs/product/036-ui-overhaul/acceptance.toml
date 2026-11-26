@@ -1,0 +1,34 @@
+# 036: layout/controls. AC-1 (steps) was superseded by 040 (no step indicator).
+[[not_applicable]]
+ac = "AC-1"
+note = "the step indicator was removed by 040-T9; superseded"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "section.prefs"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='sidebar']"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='drawer']"
+viewport = "mobile"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "inline location control is part of the top card (040)"
+
+[[not_applicable]]
+ac = "AC-5"
+note = "aesthetic judgement; the vision pass is advisory"
+
+[[not_applicable]]
+ac = "AC-6"
+note = "regression is the e2e suite"

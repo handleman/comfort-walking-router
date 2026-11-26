@@ -1,0 +1,16 @@
+# 008 requires the Mapbox provider; the acceptance stand uses fixtures.
+[[not_applicable]]
+ac = "AC-1"
+note = "needs a real Mapbox token (fixtures backend here)"
+
+[[not_applicable]]
+ac = "AC-2"
+note = "startup failure is a process-level check"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "cache/quota logging is backend behaviour"
+
+[[not_applicable]]
+ac = "AC-4"
+note = "pytest/ruff/mypy gates"
