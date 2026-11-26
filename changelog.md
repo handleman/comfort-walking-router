@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-26 (live acceptance results)
+- **Live lane verified:** 008 AC-1 real Mapbox route (1485 m / 1029 s), 004 AC-3 manual preference (two live routes + `Manual:` chip), 035 AC-1/AC-2 public Render deployment (map, 24 tiles, live route). Reports: `specs/product/*/acceptance-live.md`.
+- **Critical fix:** the DB-less free deployment rejected every route with 422 because the fallback sent `preference: "balanced"`; only `hot`/`cloudy` are sent now, and the prefs endpoint accepts the manual string.
+- **005 AC-1 still fails:** `POST /saved-routes` sends `{name,snapshot}` but the API expects `{request,response}` (422 even with Postgres). Task T7 aligns the contract; the live report is the evidence.
 ## 2026-11-26 (Figma design support)
 - **OpenCode lane:** `opencode.json` adds the remote Figma MCP server (`https://mcp.figma.com/mcp`, OAuth via `/mcps`); a `figma-implement` skill carries the frame-link → metadata → design context → tokens → screenshot → implement → verify workflow. No token is stored in the repo.
 - **Queue lane (spec):** factory spec 057 defines `hq design sync` (Figma REST → committed IR/PNG/tokens/brief/lock), offline prompts, typed stale/missing stops, and deterministic token/region/screenshot checks. Product draft: `specs/product/041-figma-redesign/` (file/frames TBD).
