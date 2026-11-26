@@ -262,6 +262,18 @@ async function runOne(check, viewName) {
         detail = ok ? `value set` : `value "${val}" != "${value}"`
         break
       }
+      case 'click': {
+        await page.locator(selector).click()
+        ok = true
+        detail = 'clicked'
+        break
+      }
+      case 'wait_for': {
+        await page.locator(selector).waitFor({ state: 'visible', timeout: 10000 })
+        ok = true
+        detail = 'visible'
+        break
+      }
       case 'console_errors': {
         const limit = Number(expect ?? 0)
         ok = consoleErrors.length <= limit
@@ -324,6 +336,10 @@ async function runCheck(check) {
 async function runSelftest(check) {
   const { spec, ac, kind, selector, expect } = check
   const verdict = { spec, ac, kind, selector, verdict: 'unsupported', detail: '' }
+  if (kind === 'wait_for') {
+    verdict.detail = 'interaction check; mutation would only time out'
+    return verdict
+  }
   if (kind === 'absent' || (kind === 'count' && Number(expect) === 0)) {
     verdict.detail = 'nothing to remove (absent/count=0)'
     return verdict

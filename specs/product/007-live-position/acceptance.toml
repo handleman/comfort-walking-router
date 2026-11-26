@@ -1,11 +1,28 @@
-# 007: walk mode needs interaction (start/stop/drift) and a moving fix.
-[[not_applicable]]
+# 007: the start of a walk is an interaction the stand can drive; the rest
+# (drift, arrival, auto-center) needs a moving fix sequence and stays with the
+# e2e suite.
+[[check]]
 ac = "AC-1"
-note = "needs starting a walk and observing the marker"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "click"
+selector = "[data-testid='start-walk']"
+viewport = "desktop"
+
+[[check]]
+ac = "AC-1"
+kind = "wait_for"
+selector = ".walk-stop:not([disabled])"
+viewport = "desktop"
 
 [[not_applicable]]
 ac = "AC-2"
-note = "simulated movement needs a walk session"
+note = "simulated movement needs a walk session over time"
 
 [[not_applicable]]
 ac = "AC-3"
