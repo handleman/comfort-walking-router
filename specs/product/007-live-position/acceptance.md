@@ -1,11 +1,11 @@
 # 007-live-position — Acceptance
 
-Generated: 2026-11-26T12:22:48Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 8 n/a)
+Generated: 2026-11-26T12:35:40Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 7 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | N/A | declared | needs starting a walk and observing the marker |
-| AC-2 | N/A | declared | simulated movement needs a walk session |
+| AC-1 | PASS | probe | /route request fired; clicked; visible |
+| AC-2 | N/A | declared | simulated movement needs a walk session over time |
 | AC-3 | N/A | declared | permission denial needs the browser permission harness |
 | AC-4 | N/A | declared | sustained drift needs a moving fix sequence |
 | AC-5 | N/A | declared | reroute-query interaction |
