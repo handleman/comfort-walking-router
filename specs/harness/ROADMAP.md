@@ -74,6 +74,9 @@ the zero-size check counted controls hidden by an ancestor. The criteria parser
 now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/0
 (they remain **unverified** until each gets an `acceptance.toml`).
 
+- `[x]` **054 T4 reconcile fix tasks** — the acceptance pass ticks an open
+  `(acceptance pass …)` task whose every referenced AC now passes (ranges and
+  multi-AC tasks wait); T19–T21 can never be re-queued after going green.
 - `[x]` **054 T5 factory audit** — `python -m swarm.factory_audit` /
   `make factory-audit` rejects tracked caches, secret-shaped files, blobs over
   1 MB and missing hygiene; the filtered factory passes its own gate.

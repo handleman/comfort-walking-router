@@ -475,3 +475,43 @@ def test_commit_artifacts_ignores_paths_outside_the_repo(tmp_path):
     # Never raises, and nothing staged -> no commit.
     assert _commit_artifacts(root, [outside], "acceptance: outside", print) == {}
     assert _commit_count(root) == 0
+
+
+# ---- 054 AC-4: reconcile fix tasks with the current verdict ----------------
+
+
+def test_a_fix_task_whose_ac_passes_is_closed():
+    from swarm.acceptance import reconcile_fix_tasks
+
+    text = (
+        "- [ ] T19 (AC-1): Fix AC-1 (Full-bleed map): ... (acceptance pass 2026-11-23)\n"
+        "- [ ] T20 (AC-6): Fix AC-6 (Material icons): ... (acceptance pass 2026-11-23)\n"
+    )
+    out, closed = reconcile_fix_tasks(text, {"AC-1"}, date="2026-11-26")
+    assert closed == ["T19"]
+    assert "- [x] T19" in out and "resolved by the 2026-11-26 acceptance pass" in out
+    assert "- [ ] T20" in out
+
+
+def test_a_task_covering_several_acs_waits_for_all_of_them():
+    from swarm.acceptance import reconcile_fix_tasks
+
+    text = "- [ ] T9 (AC-1, AC-2): Fix both (acceptance pass 2026-11-23)\n"
+    out, closed = reconcile_fix_tasks(text, {"AC-1"}, date="2026-11-26")
+    assert closed == [] and out == text
+
+
+def test_an_ac_range_is_never_guessed():
+    from swarm.acceptance import reconcile_fix_tasks
+
+    text = "- [ ] T9 (AC-1..AC-6): Fix the layout (acceptance pass 2026-11-23)\n"
+    out, closed = reconcile_fix_tasks(text, {"AC-1", "AC-2"}, date="2026-11-26")
+    assert closed == [] and out == text
+
+
+def test_a_hand_written_task_is_not_touched():
+    from swarm.acceptance import reconcile_fix_tasks
+
+    text = "- [ ] T4 (AC-5): On the first geolocation fix, centre the map...\n"
+    out, closed = reconcile_fix_tasks(text, {"AC-5"}, date="2026-11-26")
+    assert closed == [] and out == text

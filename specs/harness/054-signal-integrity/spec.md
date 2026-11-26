@@ -63,7 +63,7 @@ Make every signal the harness trusts *earned*:
   declared check can pass (on the current build) and fails when its selector is
   mutated; a spec with criteria but no checks is a configuration error, not a
   silent 0/0/0.
-- [ ] **AC-4 (reconcile fix tasks).** Before a task tagged `acceptance` runs, its
+- [x] **AC-4 (reconcile fix tasks).** Before a task tagged `acceptance` runs, its
   AC is re-evaluated; a now-passing AC closes the task with the verdict instead of
   spending a round.
 - [x] **AC-5 (factory audit).** `make factory-audit` (or the 048 checklist) fails

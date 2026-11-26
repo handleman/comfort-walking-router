@@ -33,7 +33,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -104,6 +104,7 @@ class SpecReport:
     vision: dict[str, dict[str, str]] = field(default_factory=dict)
     shots: dict[str, str] = field(default_factory=dict)
     queued: list[str] = field(default_factory=list)
+    reconciled: list[str] = field(default_factory=list)
 
     @property
     def verdict(self) -> str:
@@ -488,6 +489,47 @@ def queue_fix_tasks(
         return tasks_text, []
     text = (tasks_text or "").rstrip("\n")
     return text + "\n" + "\n".join(added) + "\n", added
+
+
+_TASK_REF_RE = re.compile(r"^- \[ \] (T\d+) \(([^)]*)\): (.*)$")
+
+
+def reconcile_fix_tasks(
+    tasks_text: str, passing_acs: Iterable[str], *, date: str
+) -> tuple[str, list[str]]:
+    """Close acceptance fix tasks whose ACs now pass (054 AC-4).
+
+    The acceptance pass appends one `T<n> (AC-x)` task per failing AC. When a
+    later pass sees that AC pass, the task must not stay queued: T19–T21 were
+    re-fixed after their ACs had gone green. Only lines this pass generated
+    (`acceptance` in the brief) and whose *every* referenced AC passes are
+    ticked; ranges (`AC-1..AC-6`) are left alone — a range hides which member
+    failed, and guessing there is how a real regression gets closed.
+    """
+    passing = set(passing_acs)
+    out: list[str] = []
+    closed: list[str] = []
+    for line in (tasks_text or "").splitlines():
+        match = _TASK_REF_RE.match(line)
+        if not match or "acceptance" not in match.group(3).lower():
+            out.append(line)
+            continue
+        refs = [part.strip() for part in match.group(2).split(",") if part.strip()]
+        if not refs or any(".." in ref for ref in refs):
+            out.append(line)
+            continue
+        if not all(ref in passing for ref in refs):
+            out.append(line)
+            continue
+        out.append(
+            line.replace("- [ ] ", "- [x] ", 1)
+            + f" — resolved by the {date} acceptance pass"
+        )
+        closed.append(match.group(1))
+    text = "\n".join(out)
+    if tasks_text and tasks_text.endswith("\n"):
+        text += "\n"
+    return text, closed
 
 
 # ---------------------------------------------------------------------------
@@ -965,10 +1007,21 @@ def run(
             except OSError:
                 text = ""
             date = stamp[:4] + "-" + stamp[4:6] + "-" + stamp[6:8]
-            new_text, added = queue_fix_tasks(text, report.failures, date=date)
-            if added:
+            passing = {
+                ac
+                for ac, entry in report.ac_verdicts.items()
+                if entry.get("verdict") == "pass"
+            }
+            reconciled_text, closed = reconcile_fix_tasks(text, passing, date=date)
+            if closed:
+                report.reconciled = closed
+                log(f"acceptance: {report.spec} closed {', '.join(closed)} (AC now passes)")
+            new_text, added = queue_fix_tasks(reconciled_text, report.failures, date=date)
+            if added or closed:
                 tasks_path.write_text(new_text)
-                artifacts.append(tasks_path)
+                if tasks_path not in artifacts:
+                    artifacts.append(tasks_path)
+            if added:
                 report.queued = [line.split(" ", 2)[2][:120] for line in added]
         reports.append(report)
         counts = report.counts
