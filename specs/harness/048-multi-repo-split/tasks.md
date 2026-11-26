@@ -42,12 +42,12 @@ order; every phase ends green.
 - [ ] T14 (AC-6): app `pyproject.toml`/Makefile depend on `swarm @ git+…@v0.2.0`; split `Makefile` + `.env.example`.
 
 ## Phase 6 — docs/specs/AGENTS split
-- [ ] T15 (AC-8): factory `README` (cheap/model-independent/local-Ollama goals), `AGENTS.md`, `GLOSSARY.md`, `LICENSE`, `docs/`, `specs/harness/*`, `.specify/` templates.
+- [~] T15 (AC-8): factory `README` (cheap/model-independent/local-Ollama goals), `AGENTS.md`, `GLOSSARY.md`, `LICENSE`, `docs/`, `specs/harness/*`, `.specify/` templates.
 - [ ] T16 (AC-8): app `AGENTS.md`, `GLOSSARY.md`, `README`, `docs/*`, `specs/product/*`, `.specify/` templates.
 
 ## Phase 7 — release + verify
-- [ ] T17 (AC-9): `gh repo create handleman/handleman-hq --public --license mit`; push filtered `main`.
-- [ ] T18 (AC-9): tag `v0.2.0`; `gh release create v0.2.0`.
+- [x] T17 (AC-9): `gh repo create handleman/handleman-hq --public --license mit`; push filtered `main`.
+- [x] T18 (AC-9): tag `v0.2.0`; `gh release create v0.2.0`.
 - [ ] T19 (AC-6, AC-7): app installs `swarm @ git+…@v0.2.0`; `make test` + `make e2e` green; one real `hq run` task (040-T13) green; factory `pytest` green.
 
 ## Verify

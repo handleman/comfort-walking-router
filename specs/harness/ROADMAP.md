@@ -58,10 +58,13 @@ harness_specs read the contract, env wins). **T9b discovered:** 30 tests encode 
    — 835 pass with the app present, 21 fail without it (app fixtures, source
    paths, driver imports). `T5b` in `048/tasks.md` splits core tests from driver
    tests; `swarm.yaml` contract + driver relocation follow (`T8`–`T12`).
-7. `[ ]` **048 Phase 7** — create `handleman/handleman-hq`, push the filtered
-   history, tag `v0.2.0`, app pins `git+…@v0.2.0`. **Not started on purpose:**
-   the factory is not green yet (T5b), and the public repo is the irreversible
-   surface.
+7. `[~]` **048 Phase 7** — **published**: https://github.com/handleman/handleman-hq
+   (public, MIT, filtered 240-commit history, secret-scanned), released
+   **v0.2.1** (packaged `hq` 0.2.1 + installed-root fix; v0.2.0 superseded).
+   Verified by installing from the tag in a clean venv (`hq --version` → 0.2.1).
+   **Remaining:** the app pins `git+…@v0.2.1` and drops its vendored `swarm/`
+   (T19/T20) — that migration needs T11's driver split first, because `smoke`,
+   `corridor_check` and `db.sh` are app-side drivers the package does not ship.
 8. `[ ]` **038** — any ejectable-contract bits not folded into 048.
 
 ## Acceptance stand (043) — corrected 2026-11-26
