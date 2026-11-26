@@ -59,7 +59,7 @@ Make every signal the harness trusts *earned*:
 - [x] **AC-2 (evidence-backed PASS).** A reviewer PASS with a required e2e (or
   gate) execution missing is recorded as `review_unsupported` (or re-asked once),
   never green. The judge record names the missing command.
-- [ ] **AC-3 (oracle self-test).** `make swarm-accept --selftest` proves each
+- [x] **AC-3 (oracle self-test).** `make swarm-accept --selftest` proves each
   declared check can pass (on the current build) and fails when its selector is
   mutated; a spec with criteria but no checks is a configuration error, not a
   silent 0/0/0.

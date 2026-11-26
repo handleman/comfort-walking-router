@@ -43,6 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DISABLE_ENV = "SWARM_ACCEPT"
 VISION_ENV = "SWARM_ACCEPT_VISION"
 QUEUE_ENV = "SWARM_ACCEPT_QUEUE"
+STRICT_ENV = "SWARM_ACCEPT_STRICT"
 COMMIT_ENV = "SWARM_ACCEPT_COMMIT"
 MODEL_ENV = "SWARM_ACCEPT_MODEL"
 DEFAULT_VISION_MODEL = "openrouter/nvidia/nemotron-3.5-super-vl:free"
@@ -105,10 +106,16 @@ class SpecReport:
     shots: dict[str, str] = field(default_factory=dict)
     queued: list[str] = field(default_factory=list)
     reconciled: list[str] = field(default_factory=list)
+    oracle: list[dict[str, str]] = field(default_factory=list)
+    config_errors: list[str] = field(default_factory=list)
 
     @property
     def verdict(self) -> str:
         if self.global_failures or self.layout_failures:
+            return "FAIL"
+        if self.oracle_failures:
+            return "FAIL"
+        if self.config_errors and os.getenv(STRICT_ENV, "0") == "1":
             return "FAIL"
         verdicts = [entry.get("verdict") for entry in self.ac_verdicts.values()]
         if "fail" in verdicts:
@@ -116,6 +123,11 @@ class SpecReport:
         if "pass" in verdicts:
             return "PASS"
         return "UNVERIFIED"
+
+    @property
+    def oracle_failures(self) -> list[dict[str, str]]:
+        """Checks that pass even when their target is gone (054 AC-3)."""
+        return [entry for entry in self.oracle if entry.get("verdict") == "always_passes"]
 
     @property
     def counts(self) -> dict[str, int]:
@@ -413,6 +425,16 @@ def render_report(report: SpecReport, *, generated: str | None = None) -> str:
             f"| {ac} | {entry.get('verdict', 'unverified').upper()} | "
             f"{entry.get('source', 'none')} | {_cell(entry.get('evidence', ''))} |"
         )
+    if report.config_errors:
+        lines += ["", "## Configuration", ""]
+        lines += [f"- **WARN** {item}" for item in report.config_errors]
+    if report.oracle:
+        lines += ["", "## Oracle self-test", "", "| AC | Kind | Verdict | Detail |", "| --- | --- | --- | --- |"]
+        for entry in report.oracle:
+            lines.append(
+                f"| {entry.get('ac', '')} | {entry.get('kind', '')} | "
+                f"{str(entry.get('verdict', '')).upper()} | {_cell(entry.get('detail', ''))} |"
+            )
     lines += ["", "## Global checks", ""]
     if report.global_failures:
         lines += [f"- **FAIL** {item}" for item in report.global_failures]
@@ -644,7 +666,7 @@ class BrowserError(RuntimeError):
 
 
 def browser_plan(
-    specs: list[Path], *, base_url: str, out_dir: Path
+    specs: list[Path], *, base_url: str, out_dir: Path, selftest: bool = False
 ) -> dict[str, Any]:
     checks = []
     for spec in specs:
@@ -687,6 +709,7 @@ def browser_plan(
             for name, width, height in VIEWS
         ],
         "checks": checks,
+        "selftest": bool(selftest),
         "layout": layout_specs,
     }
 
@@ -933,6 +956,7 @@ def run(
     browser_runner: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     vision_judge: Callable[[SpecReport], Mapping[str, Any]] | None = None,
     commit: bool | None = None,
+    selftest: bool = False,
 ) -> AcceptanceRun:
     """Run the pass; never raises for a failing requirement (the verdict says it)."""
     from swarm.spec_loader import resolve_spec_dir
@@ -960,7 +984,7 @@ def run(
         url = base_url
         if url is None:
             url = stack.enter_context(served_app(repo=root, build=build, log=log))
-        plan = browser_plan(chosen, base_url=url, out_dir=out_dir)
+        plan = browser_plan(chosen, base_url=url, out_dir=out_dir, selftest=selftest)
         browser = dict(runner(plan))
 
     for spec_dir in chosen:
@@ -969,6 +993,23 @@ def run(
             browser=browser,
             shots=browser.get("shots") or {},
         )
+        report.oracle = [
+            dict(entry)
+            for entry in (browser.get("selftest") or [])
+            if str(entry.get("spec")) == spec_dir.name
+        ]
+        # 054 AC-3: a spec whose criteria have no machine check is a configuration
+        # error, not a silent 0/0/0. Advisory by default; `--strict` fails the pass.
+        covered = {check.ac for check in report.checks}
+        uncovered = [c.id for c in report.criteria if c.id not in covered]
+        if uncovered:
+            report.config_errors.append(
+                f"no acceptance.toml check for {', '.join(uncovered)}"
+            )
+            log(
+                f"acceptance: {report.spec} config: no check for "
+                f"{', '.join(uncovered)} (declare acceptance.toml)"
+            )
         layout_issues = _layout_issues(spec_dir, browser)
         if layout_issues:
             report.layout_failures = [
@@ -1062,6 +1103,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-vision", action="store_true", help="skip the vision call")
     parser.add_argument("--no-queue", action="store_true", help="do not append fix tasks")
     parser.add_argument("--no-build", action="store_true", help="reuse frontend/dist")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="fail the pass when an AC has no machine check (acceptance.toml)",
+    )
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="prove every check can fail (mutate its target); a broken oracle fails the pass",
+    )
     parser.add_argument("--base-url", default=None, help="use an already-running app")
     args = parser.parse_args(argv)
     if os.getenv(DISABLE_ENV, "1") == "0":
@@ -1069,11 +1120,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.no_vision:
         os.environ[VISION_ENV] = "0"
+    if args.strict:
+        os.environ[STRICT_ENV] = "1"
     result = run(
         specs=args.spec or None,
         queue=not args.no_queue,
         build=not args.no_build,
         base_url=args.base_url,
+        selftest=args.selftest,
     )
     return result.exit_code
 

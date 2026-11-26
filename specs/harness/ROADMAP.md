@@ -74,6 +74,10 @@ the zero-size check counted controls hidden by an ancestor. The criteria parser
 now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/0
 (they remain **unverified** until each gets an `acceptance.toml`).
 
+- `[x]` **054 T3 oracle self-test** — `swarm-accept --selftest` mutates each
+  check's target and requires the check to fail (040: every mutatable check OK;
+  absent/count=0 reported UNSUPPORTED, not silently green); uncovered ACs are a
+  configuration warning, fatal with `--strict`.
 - `[x]` **054 T7 core/driver split** — the factory suite marks app-coupled tests
   `driver` and skips without an app tree: `pytest -m "not driver"` is green with
   no `app/` (833 passed, 8 skipped in `/tmp/hq-src3`).

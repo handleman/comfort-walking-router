@@ -32,6 +32,7 @@ mkdirSync(outDir, { recursive: true })
 const screenshots = {}
 const viewFacts = {}
 const checkResults = []
+const selftest = []
 const layoutFacts = {}
 
 const browser = await chromium.launch({
@@ -213,103 +214,151 @@ async function evaluateView(name, width, height) {
   }
 }
 
-async function runCheck(check) {
-  const { spec, ac, kind, selector, expect, viewport, value } = check
-  const targets = viewport === 'both' ? views.map((v) => v.name) : [viewport]
+async function runOne(check, viewName) {
+  const { kind, selector, expect, value } = check
+  const view = views.find((v) => v.name === viewName)
+  if (!view) return null
+  await page.setViewportSize({ width: view.width, height: view.height })
+  await page.waitForTimeout(200)
 
-  for (const viewName of targets) {
-    const view = views.find((v) => v.name === viewName)
-    if (!view) continue
-    await page.setViewportSize({ width: view.width, height: view.height })
-    await page.waitForTimeout(200)
+  let ok = false
+  let detail = ''
 
-    let ok = false
-    let detail = ''
-
-    try {
-      switch (kind) {
-        case 'exists': {
-          const count = await page.locator(selector).count()
-          ok = count > 0
-          detail = ok ? `found ${count} element(s)` : 'not found'
-          break
-        }
-        case 'absent': {
-          const count = await page.locator(selector).count()
-          ok = count === 0
-          detail = ok ? 'absent' : `found ${count} element(s)`
-          break
-        }
-        case 'count': {
-          const count = await page.locator(selector).count()
-          ok = count === Number(expect)
-          detail = `count ${count} vs expect ${expect}`
-          break
-        }
-        case 'min_count': {
-          const count = await page.locator(selector).count()
-          ok = count >= Number(expect)
-          detail = `count ${count} >= ${expect}`
-          break
-        }
-        case 'text': {
-          const text = (await page.locator(selector).textContent()) || ''
-          ok = String(text).includes(String(expect))
-          detail = ok ? `text matches` : `text "${text.slice(0, 100)}" missing "${expect}"`
-          break
-        }
-        case 'value_set': {
-          const val = await page.locator(selector).inputValue()
-          ok = val === String(value)
-          detail = ok ? `value set` : `value "${val}" != "${value}"`
-          break
-        }
-        case 'console_errors': {
-          const limit = Number(expect ?? 0)
-          ok = consoleErrors.length <= limit
-          detail = ok
-            ? `${consoleErrors.length} console error(s)`
-            : `${consoleErrors.length} console error(s): ${consoleErrors.slice(0, 3).join(' | ')}`
-          break
-        }
-        case 'route_request': {
-          // 040: auto-plan arms only when BOTH endpoints are *selected*
-          // suggestions — typing alone never fires POST /route. Use the same
-          // flow as the e2e helper (fill, pick the first option), then wait for
-          // the request. The old fill-and-wait check could never pass.
-          const ORIGIN = "input[placeholder='e.g. Marienplatz, Munich']"
-          const pick = async (input, text) => {
-            await page.fill(input, text)
-            const option = page.locator('[role="option"]').first()
-            await option.waitFor({ state: 'visible', timeout: 8000 })
-            await option.click()
-            await page.waitForTimeout(300)
-          }
-          // Let the first geolocation fix pre-fill the origin, then overwrite it.
-          await page.waitForTimeout(500)
-          await pick(ORIGIN, 'Marienplatz, Munich')
-          await pick(selector, value)
-          await page.waitForTimeout(1500)
-          ok = routeRequests > 0
-          detail = ok ? '/route request fired' : 'no /route request'
-          break
-        }
+  try {
+    switch (kind) {
+      case 'exists': {
+        const count = await page.locator(selector).count()
+        ok = count > 0
+        detail = ok ? `found ${count} element(s)` : 'not found'
+        break
       }
-    } catch (e) {
-      ok = false
-      detail = `error: ${e.message}`
+      case 'absent': {
+        const count = await page.locator(selector).count()
+        ok = count === 0
+        detail = ok ? 'absent' : `found ${count} element(s)`
+        break
+      }
+      case 'count': {
+        const count = await page.locator(selector).count()
+        ok = count === Number(expect)
+        detail = `count ${count} vs expect ${expect}`
+        break
+      }
+      case 'min_count': {
+        const count = await page.locator(selector).count()
+        ok = count >= Number(expect)
+        detail = `count ${count} >= ${expect}`
+        break
+      }
+      case 'text': {
+        const text = (await page.locator(selector).textContent()) || ''
+        ok = String(text).includes(String(expect))
+        detail = ok ? `text matches` : `text "${text.slice(0, 100)}" missing "${expect}"`
+        break
+      }
+      case 'value_set': {
+        const val = await page.locator(selector).inputValue()
+        ok = val === String(value)
+        detail = ok ? `value set` : `value "${val}" != "${value}"`
+        break
+      }
+      case 'console_errors': {
+        const limit = Number(expect ?? 0)
+        ok = consoleErrors.length <= limit
+        detail = ok
+          ? `${consoleErrors.length} console error(s)`
+          : `${consoleErrors.length} console error(s): ${consoleErrors.slice(0, 3).join(' | ')}`
+        break
+      }
+      case 'route_request': {
+        // 040: auto-plan arms only when BOTH endpoints are *selected*
+        // suggestions — typing alone never fires POST /route. Use the same
+        // flow as the e2e helper (fill, pick the first option), then wait for
+        // the request. The old fill-and-wait check could never pass.
+        const ORIGIN = "input[placeholder='e.g. Marienplatz, Munich']"
+        const pick = async (input, text) => {
+          await page.fill(input, text)
+          const option = page.locator('[role="option"]').first()
+          await option.waitFor({ state: 'visible', timeout: 8000 })
+          await option.click()
+          await page.waitForTimeout(300)
+        }
+        // Let the first geolocation fix pre-fill the origin, then overwrite it.
+        await page.waitForTimeout(500)
+        await pick(ORIGIN, 'Marienplatz, Munich')
+        await pick(selector, value)
+        await page.waitForTimeout(1500)
+        ok = routeRequests > 0
+        detail = ok ? '/route request fired' : 'no /route request'
+        break
+      }
     }
-
-    checkResults.push({
-      spec,
-      ac,
-      kind,
-      selector,
-      viewport: viewName,
-      ok,
-      detail,
-    })
+  } catch (e) {
+    ok = false
+    detail = `error: ${e.message}`
   }
+  return { ok, detail }
+}
+
+async function runCheck(check) {
+  const { spec, ac, kind, selector, viewport } = check
+  const targets = viewport === 'both' ? views.map((v) => v.name) : [viewport]
+  for (const viewName of targets) {
+    const result = await runOne(check, viewName)
+    if (!result) continue
+    checkResults.push({ spec, ac, kind, selector, viewport: viewName, ...result })
+  }
+}
+
+/**
+ * 054 AC-3: prove the oracle can fail.
+ *
+ * A check that passes after its target is removed is not testing anything (the
+ * `.error` placeholder and the aria-label checks did exactly that for days). The
+ * mutation is deliberately simple and reversible by reloading the page:
+ *   selector checks  → remove every node the selector matches, re-run, expect fail
+ *   route_request    → remove the destination input, re-run, expect an error
+ *   console_errors   → inject a console.error, re-run, expect fail
+ *   absent / count=0 → unsupported (there is nothing to remove); reported, not failed
+ */
+async function runSelftest(check) {
+  const { spec, ac, kind, selector, expect } = check
+  const verdict = { spec, ac, kind, selector, verdict: 'unsupported', detail: '' }
+  if (kind === 'absent' || (kind === 'count' && Number(expect) === 0)) {
+    verdict.detail = 'nothing to remove (absent/count=0)'
+    return verdict
+  }
+  await go(baseUrl)
+  if (kind === 'console_errors') {
+    await page.evaluate(() => console.error('acceptance selftest'))
+    const result = await runOne(check, 'desktop')
+    verdict.verdict = result && result.ok === false ? 'ok' : 'always_passes'
+    verdict.detail = result ? result.detail : 'check did not run'
+    return verdict
+  }
+  if (!selector) {
+    verdict.detail = 'no selector'
+    return verdict
+  }
+  const removed = await page.evaluate((sel) => {
+    try {
+      const nodes = Array.from(document.querySelectorAll(sel))
+      nodes.forEach((node) => node.remove())
+      return nodes.length
+    } catch {
+      return -1
+    }
+  }, selector)
+  if (removed <= 0) {
+    verdict.detail = `selector matched ${removed} node(s) after a fresh load`
+    return verdict
+  }
+  const result = await runOne(check, 'desktop')
+  verdict.verdict = result && result.ok === false ? 'ok' : 'always_passes'
+  verdict.detail = result
+    ? `${result.detail} (after removing ${removed} node(s))`
+    : 'check did not run'
+  return verdict
 }
 
 try {
@@ -323,6 +372,12 @@ try {
   for (const check of checks) {
     await runCheck(check)
   }
+
+  if (plan.selftest) {
+    for (const check of checks) {
+      selftest.push(await runSelftest(check))
+    }
+  }
 } finally {
   await browser.close()
 }
@@ -331,6 +386,7 @@ const result = {
   shots: screenshots,
   views: viewFacts,
   checks: checkResults,
+  selftest,
   layout: layoutFacts,
 }
 console.log(JSON.stringify(result))

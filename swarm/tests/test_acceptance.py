@@ -515,3 +515,68 @@ def test_a_hand_written_task_is_not_touched():
     text = "- [ ] T4 (AC-5): On the first geolocation fix, centre the map...\n"
     out, closed = reconcile_fix_tasks(text, {"AC-5"}, date="2026-11-26")
     assert closed == [] and out == text
+
+
+# ---- 054 AC-3: a check that cannot fail is not a check ---------------------
+
+
+def _report_with_oracle(oracle):
+    from swarm.acceptance import SpecReport
+
+    return SpecReport(
+        spec="040-x",
+        title="x",
+        criteria=[],
+        checks=[],
+        ac_verdicts={"AC-1": {"verdict": "pass", "evidence": "found 1", "source": "probe"}},
+        oracle=oracle,
+    )
+
+
+def test_a_check_that_passes_on_a_mutated_page_fails_the_spec():
+    report = _report_with_oracle(
+        [{"ac": "AC-1", "kind": "exists", "verdict": "always_passes", "detail": "still found"}]
+    )
+    assert report.verdict == "FAIL"
+    assert report.oracle_failures
+
+
+def test_an_ok_or_unsupported_self_test_does_not_fail_the_spec():
+    report = _report_with_oracle(
+        [
+            {"ac": "AC-1", "kind": "exists", "verdict": "ok", "detail": "not found after remove"},
+            {"ac": "AC-2", "kind": "absent", "verdict": "unsupported", "detail": "nothing to remove"},
+        ]
+    )
+    assert report.verdict == "PASS"
+
+
+def test_the_report_lists_the_oracle_self_test():
+    from swarm.acceptance import render_report
+
+    report = _report_with_oracle(
+        [{"ac": "AC-1", "kind": "exists", "verdict": "ok", "detail": "removed 1 node"}]
+    )
+    text = render_report(report)
+    assert "Oracle self-test" in text and "removed 1 node" in text
+
+
+def test_a_missing_check_is_advisory_by_default_and_fatal_when_strict(monkeypatch):
+    from swarm.acceptance import SpecReport
+
+    report = SpecReport(spec="x", title="x", criteria=[], checks=[])
+    report.ac_verdicts = {"AC-1": {"verdict": "pass", "evidence": "", "source": "probe"}}
+    report.config_errors = ["no acceptance.toml check for AC-1"]
+    monkeypatch.delenv("SWARM_ACCEPT_STRICT", raising=False)
+    assert report.verdict == "PASS"
+    monkeypatch.setenv("SWARM_ACCEPT_STRICT", "1")
+    assert report.verdict == "FAIL"
+
+
+def test_the_report_names_the_uncovered_acs():
+    from swarm.acceptance import SpecReport, render_report
+
+    report = SpecReport(spec="x", title="x", criteria=[], checks=[])
+    report.config_errors = ["no acceptance.toml check for AC-3, AC-4"]
+    text = render_report(report)
+    assert "## Configuration" in text and "AC-3, AC-4" in text
