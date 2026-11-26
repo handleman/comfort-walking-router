@@ -218,3 +218,42 @@ recovered in seconds. Two lessons, both about signals the harness was missing.
   verdict was recorded loudly (`e2e_weakened` with the exact per-file counts)
   instead of an opaque `e2e_unclassified`. The remaining cost was knowledge, not
   code.
+
+## 2026-11-26 — false signals cost more than bad models
+
+The overnight run's expensive mistakes were not model quality: the harness
+produced or believed wrong signals. Spec 054 captures the fixes; the lessons:
+
+- **A stale `dist/` makes e2e lie.** `npx playwright test` serves
+  `frontend/dist/` and never rebuilds. During T25 the source instrumentation
+  appeared in no run for ~40 minutes — the suite was testing the previous build
+  (and could have marked an unchanged app green). Only `npm run test:e2e` built
+  first. Build inside the preview webServer (or a `pretest:e2e` hook) so *every*
+  entry point is fresh.
+- **A PASS is not evidence.** T6:4 ended `review_verdict: pass` with zero
+  recorded e2e executions on an e2e task. The harness now runs the suite itself,
+  which rescued the run, but the false verdict went unmarked. A PASS whose
+  required command was never run must be `review_unsupported`, not green.
+- **Oracles are code and need tests.** Acceptance checks that could never pass
+  generated three stale fix tasks (empty `.error` placeholders, aria-labels on
+  decorative icons, browser 503s for a DB-less optional feature, hidden controls
+  as zero-size) and ten specs silently reported 0/0/0 because the parser missed
+  `- [x] AC-n:` headers. A check needs a self-test: it must pass on the build and
+  fail when its target is mutated — otherwise the oracle is the bug.
+- **Reconcile generated work with the current verdict.** T19–T21 stayed queued
+  after their ACs started passing; the queue would have paid to re-fix solved
+  problems. Re-evaluate an acceptance task's AC before running it.
+- **A filtered repo loses its hygiene.** `git filter-repo --subdirectory-filter
+  swarm/` drops the root `.gitignore`/`.dockerignore`/LICENSE; `git add -A` then
+  tracked 120 `__pycache__` files into what would have been a public repo. Audit
+  before any push (caches, secrets, large blobs, hygiene files).
+- **Chained bindings fail silently.** T25's modal never closed because a Svelte 4
+  `bind:selected` chain (`App → Modal → SearchInput`) stopped propagating — no
+  error, no warning, passing unit tests and a passing source-only verifier. Only
+  a behavioural e2e test can see it. For UI bugs with an existing failing spec,
+  fix test-first against that spec; the reviewer correctly blocked the coder's
+  guess, but the loop had no oracle to iterate on.
+- **Positive:** the reasoned reviewer earned its cost — it blocked a wrong
+  `SearchInput` edit with a precise diagnosis, and 053's grounded/allowlist rules
+  kept three separate runs from wandering. Judgement roles on a reasoning model
+  is the right default.
