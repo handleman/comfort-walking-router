@@ -91,8 +91,13 @@ def record_done(
     run_id: str,
 ) -> None:
     """Write the local fallback cache (git trailers are written by the commit)."""
+    from swarm.spec_loader import spec_dir_name
+
+    # The invocation may pass a prefix (`040`); the ledger key and the trailers
+    # use the canonical directory (`040-google-maps-layout`). One key, always.
+    canonical = spec_dir_name(repo_root, spec_dir)
     cache = _read_cache(repo_root)
-    cache[_key(spec_dir, task_id)] = {
+    cache[_key(canonical, task_id)] = {
         "task_hash": task_hash_value,
         "spec_hash": spec_hash_value,
         "run": run_id,

@@ -460,3 +460,62 @@ def test_resume_does_not_pin_a_red_task_the_ledger_already_retired(tmp_path, mon
     monkeypatch.setattr(flow, "_first_open_task", lambda root, skip=None: None)
 
     assert flow._resume_point(tmp_path) == ("990-alpha", "T6")
+
+
+def test_acceptance_requeues_when_it_queues_fix_tasks(tmp_path, monkeypatch):
+    """043 T7: a queued fix task must be run, not left for the next operator."""
+    runs = tmp_path / "swarm" / "runs"
+    runs.mkdir(parents=True)
+    calls: list[int] = []
+    accepted = {"n": 0}
+
+    def runner() -> int:
+        calls.append(1)
+        _run_dir(
+            tmp_path,
+            f"20260101-0000{len(calls):02d}-1-a",
+            {"spec": "040", "task": "T1", "status": "green"},
+        )
+        return 0
+
+    def accept():
+        accepted["n"] += 1
+        queued = 2 if accepted["n"] == 1 else 0
+        return types.SimpleNamespace(exit_code=0, queued=queued, reports=[])
+
+    monkeypatch.setattr(supervise, "latest_run", lambda runs=runs: _latest(runs))
+    code = supervise.supervise(
+        runner=runner,
+        runs=runs,
+        stop_file=tmp_path / "STOP",
+        sleep=lambda _s: None,
+        log=lambda _m: None,
+        max_rounds=5,
+        accept=accept,
+    )
+    assert code == 0
+    assert len(calls) == 2, "one re-entry for the queued fixes"
+    assert accepted["n"] == 2
+
+
+def test_acceptance_with_nothing_queued_stops(tmp_path, monkeypatch):
+    runs = tmp_path / "swarm" / "runs"
+    runs.mkdir(parents=True)
+    calls: list[int] = []
+
+    def runner() -> int:
+        calls.append(1)
+        _run_dir(tmp_path, "20260101-000001-1-a", {"spec": "040", "task": "T1", "status": "green"})
+        return 0
+
+    monkeypatch.setattr(supervise, "latest_run", lambda runs=runs: _latest(runs))
+    code = supervise.supervise(
+        runner=runner,
+        runs=runs,
+        stop_file=tmp_path / "STOP",
+        sleep=lambda _s: None,
+        log=lambda _m: None,
+        max_rounds=5,
+        accept=lambda: types.SimpleNamespace(exit_code=0, queued=0, reports=[]),
+    )
+    assert code == 0 and len(calls) == 1

@@ -277,3 +277,23 @@ def _real_git(repo, args):
 
     p = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=False)
     return p.returncode, (p.stdout + p.stderr)[-500:]
+
+
+def test_the_cache_key_uses_the_canonical_spec_directory(tmp_path):
+    """`run.sh 040 T3` must not record `040/T3` while trailers say `040-…/T3`."""
+    from swarm import done
+
+    spec = tmp_path / "specs" / "product" / "040-google-maps-layout"
+    spec.mkdir(parents=True)
+    (spec / "spec.md").write_text("# x\n")
+    done.record_done(
+        tmp_path,
+        "040",
+        "T3",
+        task_hash_value="a" * 64,
+        spec_hash_value="b" * 64,
+        run_id="r1",
+    )
+    cache = done._read_cache(tmp_path)
+    assert "040-google-maps-layout/T3" in cache
+    assert "040/T3" not in cache

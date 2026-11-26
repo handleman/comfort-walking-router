@@ -129,11 +129,12 @@ def supervise(
     stop_file: Path = STOP_FILE,
     sleep: Callable[[float], None] = time.sleep,
     log: Callable[[str], None] = print,
-    accept: Callable[[], int] | None = None,
+    accept: Callable[[], Any] | None = None,
     retry_file: Path = RETRY_LATER,
 ) -> int:
     """Run/resume the queue until it is done. Returns the last exit code."""
     attempts = load_attempts(retry_file)
+    accept_rounds = 0
     run_once = runner or _default_runner
     for round_no in range(1, max_rounds + 1):
         if stop_file.exists():
@@ -172,7 +173,22 @@ def supervise(
             # queue drains. On FAIL it exits non-zero; the queue stays parked.
             if accept is not None:
                 log("supervisor: queue drained — running spec acceptance pass")
-                return accept()
+                result = accept()
+                if isinstance(result, int):
+                    return result
+                exit_code = int(getattr(result, "exit_code", 1))
+                # 043 T7: the pass may queue (or reconcile) fix tasks. Re-enter
+                # the queue for them once instead of exiting with the fixes
+                # unwritten; a second round that still fails stops honestly.
+                queued = int(getattr(result, "queued", 0) or 0) + sum(
+                    len(getattr(report, "reconciled", []) or [])
+                    for report in (getattr(result, "reports", []) or [])
+                )
+                accept_rounds += 1
+                if queued and accept_rounds < 2:
+                    log(f"supervisor: acceptance queued {queued} task(s) — re-entering the queue")
+                    continue
+                return exit_code
             return code
         if action == "stop":
             log(f"supervisor: terminal outcome {outcome.status} — stopping")
@@ -228,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
     if os.getenv("SWARM_ACCEPT_QUEUE", "1") != "0":
         from swarm.acceptance import run as run_acceptance
 
-        def accept() -> int:
+        def accept() -> Any:
             return run_acceptance(queue=True, build=True, log=print)
     else:
         accept = None

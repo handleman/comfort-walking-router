@@ -103,15 +103,16 @@ now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/
 ## Open follow-ups
 
 - `[ ]` **042 T3/T4** visual phase integration — `_visual_phase` is a stub.
-- `[ ]` **043 T7** acceptance re-queue — the supervisor does not re-enter the
-  queue after queuing fixes.
-- `[ ]` **049 T8** real-run verify.
+- `[x]` **043 T7** acceptance re-queue — one re-entry when the pass queued or
+  reconciled fix tasks; a second failing round stops honestly.
+- `[x]` **049 T8** real-run verify — the senior escalation ran on T6's verifier
+  block (2026-11-26, `senior:verify1`) and the run recovered.
 - `[ ]` **040 T25 modal recovery** — choosing a suggestion inside `StartLocationModal` does not close it and the click never reaches the option's handler (T25 run 2026-11-26 parked `e2e_rounds_exhausted`; the coder's SearchInput edit was correctly blocked by the reviewer and reverted).
 - `[ ]` **Acceptance coverage (new, 2026-11-26)** — 10 product specs have no
   `acceptance.toml`; they report unverified (not failing). Writing checks per
   spec is the remaining work for a true "every AC is checked in a browser".
-- `[ ]` **`done.json` cache key** uses the invocation prefix (`040/T23`) while
-  trailers are canonical; `is_done` is right via trailers, but tooling lies.
+- `[x]` **`done.json` cache key** — `record_done` normalises through
+  `spec_dir_name`, so the cache and the trailers agree.
 - `[ ]` **QA can skip the e2e command** — the harness now runs the suite itself
   when nothing was recorded (`1711c5b`), but QA reporting PASS without running it
   is still accepted until the evidence check fires; consider failing the verdict.
