@@ -74,6 +74,9 @@ the zero-size check counted controls hidden by an ancestor. The criteria parser
 now also reads the older `- [x] AC-n:` headers, so ten specs stop reporting 0/0/0
 (they remain **unverified** until each gets an `acceptance.toml`).
 
+- `[x]` **054 T7 core/driver split** — the factory suite marks app-coupled tests
+  `driver` and skips without an app tree: `pytest -m "not driver"` is green with
+  no `app/` (833 passed, 8 skipped in `/tmp/hq-src3`).
 - `[x]` **054 T2 evidence-backed PASS** — a PASS with a required e2e execution
   missing is `review_unsupported` (judge record names the command); a harness
   run that passes clears the flag.

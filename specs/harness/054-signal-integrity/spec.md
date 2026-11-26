@@ -72,7 +72,7 @@ Make every signal the harness trusts *earned*:
 - [ ] **AC-6 (test-first UI).** When a task's failing evidence is a named spec,
   the fix crew receives that spec (or its failure tail) as the oracle and its
   success is that spec passing at the current delta.
-- [ ] **AC-7 (core/driver split).** Factory tests are marked core vs driver;
+- [x] **AC-7 (core/driver split).** Factory tests are marked core vs driver;
   `pytest -m "not driver"` is green with no app tree, and driver tests skip with
   a named reason.
 
