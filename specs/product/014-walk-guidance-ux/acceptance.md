@@ -1,6 +1,6 @@
 # 014-walk-guidance-ux — Acceptance
 
-Generated: 2026-11-26T13:30:44Z · Verdict: **FAIL** (1 failed · 2 passed · 0 unverified · 6 n/a)
+Generated: 2026-11-26T13:34:32Z · Verdict: **PASS** (0 failed · 3 passed · 0 unverified · 6 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ Generated: 2026-11-26T13:30:44Z · Verdict: **FAIL** (1 failed · 2 passed · 0 
 | AC-2 | N/A | declared | glyph is a map divIcon, asserted by the e2e suite |
 | AC-3 | PASS | probe | found 1 element(s); found 1 element(s) |
 | AC-4 | PASS | probe | /route request fired |
-| AC-5 | FAIL | probe | no /route request |
+| AC-5 | PASS | probe | /route request fired |
 | AC-6 | N/A | declared | moving marker needs a walk session |
 | AC-7 | N/A | declared | arrival needs walking into the radius |
 | AC-8 | N/A | declared | token discipline is a bundle/request assertion |
