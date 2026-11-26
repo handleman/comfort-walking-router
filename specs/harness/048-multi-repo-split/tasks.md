@@ -48,7 +48,7 @@ order; every phase ends green.
 ## Phase 7 — release + verify
 - [x] T17 (AC-9): `gh repo create handleman/handleman-hq --public --license mit`; push filtered `main`.
 - [x] T18 (AC-9): tag `v0.2.0`; `gh release create v0.2.0`.
-- [ ] T19 (AC-6, AC-7): app installs `swarm @ git+…@v0.2.0`; `make test` + `make e2e` green; one real `hq run` task (040-T13) green; factory `pytest` green.
+- [x] T19 (AC-6, AC-7): app installs `swarm @ git+…@v0.2.0`; `make test` + `make e2e` green; one real `hq run` task (040-T13) green; factory `pytest` green.
 
 ## Verify
-- [ ] T20 (AC-1…AC-9): full AC pass — two independent repos under the workspace, factory history preserved, `hq` installable + `--version`, app agnostic (`grep` clean), drivers relocated, both suites green, docs/specs split, `v0.2.0` released and pinned.
+- [~] T20 (AC-1…AC-9): full AC pass — two independent repos under the workspace, factory history preserved, `hq` installable + `--version`, app agnostic (`grep` clean), drivers relocated, both suites green, docs/specs split, `v0.2.0` released and pinned.
