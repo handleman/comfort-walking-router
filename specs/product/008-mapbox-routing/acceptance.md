@@ -1,6 +1,6 @@
 # 008-mapbox-routing — Acceptance
 
-Generated: 2026-11-26T16:12:32Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 4 n/a)
+Generated: 2026-11-26T16:47:23Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 4 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
