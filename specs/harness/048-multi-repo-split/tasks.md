@@ -29,7 +29,8 @@ order; every phase ends green.
 
 ## Phase 3 — contract in core
 - [x] T8 (AC-4): `swarm/contract.py` loads `swarm.yaml` (specs_dir/scope/gates/risk/e2e/db/python) with defaults reproducing today's behaviour.
-- [ ] T9 (AC-4): delete the 5 hardcoded tables; `REPO_ROOT` → target repo `hq` was invoked in (back-compat cwd default for `-m swarm.*`).
+- [~] T9 (AC-4): **consumers wired** in `/tmp/hq-src3` — scope, affected-gate map, gate commands, risk classes and harness specs read `swarm.yaml` (env still wins); `paths._default_root()` falls back to cwd for an installed package. **Defaults stay app-shaped** until the app ships its own `swarm.yaml` (Phase 5): switching them to generic (`src/`, `tests/`) turns **30 factory tests red**, all encoding the app's scope — the same core/app split as T5b, now for contracts. See T9b.
+- [ ] T9b (AC-4, discovered 2026-11-26): make the scope/risk tests contract-aware — they assert the app's paths (`app/`, `frontend/`) from `resolve_scope()`/`risk.classify`, so generic factory defaults fail them. Load the target's `swarm.yaml` in a fixture (or mark them `driver`), then T9 can drop the app-shaped defaults and T10's grep can pass.
 - [ ] T10 (AC-4): verify `grep -rn "app/|frontend/|tests/|contracts/" src/swarm/` clean for the core (drivers excluded).
 
 ## Phase 4 — driver relocation
