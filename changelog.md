@@ -1,5 +1,7 @@
 # Changelog
 
+## 2026-11-26 (v0.4.5/v0.4.6)
+- **Oracle self-test in the factory.** `make swarm-accept ARGS="--selftest --strict"` mutates each check's target and requires the check to fail; an always-passing check fails the spec. The self-test gets its own 900 s browser budget (it re-runs every check).
 ## 2026-11-26 (v0.4.4)
 - **Per-task visual phase.** A green task records `run.json.visual` (Leaflet tiles, search inputs, console errors) plus desktop/mobile screenshots in `harness/runs/<run>/visual_qa/`. Advisory only — gates and the verifier decide; no running stand records `checked:false` with the reason. `SWARM_VISUAL_BASE_URL` points it at a dev server; `SWARM_VISUAL_QA=0` disables.
 ## 2026-11-26 (acceptance coverage)
