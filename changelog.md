@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-26 (Figma MCP + OAuth for the swarm)
+- **The swarm can use Figma MCP, not just REST.** Spec 057 now makes MCP the primary queue transport with standard MCP OAuth (discovery, DCR, PKCE, loopback callback): the first run shows an authorization URL, receives the redirect, stores the token (0600) and continues the same run. REST with `FIGMA_TOKEN` stays first-class for CI/headless (`transport: auto|mcp|rest`), writing the same cache.
+- **Read-only MCP tools** (metadata/design context/variables/screenshots/assets/Code Connect) are exposed to the coder with an allowlist, budget and per-node cache; canvas writes are blocked.
+- Investigated endpoints: AS `https://api.figma.com`, authorize `https://www.figma.com/oauth/mcp`, token `https://api.figma.com/v1/oauth/token`, DCR `/v1/oauth/mcp/register`, scope `mcp:connect`; the Python `mcp` 1.30 SDK provides `OAuthClientProvider` + `streamablehttp_client`.
 ## 2026-11-26 (walk marker + permission dialog)
 - **014 now probes 7 ACs:** denied geolocation shows the start-location dialog, the walker is the inlined person glyph with **exactly one** marker, a new fix moves it, and the Mapbox token is absent from the page. The check found a repeated pre-walk `currentMarker` stacking a second identical icon during walk mode; removed while walking.
 - **Factory v0.5.1** publishes `location_denied`/`geo_step`. v0.5.0 contained the kinds in source but the wheel dropped them silently, so 014's AC-1/AC-6 were unverified without an error — the plan is the source of truth.

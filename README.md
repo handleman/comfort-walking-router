@@ -136,10 +136,12 @@ The Figma design is being prepared. Two lanes are documented in
 - **Operator (OpenCode):** the remote Figma MCP server in `opencode.json`
   (`https://mcp.figma.com/mcp`, OAuth via `/mcps`) plus the
   `figma-implement` skill.
-- **Queue (harness):** a committed design cache fetched by `hq design sync`
-  (factory spec 057), with deterministic token/region/screenshot checks. The
-  draft product spec is `specs/product/041-figma-redesign/` (do not queue until
-  the file link and frames are filled).
+- **Queue (harness):** MCP with first-run OAuth (URL → browser callback → token
+  → continue) **or** REST with a personal access token; both write a committed
+  design cache for `hq design sync` (factory spec 057), with deterministic
+  token/region/screenshot checks. The draft product spec is
+  `specs/product/041-figma-redesign/` (do not queue until the file link and
+  frames are filled).
 
 ## CrewAI swarm (learning goal 2)
 

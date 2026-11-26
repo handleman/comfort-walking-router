@@ -52,31 +52,63 @@ Notes:
 - Read-only use is the default. Do not call the write tools (`use_figma`,
   `generate_figma_design`, …) on a real design file unless you mean to edit it.
 
-## Queue lane — cached design IR (factory spec 057)
+## Queue lane — MCP (OAuth) or REST, then a cached IR (factory spec 057)
 
 > Planned in `handleman-hq` spec **057-figma-design-support**. Until it ships,
 > the queue has no design lane; the operator lane above is the only Figma path.
 
-The intended flow:
+The queue supports **both** Figma transports and writes the same cache:
+
+| | MCP | REST |
+| --- | --- | --- |
+| Auth | OAuth on first use (DCR + PKCE, loopback redirect) | `FIGMA_TOKEN` personal access token |
+| Data | read tools: metadata, design context, variables, screenshots, assets, Code Connect | raw nodes, images, variables, components, styles |
+| Best for | the same experience as OpenCode, latest tools | CI/headless, no browser callback |
+
+`transport: auto` (default) prefers a stored MCP token, then `FIGMA_TOKEN`
+(REST), then starts the MCP OAuth prompt. Force one with
+`transport: mcp` or `transport: rest`. **The MCP token is not a REST token**
+(it is scoped to `mcp:connect`), so REST needs its own personal access token.
+
+### First run with MCP (the swarm meets a Figma link)
+
+1. A run needs Figma (a `design:` block / `design.toml`) and no token is stored.
+2. Before any model call, the harness prints an authorization URL (and records
+   it in `run.json.auth`), then waits.
+3. You open the URL, authorize; the browser redirects to
+   `http://127.0.0.1:<port>/callback`.
+4. The harness exchanges the code, stores the token at
+   `$XDG_DATA_HOME/handleman-hq/figma/oauth.json` (0600), and **continues the
+   same run**. Expired tokens refresh silently.
+5. No callback before the timeout → `figma_auth_timeout`; `--non-interactive`
+   → `figma_auth_required` with the URL. Remote host: SSH-forward the callback
+   port or use `hq figma auth --paste`.
+
+Management commands (planned): `hq figma auth`, `hq figma status`,
+`hq figma logout`, `hq design sync [--transport mcp|rest]`.
 
 ```bash
-# once per design change (network; token from .env)
+# MCP: first run shows the URL, stores the token, then continues
+hq figma auth
 hq design sync
 
-# the queue runs from the cache; no network, no OAuth
-make swarm-run
+# REST/CI: a personal access token, no browser
+FIGMA_TOKEN=figd_... hq design sync --transport rest
 ```
 
-`swarm.yaml` declares the file and the allowlisted frames:
+`swarm.yaml`:
 
 ```yaml
 design:
   provider: figma
+  transport: auto              # auto | mcp | rest
   file_key: "<file key from /design/<key>/...>"
-  nodes: ["12:34", "56:78"]      # only these frames may enter prompts
-  token_env: FIGMA_TOKEN
-  dir: designs/                  # committed cache: JSON, PNG, brief, lock
+  nodes: ["12:34", "56:78"]    # only these frames may enter prompts
+  dir: designs/                # committed cache
   scale: 2
+  auth:
+    timeout_s: 600
+    open_browser: true
 ```
 
 `hq design sync` writes:
@@ -85,10 +117,11 @@ design:
 designs/<file-key>/
   index.json        # normalized IR (frame tree, layout, fills, text, components)
   <node>.json       # one frame each (allowlisted)
-  <node>.png        # reference render (desktop and mobile frames)
+  <node>.png        # reference render
   tokens.json       # variables + styles (colors, spacing, typography)
   design-brief.md   # the planner/coder-readable brief
   design.lock       # Figma file version + node IDs + hashes
+  mcp/              # cached MCP tool results + images (MCP transport)
 ```
 
 The spec that implements a frame declares it in `specs/product/<spec>/design.toml`:
@@ -121,11 +154,13 @@ silent freehand implementation.
 
 ### Security and limits
 
-- `FIGMA_TOKEN` lives in `.env` (gitignored), is read only by the sync command,
-  and is never put in a prompt, `run.json` or a log. Preflight validates it when
-  a `design:` block exists.
+- MCP tokens are stored outside the repo
+  (`$XDG_DATA_HOME/handleman-hq/figma/oauth.json`, 0600) and are never put in a
+  prompt, `run.json` or a log. `FIGMA_TOKEN` (REST) lives in `.env` (gitignored)
+  and is read only by the sync command. Preflight validates whichever transport
+  is configured.
 - Only allowlisted file keys/nodes are fetched; the model cannot choose a new
-  Figma URL.
+  Figma URL. MCP exposes read tools only (no `use_figma`/canvas writes).
 - `designs/` is read-only during a run (the coder cannot edit the cache); only
   `hq design sync` writes it.
 - Reads are cached by file version; 429 responses back off; response size and
@@ -135,8 +170,8 @@ silent freehand implementation.
 ## What is still needed
 
 - The design file link and the frame list (the design is in preparation).
-- A Figma personal access token in `.env` for the queue lane
-  (`FIGMA_TOKEN=figd_…`; create it under **Settings → Security → Personal
-  access tokens**).
+- Either authorize the MCP server once (the first run prompts) **or** put a
+  Figma personal access token in `.env` for the REST path
+  (`FIGMA_TOKEN=figd_…`; **Settings → Security → Personal access tokens**).
 - The seat check: remote MCP works on all plans, but a Full/Dev seat avoids
   usage limits; the desktop server needs a paid plan.
