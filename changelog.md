@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-26 (Figma lane implemented)
+- **MCP + first-run OAuth in the harness (v0.6.2).** `hq figma auth|status|logout` uses the remote Figma MCP server (discovery, DCR, PKCE, loopback callback); with no token a run/preflight prints the URL, waits for the browser redirect, stores the token 0600 and continues. Headless runs fail typed with `figma_auth_required` + the URL.
+- **`hq design sync|check|brief|verify`** — MCP (read-only tool allowlist, budget, per-node cache) or REST (`FIGMA_TOKEN`) into one atomic `designs/<key>/` cache (IR, brief, renders, tokens, lock). `transport: auto|mcp|rest`.
+- **Queue integration:** preflight/flow ensure the cache before the first model call; the planner/coder prompt gets the brief; `designs/` is out of coder scope; `run.json.design` records it. Deterministic token/region/screenshot checks feed the acceptance report.
+- Factory 940 tests, ruff + audit clean. The live pilot waits for the design file.
 ## 2026-11-26 (Figma MCP + OAuth for the swarm)
 - **The swarm can use Figma MCP, not just REST.** Spec 057 now makes MCP the primary queue transport with standard MCP OAuth (discovery, DCR, PKCE, loopback callback): the first run shows an authorization URL, receives the redirect, stores the token (0600) and continues the same run. REST with `FIGMA_TOKEN` stays first-class for CI/headless (`transport: auto|mcp|rest`), writing the same cache.
 - **Read-only MCP tools** (metadata/design context/variables/screenshots/assets/Code Connect) are exposed to the coder with an allowlist, budget and per-node cache; canvas writes are blocked.

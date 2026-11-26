@@ -234,6 +234,47 @@ async function evaluateView(name, width, height) {
   }
 }
 
+async function collectDesignFacts() {
+  // 057: one fresh load per design spec; tokens + region rects + screenshots.
+  const out = {}
+  for (const entry of plan.design || []) {
+    out[entry.spec] = {}
+    await go(baseUrl)
+    for (const view of views) {
+      await page.setViewportSize({ width: view.width, height: view.height })
+      await page.waitForTimeout(400)
+      const facts = await page.evaluate(
+        (tokens, regions) => {
+          const tokenMap = {}
+          for (const name of tokens) {
+            tokenMap[name] = getComputedStyle(document.documentElement)
+              .getPropertyValue(name)
+              .trim()
+          }
+          const regionMap = {}
+          for (const region of regions) {
+            const el = document.querySelector(region.selector)
+            if (!el) {
+              regionMap[region.id] = null
+              continue
+            }
+            const box = el.getBoundingClientRect()
+            regionMap[region.id] = { x: box.x, y: box.y, w: box.width, h: box.height }
+          }
+          return { tokens: tokenMap, regions: regionMap }
+        },
+        entry.tokens || [],
+        entry.regions || [],
+      )
+      const shot = resolve(outDir, `${entry.spec}-${view.name}.png`)
+      await page.screenshot({ path: shot, fullPage: true })
+      facts.screenshots = { [view.name]: shot }
+      out[entry.spec][view.name] = facts
+    }
+  }
+  return out
+}
+
 async function runOne(check, viewName) {
   const { kind, selector, expect, value, origin } = check
   const view = views.find((v) => v.name === viewName)
@@ -536,6 +577,8 @@ try {
     await runCheck(check)
   }
 
+  const designFacts = await collectDesignFacts()
+
   if (plan.selftest) {
     for (const check of checks) {
       selftest.push(await runSelftest(check))
@@ -549,6 +592,7 @@ const result = {
   shots: screenshots,
   views: viewFacts,
   checks: checkResults,
+  design: designFacts,
   selftest,
   layout: layoutFacts,
 }

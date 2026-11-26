@@ -68,3 +68,17 @@ harness_specs:
 drivers:
   e2e: "./drivers/e2e.sh"
   db: "harness/db.sh"
+
+# 057: Figma design lane. Fill this when the design file is ready, then run
+# `hq figma auth` (or `hq design sync --transport rest` with FIGMA_TOKEN in
+# .env). Both write designs/<key>/ for the queue; see docs/figma.md.
+# design:
+#   provider: figma
+#   transport: auto            # auto | mcp | rest
+#   file_key: "<from /design/<key>/...>"
+#   nodes: ["12:34"]           # allowlisted frames
+#   token_env: FIGMA_TOKEN     # REST only
+#   dir: designs
+#   auth:
+#     timeout_s: 600
+#     open_browser: true
