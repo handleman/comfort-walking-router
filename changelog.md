@@ -1,5 +1,7 @@
 # Changelog
 
+## 2026-11-26 (v0.4.4)
+- **Per-task visual phase.** A green task records `run.json.visual` (Leaflet tiles, search inputs, console errors) plus desktop/mobile screenshots in `harness/runs/<run>/visual_qa/`. Advisory only — gates and the verifier decide; no running stand records `checked:false` with the reason. `SWARM_VISUAL_BASE_URL` points it at a dev server; `SWARM_VISUAL_QA=0` disables.
 ## 2026-11-26 (acceptance coverage)
 - **`make swarm-accept --strict` passes 14/14.** Seven specs now have real browser probes (001, 004, 011, 014, 028, 036, 040), seven declare their non-UI ACs with `[[not_applicable]]` (005, 006, 007, 008, 010, 029, 035) — N/A, not unverified. No AC is silently unchecked; the strict pass is now the gate.
 ## 2026-11-26 (v0.4.0)
