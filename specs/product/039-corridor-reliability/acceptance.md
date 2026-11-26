@@ -1,10 +1,10 @@
 # 039-corridor-reliability — Acceptance
 
-Generated: 2026-11-26T10:02:11Z · Verdict: **FAIL** (1 failed · 0 passed · 2 unverified)
+Generated: 2026-11-26T10:02:41Z · Verdict: **PASS** (0 failed · 1 passed · 2 unverified)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | FAIL | probe | /route request fired; text matches; error: locator.textContent: Timeout 30000ms exceeded. Call log: [2m  - waiting for locator('section.route-summary')[22m |
+| AC-1 | PASS | probe | /route request fired; text matches |
 | AC-2 | UNVERIFIED | none | unclear |
 | AC-3 | UNVERIFIED | none | unclear |
 
