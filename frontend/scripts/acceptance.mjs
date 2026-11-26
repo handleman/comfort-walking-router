@@ -319,8 +319,9 @@ async function runOne(check, viewName) {
         await context.clearPermissions()
         try {
           await go(check.url || baseUrl)
-          await page.waitForTimeout(1500)
           const dialog = page.locator("[role='dialog'][aria-label='Choose start location']")
+          // startFix waits up to 10s for a fix before it asks for the origin.
+          await dialog.waitFor({ state: 'visible', timeout: 15000 }).catch(() => null)
           ok = (await dialog.count()) > 0
           detail = ok
             ? 'start-location dialog shown on denied geolocation'
@@ -333,7 +334,10 @@ async function runOne(check, viewName) {
       }
       case 'geo_step': {
         const markerStyle = () =>
-          page.locator(selector).evaluate((el) => el.getAttribute('style') || '')
+          page
+            .locator(selector)
+            .first()
+            .evaluate((el) => el.getAttribute('style') || '')
         const before = await markerStyle()
         const [dlat, dlng] = String(value || '0.001,0.001')
           .split(',')

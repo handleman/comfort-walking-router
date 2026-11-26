@@ -185,4 +185,4 @@ loop with `budget_exhausted`. The container sandbox lives in the factory image
 
 ## Status
 - App: MVP flow runs end-to-end (`POST /route` → geocode → OSRM → SQLite cache → Leaflet route + explanation). Comfort score is neutral until `001-T3` + T7–T10 wire Overpass/scoring; the UI states that explicitly.
-- Harness: the published [handleman-hq](https://github.com/handleman/handleman-hq) package (pinned `v0.4.9`) in `harness/.venv`, configured by `swarm.yaml` (including `runs_dir: harness/runs`); this repo keeps the queue, specs and run traces. See `changelog.md`.
+- Harness: the published [handleman-hq](https://github.com/handleman/handleman-hq) package (pinned `v0.5.1`) in `harness/.venv`, configured by `swarm.yaml` (including `runs_dir: harness/runs`); this repo keeps the queue, specs and run traces. See `changelog.md`.

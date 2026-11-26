@@ -14,5 +14,7 @@ Queue order places 007 before 014; T9 requires 007's `frontend/src/lib/navigatio
 - [x] T10 (AC-8, AC-9): Documentation for geocoding and attribution: create `docs/architecture/adr-013-geocoding.md` (ADR-012 is the orchestration stance) with the provider chain (Mapbox Geocoding v6 when `MAPBOX_TOKEN` is set, Photon otherwise, reverse via `GET /geocode/reverse`), the normalized `Suggestion` shape and the 5-minute SQLite cache/TTL; add one section to `README.md` (setup + attribution/credit), update the spec table in `docs/roadmap.md`, and add the geocoding provider + cache section in `docs/tech-stack.md`. Docs only; no code changes.
 - [x] T11 (AC-8, AC-9): Wire the attribution display: import and render the existing `frontend/src/lib/components/Attribution.svelte` in `frontend/src/App.svelte` inside the `{#if route}` result section, passing the route/suggestion credit (empty when no attribution), and keep `frontend/e2e/walk-guidance.spec.ts` green. Do not edit the docs or recreate the component.
 
+- [x] T12 (AC-2): Remove the pre-walk `currentMarker` when walk mode is active: it stacked a second identical `.walk-person-marker` on the walker marker. The acceptance check counts exactly one. Verify: `npm --prefix frontend run check/lint/test`, `make swarm-accept ARGS="--spec 014"`.
+
 <!-- Human gate, not queued: verify a real GPS permission prompt + one manual map-pick/autocomplete
      flow in a browser over localhost/HTTPS, then mark AC-1..AC-9 and tick 014. -->

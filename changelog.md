@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-26 (walk marker + permission dialog)
+- **014 now probes 7 ACs:** denied geolocation shows the start-location dialog, the walker is the inlined person glyph with **exactly one** marker, a new fix moves it, and the Mapbox token is absent from the page. The check found a repeated pre-walk `currentMarker` stacking a second identical icon during walk mode; removed while walking.
+- **Factory v0.5.1** publishes `location_denied`/`geo_step`. v0.5.0 contained the kinds in source but the wheel dropped them silently, so 014's AC-1/AC-6 were unverified without an error — the plan is the source of truth.
+- **Live lane:** 008 AC-1 (real Mapbox), 004 AC-3 (manual prefs + Postgres) and 035 AC-1/AC-2 (public Render deployment) pass; 005 AC-1 is queued as T7 (client/API contract 422).
 ## 2026-11-26 (live acceptance results)
 - **Live lane verified:** 008 AC-1 real Mapbox route (1485 m / 1029 s), 004 AC-3 manual preference (two live routes + `Manual:` chip), 035 AC-1/AC-2 public Render deployment (map, 24 tiles, live route). Reports: `specs/product/*/acceptance-live.md`.
 - **Critical fix:** the DB-less free deployment rejected every route with 422 because the fallback sent `preference: "balanced"`; only `hot`/`cloudy` are sent now, and the prefs endpoint accepts the manual string.

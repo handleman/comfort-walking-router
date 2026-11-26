@@ -43,9 +43,11 @@ viewport = "desktop"
 
 [[check]]
 ac = "AC-2"
-kind = "wait_for"
+kind = "count"
 selector = ".walk-person-marker"
+expect = 1
 viewport = "desktop"
+note = "exactly one walker marker (the pre-walk marker must not stack)"
 
 [[check]]
 ac = "AC-2"

@@ -392,7 +392,15 @@
         originPrefilled = true
       }
     }
-    if (currentMarker) {
+    // Walk mode has its own marker (`syncWalker`); the pre-walk current
+    // position marker would otherwise stack a second identical person icon on
+    // top of it (014 AC-2 found two `.walk-person-marker` nodes).
+    if ($walkMode.active) {
+      if (currentMarker) {
+        currentMarker.remove()
+        currentMarker = null
+      }
+    } else if (currentMarker) {
       currentMarker.setLatLng([lat, lng])
     } else {
       currentMarker = L.marker([lat, lng], {
