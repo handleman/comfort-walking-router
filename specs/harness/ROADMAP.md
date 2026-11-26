@@ -3,7 +3,8 @@
 > **Historical record (2026-11-26).** The harness now lives in the published
 > [handleman-hq](https://github.com/handleman/handleman-hq) repo and this app
 > consumes it as a package. This page records the order the factory was built
-> in; new harness work belongs upstream.
+> in; new harness work belongs upstream. The live order is
+> [handleman-hq/specs/harness/ROADMAP.md](https://github.com/handleman/handleman-hq/blob/main/specs/harness/ROADMAP.md).
 
 **Revised 2026-11-26** after the overnight run. Follow top to bottom; update the
 status box as work lands.
