@@ -1,5 +1,10 @@
 # Harness implementation order
 
+> **Historical record (2026-11-26).** The harness now lives in the published
+> [handleman-hq](https://github.com/handleman/handleman-hq) repo and this app
+> consumes it as a package. This page records the order the factory was built
+> in; new harness work belongs upstream.
+
 **Revised 2026-11-26** after the overnight run. Follow top to bottom; update the
 status box as work lands.
 
