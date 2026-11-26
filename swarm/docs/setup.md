@@ -26,6 +26,10 @@ rules) is repo-specific.
 
 ## Model tiers (`swarm/llms.py` — the only file that picks models)
 
+> Which *kind* of model each role needs (and why review is different) is in
+> [`model-usage.md`](model-usage.md). The table below is the concrete id/pricelist.
+
+
 Current operator profile (**OpenCode Go**, 2026-11-25): every role is a Go model
 with tool calling and every fallback is a second Go model, so a provider blip
 moves sideways and nothing dials Ollama. Chosen for **cost per green task, not

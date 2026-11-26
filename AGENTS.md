@@ -63,7 +63,8 @@ data, with a live GPS walk mode. Live: https://comfort-walking-router.onrender.c
   (`swarm/usage.py`), and **judgement roles need a reasoning-capable model** —
   cheap models are for mechanical work only (2026‑11‑25: a cheapest-tier reviewer
   blocked a green task with no evidence). Full rules and the profile table:
-  [swarm/docs/setup.md](swarm/docs/setup.md).
+  [swarm/docs/setup.md](swarm/docs/setup.md); role-by-role model requirements:
+  [swarm/docs/model-usage.md](swarm/docs/model-usage.md).
 
 - **Swarm Agent Skills** (044): operators add agent behaviour via YAML‑frontmatter
   skill files under `swarm/agents/skills/<role>.md`; the swarm auto‑discovers them

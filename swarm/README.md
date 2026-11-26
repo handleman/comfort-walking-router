@@ -39,6 +39,7 @@ once, then jump to what you need.
 
 - [`docs/how-it-works.md`](docs/how-it-works.md) — roles, phase order, the flow diagram, the invariant.
 - [`docs/setup.md`](docs/setup.md) — venv, model tiers/routing, preflight, coder image.
+- [`docs/model-usage.md`](docs/model-usage.md) — which kind of model each role needs; **review and verification need reasoning models** (with the evidence).
 - [`docs/running.md`](docs/running.md) — dashboard, resume rules, escalation, event listener.
 - [`docs/queue.md`](docs/queue.md) — how tasks are found, reopened, and added.
 - [`docs/tools-and-gates.md`](docs/tools-and-gates.md) — guarded tools and who owns gate evidence.
