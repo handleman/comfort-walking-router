@@ -1,6 +1,6 @@
 # 010-e2e-playwright — Acceptance
 
-Generated: 2026-11-26T12:22:48Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 5 n/a)
+Generated: 2026-11-26T13:17:28Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 5 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |

@@ -16,3 +16,6 @@ Queue order places 007 before 014; T9 requires 007's `frontend/src/lib/navigatio
 
 <!-- Human gate, not queued: verify a real GPS permission prompt + one manual map-pick/autocomplete
      flow in a browser over localhost/HTTPS, then mark AC-1..AC-9 and tick 014. -->
+- [ ] T12 (AC-3): Fix AC-3 (**Map pick.** Start and End each have a button to their right. Clicking enters pick mode (crosshair cursor, instruction)): not found; not found (acceptance pass 2026-11-26)
+- [ ] T13 (AC-4): Fix AC-4 (**Autocomplete.** Inputs behave as ARIA comboboxes: ≥2 characters, ~250–300 ms debounce, at most 5 suggestions, stale re): error: page.fill: Timeout 30000ms exceeded. Call log: [2m  - waiting for locator('input[placeholder=\'e.g. Marienplatz, Munich\']')[22m (acceptance pass 2026-11-26)
+- [ ] T14 (AC-5): Fix AC-5 (**Exact submission.** When a point came from a suggestion or map pick, `POST /route` receives optional `start_coords`/`e): error: page.fill: Timeout 30000ms exceeded. Call log: [2m  - waiting for locator('input[placeholder=\'e.g. Marienplatz, Munich\']')[22m (acceptance pass 2026-11-26)
