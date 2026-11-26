@@ -15,6 +15,7 @@ frontend_dirs: [app/, frontend/src/, frontend/lib/, frontend/]
 e2e_root: frontend
 e2e_dir: e2e
 lock_dir: frontend
+runs_dir: harness/runs
 gates:
   - pytest -q
   - ruff check .

@@ -16,8 +16,8 @@ The **harness** that builds it is the published
   historical harness record — it is **not** queued and new harness work belongs in
   the factory repo. Templates in `.specify/templates/`.
 - **The contract is `swarm.yaml`:** specs dir, scope, gates (+ affected gate map),
-  e2e command/spec root, risk classes, db script and `python.venv`. The harness
-  reads it; don't hardcode paths elsewhere.
+  e2e command/spec root, risk classes, db script, `python.venv` and `runs_dir`.
+  The harness reads it; don't hardcode paths elsewhere.
 - **The queue is autonomous:** a green run merges by itself. Runs and traces live
   in `harness/runs/`.
 - **Separate venvs:** `app/`+`tests/` → `.venv`, harness → `harness/.venv`,
