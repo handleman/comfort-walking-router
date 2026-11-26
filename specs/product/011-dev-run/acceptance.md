@@ -1,13 +1,13 @@
 # 011-dev-run — Acceptance
 
-Generated: 2026-11-26T13:20:48Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 4 n/a)
+Generated: 2026-11-26T13:26:21Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 4 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
 | AC-1 | N/A | declared | make dev is a process contract |
 | AC-2 | N/A | declared | npm dev/build are process contracts |
 | AC-3 | N/A | declared | contract agreement is asserted by the app tests |
-| AC-4 | PASS | probe | found 1 element(s); found 1 element(s); count 26 >= 1 |
+| AC-4 | PASS | probe | found 1 element(s); found 1 element(s); count 24 >= 1 |
 | AC-5 | N/A | declared | documentation/gates |
 
 ## Global checks

@@ -1,14 +1,14 @@
 # 014-walk-guidance-ux — Acceptance
 
-Generated: 2026-11-26T13:20:48Z · Verdict: **FAIL** (3 failed · 0 passed · 0 unverified · 6 n/a)
+Generated: 2026-11-26T13:26:21Z · Verdict: **FAIL** (1 failed · 2 passed · 0 unverified · 6 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
 | AC-1 | N/A | declared | permission grant/deny needs the browser permission harness |
 | AC-2 | N/A | declared | glyph is a map divIcon, asserted by the e2e suite |
-| AC-3 | FAIL | probe | not found; not found |
-| AC-4 | FAIL | probe | error: page.fill: Timeout 30000ms exceeded. Call log: [2m  - waiting for locator('input[placeholder=\'e.g. Marienplatz, Munich\']')[22m |
-| AC-5 | FAIL | probe | error: page.fill: Timeout 30000ms exceeded. Call log: [2m  - waiting for locator('input[placeholder=\'e.g. Marienplatz, Munich\']')[22m |
+| AC-3 | PASS | probe | found 1 element(s); found 1 element(s) |
+| AC-4 | PASS | probe | /route request fired |
+| AC-5 | FAIL | probe | no /route request |
 | AC-6 | N/A | declared | moving marker needs a walk session |
 | AC-7 | N/A | declared | arrival needs walking into the radius |
 | AC-8 | N/A | declared | token discipline is a bundle/request assertion |
