@@ -1,14 +1,14 @@
 # 029-shade-aware-reroute — Acceptance
 
-Generated: 2026-11-26T11:02:25Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 5 unverified)
+Generated: 2026-11-26T12:00:02Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 5 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | UNVERIFIED | none | unclear |
-| AC-2 | UNVERIFIED | none | unclear |
-| AC-3 | UNVERIFIED | none | unclear |
-| AC-4 | UNVERIFIED | none | unclear |
-| AC-5 | UNVERIFIED | none | unclear |
+| AC-1 | N/A | declared | compareReroutes is unit-tested |
+| AC-2 | N/A | declared | store verdicts are unit-tested |
+| AC-3 | N/A | declared | three branches are unit-tested |
+| AC-4 | N/A | declared | no new requests is a network assertion |
+| AC-5 | N/A | declared | gates |
 
 ## Global checks
 

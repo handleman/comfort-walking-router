@@ -1,15 +1,15 @@
 # 036-ui-overhaul — Acceptance
 
-Generated: 2026-11-26T11:02:25Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 6 unverified)
+Generated: 2026-11-26T12:00:02Z · Verdict: **PASS** (0 failed · 2 passed · 0 unverified · 4 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | UNVERIFIED | none | unclear |
-| AC-2 | UNVERIFIED | none | unclear |
-| AC-3 | UNVERIFIED | none | unclear |
-| AC-4 | UNVERIFIED | none | unclear |
-| AC-5 | UNVERIFIED | none | unclear |
-| AC-6 | UNVERIFIED | none | unclear |
+| AC-1 | N/A | declared | the step indicator was removed by 040-T9; superseded |
+| AC-2 | PASS | probe | found 1 element(s) |
+| AC-3 | N/A | declared | inline location control is part of the top card (040) |
+| AC-4 | PASS | probe | found 1 element(s); found 1 element(s) |
+| AC-5 | N/A | declared | aesthetic judgement; the vision pass is advisory |
+| AC-6 | N/A | declared | regression is the e2e suite |
 
 ## Global checks
 

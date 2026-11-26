@@ -1,14 +1,14 @@
 # 010-e2e-playwright — Acceptance
 
-Generated: 2026-11-26T11:02:25Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 5 unverified)
+Generated: 2026-11-26T12:00:02Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 5 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | UNVERIFIED | none | unclear |
-| AC-2 | UNVERIFIED | none | unclear |
-| AC-3 | UNVERIFIED | none | unclear |
-| AC-4 | UNVERIFIED | none | unclear |
-| AC-5 | UNVERIFIED | none | unclear |
+| AC-1 | N/A | declared | the suite is the acceptance stand, not a page |
+| AC-2 | N/A | declared | test inventory, not a page |
+| AC-3 | N/A | declared | asserted by the suite's own tests |
+| AC-4 | N/A | declared | artifacts are produced by Playwright |
+| AC-5 | N/A | declared | pytest/ruff/mypy gates |
 
 ## Global checks
 

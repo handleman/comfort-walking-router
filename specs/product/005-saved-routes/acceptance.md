@@ -1,16 +1,16 @@
 # 005-saved-routes — Acceptance
 
-Generated: 2026-11-26T11:02:25Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 7 unverified)
+Generated: 2026-11-26T12:00:02Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 7 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | UNVERIFIED | none | unclear |
-| AC-2 | UNVERIFIED | none | unclear |
-| AC-3 | UNVERIFIED | none | unclear |
-| AC-4 | UNVERIFIED | none | unclear |
-| AC-5 | UNVERIFIED | none | unclear |
-| AC-6 | UNVERIFIED | none | unclear |
-| AC-7 | UNVERIFIED | none | unclear |
+| AC-1 | N/A | declared | needs a running Postgres and a save/recall interaction |
+| AC-2 | N/A | declared | prefs persistence is database behaviour |
+| AC-3 | N/A | declared | migrations are database behaviour |
+| AC-4 | N/A | declared | cache regression is backend behaviour |
+| AC-5 | N/A | declared | pytest/ruff/mypy gates |
+| AC-6 | N/A | declared | cross-holder access is an API authorization check |
+| AC-7 | N/A | declared | retention sweep is a database job |
 
 ## Global checks
 

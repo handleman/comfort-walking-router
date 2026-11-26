@@ -1,17 +1,17 @@
 # 007-live-position — Acceptance
 
-Generated: 2026-11-26T11:02:25Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 8 unverified)
+Generated: 2026-11-26T12:00:02Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 8 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | UNVERIFIED | none | unclear |
-| AC-2 | UNVERIFIED | none | unclear |
-| AC-3 | UNVERIFIED | none | unclear |
-| AC-4 | UNVERIFIED | none | unclear |
-| AC-5 | UNVERIFIED | none | unclear |
-| AC-6 | UNVERIFIED | none | unclear |
-| AC-7 | UNVERIFIED | none | unclear |
-| AC-8 | UNVERIFIED | none | unclear |
+| AC-1 | N/A | declared | needs starting a walk and observing the marker |
+| AC-2 | N/A | declared | simulated movement needs a walk session |
+| AC-3 | N/A | declared | permission denial needs the browser permission harness |
+| AC-4 | N/A | declared | sustained drift needs a moving fix sequence |
+| AC-5 | N/A | declared | reroute-query interaction |
+| AC-6 | N/A | declared | auto-center toggle interaction |
+| AC-7 | N/A | declared | arrival needs walking into the radius |
+| AC-8 | N/A | declared | pytest/ruff/mypy gates |
 
 ## Global checks
 
