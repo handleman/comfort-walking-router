@@ -64,3 +64,7 @@ harness_specs:
   - 032-spec-kind
   - 033-planner-coder-chain
   - 034-spec-folders
+
+drivers:
+  e2e: "./drivers/e2e.sh"
+  db: "harness/db.sh"

@@ -7,7 +7,7 @@ Live: https://comfort-walking-router.onrender.com/
 
 The **harness** that builds it is the published
 [**handleman-hq**](https://github.com/handleman/handleman-hq) package (pinned
-`v0.3.10`), installed in `harness/.venv`. This repo no longer vendors the harness.
+`v0.4.0`), installed in `harness/.venv`. This repo no longer vendors the harness.
 
 ## State (essentials)
 
@@ -15,6 +15,8 @@ The **harness** that builds it is the published
   `specs/product/` (the queue runs them). `specs/harness/` is this repo's
   historical harness record — it is **not** queued and new harness work belongs in
   the factory repo. Templates in `.specify/templates/`.
+- **Drivers live in `drivers/`:** the target declares `drivers.{e2e,db}` in `swarm.yaml` as
+  JSON-speaking commands (056); the packaged implementation is the fallback.
 - **The contract is `swarm.yaml`:** specs dir, scope, gates (+ affected gate map),
   e2e command/spec root, risk classes, db script, `python.venv` and `runs_dir`.
   The harness reads it; don't hardcode paths elsewhere.
