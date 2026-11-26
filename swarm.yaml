@@ -1,0 +1,65 @@
+# comfort-walking-router — the app's contract (048 AC-4).
+# The harness defaults reproduce this file; declaring it makes the target
+# explicit and lets the factory release replace the vendored swarm/.
+specs_dir: specs/product
+scope:
+  - app/
+  - frontend/
+  - tests/
+  - contracts/
+  - requirements-dev.txt
+  - requirements.txt
+  - pyproject.toml
+  - .gitignore
+frontend_dirs: [app/, frontend/src/, frontend/lib/, frontend/]
+e2e_root: frontend
+e2e_dir: e2e
+lock_dir: frontend
+gates:
+  - pytest -q
+  - ruff check .
+  - mypy app tests
+  - npm --prefix frontend run check
+  - npm --prefix frontend run lint
+  - npm --prefix frontend test -- --run
+  - npm --prefix frontend ci --dry-run
+e2e:
+  command: npm --prefix frontend run test:e2e
+  specs: frontend/e2e
+gate_map:
+  'app/**': [pytest -q, ruff check ., mypy app tests]
+  'tests/**': [pytest -q, ruff check ., mypy app tests]
+  'contracts/**': [pytest -q]
+  'frontend/**': [npm --prefix frontend run check, npm --prefix frontend run lint, npm --prefix frontend test -- --run]
+risk:
+  profile: comfort-walking-router
+  classes:
+    1: [tests/, frontend/e2e/, e2e/]
+    2: [app/, frontend/src/, frontend/lib/, contracts/]
+    3: [swarm/, specs/, .github/, docker/, requirements, pyproject.toml, app/auth, auth, migrations, payments, secrets, infra]
+db:
+  script: swarm/db.sh
+python:
+  venv: .venv
+harness_specs:
+  - 009-swarm-harness
+  - 012-dark-factory-harness
+  - 013-dark-factory-phase-2
+  - 015-dark-factory-economics
+  - 016-conflict-recovery
+  - 017-coder-selfcheck
+  - 018-operator-readable-runs
+  - 019-scenario-verifier
+  - 020-harness-efficiency
+  - 021-fix-loop
+  - 022-lean-loop
+  - 023-parallel-factory
+  - 024-earned-autonomy
+  - 025-durable-journal
+  - 026-run-guards
+  - 027-e2e-self-heal
+  - 030-operator-runbooks
+  - 031-dashboard-update
+  - 032-spec-kind
+  - 033-planner-coder-chain
+  - 034-spec-folders

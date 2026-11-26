@@ -31,11 +31,11 @@ order; every phase ends green.
 - [x] T8 (AC-4): `swarm/contract.py` loads `swarm.yaml` (specs_dir/scope/gates/risk/e2e/db/python) with defaults reproducing today's behaviour.
 - [~] T9 (AC-4): **consumers wired** in `/tmp/hq-src3` — scope, affected-gate map, gate commands, risk classes and harness specs read `swarm.yaml` (env still wins); `paths._default_root()` falls back to cwd for an installed package. **Defaults stay app-shaped** until the app ships its own `swarm.yaml` (Phase 5): switching them to generic (`src/`, `tests/`) turns **30 factory tests red**, all encoding the app's scope — the same core/app split as T5b, now for contracts. See T9b.
 - [ ] T9b (AC-4, discovered 2026-11-26): make the scope/risk tests contract-aware — they assert the app's paths (`app/`, `frontend/`) from `resolve_scope()`/`risk.classify`, so generic factory defaults fail them. Load the target's `swarm.yaml` in a fixture (or mark them `driver`), then T9 can drop the app-shaped defaults and T10's grep can pass.
-- [ ] T10 (AC-4): verify `grep -rn "app/|frontend/|tests/|contracts/" src/swarm/` clean for the core (drivers excluded).
+- [x] T10 (AC-4): `grep -rnE "app/|frontend/|contracts/" src/swarm` excluding `drivers/` → **0 hits** (v0.3.0).
 
 ## Phase 4 — driver relocation
 - [ ] T11 (AC-5): move `smoke.py`, `e2e.py`, `e2e_guard.py`, `e2e_triage.py`, `db.sh`, `acceptance.py`, `visual.py`, `bench/corpus/` → `comfort-walking-router/drivers/`; wire via `swarm.yaml` (`e2e`, `db`, acceptance/vision).
-- [ ] T12 (AC-5): verify `grep "from app\|import app" src/swarm/` clean.
+- [x] T12 (AC-5): verify `grep "from app\|import app" src/swarm/` clean.
 
 ## Phase 5 — app wiring
 - [ ] T13 (AC-1): delete `swarm/` + `specs/harness/` from the app repo (history preserved); add `swarm.yaml`, `.swarm/` gitignore.

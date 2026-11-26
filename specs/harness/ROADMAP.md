@@ -48,7 +48,8 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dropped.
 6. `[~]` **048 Phase 2–3** — packaging and the factory test split are done in
    `/tmp/hq-src3` (fresh 240-commit filtered history): **833 passed, 8 skipped**,
    `-m "not driver"` green with no app tree, ruff clean, `__pycache__` purge and a
-   factory `.gitignore`/`.dockerignore`/Makefile. **T8 done** (`swarm/contract.py`); **T9 consumers wired** (scope/gate_map/gates/risk/
+   factory `.gitignore`/`.dockerignore`/Makefile. **T8/T9/T9b/T10/T12 done**; **v0.3.0 released** (target-agnostic core, drivers
+  isolated under `swarm.drivers`); T9 consumers wired (scope/gate_map/gates/risk/
 harness_specs read the contract, env wins). **T9b discovered:** 30 tests encode the app's scope, so generic defaults wait for the app's `swarm.yaml` (Phase 5). Then T10's core-agnostic grep, T11–T12 drivers.
    *Earlier note:* packaging is done locally in `/tmp/hq-src2`
    (233-commit filtered history): `src/swarm/`, `swarm/paths.py` as the one
