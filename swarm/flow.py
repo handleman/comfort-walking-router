@@ -150,6 +150,8 @@ class SwarmState(BaseModel):
     reverted_archive: list[str] = []
     no_progress: bool = False
     ungrounded_block: bool = False
+    # 054 AC-2: QA said PASS without the evidence the task requires.
+    review_unsupported: bool = False
 
 
 class _QuotaExhausted(SystemExit):
@@ -469,6 +471,8 @@ def _reason_code(status: str, payload: dict[str, Any], state: Any) -> str:
         return "no_progress"
     if getattr(state, "ungrounded_block", False):
         return "reviewer_blocked_ungrounded"
+    if getattr(state, "review_unsupported", False):
+        return "review_unsupported"
     if verdict == "unknown":
         return "reviewer_no_verdict"
     if verdict and verdict != "pass":
@@ -4022,6 +4026,20 @@ class SwarmFlow(Flow[SwarmState]):
             "note": note,
             **(record or {}),
         }
+        # 054 AC-2: name the missing evidence in the judge record, and flag a
+        # PASS that its own evidence does not support. The self-heal clears the
+        # flag when it runs the suite itself and it passes.
+        missing = ["npm --prefix frontend run test:e2e"]
+        judges = dict(getattr(self.state, "judges", None) or {})
+        qa = dict(judges.get("qa") or {})
+        qa["missing_evidence"] = missing
+        judges["qa"] = qa
+        self.state.judges = judges
+        if str(getattr(self.state, "review_verdict", "")) == "pass":
+            self.state.review_unsupported = True
+            self.state.review_note = (
+                (self.state.review_note + "; ") if self.state.review_note else ""
+            ) + "QA reported PASS without the required e2e execution"
         print(f"e2e evidence: {note}", flush=True)
         return self.state.e2e
 
@@ -4174,6 +4192,7 @@ class SwarmFlow(Flow[SwarmState]):
                 # evidence it needed, so green may proceed.
                 state["stop"] = ""
                 state["recovered"] = True
+                self.state.review_unsupported = False
                 return True
             # 053 AC-4: a suite that never launched is an environment fault, not
             # "unclassifiable failures". A spawn/launch/ECONNREFUSED tail means
@@ -4265,6 +4284,7 @@ class SwarmFlow(Flow[SwarmState]):
                 # `or 1` here would read a real exit 0 as 1 (0 is falsy). The
                 # class stays on the record: it says what the repair was for.
                 state["stop"] = ""
+                self.state.review_unsupported = False
                 return True
             if classified:
                 state["class"] = e2e_triage.primary_class(classified)

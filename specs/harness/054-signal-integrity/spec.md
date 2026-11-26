@@ -56,7 +56,7 @@ Make every signal the harness trusts *earned*:
   `test:e2e` script (or the preview webServer) cannot serve a stale `dist/`, and
   the e2e record carries the build time/hash. A test edits a component, runs the
   suite without an explicit build, and sees the change.
-- [ ] **AC-2 (evidence-backed PASS).** A reviewer PASS with a required e2e (or
+- [x] **AC-2 (evidence-backed PASS).** A reviewer PASS with a required e2e (or
   gate) execution missing is recorded as `review_unsupported` (or re-asked once),
   never green. The judge record names the missing command.
 - [ ] **AC-3 (oracle self-test).** `make swarm-accept --selftest` proves each

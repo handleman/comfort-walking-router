@@ -3,7 +3,7 @@
 Each task maps to one acceptance criterion.
 
 - [x] T1 (AC-1): e2e always builds first (`pretest:e2e` or a preview webServer build); a raw `npx playwright test` sees current source; the record carries the build time.
-- [ ] T2 (AC-2): a reviewer PASS with a required evidence command unrun is `review_unsupported` (one re-ask first) and never green; the judge record names the command.
+- [x] T2 (AC-2): a reviewer PASS with a required evidence command unrun is `review_unsupported` (one re-ask first) and never green; the judge record names the command.
 - [ ] T3 (AC-3): `make swarm-accept --selftest` proves every declared check passes on the build and fails on a mutated target; criteria without checks are a configuration error.
 - [x] T4 (AC-4): acceptance-generated fix tasks whose AC now passes are closed with the verdict instead of being re-queued.
 - [x] T5 (AC-5): `make factory-audit` rejects tracked caches/binaries/secrets/large blobs and missing hygiene files; 048 Phase 7 runs it before the push.
