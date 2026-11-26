@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-26 (interaction acceptance + soak)
+- **Acceptance interaction checks.** `acceptance.toml` gained `click`/`wait_for`; 007 now plans a route, starts a walk and waits for the live Stop button (1 passed, 7 declared N/A).
+- **Queue soak.** Two accessibility tasks (T26 Stop aria-label + testid, T27 Auto-center label) exercise the full loop unattended — coder, QA gates, verifier, acceptance hook, merge.
 ## 2026-11-26 (v0.4.5/v0.4.6)
 - **Oracle self-test in the factory.** `make swarm-accept ARGS="--selftest --strict"` mutates each check's target and requires the check to fail; an always-passing check fails the spec. The self-test gets its own 900 s browser budget (it re-runs every check).
 ## 2026-11-26 (v0.4.4)
