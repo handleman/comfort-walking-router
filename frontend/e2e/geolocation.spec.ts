@@ -48,3 +48,37 @@ test('geolocation: a denied permission asks for the origin', async ({ page, cont
   await expect(page.locator(START_MODAL)).toBeVisible()
   await expect(page.getByText('Where do you want to start?')).toBeVisible()
 })
+
+test('geolocation: a denied permission recovers via a manual suggestion', async ({
+  page,
+  context,
+}) => {
+  await enableFixturesMode(page)
+  await context.clearPermissions()
+  await page.route('**/geocode**', async (route) => {
+    await route.fulfill({
+      json: {
+        suggestions: [
+          {
+            id: 'mapbox-place-1',
+            label: 'Marienplatz, Munich',
+            lat: 48.137,
+            lng: 11.575,
+            type: 'place',
+            attribution: '© Mapbox',
+          },
+        ],
+      },
+    })
+  })
+  await page.goto('/')
+
+  const modal = page.locator(START_MODAL)
+  await expect(modal).toBeVisible()
+  await modal.locator(START_INPUT).fill('Marienplatz')
+  const option = modal.locator('[role="option"]').first()
+  await option.waitFor({ state: 'visible', timeout: 10000 })
+  await option.click()
+
+  await expect(modal).toBeHidden()
+})

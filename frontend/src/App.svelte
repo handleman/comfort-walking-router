@@ -815,7 +815,6 @@
   {#if startModalOpen}
     <StartLocationModal
       bind:open={startModalOpen}
-      bind:selected={startSuggestion}
       on:chosen={(e) => handleStartChosen(e.detail)}
       on:pick={handleStartPick}
       on:close={handleStartModalClose}
