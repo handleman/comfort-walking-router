@@ -28,7 +28,7 @@ order; every phase ends green.
   3 search (source root), 1 gates/qa shell (PATH), 1 tui (spec dir name).
 
 ## Phase 3 — contract in core
-- [ ] T8 (AC-4): `swarm/contract.py` loads `swarm.yaml` (specs_dir/scope/gates/risk/e2e/db/python) with defaults reproducing today's behaviour.
+- [x] T8 (AC-4): `swarm/contract.py` loads `swarm.yaml` (specs_dir/scope/gates/risk/e2e/db/python) with defaults reproducing today's behaviour.
 - [ ] T9 (AC-4): delete the 5 hardcoded tables; `REPO_ROOT` → target repo `hq` was invoked in (back-compat cwd default for `-m swarm.*`).
 - [ ] T10 (AC-4): verify `grep -rn "app/|frontend/|tests/|contracts/" src/swarm/` clean for the core (drivers excluded).
 
