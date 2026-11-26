@@ -358,7 +358,18 @@ async function runOne(check, viewName) {
         const originText = origin || 'Marienplatz, Munich'
         await page.waitForTimeout(500)
         if (await page.locator(ORIGIN).count()) {
+          const before = routeRequests
           await pickSuggestion(ORIGIN, originText)
+          if (routeRequests > before) {
+            // The new origin planned against the old destination; let that
+            // response finish so the route below is the new pair, not a
+            // same-point artefact of the overwrite.
+            await page
+              .waitForResponse((res) => res.url().includes('/route'), {
+                timeout: 180000,
+              })
+              .catch(() => null)
+          }
           await page.waitForTimeout(1000)
         }
         // Attach a catch immediately: if the pick below fails, the pending

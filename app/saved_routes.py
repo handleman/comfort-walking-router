@@ -103,7 +103,9 @@ def list_saved_routes(
 
 
 class PrefsPayload(BaseModel):
-    default_preference: dict[str, Any] | None = None
+    # 005 AC-2 / 004 AC-3: the stored value is opaque to this API. The weather
+    # preference is a string ("hot"/"cloudy"); older clients sent a mapping.
+    default_preference: dict[str, Any] | str | None = None
 
 
 @router.get("/prefs")

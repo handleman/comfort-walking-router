@@ -166,9 +166,13 @@
           end,
           start_coords: startCoords,
           end_coords: endCoords,
-          // 004 AC-3: a saved preference is the manual override. Omit it when
-          // unset so the backend's weather auto-rule still decides.
-          ...(prefs?.default_preference ? { preference: prefs.default_preference } : {}),
+          // 004 AC-3: a saved preference is the manual override. Only the two
+          // valid manual values may be sent — the DB-less fallback is
+          // `balanced`, which the route contract rejects (422 on the free
+          // deployment). Omit it otherwise so the weather auto-rule decides.
+          ...(prefs?.default_preference === 'hot' || prefs?.default_preference === 'cloudy'
+            ? { preference: prefs.default_preference }
+            : {}),
           prefer_lit: prefs?.prefer_lit ?? false,
           avoid_traffic: prefs?.avoid_traffic ?? false,
         }),

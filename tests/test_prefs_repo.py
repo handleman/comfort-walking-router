@@ -72,3 +72,11 @@ def test_get_prefs_scoped_to_holder():
 
     assert prefs_b is not None
     assert prefs_b["default_preference"] == "route-b"
+
+
+def test_prefs_payload_accepts_a_weather_preference_string():
+    """004 AC-3: the prefs endpoint stores the weather choice ("hot"/"cloudy")."""
+    from app.saved_routes import PrefsPayload
+
+    payload = PrefsPayload(default_preference="hot")
+    assert payload.default_preference == "hot"

@@ -79,7 +79,7 @@ async function handle<T>(res: Response): Promise<T> {
 const SERVICE_UNAVAILABLE = 503
 
 const NO_DB_PREFS: Prefs = {
-  default_preference: 'balanced',
+  default_preference: '',
   shade: 0,
   quiet: 0,
   greenery: 0,
