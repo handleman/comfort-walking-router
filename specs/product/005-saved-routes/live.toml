@@ -10,55 +10,83 @@ kind = "live_route"
 selector = "input[placeholder='e.g. Englischer Garten']"
 value = "Englischer Garten"
 viewport = "desktop"
-note = "plan a route so Save route is offered"
+note = "plan a route so the save CTA is offered"
 
 [[check]]
 ac = "AC-1"
 kind = "click"
-selector = "section.walk:visible button:has-text('Save route')"
+selector = "[data-testid='save-route']"
 viewport = "desktop"
+note = "041: the route card's save button replaces section.walk"
+
+[[check]]
+ac = "AC-1"
+kind = "click"
+selector = "[data-testid='saved-walks']"
+viewport = "desktop"
+note = "041: saved routes live in the nav dialog"
 
 [[check]]
 ac = "AC-1"
 kind = "wait_for"
-selector = "section.saved-routes:visible .saved-list li"
+selector = "[data-testid='saved-walks-dialog'] .dialog-list li"
 viewport = "desktop"
+note = "the saved route appears in the list"
 
 [[check]]
 ac = "AC-1"
 kind = "exists"
-selector = "section.saved-routes:visible .saved-name"
+selector = "[data-testid='saved-walks-dialog'] .saved-name"
 viewport = "desktop"
+note = "the saved name is rendered"
 
 [[check]]
 ac = "AC-1"
 kind = "click"
-selector = "section.saved-routes:visible button:has-text('Recall')"
+selector = "[data-testid='saved-walks-dialog'] button:has-text('Recall')"
 viewport = "desktop"
-
-[[check]]
-ac = "AC-1"
-kind = "text"
-selector = "section.route-summary:visible"
-expect = "Marienplatz, Munich"
-viewport = "desktop"
-note = "recall restores the scored route"
-
-[[check]]
-ac = "AC-1"
-kind = "click"
-selector = "section.saved-routes:visible button:has-text('Delete')"
-viewport = "desktop"
+note = "recall the saved route"
 
 [[check]]
 ac = "AC-1"
 kind = "wait_for"
-selector = "section.saved-routes:visible .empty"
+selector = "section.route-summary .duration"
 viewport = "desktop"
+note = "recall restores the scored route card"
 
 [[check]]
 ac = "AC-1"
 kind = "text"
-selector = "section.saved-routes:visible"
-expect = "No saved routes yet."
+selector = "section.route-summary .best-fit"
+expect = "Best fit"
 viewport = "desktop"
+note = "the restored card is the honest route card"
+
+[[check]]
+ac = "AC-1"
+kind = "click"
+selector = "[data-testid='saved-walks']"
+viewport = "desktop"
+note = "reopen the dialog after recall closes it"
+
+[[check]]
+ac = "AC-1"
+kind = "click"
+selector = "[data-testid='saved-walks-dialog'] button:has-text('Delete')"
+viewport = "desktop"
+note = "delete the saved route"
+
+[[check]]
+ac = "AC-1"
+kind = "wait_for"
+selector = "[data-testid='saved-walks-dialog'] .empty"
+viewport = "desktop"
+note = "the list is empty after delete"
+
+[[check]]
+ac = "AC-1"
+kind = "text"
+selector = "[data-testid='saved-walks-dialog']"
+expect = "No saved walks yet."
+viewport = "desktop"
+note = "the empty state is honest"

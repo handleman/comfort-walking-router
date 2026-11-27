@@ -7,6 +7,7 @@ in-memory fake that records save/list/recall/delete calls per holder.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from typing import Any
 
@@ -167,3 +168,46 @@ def test_missing_bearer_token_is_401(client: TestClient) -> None:
     response = client.get("/saved-routes")
 
     assert response.status_code == 401
+
+
+@pytest.mark.skipif(
+    os.getenv("DATABASE_URL") is None, reason="DATABASE_URL not set"
+)
+def test_saved_routes_round_trip_with_db() -> None:
+    """005 T7: the real API + Postgres round-trip (save → list → recall → delete).
+
+    This runs without the fake repo/auth fixture so it exercises the actual
+    holder bootstrap, repository SQL and JSON round-trip.
+    """
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as real_app
+
+    token = f"t7-{uuid.uuid4().hex}"
+    headers = {"Authorization": f"Bearer {token}"}
+    request = {"name": "Marienplatz, Munich"}
+    response = {"name": "Marienplatz, Munich", "distance_m": 1485.0}
+
+    with TestClient(real_app) as client:
+        created = client.post(
+            "/saved-routes",
+            json={"request": request, "response": response},
+            headers=headers,
+        )
+        assert created.status_code == 201, created.text
+        route_id = created.json()["id"]
+
+        listed = client.get("/saved-routes", headers=headers)
+        assert listed.status_code == 200
+        assert any(row["id"] == route_id for row in listed.json())
+
+        recalled = client.get(f"/saved-routes/{route_id}", headers=headers)
+        assert recalled.status_code == 200
+        assert recalled.json()["request"] == request
+        assert recalled.json()["response"] == response
+
+        deleted = client.delete(f"/saved-routes/{route_id}", headers=headers)
+        assert deleted.status_code == 204
+        assert client.get(f"/saved-routes/{route_id}", headers=headers).status_code == 404

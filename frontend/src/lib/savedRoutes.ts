@@ -13,6 +13,48 @@ export interface SavedRoute {
   updated_at: string
 }
 
+/**
+ * The persisted row as the API returns it (spec 005 T7): the database stores
+ * the original request and the route response, not the client's `snapshot`
+ * shape. `toSavedRoute` is the one adapter between the two.
+ */
+export interface SavedRouteRow {
+  id: string
+  holder_id?: string
+  request?: { name?: string; description?: string } & Record<string, unknown>
+  response?: RouteSnapshot & { name?: string; description?: string }
+  created_at?: string
+  last_accessed_at?: string
+  /** Legacy/hand-written client shape; accepted so a stale deployment is safe. */
+  name?: string
+  description?: string
+  snapshot?: RouteSnapshot
+  updated_at?: string
+}
+
+/** Map an API row (request/response) or a legacy client row to `SavedRoute`. */
+export function toSavedRoute(row: SavedRouteRow): SavedRoute {
+  const snapshot = (row.snapshot ?? row.response) as RouteSnapshot
+  const name =
+    row.name ??
+    row.request?.name ??
+    (row.response as { name?: string } | undefined)?.name ??
+    snapshot?.name ??
+    'Saved route'
+  const description =
+    row.description ??
+    row.request?.description ??
+    (row.response as { description?: string } | undefined)?.description
+  return {
+    id: row.id,
+    name,
+    ...(description ? { description } : {}),
+    snapshot,
+    created_at: row.created_at ?? '',
+    updated_at: row.updated_at ?? row.last_accessed_at ?? row.created_at ?? '',
+  }
+}
+
 /** User preferences persisted server-side. */
 export interface Prefs {
   default_preference: string
@@ -92,22 +134,23 @@ export async function saveRoute(name: string, snapshot: RouteSnapshot): Promise<
   const res = await fetch('/saved-routes', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ name, snapshot }),
+    body: JSON.stringify({ request: { name }, response: snapshot }),
   })
-  return handle<SavedRoute>(res)
+  return toSavedRoute(await handle<SavedRouteRow>(res))
 }
 
 /** GET all saved routes for this token. */
 export async function listRoutes(): Promise<SavedRoute[]> {
   const res = await fetch('/saved-routes', { headers: authHeaders() })
   if (res.status === SERVICE_UNAVAILABLE) return []
-  return handle<SavedRoute[]>(res)
+  const rows = await handle<SavedRouteRow[]>(res)
+  return rows.map(toSavedRoute)
 }
 
 /** GET a single saved route by id. */
 export async function recallRoute(id: string): Promise<SavedRoute> {
   const res = await fetch(`/saved-routes/${encodeURIComponent(id)}`, { headers: authHeaders() })
-  return handle<SavedRoute>(res)
+  return toSavedRoute(await handle<SavedRouteRow>(res))
 }
 
 /** DELETE a saved route by id. */
