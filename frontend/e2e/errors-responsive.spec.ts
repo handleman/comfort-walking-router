@@ -86,7 +86,7 @@ test('a 400 planning failure surfaces its message and keeps the layout intact', 
 
   // The 400 message is surfaced (attached, not necessarily on top of the map)
   // and no sheet opens without a route.
-  await expect(page.getByText('Origin and destination are too close')).toBeAttached()
+  await expect(page.getByText('Origin and destination are too close').first()).toBeAttached()
   await expect(page.locator('[data-testid="drawer"]')).toHaveAttribute('data-open', 'false')
 
   const overflow = await page.evaluate(() => ({

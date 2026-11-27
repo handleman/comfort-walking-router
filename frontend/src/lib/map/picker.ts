@@ -54,8 +54,14 @@ export async function reverseLabel(lat: number, lng: number): Promise<string> {
   if (!res.ok) {
     throw new Error('reverse geocode failed: ' + res.status)
   }
-  const data: { results?: unknown } = await res.json()
-  const results = Array.isArray(data?.results) ? data.results : []
+  // 042: /geocode/reverse returns {suggestions}; keep {results} as a
+  // compatibility fallback for older clients/fixtures.
+  const data: { suggestions?: unknown; results?: unknown } = await res.json()
+  const results = Array.isArray(data?.suggestions)
+    ? data.suggestions
+    : Array.isArray(data?.results)
+      ? data.results
+      : []
   const first = results[0] as { label?: unknown } | undefined
   const label = typeof first?.label === 'string' ? first.label : ''
   if (label) return label
