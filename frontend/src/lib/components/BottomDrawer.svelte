@@ -32,13 +32,33 @@
   export let suggestionAttribution = ''
   /** Brand-tint summary of the preferences this walk was planned with. */
   export let preferenceSummary = 'More shade · Quieter streets'
+  /** Controlled expansion: App owns it so a map pick can open the builder. */
+  export let open = false
+  /**
+   * Set by App while a map-picked destination is still building its route:
+   * auto-open is parked so the builder state (not a stale route) is shown.
+   */
+  export let suppressAutoOpen = false
+  /** Inline error slot of the no-route builder. */
+  export let error = ''
+  /** False while the picked destination has no buildable coordinates. */
+  export let canBuild = true
+  /** Map-picked destination shown in the no-route builder. */
+  export let destinationLabel = ''
+  /** True while App is building the route for the picked destination. */
+  export let building = false
 
-  let open = false
+  const dispatch = createEventDispatcher<{
+    edit: null
+    start: null
+    save: null
+    saved: null
+    build: null
+  }>()
 
-  const dispatch = createEventDispatcher<{ edit: null; start: null; save: null; saved: null }>()
-
-  // Auto-open once a walk result exists; the handle still collapses it.
-  $: if (route) open = true
+  // Auto-open once a walk result exists, unless App parked it for a build;
+  // the handle still collapses it.
+  $: if (route && !suppressAutoOpen) open = true
 
   function toggle() {
     open = !open
@@ -133,6 +153,27 @@
             <path d={SAVE_PATH} />
           </svg>
         </button>
+      </div>
+    {:else}
+      <!-- No-route builder (042 T1): a map-picked destination has no walk yet,
+           so the sheet shows where you are going, the preferences the walk
+           will use and the one action that builds it. -->
+      <div class="builder" data-testid="route-builder">
+        {#if destinationLabel}
+          <p class="builder-destination">{destinationLabel}</p>
+        {/if}
+        <button
+          type="button"
+          class="build-route"
+          data-testid="build-route"
+          disabled={!canBuild || building}
+          on:click={() => dispatch('build')}
+        >
+          {building ? 'Finding your walk…' : 'Build route'}
+        </button>
+        {#if error}
+          <p class="builder-error" role="alert" data-testid="build-error">{error}</p>
+        {/if}
       </div>
     {/if}
 

@@ -151,6 +151,17 @@
   let endMarker: L.Marker | null = null
   let startSuggestion: Suggestion | null = null
   let endSuggestion: Suggestion | null = null
+  // 042 AC-1/AC-2: map-pick builder state. A destination picked on the map
+  // parks the planner (`awaitingBuild`) instead of firing POST /route, so the
+  // bottom drawer can show the no-route builder until the user builds.
+  let awaitingBuild = false
+  // Set while the builder owns the drawer, so the auto-open effect never
+  // fights the user's own collapse choice.
+  let suppressAutoOpen = false
+  // Controlled `open` for <BottomDrawer> once it is driven from here.
+  let drawerOpen = false
+  // True while the build request is in flight.
+  let building = false
 
   // Keep the pinned waypoint coordinates and the attribution credit in sync
   // with the selected geocode suggestion (AC-8/AC-9): pin on selection, and
@@ -164,6 +175,12 @@
   }
 
   $: if (endSuggestion && end === endSuggestion.label) {
+    // 042 AC-1/AC-2: a typed destination is not a hand-off to the builder —
+    // clear the map-pick builder state so auto-planning (and the auto-open
+    // drawer effect) runs normally for the chosen suggestion.
+    awaitingBuild = false
+    suppressAutoOpen = false
+    building = false
     setEndCoords([endSuggestion.lat, endSuggestion.lng])
     suggestionAttribution = endSuggestion.attribution ?? ''
   } else if (endSuggestion) {
@@ -220,6 +237,9 @@
   $: planAutoRoute(startCoords, endCoords)
 
   function planAutoRoute(a: LatLng | null, b: LatLng | null) {
+    // 042 AC-1/AC-2: a map-picked destination parks the planner; the builder's
+    // pill (handleBuildRoute) is the only trigger until the user builds.
+    if (awaitingBuild) return
     const key = a && b ? `${a.join(',')}>${b.join(',')}` : ''
     if (!key) {
       // Either endpoint unset: never plan, forget the last pair so
@@ -498,16 +518,31 @@
     if (!activePick) return
     pickBusy = true
     try {
-      const label = await reverseLabel(e.latlng.lat, e.latlng.lng)
       const coords: [number, number] = [e.latlng.lat, e.latlng.lng]
-      if (activePick === 'start') {
+      const role = activePick
+      let label: string
+      try {
+        label = await reverseLabel(e.latlng.lat, e.latlng.lng)
+      } catch (err) {
+        // 042 AC-1: a destination pick still lands (with a coordinate
+        // fallback label) when reverse geocoding has no name for the spot.
+        if (role === 'start') throw err
+        label = coords[0].toFixed(5) + ', ' + coords[1].toFixed(5)
+      }
+      if (role === 'start') {
         // A map-picked origin is manual: settle the geolocation pre-fill so a
         // later fix (or the in-flight first-fix geocode) never overwrites it.
         originPrefilled = true
         start = label
         setStartCoords(coords)
       } else {
+        // 042 AC-1/AC-2: a map-picked destination parks the planner in the
+        // build state — flags set and the controlled drawer opened *before*
+        // setEndCoords so the builder renders against the new pin.
         end = label
+        awaitingBuild = true
+        suppressAutoOpen = true
+        drawerOpen = true
         setEndCoords(coords)
       }
       cancelPick()
@@ -815,8 +850,33 @@
     }
   }
 
+  // 042 AC-1: a parked map pick is built by the builder's pill, so a
+  // preference change must not fire /route behind its back.
   function replanIfReady() {
+    if (awaitingBuild) return
     if (startCoords && endCoords) void planRoute()
+  }
+
+  // 042 AC-1/AC-2: the builder's pill is the only /route trigger while a
+  // map-picked destination is parked. Building re-enables auto-plan, so the
+  // resulting route opens the sheet with the 041 result card.
+  async function handleBuildRoute() {
+    if (!startCoords || !endCoords) return
+    building = true
+    error = ''
+    awaitingBuild = false
+    suppressAutoOpen = false
+    drawerOpen = true
+    // The build only succeeded when planRoute left no error behind; a failed
+    // build re-parks the planner so only the pill retries it.
+    try {
+      await planRoute()
+    } finally {
+      building = false
+      const failed = error !== ''
+      awaitingBuild = failed
+      suppressAutoOpen = failed
+    }
   }
 
   function handleShade(event: CustomEvent<'hot' | 'cloudy' | 'balanced'>) {
@@ -1151,12 +1211,18 @@
        and CTA live inside the sheet; the desktop sidebar never renders it. -->
   {#if !isDesktop}
     <BottomDrawer
+      bind:open={drawerOpen}
       {route}
       segments={route?.comfort_profile ?? []}
       {avoidTraffic}
       {suggestionAttribution}
       {preferenceSummary}
+      {suppressAutoOpen}
+      {error}
+      canBuild={endCoords !== null}
+      {building}
       on:edit={() => (showPrefsSheet = true)}
+      on:build={handleBuildRoute}
       on:start={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
       on:save={handleSaveRoute}
       on:saved={() => (showSavedWalks = true)}
