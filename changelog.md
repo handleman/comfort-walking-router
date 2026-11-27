@@ -1,9 +1,10 @@
 # Changelog
 
-## 2026-11-28 (harness integrity v0.6.7)
+## 2026-11-28 (harness integrity + task budgets v0.6.8)
 - **Factory v0.6.6 (059 Harness Integrity).** Manual completions now carry a `Swarm-Manual` reason and `hq report --fail-on-manual` gates a release; a per-task budget cap archives/reverts its delta before the queue continues; design/global/covered-by evidence is evaluated before the acceptance report (so the `.md` and exit code agree) and CSS colours compare semantically (`#fff` = `#ffffff`); `[[covered_by]]` names an e2e oracle instead of hiding it as N/A; a coder that pastes a file without landing it gets a named diagnostic.
 - **v0.6.7** wires `hq report --fail-on-manual` through the top-level CLI (the gate was unreachable before).
-- The app is pinned to **v0.6.7** in `harness/.venv`. 042's operator-written UI and e2e were reverted; T1-T4 are queued to the swarm from the spec.
+- **v0.6.8 (060 Task Budgets).** e2e and visual/screenshot tasks get a 2× profile of the coding caps (tokens, cost, runtime, per-task caps, wall), classified from the task brief/spec and recorded in `run.json.budget`; evidence from 180 coding / 47 e2e / 15 visual runs. The app sets both multipliers to 2.
+- The app is pinned to **v0.6.8** in `harness/.venv`. 042's operator-written UI and e2e were reverted; T1-T4 are queued to the swarm from the spec.
 
 ## 2026-11-26 (token-first Figma transport)
 - **`transport: auto` now checks the API token first (v0.6.4).** If `FIGMA_TOKEN` is present, `hq design sync` uses REST; if it is absent it switches to MCP and starts the first-run OAuth. A stored MCP token does not override an explicit API token; `transport: mcp|rest` still forces one. `hq figma status` shows the auto choice.
