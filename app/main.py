@@ -85,7 +85,7 @@ class RouteRequest(BaseModel):
     end: str = Field(min_length=1)
     start_coords: tuple[float, float] | None = None
     end_coords: tuple[float, float] | None = None
-    preference: Literal["hot", "cloudy"] | None = None
+    preference: Literal["hot", "cloudy", "balanced"] | None = None
     prefer_lit: bool = Field(default=False)
     avoid_traffic: bool = Field(default=False)
 
@@ -160,8 +160,12 @@ def _build_response(
     geometry = feature["geometry"]
     distance_m = float(feature["properties"]["distance"])
     duration_s = float(feature["properties"]["duration"])
+    # 041 AC-1: `balanced` is a valid shade value with no note of its own, so
+    # the lookup falls back to BALANCED_NOTE instead of raising a KeyError.
     preference_note = (
-        PREFERENCE_NOTES[body.preference] if body.preference else BALANCED_NOTE
+        PREFERENCE_NOTES.get(body.preference, BALANCED_NOTE)
+        if body.preference
+        else BALANCED_NOTE
     )
     props = feature.get("properties", {})
     # 001 AC-2: real OSM corridor factors (best effort). Nothing downstream is

@@ -12,29 +12,60 @@ import {
 // panel correctly shows an API error. That is a human gate, not a UI regression.
 test.skip(!process.env.DATABASE_URL, 'prefs need Postgres (005 human gate)')
 
-test('preferences panel shows the default_preference select', async ({ page }) => {
+test('comfort panel exposes the shade segments and quieter switch', async ({ page }) => {
   await enableFixturesMode(page)
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
 
-  await page.getByRole('button', { name: 'Edit preferences' }).click()
-  await expect(page.locator('.prefs select')).toBeVisible()
+  const panel = page.locator('[data-testid="comfort-panel"]')
+  await expect(panel).toBeVisible()
+
+  await expect(panel.locator('[data-testid="shade-more"]')).toBeVisible()
+  await expect(panel.locator('[data-testid="shade-balanced"]')).toBeVisible()
+  await expect(panel.locator('[data-testid="shade-more-sun"]')).toBeVisible()
+  await expect(panel.locator('[data-testid="quieter"]')).toBeVisible()
+
+  // Desktop applies immediately: no Edit / Save buttons any more.
+  await panel.locator('[data-testid="shade-more"]').click()
+  await expect(panel.locator('[data-testid="shade-more"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(panel.locator('[data-testid="shade-balanced"]')).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
 })
 
-test('saved cloudy default_preference is applied to the routed result', async ({ page }) => {
+test('shade More sun saves cloudy and is applied to the routed result', async ({ page }) => {
   await enableFixturesMode(page)
   await setGeolocation(page, 48.137, 11.575)
   await page.goto('/')
 
-  await page.getByRole('button', { name: 'Edit preferences' }).click()
-  await page.locator('.prefs select').selectOption('cloudy')
-  await page.getByRole('button', { name: 'Save preferences' }).click()
+  const panel = page.locator('[data-testid="comfort-panel"]')
+  await panel.locator('[data-testid="shade-more-sun"]').click()
+  await expect(panel.locator('[data-testid="shade-more-sun"]')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 
   await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
 
-  await expect(page.locator('section.route-summary .chip')).toContainText('cloudy')
-  await expect(page.locator('section.route-summary ul.factors')).toBeVisible()
-  await expect(page.locator('section.route-summary ul.factors')).toContainText('cloud cover')
+  const summary = page.locator('section.route-summary')
+  await expect(summary).toBeVisible()
+  await expect(summary.locator('.chip')).toContainText('cloudy')
+  await summary.getByText('Why this route?').click()
+  await expect(summary.locator('ul.factors')).toBeVisible()
+  await expect(summary.locator('ul.factors')).toContainText('cloud cover')
+  // Comfort profile selectors stay resolvable alongside the new panel.
+  await expect(summary.locator('.comfort-segments')).toHaveCount(
+    await summary.locator('.comfort-segments').count(),
+  )
+  await expect(page.locator('.comfort-legend')).toBeVisible()
+
+  // Reset restores the balanced default for the next run.
+  await panel.getByRole('button', { name: 'Reset' }).click()
+  await expect(panel.locator('[data-testid="shade-balanced"]')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 })
 
 test('repeating an identical route query renders the cached result without a second external call', async ({

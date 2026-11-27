@@ -1,8 +1,51 @@
 """Tests for auto weather preference (hot-sunny matrix)."""
 
-import pytest
+import os
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
 
+import pytest
+from fastapi.testclient import TestClient
+
+from app import main
+from app.cache import Cache
 from app.preferences import auto_preference
+
+os.environ.setdefault("MAPBOX_TOKEN", "test-dummy-mapbox-token")
+
+FAKE_ROUTE: dict[str, Any] = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[11.57, 48.13], [11.58, 48.14]],
+            },
+            "properties": {"distance": 1234.5, "duration": 900.0},
+        }
+    ],
+}
+
+
+@pytest.fixture()
+def client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[TestClient]:
+    monkeypatch.setattr(main, "cache", Cache(str(tmp_path / "cache.db")))
+    monkeypatch.setattr(
+        main,
+        "geocode_place",
+        lambda place: (48.13, 11.57) if place == "Start" else (48.14, 11.58),
+    )
+    monkeypatch.setattr(
+        main.mapbox,
+        "route",
+        lambda start, end, preference=None: FAKE_ROUTE,
+    )
+    with TestClient(main.app) as test_client:
+        yield test_client
 
 
 @pytest.mark.parametrize(
@@ -71,3 +114,16 @@ def test_exact_boundary_is_cloudy(temperature, cloud_cover):
 def test_missing_data_falls_back_to_caller(temperature, cloud_cover):
     """None temperature or cloud_cover -> caller preference."""
     assert auto_preference(temperature, cloud_cover, "cool") == "cool"
+
+
+def test_the_api_accepts_the_balanced_preference(client: TestClient) -> None:
+    """041 T2: the shade panel's Balanced segment sends "balanced"."""
+    response = client.post(
+        "/route",
+        json={"start": "Start", "end": "End", "preference": "balanced"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied_preference"] == "balanced"
+    assert any("balanced" in line.lower() for line in body["explanation"])

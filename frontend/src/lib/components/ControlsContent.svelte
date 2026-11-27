@@ -4,7 +4,7 @@
   // content source for both surfaces: App.svelte renders exactly one
   // <ControlsContent /> inside the <aside> and one inside <BottomDrawer>,
   // and the two surfaces are never visible at the same time. It holds the
-  // route summary (duration · distance · arrival · terrain), Preferences,
+  // route summary (duration · distance · arrival · terrain),
   // Saved routes, and the walk action buttons. Walking only — no
   // transport-mode selector. All state and handlers live in App.svelte and
   // are passed in.

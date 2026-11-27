@@ -11,7 +11,10 @@
 
   interface Weather {
     temperature: number
-    cloudCover: number
+    cloudCover?: number
+    // The API serializes the Open-Meteo field in snake_case; keep both so the
+    // advice copy works against live, cached and saved payloads.
+    cloud_cover?: number
   }
 
   interface Route {
@@ -40,13 +43,22 @@
   import { checkArrival } from './lib/navigation/arrival'
   import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
   import type { LatLng } from './lib/navigation/interpolate'
-  import { clearRerouteWarning, flagOffRoute, onFix, walkMode } from './lib/walkMode'
+  import {
+    clearRerouteWarning,
+    flagOffRoute,
+    onFix,
+    start as startWalk,
+    walkMode,
+  } from './lib/walkMode'
   import { DRIFT_DISTANCE_THRESHOLD_M, distanceToRouteMeters } from './lib/navigation/drift'
   import ArrivalCard from './lib/components/ArrivalCard.svelte'
   import Attribution from './lib/components/Attribution.svelte'
   import TopSearchCard from './lib/components/TopSearchCard.svelte'
   import BottomDrawer from './lib/components/BottomDrawer.svelte'
   import ControlsContent from './lib/components/ControlsContent.svelte'
+  import ComfortPanel from './lib/components/ComfortPanel.svelte'
+  import RouteCard from './lib/components/RouteCard.svelte'
+  import WalkControls from './lib/WalkControls.svelte'
   import StartLocationModal from './lib/components/StartLocationModal.svelte'
   import type { Suggestion } from './lib/search/suggestions'
   import { pickHint, reverseLabel, togglePickRole } from './lib/map/picker'
@@ -112,6 +124,12 @@
   let savedRoutes: SavedRoute[] = []
   let prefs: Prefs | null = null
   let showPrefs = false
+  // 041: the shade control is the design's single comfort preference.
+  // `shadeManual` distinguishes an explicit choice from the weather auto-rule
+  // (which sets the visible segment after a route but never overrides it).
+  let shade: 'hot' | 'cloudy' | 'balanced' = 'balanced'
+  let shadeManual = false
+  let avoidTraffic = false
   let savedError = ''
   let prefsError = ''
   let locateError = ''
@@ -167,15 +185,12 @@
           end,
           start_coords: startCoords,
           end_coords: endCoords,
-          // 004 AC-3: a saved preference is the manual override. Only the two
-          // valid manual values may be sent — the DB-less fallback is
-          // `balanced`, which the route contract rejects (422 on the free
-          // deployment). Omit it otherwise so the weather auto-rule decides.
-          ...(prefs?.default_preference === 'hot' || prefs?.default_preference === 'cloudy'
-            ? { preference: prefs.default_preference }
-            : {}),
+          // 004/041: an explicit shade choice is the manual override; the
+          // route contract now accepts `balanced` too. Without a choice, omit
+          // the field so the weather auto-rule decides.
+          ...(shadeManual ? { preference: shade } : {}),
           prefer_lit: prefs?.prefer_lit ?? false,
-          avoid_traffic: prefs?.avoid_traffic ?? false,
+          avoid_traffic: avoidTraffic,
         }),
       })
       if (!response.ok) {
@@ -346,6 +361,12 @@
     prefsError = ''
     try {
       prefs = await getPrefs()
+      const saved = prefs.default_preference
+      if (saved === 'hot' || saved === 'cloudy' || saved === 'balanced') {
+        shade = saved
+        shadeManual = true
+      }
+      avoidTraffic = prefs.avoid_traffic
     } catch (err) {
       prefsError = err instanceof Error ? err.message : String(err)
     }
@@ -613,7 +634,10 @@
         explanation: route.explanation,
         applied_preference: route.applied_preference,
         preference_source: route.preference_source,
-        weather: route.weather,
+        weather: {
+          temperature: route.weather.temperature,
+          cloudCover: route.weather.cloudCover ?? route.weather.cloud_cover ?? 0,
+        },
         timestamp: route.timestamp,
         comfort_profile: route.comfort_profile,
       })
@@ -697,6 +721,53 @@
       prefsError = err instanceof Error ? err.message : String(err)
     }
   }
+
+  // 041: the desktop comfort panel applies immediately (the design has no
+  // Save button there). The local state drives the next /route request even
+  // when the preferences API is unavailable (no database on the free stand).
+  async function persistComfort() {
+    if (!prefs) return
+    prefsError = ''
+    prefs = { ...prefs, default_preference: shade, avoid_traffic: avoidTraffic }
+    try {
+      prefs = await updatePrefs(prefs)
+    } catch (err) {
+      prefsError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  function replanIfReady() {
+    if (startCoords && endCoords) void planRoute()
+  }
+
+  function handleShade(event: CustomEvent<'hot' | 'cloudy' | 'balanced'>) {
+    shade = event.detail
+    shadeManual = true
+    void persistComfort()
+    replanIfReady()
+  }
+
+  function handleQuieter(event: CustomEvent<boolean>) {
+    avoidTraffic = event.detail
+    void persistComfort()
+    replanIfReady()
+  }
+
+  function handleComfortReset() {
+    shade = 'balanced'
+    shadeManual = true
+    avoidTraffic = false
+    void persistComfort()
+    replanIfReady()
+  }
+
+  // The weather auto-rule's choice is what the design shows as active until
+  // the walker makes an explicit choice; it is display state, not a save.
+  $: if (route && route.preference_source === 'auto' && !shadeManual) {
+    const applied = route.applied_preference
+    shade =
+      applied === 'hot' || applied === 'cloudy' || applied === 'balanced' ? applied : 'balanced'
+  }
 </script>
 
 <svelte:head>
@@ -743,7 +814,7 @@
 <main>
   <div id="map" data-testid="map" bind:this={mapElement}></div>
 
-  {#if currentStep === 'plan'}
+  {#if currentStep === 'plan' && !isDesktop}
     <TopSearchCard
       extraClass="top-card"
       bind:startQuery={start}
@@ -762,7 +833,36 @@
     class:collapsed={sidebarCollapsed}
     data-testid="sidebar"
   >
-    <h1>Comfort Walking Router</h1>
+    {#if isDesktop && currentStep === 'plan'}
+      <div class="sidebar-search-wrap">
+        <TopSearchCard
+          extraClass="sidebar-search"
+          bind:startQuery={start}
+          bind:endQuery={end}
+          bind:startSelected={startSuggestion}
+          bind:endSelected={endSuggestion}
+          {activePick}
+          on:pick={(e) => beginPick(e.detail)}
+          on:swap={swapEndpoints}
+        />
+      </div>
+    {/if}
+
+    {#if isDesktop}
+      <ComfortPanel
+        preference={shade}
+        {avoidTraffic}
+        weather={route?.weather
+          ? {
+              temperature: route.weather.temperature,
+              cloudCover: route.weather.cloudCover ?? route.weather.cloud_cover ?? 50,
+            }
+          : null}
+        on:shade={handleShade}
+        on:quieter={handleQuieter}
+        on:reset={handleComfortReset}
+      />
+    {/if}
 
     {#if locateError}
       <div class="locate-notice" role="alert">
@@ -778,29 +878,81 @@
     {#if pickError}
       <p class="error" role="alert">{pickError}</p>
     {/if}
-
+    {#if prefsError}
+      <p class="error" role="alert">{prefsError}</p>
+    {/if}
     {#if error}
       <p class="error">{error}</p>
     {/if}
 
     {#if isDesktop}
-      <ControlsContent
-        {route}
-        {walkRoute}
-        profile={route?.comfort_profile ?? []}
-        {prefs}
-        {showPrefs}
-        {savedRoutes}
-        {savedError}
-        {prefsError}
-        {error}
-        {suggestionAttribution}
-        onTogglePrefs={togglePrefs}
-        onPrefsSave={() => handlePrefsSave()}
-        onSaveRoute={handleSaveRoute}
-        onRecall={handleRecall}
-        onDelete={handleDelete}
-      />
+      {#if route}
+        <section class="walk-choice" aria-labelledby="choose-walk-title">
+          <div class="choice-heading">
+            <h2 id="choose-walk-title">Choose your walk</h2>
+            <span class="route-count">1 route</span>
+          </div>
+          <RouteCard
+            {route}
+            profile={route.comfort_profile ?? []}
+            {avoidTraffic}
+            {suggestionAttribution}
+          />
+          <div class="cta-row">
+            {#if $walkMode.active || $walkMode.arrived}
+              <WalkControls route={walkRoute} profile={route.comfort_profile ?? []} />
+            {:else}
+              <button
+                type="button"
+                class="walk-start"
+                data-testid="start-walk"
+                aria-label="Start walk mode"
+                on:click={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d={materialPaths.directions_walk} />
+                </svg>
+                <span>Start walk</span>
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="save-route"
+              data-testid="save-route"
+              aria-label="Save route"
+              on:click={handleSaveRoute}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"
+                />
+              </svg>
+            </button>
+          </div>
+        </section>
+      {:else}
+        <p class="empty">Plan a route to see your walk.</p>
+      {/if}
+
+      {#if savedRoutes.length > 0 || savedError}
+        <details class="saved-walks">
+          <summary>Saved walks ({savedRoutes.length})</summary>
+          {#if savedError}
+            <p class="error">{savedError}</p>
+          {/if}
+          <ul class="saved-list">
+            {#each savedRoutes as saved (saved.id)}
+              <li>
+                <span class="saved-name">{saved.name}</span>
+                <span class="saved-actions">
+                  <button type="button" on:click={() => handleRecall(saved.id)}>Recall</button>
+                  <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </details>
+      {/if}
     {/if}
 
     <section class="walk">
@@ -816,6 +968,17 @@
       {/if}
     </section>
   </aside>
+
+  <ul
+    class="map-legend comfort-legend"
+    data-testid="comfort-legend"
+    aria-label="Comfort band legend"
+  >
+    <li>
+      <span class="legend-swatch" style="background:{bandColour('good')}"></span>
+      Your comfort route
+    </li>
+  </ul>
 
   <!-- Mobile bottom drawer: same controls as the desktop sidebar, shown only
        below 768px so the sidebar and drawer are never visible together. -->
@@ -1357,6 +1520,166 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+
+  /* 041: the endpoint card lives inside the 380px panel on desktop; the
+     component is absolutely positioned for the mobile map, so place it in a
+     relative wrapper and reset the inset. */
+  .sidebar-search-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 14px;
+  }
+
+  .sidebar-search-wrap :global(.top-search-card) {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    min-height: 108px;
+    padding: 8px;
+    border: 1px solid var(--cwr-line);
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  .walk-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .choice-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .choice-heading h2 {
+    margin: 0;
+    color: var(--cwr-ink);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .route-count {
+    color: var(--cwr-muted-2);
+    font-size: 11px;
+  }
+
+  .cta-row {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    margin-top: auto;
+    padding: 12px 0 4px;
+    background: var(--cwr-surface);
+  }
+
+  .cta-row :global(.walk-controls) {
+    flex: 1;
+    flex-wrap: wrap;
+  }
+
+  .walk-start {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 52px;
+    border: none;
+    border-radius: 12px;
+    background: var(--cwr-brand);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .walk-start svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .save-route {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 52px;
+    border: 1px solid var(--cwr-line-strong);
+    border-radius: 12px;
+    background: var(--cwr-surface);
+    color: var(--cwr-ink);
+    cursor: pointer;
+  }
+
+  .save-route svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .saved-walks {
+    margin-top: 12px;
+    color: var(--cwr-muted);
+    font-size: 12px;
+  }
+
+  .saved-walks summary {
+    cursor: pointer;
+  }
+
+  .saved-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+  }
+
+  .saved-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .saved-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  /* The legend floats over the map, 24px right of the panel. */
+  .map-legend {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .map-legend {
+      position: absolute;
+      left: 404px;
+      bottom: 21px;
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      padding: 10px 14px;
+      list-style: none;
+      border-radius: 10px;
+      background: var(--cwr-surface);
+      box-shadow: var(--cwr-shadow-pill);
+      color: var(--cwr-muted);
+      font-size: 11px;
+    }
+  }
+
+  .legend-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
   }
 
   @media (min-width: 768px) {
