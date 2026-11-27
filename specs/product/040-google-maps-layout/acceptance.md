@@ -1,6 +1,6 @@
 # 040-google-maps-layout — Acceptance
 
-Generated: 2026-11-26T17:35:47Z · Verdict: **PASS** (0 failed · 8 passed · 0 unverified · 0 n/a)
+Generated: 2026-11-27T18:47:33Z · Verdict: **FAIL** (0 failed · 8 passed · 0 unverified · 0 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
@@ -9,7 +9,7 @@ Generated: 2026-11-26T17:35:47Z · Verdict: **PASS** (0 failed · 8 passed · 0 
 | AC-3 | PASS | probe | found 1 element(s); absent |
 | AC-4 | PASS | probe | count 0 vs expect 0; count 0 vs expect 0 |
 | AC-5 | PASS | probe | found 1 element(s) |
-| AC-6 | PASS | probe | count 7 >= 3; count 6 >= 3 |
+| AC-6 | PASS | probe | count 11 >= 3; count 8 >= 3 |
 | AC-7 | PASS | probe | 0 console error(s); 0 console error(s) |
 | AC-8 | PASS | probe | /route request fired |
 
