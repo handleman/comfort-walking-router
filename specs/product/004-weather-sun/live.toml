@@ -15,21 +15,9 @@ note = "a route first, so the summary/chip exists"
 [[check]]
 ac = "AC-3"
 kind = "click"
-selector = "section.prefs:visible button:has-text('Edit preferences')"
+selector = "[data-testid='comfort-panel'] [data-testid='shade-more']"
 viewport = "desktop"
-
-[[check]]
-ac = "AC-3"
-kind = "select"
-selector = "section.prefs:visible select"
-value = "hot"
-viewport = "desktop"
-
-[[check]]
-ac = "AC-3"
-kind = "click"
-selector = "section.prefs:visible button:has-text('Save preferences')"
-viewport = "desktop"
+note = "041: More shade is the manual hot preference (desktop applies immediately)"
 
 [[check]]
 ac = "AC-3"
@@ -39,6 +27,13 @@ value = "Marienplatz, Munich"
 origin = "Englischer Garten"
 viewport = "desktop"
 note = "distinct pair so auto-plan re-runs with the manual preference"
+
+[[check]]
+ac = "AC-3"
+kind = "click"
+selector = "section.route-summary details summary"
+viewport = "desktop"
+note = "041: the chip lives in the closed route details"
 
 [[check]]
 ac = "AC-3"

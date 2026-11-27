@@ -1,6 +1,6 @@
 # 005-saved-routes — Live acceptance
 
-Generated: 2026-11-27T21:26:50Z · Target: local stand, real providers (fixtures off) · Database: used
+Generated: 2026-11-27T21:42:37Z · Target: local stand, real providers (fixtures off) · Database: used
 
 | AC | Verdict | Evidence |
 | --- | --- | --- |

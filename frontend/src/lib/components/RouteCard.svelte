@@ -50,13 +50,6 @@
   <h2 id="{uid}-title" class="visually-hidden">Route summary</h2>
   {#if route}
     <article class="route-card">
-      {#if !compact}
-        <div class="chip">
-          {route.preference_source === 'manual'
-            ? `Manual: ${route.applied_preference}`
-            : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
-        </div>
-      {/if}
       <div class="headline">
         <span class="duration">{Math.round(route.duration_s / 60)} min</span>
         <span class="distance">{(route.distance_m / 1000).toFixed(1)} km</span>
@@ -82,9 +75,19 @@
           {/if}
         </p>
       {/if}
-      {#if !compact}
+      <Attribution text={route.attribution ?? suggestionAttribution} />
+    </article>
+
+    {#if !compact}
+      <details class="route-details" data-testid="route-details">
+        <summary>Why this route?</summary>
+        <div class="chip">
+          {route.preference_source === 'manual'
+            ? `Manual: ${route.applied_preference}`
+            : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
+        </div>
         {#if route.comfort_profile}
-          <ul class="comfort-segments">
+          <ul class="comfort-segments" aria-label="Comfort profile">
             {#each comfortRuns as run, index (index)}
               <li class="comfort-segment comfort-band comfort-band--{run.band}">
                 {formatRun(run)}
@@ -94,17 +97,13 @@
         {:else}
           <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
         {/if}
-        <details class="why">
-          <summary>Why this route?</summary>
-          <ul class="factors">
-            {#each route.explanation as line, index (index)}
-              <li>{line}</li>
-            {/each}
-          </ul>
-        </details>
-      {/if}
-      <Attribution text={route.attribution ?? suggestionAttribution} />
-    </article>
+        <ul class="factors">
+          {#each route.explanation as line, index (index)}
+            <li>{line}</li>
+          {/each}
+        </ul>
+      </details>
+    {/if}
   {:else}
     <p class="empty">No route planned yet.</p>
   {/if}
@@ -121,6 +120,20 @@
     clip: rect(0 0 0 0);
     white-space: nowrap;
     border: 0;
+  }
+
+  .route-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+    color: var(--cwr-muted);
+    font-size: 11px;
+  }
+
+  .route-details summary {
+    cursor: pointer;
+    font-size: 11px;
   }
 
   .route-card {

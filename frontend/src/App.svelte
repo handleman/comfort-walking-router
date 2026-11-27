@@ -1135,10 +1135,16 @@
     data-testid="comfort-legend"
     aria-label="Comfort band legend"
   >
-    <li>
+    <li class="legend-route">
       <span class="legend-swatch" style="background:{bandColour('good')}"></span>
       Your comfort route
     </li>
+    {#each COMFORT_BANDS as band (band.band)}
+      <li class="comfort-band comfort-band--{band.band}">
+        <span class="legend-swatch" style="background:{band.colour}"></span>
+        {band.band} · {band.range}/100
+      </li>
+    {/each}
   </ul>
 
   <!-- Mobile results sheet ("Your kind of walk", 041 T4): the shared card
@@ -1924,8 +1930,10 @@
       bottom: 21px;
       z-index: 900;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      gap: 4px 12px;
+      max-width: 340px;
       margin: 0;
       padding: 10px 14px;
       list-style: none;
@@ -1934,6 +1942,12 @@
       box-shadow: var(--cwr-shadow-pill);
       color: var(--cwr-muted);
       font-size: 11px;
+    }
+
+    .map-legend .comfort-band {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
   }
 

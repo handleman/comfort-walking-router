@@ -50,14 +50,10 @@ test('shade More sun saves cloudy and is applied to the routed result', async ({
 
   const summary = page.locator('section.route-summary')
   await expect(summary).toBeVisible()
-  await expect(summary.locator('.chip')).toContainText('cloudy')
   await summary.getByText('Why this route?').click()
   await expect(summary.locator('ul.factors')).toBeVisible()
   await expect(summary.locator('ul.factors')).toContainText('cloud cover')
-  // Comfort profile selectors stay resolvable alongside the new panel.
-  await expect(summary.locator('.comfort-segments')).toHaveCount(
-    await summary.locator('.comfort-segments').count(),
-  )
+  await expect(summary.locator('ul.factors')).toContainText('Cloudy preference')
   await expect(page.locator('.comfort-legend')).toBeVisible()
 
   // Reset restores the balanced default for the next run.
@@ -79,7 +75,7 @@ test('repeating an identical route query renders the cached result without a sec
 
   await planRoute(page, 'Marienplatz, Munich', 'Englischer Garten')
 
-  await expect(page.locator('section.route-summary .chip')).toBeVisible()
+  await expect(page.locator('section.route-summary .duration')).toBeVisible()
 
   // Re-enter the same endpoints and re-select the same suggestions; the 040
   // auto-plan guard must not fire a second POST /route for the same pair.
@@ -90,6 +86,6 @@ test('repeating an identical route query renders the cached result without a sec
   )
   await chooseSuggestion(page, 'input[placeholder="e.g. Englischer Garten"]', 'Englischer Garten')
 
-  await expect(page.locator('section.route-summary .chip')).toBeVisible()
+  await expect(page.locator('section.route-summary .duration')).toBeVisible()
   expect(routeRequestCount()).toBe(1)
 })

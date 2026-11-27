@@ -10,6 +10,13 @@ note = "plan a route so the summary/chip exists"
 
 [[check]]
 ac = "AC-1"
+kind = "click"
+selector = "section.route-summary details summary"
+viewport = "desktop"
+note = "041: the chip lives in the closed route details"
+
+[[check]]
+ac = "AC-1"
 kind = "text"
 selector = "section.route-summary:visible .chip"
 expect = "Auto:"
@@ -31,7 +38,7 @@ note = "auto-rule is unit-tested with fixtures, not a browser surface"
 [[check]]
 ac = "AC-3"
 kind = "exists"
-selector = "section.prefs"
+selector = "[data-testid='comfort-panel']"
 viewport = "desktop"
 
 [[not_applicable]]
