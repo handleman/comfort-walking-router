@@ -22,6 +22,11 @@ The **harness** that builds it is the published
   The harness reads it; don't hardcode paths elsewhere.
 - **The queue is autonomous:** a green run merges by itself. Runs and traces live
   in `harness/runs/`.
+- **The Figma cache is local.** `designs/` is gitignored; `hq design sync`
+  rebuilds it from the file key + `FIGMA_TOKEN` (or MCP OAuth) before a queue
+  run or the strict acceptance. Never commit the IR, reference renders or lock.
+  E2E screenshots/reports are artifacts in the ignored `frontend/test-results/`
+  and `frontend/playwright-report/` dirs.
 - **Separate venvs:** `app/`+`tests/` → `.venv`, harness → `harness/.venv`,
   `frontend/` → npm. Don't mix them.
 - **Commands:** `hq` (the harness entry point) or `make swarm-*`. `make

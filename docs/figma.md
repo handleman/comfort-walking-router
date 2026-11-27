@@ -6,7 +6,7 @@ transports:
 | Lane | Who | Transport | Auth |
 | --- | --- | --- | --- |
 | **Operator** (OpenCode) | a person exploring/implementing a frame | [Figma MCP server](https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server) | OAuth via `/mcps` |
-| **Queue** (harness) | the unattended swarm | MCP (OAuth) or REST → committed cache | token-first: `FIGMA_TOKEN` in `.env`, else MCP OAuth |
+| **Queue** (harness) | the unattended swarm | MCP (OAuth) or REST → local cache (gitignored) | token-first: `FIGMA_TOKEN` in `.env`, else MCP OAuth |
 
 The queue never speaks MCP and never runs OAuth: it reads a versioned design
 cache so a night run is deterministic and offline. The operator lane is
@@ -105,7 +105,7 @@ design:
   transport: auto              # auto | mcp | rest
   file_key: "<file key from /design/<key>/...>"
   nodes: ["12:34", "56:78"]    # only these frames may enter prompts
-  dir: designs/                # committed cache
+  dir: designs/                # local, gitignored
   scale: 2
   auth:
     timeout_s: 600
@@ -124,6 +124,14 @@ designs/<file-key>/
   design.lock       # Figma file version + node IDs + hashes
   mcp/              # cached MCP tool results + images (MCP transport)
 ```
+
+**The cache is not source.** `designs/` is gitignored: the IR, reference
+renders, brief and `design.lock` are local artifacts rebuilt by
+`hq design sync` (REST token or MCP OAuth). `swarm.yaml`/`design.toml` pin the
+file key and allowlisted nodes; sync before a queue run or the strict
+acceptance. Never commit the cache or its screenshots. The queue's browser
+screenshots and Playwright artifacts stay in the ignored `harness/runs/`,
+`frontend/test-results/` and `frontend/playwright-report/` directories.
 
 The spec that implements a frame declares it in `specs/product/<spec>/design.toml`:
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-28 (Figma cache and e2e artifacts are local)
+- **`designs/` is no longer committed.** The Figma cache is a local, disposable
+  artifact rebuilt by `hq design sync` from the file key + token; the IR,
+  renders, brief and lock are gitignored. `swarm.yaml`/`design.toml` pin the
+  frames; sync before a queue run or the strict acceptance. E2E screenshots and
+  Playwright reports stay in the ignored test-results/report dirs.
 ## 2026-11-28 (harness integrity + task budgets v0.6.8)
 - **Factory v0.6.6 (059 Harness Integrity).** Manual completions now carry a `Swarm-Manual` reason and `hq report --fail-on-manual` gates a release; a per-task budget cap archives/reverts its delta before the queue continues; design/global/covered-by evidence is evaluated before the acceptance report (so the `.md` and exit code agree) and CSS colours compare semantically (`#fff` = `#ffffff`); `[[covered_by]]` names an e2e oracle instead of hiding it as N/A; a coder that pastes a file without landing it gets a named diagnostic.
 - **v0.6.7** wires `hq report --fail-on-manual` through the top-level CLI (the gate was unreachable before).

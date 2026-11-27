@@ -1,3 +1,7 @@
+> **The Figma cache is local and gitignored (updated 2026-11-28).** The
+> `designs/<key>/` IR, renders, brief and lock are rebuilt by `hq design sync`
+> and must not be committed. The design.toml/swarm.yaml pin the frames.
+
 # 041 design contract (Figma → code)
 
 This is the operator's transcription of the three Figma frames into exact,

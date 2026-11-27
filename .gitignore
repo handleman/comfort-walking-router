@@ -32,6 +32,10 @@ vite.config.*.timestamp-*.mjs
 frontend/test-results/
 frontend/playwright-report/
 
+# Figma design cache (057/041): local and disposable; `hq design sync`
+# rebuilds it from the file key + token. Never commit the IR, renders or lock.
+designs/
+
 # Data — SQLite/OSM cache (ADR-004), swarm run traces
 *.db
 *.sqlite
