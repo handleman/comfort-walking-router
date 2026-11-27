@@ -68,7 +68,10 @@ The **harness** that builds it is the published
 
 ## Where to find more (load on demand)
 
-- **Terms:** [GLOSSARY.md](GLOSSARY.md).
+- **Terms:** [GLOSSARY.md](GLOSSARY.md); the factory's language and domain model:
+  [GLOSSARY](https://github.com/handleman/handleman-hq/blob/main/GLOSSARY.md),
+  [domain model](https://github.com/handleman/handleman-hq/blob/main/docs/domain-model.md),
+  [ADRs](https://github.com/handleman/handleman-hq/tree/main/docs/adr).
 - **Skills:** the `skill` tool (`domain-modeling`, `grilling`, `browser`, …).
 - **Harness docs (factory):** [README](https://github.com/handleman/handleman-hq#readme),
   [how it works](https://github.com/handleman/handleman-hq/blob/main/docs/how-it-works.md),

@@ -120,9 +120,13 @@ _Avoid_: automation, pipeline
 Whether a spec builds the app (queued) or improves the swarm itself (never queued). Lives in the spec's folder.
 _Avoid_: type, category
 
-**Pilot** (a **run**):
+**Run**:
 One execution of one task, from kickoff to commit or a typed stop. Writes `harness/runs/<ts>/`.
-_Avoid_: session, job
+_Avoid_: pilot (the pilot is the queue process), session, job
+
+**Pilot**:
+The foreground queue process that performs runs until the queue is empty or a stop condition is reached.
+_Avoid_: run (a run is one task), session
 
 **Fix round** (a **correction**):
 The QA→coder→QA loop that repairs a red gate or a verifier block, bounded by `MAX_FIX_ROUNDS`.
@@ -143,3 +147,7 @@ _Avoid_: prompt, backstory (a skill is a separate, operator‑editable capabilit
 **Spec acceptance pass** (043):
 The final greenlight: `make swarm-accept` runs every built product spec through a real browser (desktop + mobile), deterministic probes + a free vision model, appends fix tasks for failing ACs and exits non-zero on FAIL. It is the end-of-batch check, not a per-task one. After every green feature task the supervisor's acceptance hook automatically runs the per-feature acceptance pass (`make swarm-accept`), queuing fix tasks for failing ACs and recording the verdict in run.json — the feature still goes green but regressions are flagged for the operator.
 _Avoid_: visual QA (042 is per-task; this is per-spec/per-feature after the queue drains or after each green task), e2e suite (that is gate evidence for one task)
+
+The factory's full vocabulary and structural model live in the package:
+[GLOSSARY](https://github.com/handleman/handleman-hq/blob/main/GLOSSARY.md)
+and [domain model](https://github.com/handleman/handleman-hq/blob/main/docs/domain-model.md).
