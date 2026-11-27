@@ -1,6 +1,6 @@
 # 042-map-destination-build-flow — Acceptance
 
-Generated: 2026-11-27T22:26:30Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 7 n/a)
+Generated: 2026-11-27T23:17:29Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 7 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
