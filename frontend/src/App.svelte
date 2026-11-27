@@ -1080,6 +1080,33 @@
         </section>
       {:else}
         <p class="empty">Plan a route to see your walk.</p>
+        <div class="cta-row">
+          <button
+            type="button"
+            class="walk-start"
+            data-testid="start-walk"
+            aria-label="Start walk mode"
+            disabled
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d={materialPaths.directions_walk} />
+            </svg>
+            <span>Start walk</span>
+          </button>
+          <button
+            type="button"
+            class="save-route"
+            data-testid="save-route"
+            aria-label="Save route"
+            disabled
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"
+              />
+            </svg>
+          </button>
+        </div>
       {/if}
     {/if}
 
