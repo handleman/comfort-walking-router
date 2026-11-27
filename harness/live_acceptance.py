@@ -25,14 +25,13 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
-from swarm.drivers.acceptance import VIEWS, run_browser, served_app  # noqa: E402
+from swarm.drivers.acceptance import VIEWS, run_browser, served_app
 
 
 def _views() -> list[dict[str, Any]]:
@@ -118,15 +117,17 @@ def render_report(
 ) -> str:
     kind = str(target.get("kind", "local"))
     where = (
-        f"local stand, real providers (fixtures off)"
+        "local stand, real providers (fixtures off)"
         if kind == "local"
         else str(target.get("url", "remote"))
     )
     lines = [
         f"# {spec} — Live acceptance",
         "",
-        f"Generated: {stamp} · Target: {where} · Database: "
-        f"{'used' if database else ('not needed' if not target.get('requires_db') else 'MISSING')}",
+        (
+            f"Generated: {stamp} · Target: {where} · Database: "
+            f"{'used' if database else ('not needed' if not target.get('requires_db') else 'MISSING')}"
+        ),
         "",
     ]
     if note:
@@ -192,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             print(f"accept-live: remote {url}")
             results += run_plan([spec], base_url=url, out_dir=run_dir / spec["spec"])
-    except Exception as exc:  # a dead provider/stand is a report, not a crash
+    except Exception as exc:  # noqa: BLE001 - a dead provider/stand is a report, not a crash
         print(f"accept-live: FAILED — {type(exc).__name__}: {exc}")
         return 1
 
