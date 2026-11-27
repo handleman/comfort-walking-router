@@ -1,6 +1,6 @@
 # 041-figma-redesign — Acceptance
 
-Generated: 2026-11-27T18:48:48Z · Verdict: **PASS** (0 failed · 5 passed · 0 unverified · 0 n/a)
+Generated: 2026-11-27T18:51:30Z · Verdict: **PASS** (0 failed · 5 passed · 0 unverified · 0 n/a)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ Generated: 2026-11-27T18:48:48Z · Verdict: **PASS** (0 failed · 5 passed · 0 
 | AC-2 | PASS | probe | found 1 element(s); found 1 element(s); found 1 element(s); found 1 element(s); found 1 element(s) |
 | AC-3 | PASS | probe | /route request fired; visible; visible; clicked; visible; found 1 element(s) |
 | AC-4 | PASS | probe | found 1 element(s); found 1 element(s); found 1 element(s); found 1 element(s); clicked; found 1 element(s); found 1 element(s) |
-| AC-5 | PASS | probe | found 1 element(s); found 1 element(s); found 1 element(s); found 1 element(s); count 33 >= 1; 0 console error(s); 0 console error(s) |
+| AC-5 | PASS | probe | found 1 element(s); found 1 element(s); found 1 element(s); found 1 element(s); count 24 >= 1; 0 console error(s); 0 console error(s) |
 
 ## Global checks
 
