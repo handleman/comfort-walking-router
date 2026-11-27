@@ -6,7 +6,7 @@ transports:
 | Lane | Who | Transport | Auth |
 | --- | --- | --- | --- |
 | **Operator** (OpenCode) | a person exploring/implementing a frame | [Figma MCP server](https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server) | OAuth via `/mcps` |
-| **Queue** (harness) | the unattended swarm | Figma REST API → committed cache | `FIGMA_TOKEN` in `.env` |
+| **Queue** (harness) | the unattended swarm | MCP (OAuth) or REST → committed cache | token-first: `FIGMA_TOKEN` in `.env`, else MCP OAuth |
 
 The queue never speaks MCP and never runs OAuth: it reads a versioned design
 cache so a night run is deterministic and offline. The operator lane is
@@ -65,8 +65,9 @@ The queue supports **both** Figma transports and writes the same cache:
 | Data | read tools: metadata, design context, variables, screenshots, assets, Code Connect | raw nodes, images, variables, components, styles |
 | Best for | the same experience as OpenCode, latest tools | CI/headless, no browser callback |
 
-`transport: auto` (default) prefers a stored MCP token, then `FIGMA_TOKEN`
-(REST), then starts the MCP OAuth prompt. Force one with
+`transport: auto` (default) is **token-first**: if `FIGMA_TOKEN` is present it
+uses REST; if it is absent it switches to MCP and starts the first-run OAuth. A
+stored MCP token does not override an explicit API token. Force one with
 `transport: mcp` or `transport: rest`. **The MCP token is not a REST token**
 (it is scoped to `mcp:connect`), so REST needs its own personal access token.
 
