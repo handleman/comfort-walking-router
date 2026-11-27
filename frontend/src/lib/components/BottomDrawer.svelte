@@ -35,7 +35,7 @@
 
   let open = false
 
-  const dispatch = createEventDispatcher<{ edit: null; start: null; save: null }>()
+  const dispatch = createEventDispatcher<{ edit: null; start: null; save: null; saved: null }>()
 
   // Auto-open once a walk result exists; the handle still collapses it.
   $: if (route) open = true
@@ -73,6 +73,14 @@
         </svg>
         Walking
       </span>
+      <button
+        type="button"
+        class="sheet-saved"
+        data-testid="saved-walks-mobile"
+        on:click={() => dispatch('saved')}
+      >
+        Saved
+      </button>
     </div>
 
     <div class="prefs-row">
@@ -193,6 +201,15 @@
   :global(.route-card .duration) {
     font-size: 25px;
     font-weight: 600;
+  }
+
+  .sheet-saved {
+    border: none;
+    background: transparent;
+    color: var(--cwr-brand, #17765c);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
   }
 
   .sheet-head {

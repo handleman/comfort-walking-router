@@ -245,7 +245,7 @@ async function collectDesignFacts() {
       await page.setViewportSize({ width: view.width, height: view.height })
       await page.waitForTimeout(400)
       const facts = await page.evaluate(
-        (tokens, regions) => {
+        ({ tokens, regions }) => {
           const tokenMap = {}
           for (const name of tokens) {
             tokenMap[name] = getComputedStyle(document.documentElement)
@@ -264,8 +264,7 @@ async function collectDesignFacts() {
           }
           return { tokens: tokenMap, regions: regionMap }
         },
-        entry.tokens || [],
-        entry.regions || [],
+        { tokens: entry.tokens || [], regions: entry.regions || [] },
       )
       const shot = resolve(outDir, `${entry.spec}-${view.name}.png`)
       await page.screenshot({ path: shot, fullPage: true })

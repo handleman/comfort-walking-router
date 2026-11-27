@@ -131,6 +131,8 @@
   let shadeManual = false
   let avoidTraffic = false
   let showPrefsSheet = false
+  let showSavedWalks = false
+  let showHowItWorks = false
   let savedError = ''
   let prefsError = ''
   let locateError = ''
@@ -479,6 +481,13 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && (showSavedWalks || showHowItWorks || showPrefsSheet)) {
+      e.preventDefault()
+      showSavedWalks = false
+      showHowItWorks = false
+      showPrefsSheet = false
+      return
+    }
     if (e.key === 'Escape' && activePick) {
       e.preventDefault()
       cancelPick()
@@ -589,14 +598,30 @@
         Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLng / 2) ** 2
       dists.push(dists[i - 1] + 2 * 6371000 * Math.asin(Math.sqrt(a)))
     }
+    // Point on the route at a distance along it. The live geometry can be a
+    // two-point overview, so a band slice that only keeps the original
+    // vertices is empty (Leaflet draws `M0 0`); interpolate the band edges.
+    const pointAtDistance = (d: number): [number, number] => {
+      if (d <= 0) return coords[0]
+      const total = dists[dists.length - 1]
+      if (d >= total) return coords[coords.length - 1]
+      let i = 1
+      while (i < dists.length && dists[i] < d) i++
+      const a = coords[i - 1]
+      const b = coords[i]
+      const span = dists[i] - dists[i - 1]
+      const t = span > 0 ? (d - dists[i - 1]) / span : 0
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+    }
     let line: L.Polyline
     if (runs.length) {
       const lines: L.Polyline[] = []
       for (const run of runs) {
-        const slice: [number, number][] = []
+        const slice: [number, number][] = [pointAtDistance(run.from_m)]
         coords.forEach((c, i) => {
-          if (dists[i] >= run.from_m && dists[i] <= run.to_m) slice.push(c)
+          if (dists[i] > run.from_m && dists[i] < run.to_m) slice.push(c)
         })
+        slice.push(pointAtDistance(run.to_m))
         const pl = L.polyline(slice, { color: bandColour(run.band), weight: 6 })
           .bindTooltip(formatRun(run))
           .addTo(layer)
@@ -615,10 +640,43 @@
     }
     if (endPoint) {
       L.marker([endPoint.lat, endPoint.lng], { icon: L.divIcon(endPinIcon()) })
-        .bindTooltip('End')
+        .bindTooltip(end || 'Destination', {
+          permanent: true,
+          direction: 'top',
+          offset: [0, -24],
+          className: 'dest-callout',
+        })
         .addTo(layer)
     }
-    map.fitBounds(line.getBounds(), { padding: [24, 24] })
+    // 041: one honest route badge at the midpoint (duration + preference);
+    // no second route badge because the API returns one route.
+    const midPoint = pointAtDistance(dists[dists.length - 1] / 2)
+    if (midPoint) {
+      const badgePref =
+        route.applied_preference === 'hot'
+          ? 'More shade'
+          : route.applied_preference === 'cloudy'
+            ? 'More sun'
+            : 'Balanced'
+      const badgeSub = avoidTraffic ? `${badgePref} · Quieter` : badgePref
+      const badge = `<div class="route-badge"><span class="route-badge-duration">${Math.round(
+        route.duration_s / 60,
+      )} min</span><span class="route-badge-sub">${badgeSub}</span></div>`
+      L.marker(midPoint, {
+        icon: L.divIcon({
+          className: 'route-badge-icon',
+          html: badge,
+          iconSize: [140, 64],
+          iconAnchor: [70, 32],
+        }),
+        interactive: false,
+        keyboard: false,
+      }).addTo(layer)
+    }
+    // Fit the full route geometry, not a single comfort slice: a short first
+    // slice used to zoom the map to the slice's one point (zoom 19) and push
+    // the rest of the route, the badge and the destination callout off-screen.
+    map.fitBounds(L.latLngBounds(coords), { padding: [24, 24] })
   }
 
   async function handleSaveRoute() {
@@ -728,6 +786,17 @@
   // when the preferences API is unavailable (no database on the free stand).
   $: shadeLabel = shade === 'hot' ? 'More shade' : shade === 'cloudy' ? 'More sun' : 'Balanced'
   $: preferenceSummary = avoidTraffic ? `${shadeLabel} · Quieter streets` : shadeLabel
+  $: preferenceBadge = avoidTraffic ? `${shadeLabel} · Quieter` : shadeLabel
+  $: condition =
+    (route?.weather.cloudCover ?? route?.weather.cloud_cover ?? 0) >= 70 ? 'Overcast' : 'Sunny'
+  $: temperature = route?.weather ? Math.round(route.weather.temperature) : null
+  $: areaLabel = (() => {
+    const parts = start
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    return parts.length > 1 ? parts[parts.length - 1] : ''
+  })()
 
   async function persistComfort() {
     if (!prefs) return
@@ -811,11 +880,23 @@
 
   <nav class="nav-center" aria-label="Primary">
     <button type="button" class="nav-link primary">Plan a walk</button>
-    <button type="button" class="nav-link secondary">Saved walks</button>
+    <button
+      type="button"
+      class="nav-link secondary"
+      data-testid="saved-walks"
+      on:click={() => (showSavedWalks = true)}
+    >
+      Saved walks
+    </button>
   </nav>
 
   <div class="nav-right">
-    <button type="button" class="nav-how">
+    <button
+      type="button"
+      class="nav-how"
+      data-testid="how-it-works"
+      on:click={() => (showHowItWorks = true)}
+    >
       <span>How it works</span>
       <span class="nav-chevron" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -823,9 +904,9 @@
         </svg>
       </span>
     </button>
-    {#if route}
+    {#if route?.weather && temperature !== null}
       <span class="nav-weather" data-testid="weather-chip">
-        {Math.round(route.weather.temperature)}°C
+        {areaLabel ? `${areaLabel} · ` : ''}{condition}, {temperature}°C
       </span>
     {/if}
   </div>
@@ -835,6 +916,51 @@
 
 <main>
   <div id="map" data-testid="map" bind:this={mapElement}></div>
+
+  <div class="map-controls">
+    <button
+      type="button"
+      class="map-control"
+      data-testid="map-locate"
+      aria-label="Centre on my location"
+      on:click={retryLocate}
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M21 3 3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z" />
+      </svg>
+    </button>
+    <div class="zoom-group" role="group" aria-label="Map zoom">
+      <button
+        type="button"
+        class="map-control zoom"
+        data-testid="map-zoom-in"
+        aria-label="Zoom in"
+        on:click={() => map?.zoomIn()}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        class="map-control zoom"
+        data-testid="map-zoom-out"
+        aria-label="Zoom out"
+        on:click={() => map?.zoomOut()}
+      >
+        −
+      </button>
+    </div>
+  </div>
+
+  {#if !isDesktop && route?.weather && temperature !== null}
+    <span class="mobile-weather" data-testid="mobile-weather">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path
+          d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 10.5H1v2h3v-2zm9-9.95h-2V3.5h2V.55zm7.45 3.91l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zm-3.21 13.7l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM20 10.5v2h3v-2h-3zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-1 16.95h2V19.5h-2v2.95zm-7.45-3.91l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8z"
+        />
+      </svg>
+      {condition} · {temperature}°
+    </span>
+  {/if}
 
   {#if currentStep === 'plan' && !isDesktop}
     <TopSearchCard
@@ -955,26 +1081,6 @@
       {:else}
         <p class="empty">Plan a route to see your walk.</p>
       {/if}
-
-      {#if savedRoutes.length > 0 || savedError}
-        <details class="saved-walks">
-          <summary>Saved walks ({savedRoutes.length})</summary>
-          {#if savedError}
-            <p class="error">{savedError}</p>
-          {/if}
-          <ul class="saved-list">
-            {#each savedRoutes as saved (saved.id)}
-              <li>
-                <span class="saved-name">{saved.name}</span>
-                <span class="saved-actions">
-                  <button type="button" on:click={() => handleRecall(saved.id)}>Recall</button>
-                  <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
-                </span>
-              </li>
-            {/each}
-          </ul>
-        </details>
-      {/if}
     {/if}
 
     <section class="walk">
@@ -1014,6 +1120,7 @@
       on:edit={() => (showPrefsSheet = true)}
       on:start={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
       on:save={handleSaveRoute}
+      on:saved={() => (showSavedWalks = true)}
     />
 
     <!-- 041 T5 (AC-3/AC-4): the mobile "Walk your way" comfort sheet, opened
@@ -1067,6 +1174,90 @@
       on:pick={handleStartPick}
       on:close={handleStartModalClose}
     />
+  {/if}
+
+  {#if showSavedWalks}
+    <div class="dialog-scrim" role="presentation" on:click|self={() => (showSavedWalks = false)}>
+      <section
+        class="app-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saved-walks-title"
+        data-testid="saved-walks-dialog"
+      >
+        <header class="dialog-head">
+          <h2 id="saved-walks-title">Saved walks</h2>
+          <button
+            type="button"
+            class="dialog-close"
+            aria-label="Close saved walks"
+            on:click={() => (showSavedWalks = false)}
+          >
+            ×
+          </button>
+        </header>
+        {#if savedError}
+          <p class="error" role="alert">{savedError}</p>
+        {/if}
+        {#if savedRoutes.length === 0}
+          <p class="empty">No saved walks yet.</p>
+        {:else}
+          <ul class="dialog-list">
+            {#each savedRoutes as saved (saved.id)}
+              <li>
+                <span class="saved-name">{saved.name}</span>
+                <span class="dialog-actions">
+                  <button
+                    type="button"
+                    on:click={() => {
+                      handleRecall(saved.id)
+                      showSavedWalks = false
+                    }}>Recall</button
+                  >
+                  <button type="button" on:click={() => handleDelete(saved.id)}>Delete</button>
+                </span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+    </div>
+  {/if}
+
+  {#if showHowItWorks}
+    <div class="dialog-scrim" role="presentation" on:click|self={() => (showHowItWorks = false)}>
+      <section
+        class="app-dialog how-it-works"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="how-it-works-title"
+        data-testid="how-it-works-dialog"
+      >
+        <header class="dialog-head">
+          <h2 id="how-it-works-title">How comfort works</h2>
+          <button
+            type="button"
+            class="dialog-close"
+            aria-label="Close how it works"
+            on:click={() => (showHowItWorks = false)}
+          >
+            ×
+          </button>
+        </header>
+        <p>
+          A walk's comfort score blends shade, quiet and the weather along the route. More shade,
+          quieter streets and pleasant temperatures score higher.
+        </p>
+        <p>
+          The profile shows the score in short bands. Your sun &amp; shade and quieter-street
+          preferences re-weight the same data; they never change the route geometry.
+        </p>
+        <p>
+          The fastest route is not a second option here: the API returns one route, so the card
+          shows the comfort route and its honest metrics.
+        </p>
+      </section>
+    </div>
   {/if}
 </main>
 
@@ -1438,7 +1629,7 @@
   }
   /* 041 T1: desktop-only top nav. Hidden below 768px so the mobile layout
      (full-bleed map + bottom drawer) stays exactly as it was. */
-  header {
+  header[data-testid='top-nav'] {
     display: none;
   }
 
@@ -1714,8 +1905,236 @@
     border-radius: 999px;
   }
 
+  /* 041 T6: custom map controls replace Leaflet's default zoom; the locate
+     button uses the same map.locate path as the sidebar retry. */
+  :global(.leaflet-control-zoom) {
+    display: none;
+  }
+
+  .map-controls {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .map-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--cwr-line);
+    border-radius: 12px;
+    background: var(--cwr-surface);
+    color: var(--cwr-ink);
+    cursor: pointer;
+  }
+
+  .map-control svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .zoom-group {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--cwr-line);
+    border-radius: 12px;
+    background: var(--cwr-surface);
+  }
+
+  .zoom-group .zoom {
+    border: none;
+    border-radius: 0;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .zoom-group .zoom + .zoom {
+    border-top: 1px solid var(--cwr-line);
+  }
+
+  .mobile-weather {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .map-controls {
+      right: 16px;
+      bottom: 380px;
+    }
+
+    .zoom-group {
+      display: none;
+    }
+
+    .mobile-weather {
+      position: absolute;
+      top: 121px;
+      left: 16px;
+      z-index: 900;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 99px;
+      background: var(--cwr-sun-bg);
+      color: var(--cwr-sun-ink);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .mobile-weather svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  /* Leaflet divIcon route badge: one route, duration + active preference. */
+  :global(.route-badge) {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--cwr-brand);
+    color: #ffffff;
+    box-shadow: var(--cwr-shadow-card);
+    white-space: nowrap;
+  }
+
+  :global(.route-badge-duration) {
+    font-size: 21px;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  :global(.route-badge-sub) {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--cwr-brand-soft);
+  }
+
+  :global(.route-badge-icon) {
+    border: none;
+    background: transparent;
+  }
+
+  :global(.dest-callout) {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 10px;
+    background: var(--cwr-surface);
+    color: var(--cwr-ink);
+    box-shadow: var(--cwr-shadow-card);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .dialog-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgb(23 43 36 / 0.35);
+  }
+
+  .app-dialog {
+    width: min(420px, 100%);
+    max-height: 80vh;
+    overflow: auto;
+    padding: 20px;
+    border-radius: 18px;
+    background: var(--cwr-surface);
+    color: var(--cwr-ink);
+    box-shadow: var(--cwr-shadow-card);
+  }
+
+  .dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .dialog-head h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .dialog-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: var(--cwr-control-bg);
+    color: var(--cwr-ink);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .dialog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .dialog-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--cwr-line);
+  }
+
+  .dialog-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .how-it-works p {
+    margin: 0 0 10px;
+    color: var(--cwr-muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  :global(button:focus-visible),
+  :global(a:focus-visible),
+  :global(input:focus-visible) {
+    outline: 2px solid var(--cwr-brand);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(*) {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
   @media (min-width: 768px) {
-    header {
+    header[data-testid='top-nav'] {
       position: fixed;
       top: 0;
       left: 0;

@@ -14,7 +14,7 @@ ac = "AC-1"
 
 [[token]]
 name = "--cwr-surface"
-value = "#ffffff"
+value = "#fff"
 ac = "AC-1"
 
 [[token]]

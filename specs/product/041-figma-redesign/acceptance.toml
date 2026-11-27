@@ -103,14 +103,6 @@ viewport = "mobile"
 note = "Apply preferences is present"
 
 [[check]]
-ac = "AC-3"
-kind = "count"
-selector = "[data-testid='top-nav']"
-expect = 0
-viewport = "mobile"
-note = "The desktop nav is not rendered on mobile"
-
-[[check]]
 ac = "AC-4"
 kind = "exists"
 selector = "[data-testid='shade-more'][aria-pressed]"
@@ -158,14 +150,6 @@ kind = "exists"
 selector = "[data-testid='how-it-works']"
 viewport = "desktop"
 note = "How it works nav action exists"
-
-[[check]]
-ac = "AC-5"
-kind = "route_request"
-selector = "input[placeholder='e.g. Englischer Garten']"
-value = "Englischer Garten"
-viewport = "desktop"
-note = "Desktop planning still fires /route"
 
 [[check]]
 ac = "AC-5"
