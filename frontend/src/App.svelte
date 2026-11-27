@@ -56,6 +56,7 @@
   import TopSearchCard from './lib/components/TopSearchCard.svelte'
   import BottomDrawer from './lib/components/BottomDrawer.svelte'
   import ComfortPanel from './lib/components/ComfortPanel.svelte'
+  import PreferencesSheet from './lib/components/PreferencesSheet.svelte'
   import RouteCard from './lib/components/RouteCard.svelte'
   import WalkControls from './lib/WalkControls.svelte'
   import StartLocationModal from './lib/components/StartLocationModal.svelte'
@@ -756,6 +757,24 @@
     replanIfReady()
   }
 
+  // 041 T5: the mobile sheet stages its choices locally and commits them on
+  // "Apply preferences" (save, close, re-plan) — unlike the desktop panel,
+  // which applies each change immediately.
+  function handleSheetShade(event: CustomEvent<'hot' | 'cloudy' | 'balanced'>) {
+    shade = event.detail
+    shadeManual = true
+  }
+
+  function handleSheetQuieter(event: CustomEvent<boolean>) {
+    avoidTraffic = event.detail
+  }
+
+  function handlePrefsSheetApply() {
+    showPrefsSheet = false
+    void persistComfort()
+    replanIfReady()
+  }
+
   function handleComfortReset() {
     shade = 'balanced'
     shadeManual = true
@@ -995,6 +1014,25 @@
       on:edit={() => (showPrefsSheet = true)}
       on:start={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
       on:save={handleSaveRoute}
+    />
+
+    <!-- 041 T5 (AC-3/AC-4): the mobile "Walk your way" comfort sheet, opened
+         from the results sheet's Edit. It stages shade/quieter locally; the
+         footer's "Apply preferences" saves, closes and re-plans. -->
+    <PreferencesSheet
+      bind:open={showPrefsSheet}
+      preference={shade}
+      {avoidTraffic}
+      weather={route
+        ? {
+            temperature: route.weather.temperature,
+            cloudCover: route.weather.cloudCover ?? route.weather.cloud_cover ?? 0,
+          }
+        : null}
+      on:close={() => (showPrefsSheet = false)}
+      on:shade={handleSheetShade}
+      on:quieter={handleSheetQuieter}
+      on:apply={handlePrefsSheetApply}
     />
   {/if}
 
