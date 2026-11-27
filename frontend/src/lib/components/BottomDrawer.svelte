@@ -32,24 +32,13 @@
   export let suggestionAttribution = ''
   /** Brand-tint summary of the preferences this walk was planned with. */
   export let preferenceSummary = 'More shade · Quieter streets'
-  /** 042: controlled by App so the map pick can open the builder and the
-   *  Build route flow can keep the sheet closed after the route arrives. */
-  export let open = false
-  export let suppressAutoOpen = false
-  export let error = ''
-  export let canBuild = false
 
-  const dispatch = createEventDispatcher<{
-    edit: null
-    start: null
-    save: null
-    saved: null
-    build: null
-  }>()
+  let open = false
 
-  // Auto-open once a walk result exists, unless the 042 build flow owns the
-  // sheet (it closes on Build route and stays closed to show the map).
-  $: if (route && !suppressAutoOpen) open = true
+  const dispatch = createEventDispatcher<{ edit: null; start: null; save: null; saved: null }>()
+
+  // Auto-open once a walk result exists; the handle still collapses it.
+  $: if (route) open = true
 
   function toggle() {
     open = !open
@@ -106,8 +95,9 @@
       >
     </div>
 
+    <RouteCard {route} profile={segments} {avoidTraffic} {suggestionAttribution} compact />
+
     {#if route}
-      <RouteCard {route} profile={segments} {avoidTraffic} {suggestionAttribution} compact />
       <div class="sheet-cta">
         {#if $walkMode.active || $walkMode.arrived}
           <button
@@ -142,22 +132,6 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d={SAVE_PATH} />
           </svg>
-        </button>
-      </div>
-    {:else}
-      <div class="builder">
-        {#if error}
-          <p class="build-error" role="alert">{error}</p>
-        {/if}
-        <p class="builder-hint">Choose your preferences, then build the route.</p>
-        <button
-          type="button"
-          class="build-route"
-          data-testid="build-route"
-          disabled={!canBuild}
-          on:click={() => dispatch('build')}
-        >
-          Build route
         </button>
       </div>
     {/if}
@@ -302,48 +276,6 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-  }
-
-  .builder {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    flex-direction: column;
-    gap: 12px;
-    padding-top: 8px;
-  }
-
-  .builder-hint {
-    margin: 0;
-    color: var(--cwr-muted, #63756a);
-    font-size: 12px;
-  }
-
-  .build-error {
-    margin: 0;
-    color: #b00020;
-    font-size: 12px;
-  }
-
-  .build-route {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 48px;
-    margin-top: auto;
-    border: none;
-    border-radius: 999px;
-    background: var(--cwr-brand, #17765c);
-    color: #ffffff;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .build-route:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .sheet-cta {

@@ -1,6 +1,6 @@
 # 042 Map Destination Build Flow — Spec
 
-Status: implemented (2026-11-28).
+Status: queued for the queue-owned implementation (operator version reverted 2026-11-28).
 
 ## What / Why
 

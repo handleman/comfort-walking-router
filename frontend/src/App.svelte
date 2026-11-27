@@ -37,7 +37,6 @@
   }
 
   import { onMount } from 'svelte'
-  import { fade } from 'svelte/transition'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
   import { materialPaths } from './lib/map/material'
@@ -134,12 +133,6 @@
   let showPrefsSheet = false
   let showSavedWalks = false
   let showHowItWorks = false
-  // 042: the map-picked destination opens the builder; Build route owns the
-  // request and the full-screen loading overlay.
-  let drawerOpen = false
-  let awaitingBuild = false
-  let suppressAutoOpen = false
-  let building = false
   let savedError = ''
   let prefsError = ''
   let locateError = ''
@@ -171,8 +164,6 @@
   }
 
   $: if (endSuggestion && end === endSuggestion.label) {
-    awaitingBuild = false
-    suppressAutoOpen = false
     setEndCoords([endSuggestion.lat, endSuggestion.lng])
     suggestionAttribution = endSuggestion.attribution ?? ''
   } else if (endSuggestion) {
@@ -222,26 +213,6 @@
     }
   }
 
-  // 042: close the builder, show the loading overlay, and own the request.
-  async function buildRoute() {
-    if (!startCoords || !endCoords) return
-    awaitingBuild = false
-    suppressAutoOpen = true
-    drawerOpen = false
-    building = true
-    error = ''
-    lastPlannedKey = `${startCoords.join(',')}>${endCoords.join(',')}`
-    try {
-      await planRoute()
-    } finally {
-      building = false
-    }
-    if (error) {
-      suppressAutoOpen = false
-      drawerOpen = true
-    }
-  }
-
   let lastPlannedKey = ''
   // Reactive statement depends only on the coords; all reads/writes of
   // `lastPlannedKey` and `error` happen inside the plain function below,
@@ -256,12 +227,8 @@
       // error left by a previous attempt.
       lastPlannedKey = ''
       error = ''
-    } else if (awaitingBuild) {
-      // 042: a map-picked destination waits for the drawer's Build route.
-      lastPlannedKey = ''
     } else if (key !== lastPlannedKey) {
       lastPlannedKey = key
-      suppressAutoOpen = false
       void planRoute()
     }
   }
@@ -318,12 +285,6 @@
     // attach observers/handlers. Leaflet caches the container's initial
     // dimensions, so force one re-measure right after the layer is added.
     map = L.map(mapElement).setView([48.137, 11.575], 12)
-    // E2E-only handle: the acceptance/e2e runner sets __ROUTE_FIXTURES__ and
-    // needs to click exact lat/lng coordinates on the map (042). Production
-    // never exposes the map instance.
-    if ((window as unknown as { __ROUTE_FIXTURES__?: number }).__ROUTE_FIXTURES__) {
-      ;(window as unknown as { __map?: L.Map }).__map = map
-    }
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution:
@@ -546,14 +507,8 @@
         start = label
         setStartCoords(coords)
       } else {
-        // 042: the destination pick opens the drawer and waits for the
-        // explicit Build route; it never auto-plans behind the sheet.
-        endSuggestion = null
-        awaitingBuild = true
-        suppressAutoOpen = true
         end = label
         setEndCoords(coords)
-        drawerOpen = true
       }
       cancelPick()
     } catch (err) {
@@ -861,7 +816,6 @@
   }
 
   function replanIfReady() {
-    if (awaitingBuild) return
     if (startCoords && endCoords) void planRoute()
   }
 
@@ -1197,10 +1151,6 @@
        and CTA live inside the sheet; the desktop sidebar never renders it. -->
   {#if !isDesktop}
     <BottomDrawer
-      bind:open={drawerOpen}
-      {suppressAutoOpen}
-      canBuild={Boolean(startCoords && endCoords)}
-      {error}
       {route}
       segments={route?.comfort_profile ?? []}
       {avoidTraffic}
@@ -1210,7 +1160,6 @@
       on:start={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
       on:save={handleSaveRoute}
       on:saved={() => (showSavedWalks = true)}
-      on:build={buildRoute}
     />
 
     <!-- 041 T5 (AC-3/AC-4): the mobile "Walk your way" comfort sheet, opened
@@ -1311,19 +1260,6 @@
           </ul>
         {/if}
       </section>
-    </div>
-  {/if}
-
-  {#if building}
-    <div
-      class="route-loading"
-      data-testid="route-loading"
-      role="status"
-      aria-live="polite"
-      transition:fade={{ duration: 220 }}
-    >
-      <span class="spinner" aria-hidden="true"></span>
-      <p>Building your route…</p>
     </div>
   {/if}
 
@@ -2155,42 +2091,6 @@
     box-shadow: var(--cwr-shadow-card);
     font-size: 12px;
     font-weight: 600;
-  }
-
-  /* 042: full-screen calculation state; the spinner is the only focus until
-     the request resolves. */
-  .route-loading {
-    position: fixed;
-    inset: 0;
-    z-index: 1300;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    background: rgb(23 43 36 / 0.35);
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-  .route-loading p {
-    margin: 0;
-  }
-
-  .spinner {
-    width: 42px;
-    height: 42px;
-    border: 3px solid rgb(255 255 255 / 0.35);
-    border-top-color: #ffffff;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
 
   .dialog-scrim {
