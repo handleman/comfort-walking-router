@@ -7,7 +7,7 @@ Live: https://comfort-walking-router.onrender.com/
 
 The **harness** that builds it is the published
 [**handleman-hq**](https://github.com/handleman/handleman-hq) package (pinned
-`v0.6.8`), installed in `harness/.venv`. This repo no longer vendors the harness.
+`v0.6.9`), installed in `harness/.venv`. This repo no longer vendors the harness.
 
 ## State (essentials)
 
