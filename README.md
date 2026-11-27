@@ -136,10 +136,10 @@ The Figma design is being prepared. Two lanes are documented in
 - **Operator (OpenCode):** the remote Figma MCP server in `opencode.json`
   (`https://mcp.figma.com/mcp`, OAuth via `/mcps`) plus the
   `figma-implement` skill.
-- **Queue (harness):** MCP with first-run OAuth (URL → browser callback → token
-  → continue) **or** REST with a personal access token; both write a committed
-  design cache for `hq design sync` (factory spec 057), with deterministic
-  token/region/screenshot checks. The draft product spec is
+- **Queue (harness):** token-first — if `FIGMA_TOKEN` is present it uses REST;
+  otherwise MCP with first-run OAuth (URL → browser callback → token →
+  continue). Both write a committed design cache for `hq design sync` (factory
+  spec 057), with deterministic token/region/screenshot checks. The draft product spec is
   `specs/product/041-figma-redesign/` (do not queue until the file link and
   frames are filled).
 
@@ -187,4 +187,4 @@ loop with `budget_exhausted`. The container sandbox lives in the factory image
 
 ## Status
 - App: MVP flow runs end-to-end (`POST /route` → geocode → OSRM → SQLite cache → Leaflet route + explanation). Comfort score is neutral until `001-T3` + T7–T10 wire Overpass/scoring; the UI states that explicitly.
-- Harness: the published [handleman-hq](https://github.com/handleman/handleman-hq) package (pinned `v0.6.3`) in `harness/.venv`, configured by `swarm.yaml` (including `runs_dir: harness/runs`); this repo keeps the queue, specs and run traces. See `changelog.md`.
+- Harness: the published [handleman-hq](https://github.com/handleman/handleman-hq) package (pinned `v0.6.5`) in `harness/.venv`, configured by `swarm.yaml` (including `runs_dir: harness/runs`); this repo keeps the queue, specs and run traces. See `changelog.md`.

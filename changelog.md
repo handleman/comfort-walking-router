@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-26 (token-first Figma transport)
+- **`transport: auto` now checks the API token first (v0.6.4).** If `FIGMA_TOKEN` is present, `hq design sync` uses REST; if it is absent it switches to MCP and starts the first-run OAuth. A stored MCP token does not override an explicit API token; `transport: mcp|rest` still forces one. `hq figma status` shows the auto choice.
+- **v0.6.5:** `hq figma status` loads the target `.env` (so it sees `FIGMA_TOKEN` exactly as sync/preflight do) and reports `rest_token`; FIGMA_TOKEN is documented in `.env.example`.
 ## 2026-11-26 (design lane wired into acceptance)
 - **Design-aware acceptance (v0.6.3).** The runner collects computed CSS variables, region rects and per-view screenshots for any spec with `design.toml`; the harness reports `design_token`/`design_region`/`design_screenshot` failures in `acceptance.md` and fails the verdict. `hq design verify` runs the same evaluator. The app has no `design.toml` yet, so the strict pass is unchanged and green.
 - The MCP read-tool cache is kept under `designs/<key>/mcp/`; `hq figma status` reports `configured:false` when there is no design block. Factory 940 tests, ruff + audit clean; app pinned **v0.6.3**.
