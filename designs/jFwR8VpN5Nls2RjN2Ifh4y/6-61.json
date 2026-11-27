@@ -1,0 +1,3567 @@
+{
+  "bounds": {
+    "h": 900.0,
+    "w": 1440.0,
+    "x": 2768.0,
+    "y": 0.0
+  },
+  "children": [
+    {
+      "bounds": {
+        "h": 900.0,
+        "w": 1440.0,
+        "x": 2768.0,
+        "y": 0.0
+      },
+      "children": [
+        {
+          "bounds": {
+            "h": 943.92,
+            "w": 1059.44,
+            "x": 3148.0,
+            "y": 112.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 452.96,
+                "w": 410.4,
+                "x": 3634.4,
+                "y": 197.12
+              },
+              "id": "6:114",
+              "name": "Walking route",
+              "type": "VECTOR"
+            },
+            {
+              "bounds": {
+                "h": 452.96,
+                "w": 410.4,
+                "x": 3634.4,
+                "y": 197.12
+              },
+              "id": "6:115",
+              "name": "Walking route",
+              "type": "VECTOR"
+            },
+            {
+              "bounds": {
+                "h": 452.96,
+                "w": 410.4,
+                "x": 3634.4,
+                "y": 197.12
+              },
+              "id": "6:116",
+              "name": "Walking route",
+              "type": "VECTOR"
+            },
+            {
+              "bounds": {
+                "h": 452.96,
+                "w": 410.4,
+                "x": 3634.4,
+                "y": 197.12
+              },
+              "id": "6:117",
+              "name": "Walking route",
+              "type": "VECTOR"
+            },
+            {
+              "bounds": {
+                "h": 10.64,
+                "w": 10.64,
+                "x": 3796.28,
+                "y": 523.16
+              },
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:118",
+              "name": "Route endpoint",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 10.64,
+                "w": 10.64,
+                "x": 3819.08,
+                "y": 342.28
+              },
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:119",
+              "name": "Route endpoint",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 10.64,
+                "w": 10.64,
+                "x": 3986.28,
+                "y": 231.32
+              },
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:120",
+              "name": "Route endpoint",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 45.6,
+                "w": 45.6,
+                "x": 3611.6,
+                "y": 627.28
+              },
+              "fills": [
+                {
+                  "color": "#4085ef",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:121",
+              "name": "Route endpoint",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 71.44,
+                "w": 71.44,
+                "x": 3598.68,
+                "y": 614.36
+              },
+              "fills": [
+                {
+                  "color": "#4085ef",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:122",
+              "name": "Route endpoint",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 34.96,
+                "w": 34.96,
+                "x": 4027.32,
+                "y": 179.64
+              },
+              "fills": [
+                {
+                  "color": "#17765c",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:123",
+              "name": "Route endpoint",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 75.92,
+                "w": 188.48,
+                "x": 3740.8,
+                "y": 419.04
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 26.0,
+                    "w": 70.0,
+                    "x": 3759.04,
+                    "y": 432.72
+                  },
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:125",
+                  "name": "24 min",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 21.279998779296875,
+                    "fontWeight": 600,
+                    "lineHeightPx": 25.753633499145508,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "24 min",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 18.0,
+                    "w": 152.0,
+                    "x": 3759.04,
+                    "y": 463.28
+                  },
+                  "fills": [
+                    {
+                      "color": "#d8f3e7",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:126",
+                  "name": "Quieter \u00b7 more shade",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 15.199999809265137,
+                    "fontWeight": 500,
+                    "lineHeightPx": 18.39545440673828,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Quieter \u00b7 more shade",
+                  "type": "TEXT"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#17765c",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:124",
+              "layout": {
+                "gap": 4.559999942779541,
+                "layoutMode": "VERTICAL",
+                "paddingBottom": 13.680000305175781,
+                "paddingLeft": 18.239999771118164,
+                "paddingRight": 18.239999771118164,
+                "paddingTop": 13.680000305175781
+              },
+              "name": "24 min",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 75.92,
+                "w": 107.48,
+                "x": 3950.56,
+                "y": 517.84
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 26.0,
+                    "w": 71.0,
+                    "x": 3968.8,
+                    "y": 531.52
+                  },
+                  "fills": [
+                    {
+                      "color": "#35443e",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:128",
+                  "name": "20 min",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 21.279998779296875,
+                    "fontWeight": 600,
+                    "lineHeightPx": 25.753633499145508,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "20 min",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 18.0,
+                    "w": 54.0,
+                    "x": 3968.8,
+                    "y": 562.08
+                  },
+                  "fills": [
+                    {
+                      "color": "#68746d",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:129",
+                  "name": "Fastest",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 15.199999809265137,
+                    "fontWeight": 500,
+                    "lineHeightPx": 18.39545440673828,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Fastest",
+                  "type": "TEXT"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:127",
+              "layout": {
+                "gap": 4.559999942779541,
+                "layoutMode": "VERTICAL",
+                "paddingBottom": 13.680000305175781,
+                "paddingLeft": 18.239999771118164,
+                "paddingRight": 18.239999771118164,
+                "paddingTop": 13.680000305175781
+              },
+              "name": "20 min",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 75.92,
+                "w": 143.48,
+                "x": 3984.0,
+                "y": 133.28
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 26.0,
+                    "w": 107.0,
+                    "x": 4002.24,
+                    "y": 146.96
+                  },
+                  "fills": [
+                    {
+                      "color": "#35443e",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:131",
+                  "name": "Angerlohe",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 21.279998779296875,
+                    "fontWeight": 600,
+                    "lineHeightPx": 25.753633499145508,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Angerlohe",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 18.0,
+                    "w": 102.0,
+                    "x": 4002.24,
+                    "y": 177.52
+                  },
+                  "fills": [
+                    {
+                      "color": "#68746d",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:132",
+                  "name": "Park entrance",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 15.199999809265137,
+                    "fontWeight": 500,
+                    "lineHeightPx": 18.39545440673828,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Park entrance",
+                  "type": "TEXT"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:130",
+              "layout": {
+                "gap": 4.559999942779541,
+                "layoutMode": "VERTICAL",
+                "paddingBottom": 13.680000305175781,
+                "paddingLeft": 18.239999771118164,
+                "paddingRight": 18.239999771118164,
+                "paddingTop": 13.680000305175781
+              },
+              "name": "Angerlohe",
+              "type": "FRAME"
+            }
+          ],
+          "fills": [
+            {
+              "type": "IMAGE"
+            }
+          ],
+          "id": "6:113",
+          "layout": {
+            "layoutMode": "VERTICAL"
+          },
+          "name": "OpenStreetMap \u00b7 Munich",
+          "type": "FRAME"
+        }
+      ],
+      "fills": [
+        {
+          "type": "IMAGE"
+        }
+      ],
+      "id": "6:62",
+      "layout": {
+        "layoutMode": "VERTICAL"
+      },
+      "name": "Map",
+      "type": "FRAME"
+    },
+    {
+      "bounds": {
+        "h": 40.0,
+        "w": 1440.0,
+        "x": 2768.0,
+        "y": 0.0
+      },
+      "children": [
+        {
+          "bounds": {
+            "h": 31.0,
+            "w": 10.0,
+            "x": 2788.0,
+            "y": 4.5
+          },
+          "fills": [
+            {
+              "color": "#7b817f",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:133",
+          "name": "\u2039",
+          "style": {
+            "fontFamily": "Inter",
+            "fontSize": 26.0,
+            "fontWeight": 400,
+            "lineHeightPx": 31.46590805053711,
+            "textAlignHorizontal": "LEFT"
+          },
+          "text": "\u2039",
+          "type": "TEXT"
+        },
+        {
+          "bounds": {
+            "h": 31.0,
+            "w": 10.0,
+            "x": 2814.0,
+            "y": 4.5
+          },
+          "fills": [
+            {
+              "color": "#b6bcb9",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:134",
+          "name": "\u203a",
+          "style": {
+            "fontFamily": "Inter",
+            "fontSize": 26.0,
+            "fontWeight": 400,
+            "lineHeightPx": 31.46590805053711,
+            "textAlignHorizontal": "LEFT"
+          },
+          "text": "\u203a",
+          "type": "TEXT"
+        },
+        {
+          "bounds": {
+            "h": 23.0,
+            "w": 19.0,
+            "x": 2840.0,
+            "y": 8.5
+          },
+          "fills": [
+            {
+              "color": "#7b817f",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:135",
+          "name": "\u21bb",
+          "style": {
+            "fontFamily": "Inter",
+            "fontSize": 19.0,
+            "fontWeight": 400,
+            "lineHeightPx": 22.99431800842285,
+            "textAlignHorizontal": "LEFT"
+          },
+          "text": "\u21bb",
+          "type": "TEXT"
+        },
+        {
+          "bounds": {
+            "h": 26.0,
+            "w": 1278.0,
+            "x": 2875.0,
+            "y": 7.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 15.0,
+                "w": 70.0,
+                "x": 3479.0,
+                "y": 12.5
+              },
+              "fills": [
+                {
+                  "color": "#6b746f",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:137",
+              "name": "mellow.walk",
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 12.0,
+                "fontWeight": 500,
+                "lineHeightPx": 14.522727012634277,
+                "textAlignHorizontal": "LEFT"
+              },
+              "text": "mellow.walk",
+              "type": "TEXT"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#ebeeeb",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:136",
+          "layout": {
+            "counterAxisAlignItems": "CENTER",
+            "layoutMode": "HORIZONTAL",
+            "primaryAxisAlignItems": "CENTER"
+          },
+          "name": "Browser address",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 27.0,
+            "w": 19.0,
+            "x": 4169.0,
+            "y": 6.5
+          },
+          "fills": [
+            {
+              "color": "#6b746f",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:138",
+          "name": "\u00b7\u00b7\u00b7",
+          "style": {
+            "fontFamily": "Inter",
+            "fontSize": 22.0,
+            "fontWeight": 400,
+            "lineHeightPx": 26.625,
+            "textAlignHorizontal": "LEFT"
+          },
+          "text": "\u00b7\u00b7\u00b7",
+          "type": "TEXT"
+        }
+      ],
+      "fills": [
+        {
+          "color": "#f8f9fa",
+          "type": "SOLID"
+        }
+      ],
+      "id": "6:63",
+      "layout": {
+        "counterAxisAlignItems": "CENTER",
+        "gap": 16.0,
+        "layoutMode": "HORIZONTAL",
+        "paddingBottom": 8.0,
+        "paddingLeft": 20.0,
+        "paddingRight": 20.0,
+        "paddingTop": 8.0
+      },
+      "name": "Browser",
+      "type": "FRAME"
+    },
+    {
+      "bounds": {
+        "h": 900.0,
+        "w": 1440.0,
+        "x": 2768.0,
+        "y": 0.0
+      },
+      "children": [
+        {
+          "bounds": {
+            "h": 72.0,
+            "w": 1440.0,
+            "x": 2768.0,
+            "y": 40.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 40.0,
+                "w": 40.0,
+                "x": 2792.0,
+                "y": 56.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 40.0,
+                    "w": 40.0,
+                    "x": 2792.0,
+                    "y": 56.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 24.0,
+                        "w": 24.0,
+                        "x": 2800.0,
+                        "y": 64.0
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 4.0,
+                            "w": 4.0,
+                            "x": 2812.0,
+                            "y": 66.0
+                          },
+                          "id": "6:285",
+                          "name": "Vector",
+                          "type": "VECTOR"
+                        },
+                        {
+                          "bounds": {
+                            "h": 13.0,
+                            "w": 13.0,
+                            "x": 2807.0,
+                            "y": 72.0
+                          },
+                          "id": "6:286",
+                          "name": "Vector",
+                          "type": "VECTOR"
+                        }
+                      ],
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "hidden": true,
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:284",
+                      "name": "walk icon",
+                      "type": "FRAME"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#17765c",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:283",
+                  "layout": {
+                    "gap": 8.0,
+                    "layoutMode": "HORIZONTAL",
+                    "paddingBottom": 8.0,
+                    "paddingLeft": 8.0,
+                    "paddingRight": 8.0,
+                    "paddingTop": 8.0
+                  },
+                  "name": "Walking mark",
+                  "type": "FRAME"
+                }
+              ],
+              "id": "6:282",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 10.0,
+                "layoutMode": "HORIZONTAL"
+              },
+              "name": "Brand",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 28.0,
+                "w": 1.0,
+                "x": 2864.0,
+                "y": 62.0
+              },
+              "fills": [
+                {
+                  "color": "#e6ebe7",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:288",
+              "layout": {
+                "layoutMode": "VERTICAL"
+              },
+              "name": "Brand divider",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 16.0,
+                "w": 151.0,
+                "x": 2897.0,
+                "y": 68.0
+              },
+              "fills": [
+                {
+                  "color": "#7b887f",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:289",
+              "name": "A nicer way to get there.",
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 13.0,
+                "fontWeight": 400,
+                "lineHeightPx": 15.732954025268555,
+                "textAlignHorizontal": "LEFT"
+              },
+              "text": "A nicer way to get there.",
+              "type": "TEXT"
+            },
+            {
+              "bounds": {
+                "h": 17.0,
+                "w": 774.0,
+                "x": 3080.0,
+                "y": 67.5
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 17.0,
+                    "w": 76.0,
+                    "x": 3373.0,
+                    "y": 67.5
+                  },
+                  "fills": [
+                    {
+                      "color": "#17765c",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:291",
+                  "name": "Plan a walk",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 14.0,
+                    "fontWeight": 600,
+                    "lineHeightPx": 16.94318199157715,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Plan a walk",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 17.0,
+                    "w": 84.0,
+                    "x": 3477.0,
+                    "y": 67.5
+                  },
+                  "fills": [
+                    {
+                      "color": "#728077",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:292",
+                  "name": "Saved walks",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 14.0,
+                    "fontWeight": 500,
+                    "lineHeightPx": 16.94318199157715,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Saved walks",
+                  "type": "TEXT"
+                }
+              ],
+              "id": "6:290",
+              "layout": {
+                "gap": 28.0,
+                "layoutMode": "HORIZONTAL",
+                "primaryAxisAlignItems": "CENTER"
+              },
+              "name": "Navigation links",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 32.0,
+                "w": 161.0,
+                "x": 3886.0,
+                "y": 60.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 16.0,
+                    "w": 16.0,
+                    "x": 3894.0,
+                    "y": 68.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 5.33,
+                        "w": 5.33,
+                        "x": 3899.33,
+                        "y": 73.33
+                      },
+                      "id": "6:295",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    },
+                    {
+                      "bounds": {
+                        "h": 13.33,
+                        "w": 13.33,
+                        "x": 3895.33,
+                        "y": 69.33
+                      },
+                      "id": "6:296",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:294",
+                  "name": "sun icon",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 123.0,
+                    "x": 3916.0,
+                    "y": 68.5
+                  },
+                  "fills": [
+                    {
+                      "color": "#806435",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:297",
+                  "name": "Munich \u00b7 Sunny, 26\u00b0C",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 12.0,
+                    "fontWeight": 500,
+                    "lineHeightPx": 14.522727012634277,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Munich \u00b7 Sunny, 26\u00b0C",
+                  "type": "TEXT"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#fff8e8",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:293",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 6.0,
+                "layoutMode": "HORIZONTAL",
+                "paddingBottom": 8.0,
+                "paddingLeft": 8.0,
+                "paddingRight": 8.0,
+                "paddingTop": 8.0
+              },
+              "name": "Munich \u00b7 Sunny, 26\u00b0C",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 16.0,
+                "w": 105.0,
+                "x": 4079.0,
+                "y": 68.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 16.0,
+                    "w": 81.0,
+                    "x": 4079.0,
+                    "y": 68.0
+                  },
+                  "fills": [
+                    {
+                      "color": "#63756a",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:299",
+                  "name": "How it works",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 13.0,
+                    "fontWeight": 500,
+                    "lineHeightPx": 15.732954025268555,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "How it works",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 16.0,
+                    "w": 16.0,
+                    "x": 4168.0,
+                    "y": 68.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 8.0,
+                        "w": 4.0,
+                        "x": 4174.0,
+                        "y": 72.0
+                      },
+                      "id": "6:301",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:300",
+                  "name": "chevron icon",
+                  "type": "FRAME"
+                }
+              ],
+              "id": "6:298",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 8.0,
+                "layoutMode": "HORIZONTAL"
+              },
+              "name": "How it works",
+              "type": "FRAME"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#ffffff",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:281",
+          "layout": {
+            "counterAxisAlignItems": "CENTER",
+            "gap": 32.0,
+            "layoutMode": "HORIZONTAL",
+            "paddingBottom": 24.0,
+            "paddingLeft": 24.0,
+            "paddingRight": 24.0,
+            "paddingTop": 24.0
+          },
+          "name": "Mellow navigation",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 788.0,
+            "w": 380.0,
+            "x": 2768.0,
+            "y": 112.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 108.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 132.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 82.0,
+                    "w": 282.0,
+                    "x": 2801.0,
+                    "y": 145.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 33.0,
+                        "w": 282.0,
+                        "x": 2801.0,
+                        "y": 145.0
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 9.0,
+                            "w": 9.0,
+                            "x": 2801.0,
+                            "y": 157.0
+                          },
+                          "fills": [
+                            {
+                              "color": "#4085ef",
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:306",
+                          "name": "Route location point",
+                          "type": "ELLIPSE"
+                        },
+                        {
+                          "bounds": {
+                            "h": 33.0,
+                            "w": 118.0,
+                            "x": 2820.0,
+                            "y": 145.0
+                          },
+                          "children": [
+                            {
+                              "bounds": {
+                                "h": 17.0,
+                                "w": 88.0,
+                                "x": 2820.0,
+                                "y": 145.0
+                              },
+                              "fills": [
+                                {
+                                  "color": "#223c32",
+                                  "type": "SOLID"
+                                }
+                              ],
+                              "id": "6:308",
+                              "name": "Your location",
+                              "style": {
+                                "fontFamily": "Inter",
+                                "fontSize": 14.0,
+                                "fontWeight": 500,
+                                "lineHeightPx": 16.94318199157715,
+                                "textAlignHorizontal": "LEFT"
+                              },
+                              "text": "Your location",
+                              "type": "TEXT"
+                            },
+                            {
+                              "bounds": {
+                                "h": 13.0,
+                                "w": 118.0,
+                                "x": 2820.0,
+                                "y": 165.0
+                              },
+                              "fills": [
+                                {
+                                  "color": "#849087",
+                                  "type": "SOLID"
+                                }
+                              ],
+                              "id": "6:309",
+                              "name": "Untermenzing, Munich",
+                              "style": {
+                                "fontFamily": "Inter",
+                                "fontSize": 11.0,
+                                "fontWeight": 400,
+                                "lineHeightPx": 13.3125,
+                                "textAlignHorizontal": "LEFT"
+                              },
+                              "text": "Untermenzing, Munich",
+                              "type": "TEXT"
+                            }
+                          ],
+                          "id": "6:307",
+                          "layout": {
+                            "gap": 3.0,
+                            "layoutMode": "VERTICAL"
+                          },
+                          "name": "Your location details",
+                          "type": "FRAME"
+                        }
+                      ],
+                      "id": "6:305",
+                      "layout": {
+                        "counterAxisAlignItems": "CENTER",
+                        "gap": 10.0,
+                        "layoutMode": "HORIZONTAL"
+                      },
+                      "name": "Your location",
+                      "type": "FRAME"
+                    },
+                    {
+                      "bounds": {
+                        "h": 33.0,
+                        "w": 282.0,
+                        "x": 2801.0,
+                        "y": 194.0
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 9.0,
+                            "w": 9.0,
+                            "x": 2801.0,
+                            "y": 206.0
+                          },
+                          "fills": [
+                            {
+                              "color": "#17765c",
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:311",
+                          "name": "Route location point",
+                          "type": "ELLIPSE"
+                        },
+                        {
+                          "bounds": {
+                            "h": 33.0,
+                            "w": 103.0,
+                            "x": 2820.0,
+                            "y": 194.0
+                          },
+                          "children": [
+                            {
+                              "bounds": {
+                                "h": 17.0,
+                                "w": 103.0,
+                                "x": 2820.0,
+                                "y": 194.0
+                              },
+                              "fills": [
+                                {
+                                  "color": "#223c32",
+                                  "type": "SOLID"
+                                }
+                              ],
+                              "id": "6:313",
+                              "name": "Angerlohe park",
+                              "style": {
+                                "fontFamily": "Inter",
+                                "fontSize": 14.0,
+                                "fontWeight": 500,
+                                "lineHeightPx": 16.94318199157715,
+                                "textAlignHorizontal": "LEFT"
+                              },
+                              "text": "Angerlohe park",
+                              "type": "TEXT"
+                            },
+                            {
+                              "bounds": {
+                                "h": 13.0,
+                                "w": 73.0,
+                                "x": 2820.0,
+                                "y": 214.0
+                              },
+                              "fills": [
+                                {
+                                  "color": "#849087",
+                                  "type": "SOLID"
+                                }
+                              ],
+                              "id": "6:314",
+                              "name": "Park entrance",
+                              "style": {
+                                "fontFamily": "Inter",
+                                "fontSize": 11.0,
+                                "fontWeight": 400,
+                                "lineHeightPx": 13.3125,
+                                "textAlignHorizontal": "LEFT"
+                              },
+                              "text": "Park entrance",
+                              "type": "TEXT"
+                            }
+                          ],
+                          "id": "6:312",
+                          "layout": {
+                            "gap": 3.0,
+                            "layoutMode": "VERTICAL"
+                          },
+                          "name": "Angerlohe park details",
+                          "type": "FRAME"
+                        }
+                      ],
+                      "id": "6:310",
+                      "layout": {
+                        "counterAxisAlignItems": "CENTER",
+                        "gap": 10.0,
+                        "layoutMode": "HORIZONTAL"
+                      },
+                      "name": "Angerlohe park",
+                      "type": "FRAME"
+                    }
+                  ],
+                  "id": "6:304",
+                  "layout": {
+                    "gap": 16.0,
+                    "layoutMode": "VERTICAL"
+                  },
+                  "name": "Route endpoints",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 20.0,
+                    "w": 20.0,
+                    "x": 3095.0,
+                    "y": 176.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 15.0,
+                        "w": 13.33,
+                        "x": 3098.33,
+                        "y": 178.5
+                      },
+                      "id": "6:316",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:315",
+                  "name": "swap icon",
+                  "type": "FRAME"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#f7f9f6",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:303",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 12.0,
+                "layoutMode": "HORIZONTAL",
+                "paddingBottom": 12.0,
+                "paddingLeft": 12.0,
+                "paddingRight": 12.0,
+                "paddingTop": 12.0
+              },
+              "name": "Route search",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 19.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 263.18
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 18.0,
+                    "w": 18.0,
+                    "x": 2788.0,
+                    "y": 263.68
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 7.5,
+                        "w": 12.0,
+                        "x": 2791.0,
+                        "y": 268.93
+                      },
+                      "id": "6:319",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    },
+                    {
+                      "bounds": {
+                        "h": 3.0,
+                        "w": 3.0,
+                        "x": 2797.75,
+                        "y": 267.43
+                      },
+                      "id": "6:320",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    },
+                    {
+                      "bounds": {
+                        "h": 3.0,
+                        "w": 3.0,
+                        "x": 2793.25,
+                        "y": 274.93
+                      },
+                      "id": "6:321",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:318",
+                  "name": "sliders icon",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 19.0,
+                    "w": 273.0,
+                    "x": 2814.0,
+                    "y": 263.18
+                  },
+                  "fills": [
+                    {
+                      "color": "#223c32",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:322",
+                  "name": "Your comfort",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 16.0,
+                    "fontWeight": 600,
+                    "lineHeightPx": 19.363636016845703,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Your comfort",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 33.0,
+                    "x": 3095.0,
+                    "y": 265.18
+                  },
+                  "fills": [
+                    {
+                      "color": "#728077",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:323",
+                  "name": "Reset",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 12.0,
+                    "fontWeight": 400,
+                    "lineHeightPx": 14.522727012634277,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Reset",
+                  "type": "TEXT"
+                }
+              ],
+              "id": "6:317",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 8.0,
+                "layoutMode": "HORIZONTAL"
+              },
+              "name": "Comfort section heading",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 52.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 305.36
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 25.0,
+                    "w": 25.0,
+                    "x": 2798.0,
+                    "y": 318.86
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 8.33,
+                        "w": 8.33,
+                        "x": 2806.33,
+                        "y": 327.19
+                      },
+                      "id": "6:326",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    },
+                    {
+                      "bounds": {
+                        "h": 20.83,
+                        "w": 20.83,
+                        "x": 2800.08,
+                        "y": 320.94
+                      },
+                      "id": "6:327",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:325",
+                  "name": "sun icon",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 32.0,
+                    "w": 184.0,
+                    "x": 2833.0,
+                    "y": 315.36
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 15.0,
+                        "w": 173.0,
+                        "x": 2833.0,
+                        "y": 315.36
+                      },
+                      "fills": [
+                        {
+                          "color": "#806435",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:329",
+                      "name": "A little shade goes a long way",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 12.0,
+                        "fontWeight": 600,
+                        "lineHeightPx": 14.522727012634277,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "A little shade goes a long way",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 13.0,
+                        "w": 184.0,
+                        "x": 2833.0,
+                        "y": 334.36
+                      },
+                      "fills": [
+                        {
+                          "color": "#947d51",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:330",
+                      "name": "Sunny, 26\u00b0C \u00b7 shade recommended",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 11.0,
+                        "fontWeight": 400,
+                        "lineHeightPx": 13.3125,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Sunny, 26\u00b0C \u00b7 shade recommended",
+                      "type": "TEXT"
+                    }
+                  ],
+                  "id": "6:328",
+                  "layout": {
+                    "gap": 4.0,
+                    "layoutMode": "VERTICAL"
+                  },
+                  "name": "Shade weather advice",
+                  "type": "FRAME"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#fff8e8",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:324",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 10.0,
+                "layoutMode": "HORIZONTAL",
+                "paddingBottom": 10.0,
+                "paddingLeft": 10.0,
+                "paddingRight": 10.0,
+                "paddingTop": 10.0
+              },
+              "name": "Weather suggestion",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 63.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 380.53
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 72.0,
+                    "x": 2788.0,
+                    "y": 380.53
+                  },
+                  "fills": [
+                    {
+                      "color": "#65776b",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:332",
+                  "name": "Sun & shade",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 12.0,
+                    "fontWeight": 500,
+                    "lineHeightPx": 14.522727012634277,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Sun & shade",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 40.0,
+                    "w": 340.0,
+                    "x": 2788.0,
+                    "y": 403.53
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 34.0,
+                        "w": 110.67,
+                        "x": 2791.0,
+                        "y": 406.53
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 16.0,
+                            "w": 16.0,
+                            "x": 2804.33,
+                            "y": 415.53
+                          },
+                          "children": [
+                            {
+                              "bounds": {
+                                "h": 12.0,
+                                "w": 10.67,
+                                "x": 2807.0,
+                                "y": 417.53
+                              },
+                              "id": "6:336",
+                              "name": "Vector",
+                              "type": "VECTOR"
+                            }
+                          ],
+                          "fills": [
+                            {
+                              "color": "#ffffff",
+                              "hidden": true,
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:335",
+                          "name": "shade icon",
+                          "type": "FRAME"
+                        },
+                        {
+                          "bounds": {
+                            "h": 13.0,
+                            "w": 63.0,
+                            "x": 2825.33,
+                            "y": 417.03
+                          },
+                          "fills": [
+                            {
+                              "color": "#17765c",
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:337",
+                          "name": "More shade",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontSize": 11.0,
+                            "fontWeight": 600,
+                            "lineHeightPx": 13.3125,
+                            "textAlignHorizontal": "LEFT"
+                          },
+                          "text": "More shade",
+                          "type": "TEXT"
+                        }
+                      ],
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:334",
+                      "layout": {
+                        "counterAxisAlignItems": "CENTER",
+                        "gap": 5.0,
+                        "layoutMode": "HORIZONTAL",
+                        "paddingBottom": 8.0,
+                        "paddingLeft": 8.0,
+                        "paddingRight": 8.0,
+                        "paddingTop": 8.0,
+                        "primaryAxisAlignItems": "CENTER"
+                      },
+                      "name": "More shade",
+                      "type": "FRAME"
+                    },
+                    {
+                      "bounds": {
+                        "h": 32.0,
+                        "w": 108.67,
+                        "x": 2904.67,
+                        "y": 406.53
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 16.0,
+                            "w": 16.0,
+                            "x": 2924.0,
+                            "y": 414.53
+                          },
+                          "children": [
+                            {
+                              "bounds": {
+                                "h": 7.99,
+                                "w": 12.02,
+                                "x": 2925.34,
+                                "y": 418.54
+                              },
+                              "id": "6:340",
+                              "name": "Vector",
+                              "type": "VECTOR"
+                            }
+                          ],
+                          "fills": [
+                            {
+                              "color": "#ffffff",
+                              "hidden": true,
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:339",
+                          "name": "cloud icon",
+                          "type": "FRAME"
+                        },
+                        {
+                          "bounds": {
+                            "h": 13.0,
+                            "w": 49.0,
+                            "x": 2945.0,
+                            "y": 416.03
+                          },
+                          "fills": [
+                            {
+                              "color": "#63756a",
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:341",
+                          "name": "Balanced",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontSize": 11.0,
+                            "fontWeight": 500,
+                            "lineHeightPx": 13.3125,
+                            "textAlignHorizontal": "LEFT"
+                          },
+                          "text": "Balanced",
+                          "type": "TEXT"
+                        }
+                      ],
+                      "id": "6:338",
+                      "layout": {
+                        "counterAxisAlignItems": "CENTER",
+                        "gap": 5.0,
+                        "layoutMode": "HORIZONTAL",
+                        "paddingBottom": 8.0,
+                        "paddingLeft": 8.0,
+                        "paddingRight": 8.0,
+                        "paddingTop": 8.0,
+                        "primaryAxisAlignItems": "CENTER"
+                      },
+                      "name": "Balanced",
+                      "type": "FRAME"
+                    },
+                    {
+                      "bounds": {
+                        "h": 32.0,
+                        "w": 108.67,
+                        "x": 3016.33,
+                        "y": 406.53
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 16.0,
+                            "w": 16.0,
+                            "x": 3035.67,
+                            "y": 414.53
+                          },
+                          "children": [
+                            {
+                              "bounds": {
+                                "h": 5.33,
+                                "w": 5.33,
+                                "x": 3041.0,
+                                "y": 419.87
+                              },
+                              "id": "6:344",
+                              "name": "Vector",
+                              "type": "VECTOR"
+                            },
+                            {
+                              "bounds": {
+                                "h": 13.33,
+                                "w": 13.33,
+                                "x": 3037.0,
+                                "y": 415.87
+                              },
+                              "id": "6:345",
+                              "name": "Vector",
+                              "type": "VECTOR"
+                            }
+                          ],
+                          "fills": [
+                            {
+                              "color": "#ffffff",
+                              "hidden": true,
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:343",
+                          "name": "sun icon",
+                          "type": "FRAME"
+                        },
+                        {
+                          "bounds": {
+                            "h": 13.0,
+                            "w": 49.0,
+                            "x": 3056.67,
+                            "y": 416.03
+                          },
+                          "fills": [
+                            {
+                              "color": "#63756a",
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:346",
+                          "name": "More sun",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontSize": 11.0,
+                            "fontWeight": 500,
+                            "lineHeightPx": 13.3125,
+                            "textAlignHorizontal": "LEFT"
+                          },
+                          "text": "More sun",
+                          "type": "TEXT"
+                        }
+                      ],
+                      "id": "6:342",
+                      "layout": {
+                        "counterAxisAlignItems": "CENTER",
+                        "gap": 5.0,
+                        "layoutMode": "HORIZONTAL",
+                        "paddingBottom": 8.0,
+                        "paddingLeft": 8.0,
+                        "paddingRight": 8.0,
+                        "paddingTop": 8.0,
+                        "primaryAxisAlignItems": "CENTER"
+                      },
+                      "name": "More sun",
+                      "type": "FRAME"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#f0f3ef",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:333",
+                  "layout": {
+                    "gap": 3.0,
+                    "layoutMode": "HORIZONTAL",
+                    "paddingBottom": 3.0,
+                    "paddingLeft": 3.0,
+                    "paddingRight": 3.0,
+                    "paddingTop": 3.0
+                  },
+                  "name": "Shade selector",
+                  "type": "FRAME"
+                }
+              ],
+              "id": "6:331",
+              "layout": {
+                "gap": 8.0,
+                "layoutMode": "VERTICAL"
+              },
+              "name": "Sun and shade",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 34.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 466.71
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 34.0,
+                    "w": 288.0,
+                    "x": 2788.0,
+                    "y": 466.71
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 17.0,
+                        "w": 101.0,
+                        "x": 2788.0,
+                        "y": 466.71
+                      },
+                      "fills": [
+                        {
+                          "color": "#223c32",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:349",
+                      "name": "Quieter streets",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 14.0,
+                        "fontWeight": 500,
+                        "lineHeightPx": 16.94318199157715,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Quieter streets",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 13.0,
+                        "w": 150.0,
+                        "x": 2788.0,
+                        "y": 487.71
+                      },
+                      "fills": [
+                        {
+                          "color": "#849087",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:350",
+                      "name": "Stay farther from busy roads",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 11.0,
+                        "fontWeight": 400,
+                        "lineHeightPx": 13.3125,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Stay farther from busy roads",
+                      "type": "TEXT"
+                    }
+                  ],
+                  "id": "6:348",
+                  "layout": {
+                    "gap": 4.0,
+                    "layoutMode": "VERTICAL"
+                  },
+                  "name": "Quiet streets description",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 24.0,
+                    "w": 40.0,
+                    "x": 3088.0,
+                    "y": 471.71
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 18.0,
+                        "w": 18.0,
+                        "x": 3107.0,
+                        "y": 474.71
+                      },
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:352",
+                      "name": "Route location point",
+                      "type": "ELLIPSE"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#17765c",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:351",
+                  "layout": {
+                    "layoutMode": "HORIZONTAL",
+                    "paddingBottom": 3.0,
+                    "paddingLeft": 3.0,
+                    "paddingRight": 3.0,
+                    "paddingTop": 3.0,
+                    "primaryAxisAlignItems": "MAX"
+                  },
+                  "name": "Quiet streets enabled",
+                  "type": "FRAME"
+                }
+              ],
+              "id": "6:347",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 12.0,
+                "layoutMode": "HORIZONTAL"
+              },
+              "name": "Quiet streets preference",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 51.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 523.89
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 340.0,
+                    "x": 2788.0,
+                    "y": 523.89
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 15.0,
+                        "w": 274.0,
+                        "x": 2788.0,
+                        "y": 523.89
+                      },
+                      "fills": [
+                        {
+                          "color": "#65776b",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:355",
+                      "name": "Extra walking time",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 12.0,
+                        "fontWeight": 500,
+                        "lineHeightPx": 14.522727012634277,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Extra walking time",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 15.0,
+                        "w": 66.0,
+                        "x": 3062.0,
+                        "y": 523.89
+                      },
+                      "fills": [
+                        {
+                          "color": "#17765c",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:356",
+                      "name": "Up to 5 min",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 12.0,
+                        "fontWeight": 600,
+                        "lineHeightPx": 14.522727012634277,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Up to 5 min",
+                      "type": "TEXT"
+                    }
+                  ],
+                  "id": "6:354",
+                  "layout": {
+                    "layoutMode": "HORIZONTAL"
+                  },
+                  "name": "Extra walking time",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 4.0,
+                    "w": 340.0,
+                    "x": 2788.0,
+                    "y": 548.89
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 4.0,
+                        "w": 113.0,
+                        "x": 2788.0,
+                        "y": 548.89
+                      },
+                      "fills": [
+                        {
+                          "color": "#17765c",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:358",
+                      "layout": {
+                        "layoutMode": "HORIZONTAL"
+                      },
+                      "name": "Allowed extra time",
+                      "type": "FRAME"
+                    },
+                    {
+                      "bounds": {
+                        "h": 16.0,
+                        "w": 16.0,
+                        "x": 2893.0,
+                        "y": 542.89
+                      },
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:359",
+                      "name": "Route location point",
+                      "type": "ELLIPSE"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#e6ece6",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:357",
+                  "layout": {
+                    "layoutMode": "HORIZONTAL"
+                  },
+                  "name": "Extra time slider",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 12.0,
+                    "w": 340.0,
+                    "x": 2788.0,
+                    "y": 562.89
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 12.0,
+                        "w": 48.0,
+                        "x": 2788.0,
+                        "y": 562.89
+                      },
+                      "fills": [
+                        {
+                          "color": "#849087",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:361",
+                      "name": "No detour",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 10.0,
+                        "fontWeight": 400,
+                        "lineHeightPx": 12.102272033691406,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "No detour",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 12.0,
+                        "w": 31.0,
+                        "x": 3097.0,
+                        "y": 562.89
+                      },
+                      "fills": [
+                        {
+                          "color": "#849087",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:362",
+                      "name": "15 min",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 10.0,
+                        "fontWeight": 400,
+                        "lineHeightPx": 12.102272033691406,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "15 min",
+                      "type": "TEXT"
+                    }
+                  ],
+                  "id": "6:360",
+                  "layout": {
+                    "layoutMode": "HORIZONTAL",
+                    "primaryAxisAlignItems": "SPACE_BETWEEN"
+                  },
+                  "name": "Extra time range",
+                  "type": "FRAME"
+                }
+              ],
+              "id": "6:353",
+              "layout": {
+                "gap": 10.0,
+                "layoutMode": "VERTICAL"
+              },
+              "name": "Extra time preference",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 19.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 598.07
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 19.0,
+                    "w": 297.0,
+                    "x": 2788.0,
+                    "y": 598.07
+                  },
+                  "fills": [
+                    {
+                      "color": "#223c32",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:364",
+                  "name": "Choose your walk",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 16.0,
+                    "fontWeight": 600,
+                    "lineHeightPx": 19.363636016845703,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Choose your walk",
+                  "type": "TEXT"
+                },
+                {
+                  "bounds": {
+                    "h": 13.0,
+                    "w": 43.0,
+                    "x": 3085.0,
+                    "y": 598.07
+                  },
+                  "fills": [
+                    {
+                      "color": "#849087",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:365",
+                  "name": "2 routes",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 11.0,
+                    "fontWeight": 400,
+                    "lineHeightPx": 13.3125,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "2 routes",
+                  "type": "TEXT"
+                }
+              ],
+              "id": "6:363",
+              "layout": {
+                "layoutMode": "HORIZONTAL"
+              },
+              "name": "Route results heading",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 85.4,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 640.24
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 31.0,
+                    "w": 309.6,
+                    "x": 2803.2,
+                    "y": 655.44
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 31.0,
+                        "w": 86.0,
+                        "x": 2803.2,
+                        "y": 655.44
+                      },
+                      "fills": [
+                        {
+                          "color": "#17765c",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:368",
+                      "name": "24 min",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 26.0,
+                        "fontWeight": 600,
+                        "lineHeightPx": 31.46590805053711,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "24 min",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 15.0,
+                        "w": 150.6,
+                        "x": 2897.2,
+                        "y": 663.44
+                      },
+                      "fills": [
+                        {
+                          "color": "#738078",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:369",
+                      "name": "1.8 km",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 12.0,
+                        "fontWeight": 400,
+                        "lineHeightPx": 14.522727012634277,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "1.8 km",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 31.0,
+                        "w": 57.0,
+                        "x": 3055.8,
+                        "y": 655.44
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 15.0,
+                            "w": 41.0,
+                            "x": 3063.8,
+                            "y": 663.44
+                          },
+                          "fills": [
+                            {
+                              "color": "#326647",
+                              "type": "SOLID"
+                            }
+                          ],
+                          "id": "6:371",
+                          "name": "Best fit",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontSize": 12.0,
+                            "fontWeight": 500,
+                            "lineHeightPx": 14.522727012634277,
+                            "textAlignHorizontal": "LEFT"
+                          },
+                          "text": "Best fit",
+                          "type": "TEXT"
+                        }
+                      ],
+                      "fills": [
+                        {
+                          "color": "#dbeedd",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:370",
+                      "layout": {
+                        "counterAxisAlignItems": "CENTER",
+                        "gap": 6.0,
+                        "layoutMode": "HORIZONTAL",
+                        "paddingBottom": 8.0,
+                        "paddingLeft": 8.0,
+                        "paddingRight": 8.0,
+                        "paddingTop": 8.0
+                      },
+                      "name": "Best fit",
+                      "type": "FRAME"
+                    }
+                  ],
+                  "id": "6:367",
+                  "layout": {
+                    "counterAxisAlignItems": "CENTER",
+                    "gap": 8.0,
+                    "layoutMode": "HORIZONTAL"
+                  },
+                  "name": "Recommended route time",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 309.6,
+                    "x": 2803.2,
+                    "y": 695.44
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 15.0,
+                        "w": 15.0,
+                        "x": 2803.2,
+                        "y": 695.44
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 11.25,
+                            "w": 10.0,
+                            "x": 2805.7,
+                            "y": 697.32
+                          },
+                          "id": "6:374",
+                          "name": "Vector",
+                          "type": "VECTOR"
+                        }
+                      ],
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "hidden": true,
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:373",
+                      "name": "shade icon",
+                      "type": "FRAME"
+                    },
+                    {
+                      "bounds": {
+                        "h": 13.0,
+                        "w": 65.0,
+                        "x": 2832.2,
+                        "y": 695.44
+                      },
+                      "fills": [
+                        {
+                          "color": "#42705b",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:375",
+                      "name": "72% shaded",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 11.0,
+                        "fontWeight": 500,
+                        "lineHeightPx": 13.3125,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "72% shaded",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 15.0,
+                        "w": 15.0,
+                        "x": 2911.2,
+                        "y": 695.44
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 8.75,
+                            "w": 12.5,
+                            "x": 2912.45,
+                            "y": 698.57
+                          },
+                          "id": "6:377",
+                          "name": "Vector",
+                          "type": "VECTOR"
+                        }
+                      ],
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "hidden": true,
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:376",
+                      "name": "quiet icon",
+                      "type": "FRAME"
+                    },
+                    {
+                      "bounds": {
+                        "h": 13.0,
+                        "w": 39.0,
+                        "x": 2940.2,
+                        "y": 695.44
+                      },
+                      "fills": [
+                        {
+                          "color": "#42705b",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:378",
+                      "name": "Quieter",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 11.0,
+                        "fontWeight": 500,
+                        "lineHeightPx": 13.3125,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Quieter",
+                      "type": "TEXT"
+                    }
+                  ],
+                  "id": "6:372",
+                  "layout": {
+                    "gap": 14.0,
+                    "layoutMode": "HORIZONTAL"
+                  },
+                  "name": "Route benefits",
+                  "type": "FRAME"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#f3f8f3",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:366",
+              "layout": {
+                "gap": 9.0,
+                "layoutMode": "VERTICAL",
+                "paddingBottom": 14.0,
+                "paddingLeft": 14.0,
+                "paddingRight": 14.0,
+                "paddingTop": 14.0
+              },
+              "name": "Recommended walking route",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 60.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 748.82
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 34.0,
+                    "w": 288.0,
+                    "x": 2801.0,
+                    "y": 761.82
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 17.0,
+                        "w": 100.0,
+                        "x": 2801.0,
+                        "y": 761.82
+                      },
+                      "fills": [
+                        {
+                          "color": "#65776b",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:381",
+                      "name": "20 min \u00b7 1.5 km",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 14.0,
+                        "fontWeight": 500,
+                        "lineHeightPx": 16.94318199157715,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "20 min \u00b7 1.5 km",
+                      "type": "TEXT"
+                    },
+                    {
+                      "bounds": {
+                        "h": 13.0,
+                        "w": 174.0,
+                        "x": 2801.0,
+                        "y": 782.82
+                      },
+                      "fills": [
+                        {
+                          "color": "#849087",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:382",
+                      "name": "Fastest \u00b7 less shade, busier roads",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 11.0,
+                        "fontWeight": 400,
+                        "lineHeightPx": 13.3125,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Fastest \u00b7 less shade, busier roads",
+                      "type": "TEXT"
+                    }
+                  ],
+                  "id": "6:380",
+                  "layout": {
+                    "gap": 4.0,
+                    "layoutMode": "VERTICAL"
+                  },
+                  "name": "Fastest route details",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 16.0,
+                    "w": 16.0,
+                    "x": 3099.0,
+                    "y": 770.82
+                  },
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:383",
+                  "name": "Route location point",
+                  "type": "ELLIPSE"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:379",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 10.0,
+                "layoutMode": "HORIZONTAL",
+                "paddingBottom": 12.0,
+                "paddingLeft": 12.0,
+                "paddingRight": 12.0,
+                "paddingTop": 12.0
+              },
+              "name": "Fastest route alternative",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 48.0,
+                "w": 340.0,
+                "x": 2788.0,
+                "y": 832.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 48.0,
+                    "w": 282.0,
+                    "x": 2788.0,
+                    "y": 832.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 18.0,
+                        "w": 18.0,
+                        "x": 2881.5,
+                        "y": 847.0
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 12.0,
+                            "w": 9.0,
+                            "x": 2886.0,
+                            "y": 850.0
+                          },
+                          "id": "6:387",
+                          "name": "Vector",
+                          "type": "VECTOR"
+                        }
+                      ],
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "hidden": true,
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:386",
+                      "name": "arrow icon",
+                      "type": "FRAME"
+                    },
+                    {
+                      "bounds": {
+                        "h": 17.0,
+                        "w": 69.0,
+                        "x": 2907.5,
+                        "y": 847.5
+                      },
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:388",
+                      "name": "Start walk",
+                      "style": {
+                        "fontFamily": "Inter",
+                        "fontSize": 14.0,
+                        "fontWeight": 600,
+                        "lineHeightPx": 16.94318199157715,
+                        "textAlignHorizontal": "LEFT"
+                      },
+                      "text": "Start walk",
+                      "type": "TEXT"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#17765c",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:385",
+                  "layout": {
+                    "counterAxisAlignItems": "CENTER",
+                    "gap": 8.0,
+                    "layoutMode": "HORIZONTAL",
+                    "paddingBottom": 12.0,
+                    "paddingLeft": 12.0,
+                    "paddingRight": 12.0,
+                    "paddingTop": 12.0,
+                    "primaryAxisAlignItems": "CENTER"
+                  },
+                  "name": "Start walk",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 48.0,
+                    "w": 48.0,
+                    "x": 3080.0,
+                    "y": 832.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 20.0,
+                        "w": 20.0,
+                        "x": 3094.0,
+                        "y": 846.0
+                      },
+                      "children": [
+                        {
+                          "bounds": {
+                            "h": 15.0,
+                            "w": 10.0,
+                            "x": 3099.0,
+                            "y": 848.5
+                          },
+                          "id": "6:391",
+                          "name": "Vector",
+                          "type": "VECTOR"
+                        }
+                      ],
+                      "fills": [
+                        {
+                          "color": "#ffffff",
+                          "hidden": true,
+                          "type": "SOLID"
+                        }
+                      ],
+                      "id": "6:390",
+                      "name": "bookmark icon",
+                      "type": "FRAME"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#f0f4f0",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:389",
+                  "layout": {
+                    "counterAxisAlignItems": "CENTER",
+                    "layoutMode": "HORIZONTAL",
+                    "primaryAxisAlignItems": "CENTER"
+                  },
+                  "name": "bookmark",
+                  "type": "FRAME"
+                }
+              ],
+              "id": "6:384",
+              "layout": {
+                "gap": 10.0,
+                "layoutMode": "HORIZONTAL"
+              },
+              "name": "Walk actions",
+              "type": "FRAME"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#ffffff",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:302",
+          "layout": {
+            "gap": 12.0,
+            "layoutMode": "VERTICAL",
+            "paddingBottom": 20.0,
+            "paddingLeft": 20.0,
+            "paddingRight": 20.0,
+            "paddingTop": 20.0,
+            "primaryAxisAlignItems": "SPACE_BETWEEN"
+          },
+          "name": "Route planning panel",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 32.0,
+            "w": 281.0,
+            "x": 3172.0,
+            "y": 136.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 32.0,
+                "w": 119.0,
+                "x": 3172.0,
+                "y": 136.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 16.0,
+                    "w": 16.0,
+                    "x": 3180.0,
+                    "y": 144.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 6.67,
+                        "w": 9.33,
+                        "x": 3183.33,
+                        "y": 148.0
+                      },
+                      "id": "6:395",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:394",
+                  "name": "check icon",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 81.0,
+                    "x": 3202.0,
+                    "y": 144.5
+                  },
+                  "fills": [
+                    {
+                      "color": "#17765c",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:396",
+                  "name": "Comfort route",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 12.0,
+                    "fontWeight": 500,
+                    "lineHeightPx": 14.522727012634277,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Comfort route",
+                  "type": "TEXT"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:393",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 6.0,
+                "layoutMode": "HORIZONTAL",
+                "paddingBottom": 8.0,
+                "paddingLeft": 8.0,
+                "paddingRight": 8.0,
+                "paddingTop": 8.0
+              },
+              "name": "Comfort route",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 32.0,
+                "w": 75.0,
+                "x": 3299.0,
+                "y": 136.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 16.0,
+                    "w": 16.0,
+                    "x": 3307.0,
+                    "y": 144.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 12.0,
+                        "w": 10.67,
+                        "x": 3309.67,
+                        "y": 146.0
+                      },
+                      "id": "6:399",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:398",
+                  "name": "shade icon",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 37.0,
+                    "x": 3329.0,
+                    "y": 144.5
+                  },
+                  "fills": [
+                    {
+                      "color": "#63756a",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:400",
+                  "name": "Shade",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 12.0,
+                    "fontWeight": 500,
+                    "lineHeightPx": 14.522727012634277,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Shade",
+                  "type": "TEXT"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:397",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 6.0,
+                "layoutMode": "HORIZONTAL",
+                "paddingBottom": 8.0,
+                "paddingLeft": 8.0,
+                "paddingRight": 8.0,
+                "paddingTop": 8.0
+              },
+              "name": "Shade",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 32.0,
+                "w": 71.0,
+                "x": 3382.0,
+                "y": 136.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 16.0,
+                    "w": 16.0,
+                    "x": 3390.0,
+                    "y": 144.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 9.33,
+                        "w": 13.33,
+                        "x": 3391.33,
+                        "y": 147.33
+                      },
+                      "id": "6:403",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:402",
+                  "name": "quiet icon",
+                  "type": "FRAME"
+                },
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 33.0,
+                    "x": 3412.0,
+                    "y": 144.5
+                  },
+                  "fills": [
+                    {
+                      "color": "#63756a",
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:404",
+                  "name": "Noise",
+                  "style": {
+                    "fontFamily": "Inter",
+                    "fontSize": 12.0,
+                    "fontWeight": 500,
+                    "lineHeightPx": 14.522727012634277,
+                    "textAlignHorizontal": "LEFT"
+                  },
+                  "text": "Noise",
+                  "type": "TEXT"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:401",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "gap": 6.0,
+                "layoutMode": "HORIZONTAL",
+                "paddingBottom": 8.0,
+                "paddingLeft": 8.0,
+                "paddingRight": 8.0,
+                "paddingTop": 8.0
+              },
+              "name": "Noise",
+              "type": "FRAME"
+            }
+          ],
+          "id": "6:392",
+          "layout": {
+            "gap": 8.0,
+            "layoutMode": "HORIZONTAL"
+          },
+          "name": "Map comfort layers",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 44.0,
+            "w": 44.0,
+            "x": 4140.0,
+            "y": 136.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 20.0,
+                "w": 20.0,
+                "x": 4152.0,
+                "y": 148.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 15.0,
+                    "w": 15.0,
+                    "x": 4154.5,
+                    "y": 150.5
+                  },
+                  "id": "6:407",
+                  "name": "Vector",
+                  "type": "VECTOR"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "hidden": true,
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:406",
+              "name": "layers icon",
+              "type": "FRAME"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#ffffff",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:405",
+          "layout": {
+            "counterAxisAlignItems": "CENTER",
+            "layoutMode": "HORIZONTAL",
+            "primaryAxisAlignItems": "CENTER"
+          },
+          "name": "layers",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 44.0,
+            "w": 44.0,
+            "x": 4140.0,
+            "y": 694.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 20.0,
+                "w": 20.0,
+                "x": 4152.0,
+                "y": 706.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 11.67,
+                    "w": 11.67,
+                    "x": 4156.17,
+                    "y": 710.17
+                  },
+                  "id": "6:410",
+                  "name": "Vector",
+                  "type": "VECTOR"
+                },
+                {
+                  "bounds": {
+                    "h": 3.33,
+                    "w": 3.33,
+                    "x": 4160.33,
+                    "y": 714.33
+                  },
+                  "id": "6:411",
+                  "name": "Vector",
+                  "type": "VECTOR"
+                },
+                {
+                  "bounds": {
+                    "h": 16.67,
+                    "w": 16.67,
+                    "x": 4153.67,
+                    "y": 707.67
+                  },
+                  "id": "6:412",
+                  "name": "Vector",
+                  "type": "VECTOR"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "hidden": true,
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:409",
+              "name": "locate icon",
+              "type": "FRAME"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#ffffff",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:408",
+          "layout": {
+            "counterAxisAlignItems": "CENTER",
+            "layoutMode": "HORIZONTAL",
+            "primaryAxisAlignItems": "CENTER"
+          },
+          "name": "locate",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 89.0,
+            "w": 44.0,
+            "x": 4140.0,
+            "y": 750.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 44.0,
+                "w": 44.0,
+                "x": 4140.0,
+                "y": 750.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 20.0,
+                    "w": 20.0,
+                    "x": 4152.0,
+                    "y": 762.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 11.67,
+                        "w": 11.67,
+                        "x": 4156.17,
+                        "y": 766.17
+                      },
+                      "id": "6:416",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:415",
+                  "name": "plus icon",
+                  "type": "FRAME"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:414",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "layoutMode": "HORIZONTAL",
+                "primaryAxisAlignItems": "CENTER"
+              },
+              "name": "plus",
+              "type": "FRAME"
+            },
+            {
+              "bounds": {
+                "h": 44.0,
+                "w": 44.0,
+                "x": 4140.0,
+                "y": 795.0
+              },
+              "children": [
+                {
+                  "bounds": {
+                    "h": 20.0,
+                    "w": 20.0,
+                    "x": 4152.0,
+                    "y": 807.0
+                  },
+                  "children": [
+                    {
+                      "bounds": {
+                        "h": 0.0,
+                        "w": 11.67,
+                        "x": 4156.17,
+                        "y": 817.0
+                      },
+                      "id": "6:419",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ],
+                  "fills": [
+                    {
+                      "color": "#ffffff",
+                      "hidden": true,
+                      "type": "SOLID"
+                    }
+                  ],
+                  "id": "6:418",
+                  "name": "minus icon",
+                  "type": "FRAME"
+                }
+              ],
+              "fills": [
+                {
+                  "color": "#ffffff",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:417",
+              "layout": {
+                "counterAxisAlignItems": "CENTER",
+                "layoutMode": "HORIZONTAL",
+                "primaryAxisAlignItems": "CENTER"
+              },
+              "name": "minus",
+              "type": "FRAME"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#e8eee7",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:413",
+          "layout": {
+            "gap": 1.0,
+            "layoutMode": "VERTICAL"
+          },
+          "name": "Map zoom",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 37.0,
+            "w": 257.0,
+            "x": 3172.0,
+            "y": 842.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 8.0,
+                "w": 8.0,
+                "x": 3184.0,
+                "y": 856.5
+              },
+              "fills": [
+                {
+                  "color": "#17765c",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:421",
+              "name": "Route location point",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 13.0,
+                "w": 100.0,
+                "x": 3208.0,
+                "y": 854.0
+              },
+              "fills": [
+                {
+                  "color": "#576d5f",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:422",
+              "name": "Your comfort route",
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 11.0,
+                "fontWeight": 500,
+                "lineHeightPx": 13.3125,
+                "textAlignHorizontal": "LEFT"
+              },
+              "text": "Your comfort route",
+              "type": "TEXT"
+            },
+            {
+              "bounds": {
+                "h": 8.0,
+                "w": 8.0,
+                "x": 3324.0,
+                "y": 856.5
+              },
+              "fills": [
+                {
+                  "color": "#8a9bb7",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:423",
+              "name": "Route location point",
+              "type": "ELLIPSE"
+            },
+            {
+              "bounds": {
+                "h": 13.0,
+                "w": 69.0,
+                "x": 3348.0,
+                "y": 854.0
+              },
+              "fills": [
+                {
+                  "color": "#728077",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:424",
+              "name": "Fastest route",
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 11.0,
+                "fontWeight": 400,
+                "lineHeightPx": 13.3125,
+                "textAlignHorizontal": "LEFT"
+              },
+              "text": "Fastest route",
+              "type": "TEXT"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#ffffff",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:420",
+          "layout": {
+            "counterAxisAlignItems": "CENTER",
+            "gap": 16.0,
+            "layoutMode": "HORIZONTAL",
+            "paddingBottom": 12.0,
+            "paddingLeft": 12.0,
+            "paddingRight": 12.0,
+            "paddingTop": 12.0
+          },
+          "name": "Route legend",
+          "type": "FRAME"
+        },
+        {
+          "bounds": {
+            "h": 21.0,
+            "w": 143.0,
+            "x": 4027.0,
+            "y": 876.0
+          },
+          "children": [
+            {
+              "bounds": {
+                "h": 11.0,
+                "w": 133.0,
+                "x": 4032.0,
+                "y": 881.0
+              },
+              "fills": [
+                {
+                  "color": "#728077",
+                  "type": "SOLID"
+                }
+              ],
+              "id": "6:426",
+              "name": "\u00a9 OpenStreetMap contributors",
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 9.0,
+                "fontWeight": 400,
+                "lineHeightPx": 10.892045021057129,
+                "textAlignHorizontal": "LEFT"
+              },
+              "text": "\u00a9 OpenStreetMap contributors",
+              "type": "TEXT"
+            }
+          ],
+          "fills": [
+            {
+              "color": "#ffffff",
+              "type": "SOLID"
+            }
+          ],
+          "id": "6:425",
+          "layout": {
+            "layoutMode": "HORIZONTAL",
+            "paddingBottom": 5.0,
+            "paddingLeft": 5.0,
+            "paddingRight": 5.0,
+            "paddingTop": 5.0
+          },
+          "name": "Map attribution",
+          "type": "FRAME"
+        }
+      ],
+      "id": "6:64",
+      "layout": {
+        "layoutMode": "VERTICAL"
+      },
+      "name": "Interface",
+      "type": "FRAME"
+    }
+  ],
+  "fills": [
+    {
+      "color": "#f7faf5",
+      "type": "SOLID"
+    }
+  ],
+  "id": "6:61",
+  "layout": {
+    "layoutMode": "VERTICAL"
+  },
+  "name": "Desktop \u00b7 Your walk",
+  "type": "FRAME"
+}

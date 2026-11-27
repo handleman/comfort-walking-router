@@ -1,0 +1,204 @@
+# 041 acceptance checks. Deterministic browser probes, one or more per AC.
+# The design token/region checks live in design.toml; these prove the surfaces
+# and the behaviours exist in both viewports.
+
+[[check]]
+ac = "AC-1"
+kind = "exists"
+selector = "[data-testid='top-nav']"
+viewport = "desktop"
+note = "Desktop top nav exists"
+
+[[check]]
+ac = "AC-1"
+kind = "text"
+selector = "[data-testid='brand-name']"
+expect = "Comfort Walking Router"
+viewport = "desktop"
+note = "Brand stays Comfort Walking Router (not mellow.walk)"
+
+[[check]]
+ac = "AC-1"
+kind = "exists"
+selector = "[data-testid='top-card']"
+viewport = "both"
+note = "The single endpoint card exists in both surfaces"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "[data-testid='sidebar']"
+viewport = "desktop"
+note = "380px planning panel exists on desktop"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "[data-testid='comfort-panel']"
+viewport = "desktop"
+note = "Your comfort panel exists"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "[data-testid='map-locate']"
+viewport = "desktop"
+note = "Locate map control exists"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "[data-testid='map-zoom-in']"
+viewport = "desktop"
+note = "Zoom control exists"
+
+[[check]]
+ac = "AC-2"
+kind = "exists"
+selector = "[data-testid='comfort-legend']"
+viewport = "desktop"
+note = "Comfort legend is on the map"
+
+[[check]]
+ac = "AC-3"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "mobile"
+note = "Planning a route on mobile fires /route"
+
+[[check]]
+ac = "AC-3"
+kind = "wait_for"
+selector = "[data-testid='mobile-sheet']"
+viewport = "mobile"
+note = "The results sheet appears after a route"
+
+[[check]]
+ac = "AC-3"
+kind = "wait_for"
+selector = "section.route-summary"
+viewport = "mobile"
+note = "The route summary is in the mobile sheet"
+
+[[check]]
+ac = "AC-3"
+kind = "click"
+selector = "[data-testid='prefs-edit']"
+viewport = "mobile"
+note = "Edit opens the preferences sheet"
+
+[[check]]
+ac = "AC-3"
+kind = "wait_for"
+selector = "[data-testid='prefs-sheet']"
+viewport = "mobile"
+note = "The Walk your way sheet renders"
+
+[[check]]
+ac = "AC-3"
+kind = "exists"
+selector = "[data-testid='prefs-apply']"
+viewport = "mobile"
+note = "Apply preferences is present"
+
+[[check]]
+ac = "AC-3"
+kind = "count"
+selector = "[data-testid='top-nav']"
+expect = 0
+viewport = "mobile"
+note = "The desktop nav is not rendered on mobile"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='shade-more'][aria-pressed]"
+viewport = "desktop"
+note = "More shade is a pressed-state control"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='shade-balanced'][aria-pressed]"
+viewport = "desktop"
+note = "Balanced is a pressed-state control"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='shade-more-sun'][aria-pressed]"
+viewport = "desktop"
+note = "More sun is a pressed-state control"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='quieter']"
+viewport = "desktop"
+note = "Quieter streets control exists"
+
+[[check]]
+ac = "AC-4"
+kind = "click"
+selector = "[data-testid='shade-balanced']"
+viewport = "desktop"
+note = "Choosing Balanced is clickable (persistence is the e2e/DB lane)"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='saved-walks']"
+viewport = "desktop"
+note = "Saved walks nav action exists"
+
+[[check]]
+ac = "AC-4"
+kind = "exists"
+selector = "[data-testid='how-it-works']"
+viewport = "desktop"
+note = "How it works nav action exists"
+
+[[check]]
+ac = "AC-5"
+kind = "route_request"
+selector = "input[placeholder='e.g. Englischer Garten']"
+value = "Englischer Garten"
+viewport = "desktop"
+note = "Desktop planning still fires /route"
+
+[[check]]
+ac = "AC-5"
+kind = "exists"
+selector = "section.route-summary"
+viewport = "desktop"
+note = "Route summary still renders"
+
+[[check]]
+ac = "AC-5"
+kind = "exists"
+selector = "ul.factors"
+viewport = "desktop"
+note = "Comfort factors still render"
+
+[[check]]
+ac = "AC-5"
+kind = "exists"
+selector = "button.walk-start"
+viewport = "both"
+note = "Walk start still exists"
+
+[[check]]
+ac = "AC-5"
+kind = "min_count"
+selector = ".leaflet-tile"
+expect = 1
+viewport = "desktop"
+note = "The map still loads tiles"
+
+[[check]]
+ac = "AC-5"
+kind = "console_errors"
+expect = 0
+viewport = "both"
+note = "No uncaught exceptions or app console errors"

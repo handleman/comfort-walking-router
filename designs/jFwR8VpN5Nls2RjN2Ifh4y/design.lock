@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-11-27T15:55:05+00:00",
+  "file_key": "jFwR8VpN5Nls2RjN2Ifh4y",
+  "file_version": "2424384819566238682",
+  "hashes": {
+    "6-53.json": "97072083b521de8d2bb8e720f3b69ae02726b86dfeb1168c8c015604f9fc2041",
+    "6-53.png": "159738b649460c857cb01ae853773082bb25d98893ae2a2913fca0109219e952",
+    "6-57.json": "97a6c8733ba018a98ff7eb5e600d40afa829fb508b31e6ffa3afb7fca7c3d72d",
+    "6-57.png": "a8aac63caa55b60e1ce260aaf44540e453cd0fb3372e8fc072a2ac848c613f6b",
+    "6-61.json": "abb8cc5dbc17cba9e60433a0f9988b791ba0e001d691d47d5d6fa7a69f7e07db",
+    "6-61.png": "1ad3872ac7ca3247e39d9acdf9d799b97c26481a7ad7c60f2e1f2690eb9b0b1e",
+    "design-brief.md": "c662b93d24940734c3e039020c5526570eb0169cfce766a2d1d6bce6ab1b34c7",
+    "index.json": "71f97c546dc90f1beadc87258e70cb7795ee7edc2e491b8d3faed767e9f382fd",
+    "tokens.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  "nodes": [
+    "6:61",
+    "6:53",
+    "6:57"
+  ],
+  "transport": "rest"
+}

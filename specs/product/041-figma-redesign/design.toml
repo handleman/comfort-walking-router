@@ -1,0 +1,110 @@
+# 041: deterministic design checks for the desktop frame (6:61).
+# Tokens/regions are read by swarm/acceptance.py from the browser facts.
+# The mobile frames (6:53/6:57) are checked through acceptance.toml and the
+# layout contract; the design check evaluator uses one frame's facts.
+
+[figma]
+file_key = "jFwR8VpN5Nls2RjN2Ifh4y"
+node = "6:61"
+
+[[token]]
+name = "--cwr-page"
+value = "#f7faf5"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-surface"
+value = "#ffffff"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-ink"
+value = "#223c32"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-brand"
+value = "#17765c"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-brand-soft"
+value = "#d8f3e7"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-sun-bg"
+value = "#fff9e9"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-sun-ink"
+value = "#806435"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-muted"
+value = "#63756a"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-line"
+value = "#e6ebe7"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-blue"
+value = "#4085ef"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-radius-card"
+value = "18px"
+ac = "AC-1"
+
+[[token]]
+name = "--cwr-radius-panel"
+value = "12px"
+ac = "AC-1"
+
+# Desktop is 1280x800 in the acceptance pass. The design's mocked browser
+# chrome (40px) is not rendered, so the nav is 0..72 and the panel 380 wide.
+[[region]]
+id = "top-nav"
+selector = "[data-testid='top-nav']"
+x = 0
+y = 0
+w = 1280
+h = 72
+tolerance_px = 2
+ac = "AC-2"
+
+[[region]]
+id = "sidebar"
+selector = "[data-testid='sidebar']"
+x = 0
+y = 72
+w = 380
+h = 728
+tolerance_px = 2
+ac = "AC-2"
+
+[[region]]
+id = "top-card"
+selector = "[data-testid='top-card']"
+x = 20
+y = 92
+w = 340
+h = 108
+tolerance_px = 4
+ac = "AC-2"
+
+[[region]]
+id = "map"
+selector = "[data-testid='map']"
+x = 0
+y = 0
+w = 1280
+h = 800
+tolerance_px = 2
+ac = "AC-2"

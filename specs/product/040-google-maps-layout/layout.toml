@@ -1,13 +1,16 @@
-# 052: deterministic layout contract for 040-google-maps-layout.
+# 040 / 041: deterministic layout contract.
 #
-# Read by swarm/acceptance.py; checked by the acceptance pass against the two
-# viewports (desktop 1280x800, mobile 390x844) from getBoundingClientRect — no
-# screenshots, no vision. A future Figma importer writes this same file.
+# The 041 redesign keeps the same regions and test ids but changes where the
+# endpoint card lives: on desktop it sits inside the 380px planning panel (top
+# nav above it), on mobile it floats over the map. The map stays full-bleed and
+# the sidebar/drawer never coexist.
 #
-# The app is an overlay layout: #map fills the viewport and the top card floats
-# over it, so there is no `above =` order assertion (that kind is for tiled
-# layouts). The regions that must not coexist are sidebar (desktop) / drawer
-# (mobile), enforced by `hidden_regions`.
+# Read by swarm/acceptance.py against the two viewports (desktop 1280x800,
+# mobile 390x844) from getBoundingClientRect — no screenshots, no vision.
+
+[region.top-nav]
+selector = "[data-testid='top-nav']"
+ac       = "AC-3"
 
 [region.top-card]
 selector = "[data-testid='top-card']"
@@ -36,9 +39,8 @@ selector = "[data-testid='dest-input']"
 regions  = ["top-card"]
 ac       = "AC-2"
 
-# The mobile drawer starts collapsed (BottomDrawer open = false), so its
-# controls are only in the DOM once expanded. Assert them on desktop (sidebar
-# open by default); the mobile-open state is a pending refinement (052 T4).
+# The mobile sheet auto-opens once a route exists; this contract is measured on
+# the initial load, so the start button is asserted on the desktop panel.
 [control.start-walk]
 selector = "[data-testid='start-walk']"
 regions  = ["sidebar", "drawer"]
@@ -46,19 +48,20 @@ viewports = ["desktop"]
 unique   = true
 ac       = "AC-4"
 
+# 041 moves the legend onto the map (bottom-left), outside the panel.
 [control.comfort-legend]
 selector = "[data-testid='comfort-legend']"
-regions  = ["sidebar", "drawer"]
+regions  = ["map"]
 viewports = ["desktop"]
 ac       = "AC-7"
 
 [expect.desktop]
-visible_regions = ["top-card", "map", "sidebar"]
+visible_regions = ["top-nav", "top-card", "map", "sidebar"]
 hidden_regions  = ["drawer"]
 
 [expect.mobile]
 visible_regions = ["top-card", "map", "drawer"]
-hidden_regions  = ["sidebar"]
+hidden_regions  = ["sidebar", "top-nav"]
 
 [tolerance]
 px      = 2
