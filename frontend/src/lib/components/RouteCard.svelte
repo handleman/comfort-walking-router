@@ -7,6 +7,7 @@
   import { COMFORT_UNAVAILABLE_TEXT, formatRun, mergeBandRuns } from '../map/comfortBands'
   import type { ComfortProfileSegment } from '../map/comfortBands'
   import Attribution from './Attribution.svelte'
+  import { shadedPercent } from '../routeMeta'
 
   // Structural subset of App.svelte's Route: everything this card renders.
   interface RouteCardRoute {
@@ -30,22 +31,8 @@
 
   const uid = `route-card-${Math.random().toString(36).slice(2, 9)}`
 
-  // Shaded share of the covered distance: shaded metres / covered metres.
-  // Hidden entirely without profile data (honest: no invented percentage).
-  $: shadedPercent = (() => {
-    const segments = profile && profile.length > 0 ? profile : route?.comfort_profile
-    if (!segments || segments.length === 0) return null
-    let covered = 0
-    let shaded = 0
-    for (const seg of segments) {
-      const length = seg.to_m - seg.from_m
-      if (!(length > 0)) continue
-      covered += length
-      if (seg.factor === 'shade') shaded += length
-    }
-    if (covered <= 0) return null
-    return Math.round((shaded / covered) * 100)
-  })()
+  // Shaded share of the covered distance; hidden without profile data.
+  $: shaded = shadedPercent(profile && profile.length > 0 ? profile : route?.comfort_profile)
 
   $: comfortRuns = route && route.comfort_profile ? mergeBandRuns(route.comfort_profile) : []
 
@@ -70,14 +57,14 @@
         <span class="distance">{(route.distance_m / 1000).toFixed(1)} km</span>
         <span class="best-fit">Best fit</span>
       </div>
-      {#if shadedPercent !== null || avoidTraffic}
+      {#if shaded !== null || avoidTraffic}
         <p class="meta">
-          {#if shadedPercent !== null}
+          {#if shaded !== null}
             <span class="meta-item">
               <span class="icon" aria-hidden="true"
                 ><svg viewBox="0 0 24 24" fill="currentColor"><path d={SUN_PATH} /></svg></span
               >
-              {shadedPercent}% shaded
+              {shaded}% shaded
             </span>
           {/if}
           {#if avoidTraffic}
