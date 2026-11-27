@@ -45,6 +45,8 @@
   }
 
   // Material Design glyphs kept inline: the sheet only needs these two.
+  // Material 'arrow_upward': the design's Start walk glyph (not the walker).
+  const ARROW_PATH = 'M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z'
   const WALK_PATH =
     'M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z'
   const SAVE_PATH =
@@ -93,7 +95,7 @@
       >
     </div>
 
-    <RouteCard {route} profile={segments} {avoidTraffic} {suggestionAttribution} />
+    <RouteCard {route} profile={segments} {avoidTraffic} {suggestionAttribution} compact />
 
     {#if route}
       <div class="sheet-cta">
@@ -116,7 +118,7 @@
             on:click={() => dispatch('start')}
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d={WALK_PATH} />
+              <path d={ARROW_PATH} />
             </svg>
             <span>Start walk</span>
           </button>
@@ -191,10 +193,12 @@
   }
 
   .drawer-body {
+    display: flex;
     flex: 1;
     min-height: 0;
+    flex-direction: column;
     overflow-y: auto;
-    padding: 0 16px 16px;
+    padding: 0 16px 4px;
   }
   /* The shared RouteCard renders its duration at 25/600 inside the sheet.
      :global() because the card is a child component. */
@@ -278,6 +282,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-top: auto;
+    padding-top: 12px;
   }
 
   .walk-start,
@@ -288,10 +294,10 @@
     justify-content: center;
     gap: 8px;
     min-width: 0;
-    height: 52px;
+    height: 48px;
     padding: 0 20px;
     border: none;
-    border-radius: 14px;
+    border-radius: 999px;
     background: var(--cwr-brand, #17765c);
     color: #fff;
     font-size: 15px;
@@ -314,7 +320,7 @@
     height: 44px;
     padding: 0;
     border: 1px solid var(--cwr-line-strong, #d5dbd7);
-    border-radius: 12px;
+    border-radius: 24px;
     background: #fff;
     color: var(--cwr-brand, #17765c);
     cursor: pointer;

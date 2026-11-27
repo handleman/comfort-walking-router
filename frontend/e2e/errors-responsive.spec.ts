@@ -34,10 +34,10 @@ test('search page is usable at 390px with no horizontal overflow', async ({ page
     'true',
   )
 
-  // The results stay resolvable inside the open sheet.
+  // The compact results stay resolvable inside the open sheet (the mobile card
+  // intentionally omits the chip, band list and Why-this-route disclosure).
   await expect(page.locator('section.route-summary')).toBeVisible()
-  await expect(page.locator('section.route-summary .chip')).toBeVisible()
-  await expect(page.locator('.comfort-segments').first()).toBeVisible()
+  await expect(page.locator('section.route-summary .duration')).toBeVisible()
   await expect(page.locator('[data-testid="drawer"] button.walk-start')).toBeVisible()
 
   // 041: starting the walk swaps the sheet's CTA for the stop control, which

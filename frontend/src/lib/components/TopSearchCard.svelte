@@ -136,9 +136,9 @@
 <style>
   .top-search-card {
     position: absolute;
-    top: 0.75rem;
-    left: 0.75rem;
-    right: 0.75rem;
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
     z-index: 1000;
     display: flex;
     flex-direction: column;

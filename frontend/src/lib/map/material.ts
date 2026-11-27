@@ -49,6 +49,7 @@ export const materialPaths = {
   more_horiz: svgPath(moreHoriz),
   expand_more: svgPath(expandMore),
   tune: svgPath(tune),
+  arrow_upward: 'M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z',
   directions_walk: svgPath(directionsWalk),
   share: svgPath(share),
   close: svgPath(close),

@@ -50,6 +50,10 @@
   const wbSunnyPath =
     'M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 10.5H1v2h3v-2zm9-9.95h-2V3.5h2V.55zm7.45 3.91l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zm-3.21 13.7l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM20 10.5v2h3v-2h-3zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-1 16.95h2V19.5h-2v2.95zm-7.45-3.91l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8z'
 
+  // Material 'park': tree cover for the shade option (the design uses a
+  // tree, not a sun, for More shade).
+  const parkPath = 'M17 12h2L12 2 5.05 12H7l-3.9 6h6.92v4h4v-4h6.9L17 12z'
+
   const cloudPath =
     'M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z'
 
@@ -102,7 +106,7 @@
         on:click={() => setShade('hot')}
       >
         <span class="segment-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d={wbSunnyPath} /></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d={parkPath} /></svg>
         </span>
         <span class="segment-label">More shade</span>
       </button>
@@ -296,7 +300,9 @@
   .segment.active {
     background: #ffffff;
     color: var(--cwr-brand);
-    box-shadow: var(--cwr-shadow-pill);
+    box-shadow:
+      inset 0 0 0 1.5px var(--cwr-brand),
+      var(--cwr-shadow-pill);
   }
 
   .segment-icon {

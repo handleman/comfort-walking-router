@@ -1064,7 +1064,7 @@
                 on:click={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d={materialPaths.directions_walk} />
+                  <path d={materialPaths.arrow_upward} />
                 </svg>
                 <span>Start walk</span>
               </button>
@@ -1095,7 +1095,7 @@
             disabled
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d={materialPaths.directions_walk} />
+              <path d={materialPaths.arrow_upward} />
             </svg>
             <span>Start walk</span>
           </button>
@@ -1787,6 +1787,12 @@
     margin-bottom: 14px;
   }
 
+  :global(.top-card) {
+    padding: 5px !important;
+    gap: 2px !important;
+    border-radius: 18px !important;
+  }
+
   .sidebar-search-wrap :global(.top-search-card) {
     position: relative;
     inset: auto;
@@ -1827,7 +1833,7 @@
     position: sticky;
     bottom: 0;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     gap: 8px;
     margin-top: auto;
     padding: 12px 0 4px;
@@ -1845,9 +1851,9 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    height: 52px;
+    height: 48px;
     border: none;
-    border-radius: 12px;
+    border-radius: 999px;
     background: var(--cwr-brand);
     color: #ffffff;
     font-size: 14px;
@@ -1865,7 +1871,7 @@
     align-items: center;
     justify-content: center;
     width: 44px;
-    height: 52px;
+    height: 44px;
     border: 1px solid var(--cwr-line-strong);
     border-radius: 12px;
     background: var(--cwr-surface);
@@ -1948,7 +1954,9 @@
     position: absolute;
     right: 24px;
     bottom: 24px;
-    z-index: 900;
+    /* Below the 60-level dialog scrim so an open preferences sheet covers
+       the locate button instead of letting it float over the text. */
+    z-index: 50;
     display: flex;
     flex-direction: column;
     gap: 8px;

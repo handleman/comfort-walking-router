@@ -28,6 +28,9 @@
   /** `Quieter` meta only shows when the walk avoids busy roads. */
   export let avoidTraffic = false
   export let suggestionAttribution = ''
+  /** Mobile sheet variant: duration/distance/meta + CTA only (no chip,
+   *  band list or explanation disclosure). */
+  export let compact = false
 
   const uid = `route-card-${Math.random().toString(36).slice(2, 9)}`
 
@@ -47,11 +50,13 @@
   <h2 id="{uid}-title" class="visually-hidden">Route summary</h2>
   {#if route}
     <article class="route-card">
-      <div class="chip">
-        {route.preference_source === 'manual'
-          ? `Manual: ${route.applied_preference}`
-          : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
-      </div>
+      {#if !compact}
+        <div class="chip">
+          {route.preference_source === 'manual'
+            ? `Manual: ${route.applied_preference}`
+            : `Auto: ${route.applied_preference} ${route.weather.temperature}°C`}
+        </div>
+      {/if}
       <div class="headline">
         <span class="duration">{Math.round(route.duration_s / 60)} min</span>
         <span class="distance">{(route.distance_m / 1000).toFixed(1)} km</span>
@@ -77,23 +82,27 @@
           {/if}
         </p>
       {/if}
-      {#if route.comfort_profile}
-        <ul class="comfort-segments">
-          {#each comfortRuns as run, index (index)}
-            <li class="comfort-segment comfort-band comfort-band--{run.band}">{formatRun(run)}</li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
+      {#if !compact}
+        {#if route.comfort_profile}
+          <ul class="comfort-segments">
+            {#each comfortRuns as run, index (index)}
+              <li class="comfort-segment comfort-band comfort-band--{run.band}">
+                {formatRun(run)}
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="comfort-unavailable">{COMFORT_UNAVAILABLE_TEXT}</p>
+        {/if}
+        <details class="why">
+          <summary>Why this route?</summary>
+          <ul class="factors">
+            {#each route.explanation as line, index (index)}
+              <li>{line}</li>
+            {/each}
+          </ul>
+        </details>
       {/if}
-      <details class="why">
-        <summary>Why this route?</summary>
-        <ul class="factors">
-          {#each route.explanation as line, index (index)}
-            <li>{line}</li>
-          {/each}
-        </ul>
-      </details>
       <Attribution text={route.attribution ?? suggestionAttribution} />
     </article>
   {:else}
