@@ -676,7 +676,13 @@
     // Fit the full route geometry, not a single comfort slice: a short first
     // slice used to zoom the map to the slice's one point (zoom 19) and push
     // the rest of the route, the badge and the destination callout off-screen.
-    map.fitBounds(L.latLngBounds(coords), { padding: [24, 24] })
+    // On mobile the 360px results sheet covers the bottom, so keep the route
+    // (and its badge) in the visible map above it.
+    const mobile = window.matchMedia('(max-width: 767px)').matches
+    map.fitBounds(L.latLngBounds(coords), {
+      paddingTopLeft: [24, 24],
+      paddingBottomRight: [24, mobile ? 400 : 24],
+    })
   }
 
   async function handleSaveRoute() {
