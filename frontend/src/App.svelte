@@ -36,6 +36,7 @@
   import { onMount } from 'svelte'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
+  import { materialPaths } from './lib/map/material'
   import { checkArrival } from './lib/navigation/arrival'
   import type { ArrivalSample, ArrivalStatus } from './lib/navigation/arrival'
   import type { LatLng } from './lib/navigation/interpolate'
@@ -704,6 +705,41 @@
 
 <svelte:window on:keydown={onKeydown} />
 
+<header data-testid="top-nav">
+  <div class="nav-brand">
+    <div class="nav-tile">
+      <svg class="nav-tile-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d={materialPaths.directions_walk} fill="currentColor" />
+      </svg>
+    </div>
+    <span class="nav-divider"></span>
+    <span class="nav-tagline">A nicer way to get there.</span>
+  </div>
+
+  <nav class="nav-center" aria-label="Primary">
+    <button type="button" class="nav-link primary">Plan a walk</button>
+    <button type="button" class="nav-link secondary">Saved walks</button>
+  </nav>
+
+  <div class="nav-right">
+    <button type="button" class="nav-how">
+      <span>How it works</span>
+      <span class="nav-chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+        </svg>
+      </span>
+    </button>
+    {#if route}
+      <span class="nav-weather" data-testid="weather-chip">
+        {Math.round(route.weather.temperature)}°C
+      </span>
+    {/if}
+  </div>
+
+  <span data-testid="brand-name" class="brand-name sr-only">Comfort Walking Router</span>
+</header>
+
 <main>
   <div id="map" data-testid="map" bind:this={mapElement}></div>
 
@@ -844,10 +880,6 @@
   :global(body) {
     margin: 0;
     height: 100%;
-    font-family:
-      system-ui,
-      -apple-system,
-      sans-serif;
   }
 
   main {
@@ -871,15 +903,17 @@
   aside {
     display: none;
     position: absolute;
-    top: 0;
-    right: 0;
+    /* Sits directly beneath the 72px desktop top nav; the map stays
+       full-bleed behind both, so nothing reflows at 1280x800. */
+    top: 72px;
+    left: 0;
     bottom: 0;
-    width: min(360px, 90vw);
-    padding: 1rem;
+    width: 380px;
+    padding: 20px;
     overflow-y: auto;
-    background: #fff;
+    background: var(--cwr-surface, #fff);
     z-index: 1000;
-    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
   }
 
   /* The Google-Maps-style edge handle is a desktop-only surface. It must be
@@ -920,7 +954,7 @@
          from the viewport's right; the pill is centred on it. As a sibling of
          <aside> inside <main>, it never moves when the panel collapses and
          stays reachable in both states. */
-      right: calc(min(360px, 90vw) - 0.625rem);
+      left: calc(380px - 0.625rem);
       transform: translateY(-50%);
       width: 1.25rem;
       height: 3rem;
@@ -946,7 +980,7 @@
        handle slides with the panel's inner edge to the viewport's right
        edge: half the pill (0.625rem) remains visible at right: 0. */
     .sidebar-handle.collapsed {
-      right: -0.625rem;
+      left: -0.625rem;
     }
 
     .sidebar-handle-chevron {
@@ -964,7 +998,7 @@
        on-screen and clickable at right: 0 in both collapsed and expanded
        states. */
     aside.collapsed {
-      transform: translateX(calc(100% + 8px));
+      transform: translateX(calc(-100% - 8px));
     }
   }
 
@@ -1206,5 +1240,139 @@
     flex-wrap: wrap;
     gap: 0.35rem 0.75rem;
     font-size: 0.8rem;
+  }
+  /* 041 T1: desktop-only top nav. Hidden below 768px so the mobile layout
+     (full-bleed map + bottom drawer) stays exactly as it was. */
+  header {
+    display: none;
+  }
+
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .nav-tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--cwr-brand);
+  }
+
+  .nav-tile-icon {
+    width: 24px;
+    height: 24px;
+    color: #ffffff;
+  }
+
+  .nav-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--cwr-line-strong);
+  }
+
+  .nav-tagline {
+    font-size: 13px;
+    font-weight: 400;
+    color: #7b887f;
+  }
+
+  .nav-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-link {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .nav-link.primary {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--cwr-brand);
+  }
+
+  .nav-link.secondary {
+    font-size: 14px;
+    font-weight: 500;
+    color: #728077;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+  }
+
+  .nav-how {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cwr-muted);
+    cursor: pointer;
+  }
+
+  .nav-chevron {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .nav-weather {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--cwr-sun-bg);
+    color: var(--cwr-sun-ink);
+    font-size: 13px;
+    box-shadow: var(--cwr-shadow-pill);
+  }
+
+  /* The router name stays in the DOM for tests and screen readers. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (min-width: 768px) {
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 72px;
+      padding: 0 24px;
+      background: var(--cwr-surface);
+      border-bottom: 1px solid var(--cwr-line);
+      z-index: 1100;
+    }
   }
 </style>
