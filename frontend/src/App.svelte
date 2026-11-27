@@ -318,6 +318,12 @@
     // attach observers/handlers. Leaflet caches the container's initial
     // dimensions, so force one re-measure right after the layer is added.
     map = L.map(mapElement).setView([48.137, 11.575], 12)
+    // E2E-only handle: the acceptance/e2e runner sets __ROUTE_FIXTURES__ and
+    // needs to click exact lat/lng coordinates on the map (042). Production
+    // never exposes the map instance.
+    if ((window as unknown as { __ROUTE_FIXTURES__?: number }).__ROUTE_FIXTURES__) {
+      ;(window as unknown as { __map?: L.Map }).__map = map
+    }
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution:

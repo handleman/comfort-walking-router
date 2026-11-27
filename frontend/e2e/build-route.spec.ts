@@ -12,27 +12,50 @@ import { enableFixturesMode, setGeolocation } from './helpers'
 
 test.use({ viewport: { width: 390, height: 844 } })
 
-const REVERSE = {
-  suggestions: [
-    {
-      id: 'map-pick-1',
-      label: 'Angerlohe park',
-      lat: 48.1642,
-      lng: 11.6056,
-      type: 'place',
-      attribution: '© Mapbox',
-    },
-  ],
-}
+// The operator's live-session coordinates (the screenshots in 042): Minsk
+// origin and the building picked as the destination.
+const ORIGIN = { lat: 53.88672, lng: 27.51741 }
+const DESTINATION = { lat: 53.891, lng: 27.52298 }
 
 async function openBuilder(page: import('@playwright/test').Page): Promise<void> {
   await enableFixturesMode(page)
-  await setGeolocation(page, 48.137, 11.575)
-  await page.route('**/geocode/reverse**', (route) => route.fulfill({ json: REVERSE }))
+  await setGeolocation(page, ORIGIN.lat, ORIGIN.lng)
+  await page.route('**/geocode/reverse**', (route) => {
+    const url = new URL(route.request().url())
+    const isDestination = Number(url.searchParams.get('lng')) > 27.52
+    const point = isDestination ? DESTINATION : ORIGIN
+    return route.fulfill({
+      json: {
+        suggestions: [
+          {
+            id: isDestination ? 'map-pick-destination' : 'map-pick-origin',
+            label: isDestination ? 'Angerlohe park' : 'Minsk centre',
+            lat: point.lat,
+            lng: point.lng,
+            type: 'place',
+            attribution: '© Mapbox',
+          },
+        ],
+      },
+    })
+  })
   await page.goto('/')
 
+  // Wait for the geolocation fix (and its reverse label) before pinning the
+  // view: the first-fix centering would otherwise override the test's view and
+  // make the computed destination point stale.
+  await expect(page.locator('input[placeholder="e.g. Marienplatz, Munich"]')).not.toHaveValue('')
+
+  // Deterministic map pick at the screenshot's destination coordinates. The
+  // Leaflet click event is the same handler a finger tap runs; firing it with
+  // the exact lat/lng avoids making the test depend on the first-fix map view.
+  await page.waitForFunction(() => Boolean((window as unknown as { __map?: unknown }).__map))
   await page.locator('button[aria-label="Pick end on map"]').click()
-  await page.locator('#map').click({ position: { x: 200, y: 300 } })
+  await page.evaluate(({ lat, lng }) => {
+    const map = (window as unknown as { __map?: { fire(type: string, event: unknown): void } })
+      .__map
+    map?.fire('click', { latlng: { lat, lng } })
+  }, DESTINATION)
 }
 
 test('map destination opens the builder, Build route shows the spinner, then the route', async ({
