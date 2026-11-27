@@ -55,7 +55,6 @@
   import Attribution from './lib/components/Attribution.svelte'
   import TopSearchCard from './lib/components/TopSearchCard.svelte'
   import BottomDrawer from './lib/components/BottomDrawer.svelte'
-  import ControlsContent from './lib/components/ControlsContent.svelte'
   import ComfortPanel from './lib/components/ComfortPanel.svelte'
   import RouteCard from './lib/components/RouteCard.svelte'
   import WalkControls from './lib/WalkControls.svelte'
@@ -130,6 +129,7 @@
   let shade: 'hot' | 'cloudy' | 'balanced' = 'balanced'
   let shadeManual = false
   let avoidTraffic = false
+  let showPrefsSheet = false
   let savedError = ''
   let prefsError = ''
   let locateError = ''
@@ -725,6 +725,9 @@
   // 041: the desktop comfort panel applies immediately (the design has no
   // Save button there). The local state drives the next /route request even
   // when the preferences API is unavailable (no database on the free stand).
+  $: shadeLabel = shade === 'hot' ? 'More shade' : shade === 'cloudy' ? 'More sun' : 'Balanced'
+  $: preferenceSummary = avoidTraffic ? `${shadeLabel} · Quieter streets` : shadeLabel
+
   async function persistComfort() {
     if (!prefs) return
     prefsError = ''
@@ -980,29 +983,20 @@
     </li>
   </ul>
 
-  <!-- Mobile bottom drawer: same controls as the desktop sidebar, shown only
-       below 768px so the sidebar and drawer are never visible together. -->
-  <BottomDrawer>
-    {#if !isDesktop}
-      <ControlsContent
-        {route}
-        {walkRoute}
-        profile={route?.comfort_profile ?? []}
-        {prefs}
-        {showPrefs}
-        {savedRoutes}
-        {savedError}
-        {prefsError}
-        {error}
-        {suggestionAttribution}
-        onTogglePrefs={togglePrefs}
-        onPrefsSave={() => handlePrefsSave()}
-        onSaveRoute={handleSaveRoute}
-        onRecall={handleRecall}
-        onDelete={handleDelete}
-      />
-    {/if}
-  </BottomDrawer>
+  <!-- Mobile results sheet ("Your kind of walk", 041 T4): the shared card
+       and CTA live inside the sheet; the desktop sidebar never renders it. -->
+  {#if !isDesktop}
+    <BottomDrawer
+      {route}
+      segments={route?.comfort_profile ?? []}
+      {avoidTraffic}
+      {suggestionAttribution}
+      {preferenceSummary}
+      on:edit={() => (showPrefsSheet = true)}
+      on:start={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
+      on:save={handleSaveRoute}
+    />
+  {/if}
 
   <!-- Google-Maps-style edge handle: a vertical pill centred on the panel's
        inner edge. Rendered as a sibling of <aside> inside <main> so it is

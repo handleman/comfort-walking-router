@@ -70,7 +70,7 @@ note = "Planning a route on mobile fires /route"
 [[check]]
 ac = "AC-3"
 kind = "wait_for"
-selector = "[data-testid='mobile-sheet']"
+selector = "[data-testid='drawer']"
 viewport = "mobile"
 note = "The results sheet appears after a route"
 
