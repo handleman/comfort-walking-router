@@ -175,7 +175,10 @@
           disabled={!canBuild || building}
           on:click={() => dispatch('build')}
         >
-          {building ? 'Finding your walk…' : 'Build route'}
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d={WALK_PATH} />
+          </svg>
+          <span>{building ? 'Finding your walk…' : 'Build route'}</span>
         </button>
         {#if error}
           <p class="builder-error" role="alert" data-testid="build-error">{error}</p>
@@ -325,6 +328,31 @@
     cursor: pointer;
   }
 
+  /* No-route builder: pinned to the same bottom slot the route-state CTA
+     occupies via `.sheet-cta { margin-top: auto }`. */
+  .builder {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 12px;
+  }
+
+  .builder-destination {
+    margin: 0;
+    color: var(--cwr-ink, #12211b);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .builder-error {
+    margin: 0;
+    color: var(--cwr-error, #b3261e);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
   .sheet-cta {
     display: flex;
     align-items: center;
@@ -356,6 +384,32 @@
   .walk-stop svg {
     width: 20px;
     height: 20px;
+  }
+
+  .build-route {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 999px;
+    background: var(--cwr-brand, #17765c);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .build-route svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .build-route:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
 
   .save-route {
