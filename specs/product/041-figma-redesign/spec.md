@@ -1,6 +1,10 @@
 # 041 Figma Redesign — Spec
 
-Status: ready for the queue (design cache synced, frames scoped).
+Status: implemented — **operator-written accepted exception** (2026-11-28).
+All seven tasks were completed outside the queue and recorded manually. This is
+the one accepted exception: future app/UI/e2e work goes through
+`specs/product/` and the queue, with the 90% visual gate and `covered_by`.
+The design cache is synced; frames are scoped.
 
 ## What / Why
 
