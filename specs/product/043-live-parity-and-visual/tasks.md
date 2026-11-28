@@ -1,0 +1,27 @@
+# 043 Live Parity and Visual Honesty — Tasks
+
+- [ ] T1 (AC-1): Add `GET /capabilities` (`saved_routes`/`database` from
+  `DATABASE_URL`, no DB access) and hide the mobile Saved button, the save-route
+  control and the nav Saved-walks entry when it is false; add a pytest and an
+  e2e assertion. Keep the 503 API response and the configured-DB flow.
+- [ ] T2 (AC-2): Add the missing builder CSS to `BottomDrawer.svelte` (52 px
+  brand pill, destination/error slots, 041 tokens), verify the Edit row opens
+  the styled PreferencesSheet, and add a computed-style/unit or e2e assertion
+  for the pill background/height/radius.
+- [ ] T3 (AC-3): Bound the corridor lookup (total 8 s, parallel mirrors or one
+  fast endpoint, QL timeout under the budget) and return a weather-only 200
+  when it misses; keep a typed provider error. Add a slow-Overpass test with a
+  <10 s assertion and an honest `comfort_data` gap in the payload.
+- [ ] T4 (AC-4): With the route held, assert the builder closes and
+  `[data-testid="route-loading"]` is visible/on top; on success it dissolves and
+  the route is drawn; on 500 the builder reopens with the error. Add the mobile
+  screenshot used by the visual gate.
+- [ ] T5 (AC-5): Restore `frontend/e2e/build-route.spec.ts` (mobile 390×844,
+  fixture reverse geocode, no `/route` before Build, held spinner, success
+  dissolve + drawn route, 500 reopen), declare AC-1..7 `covered_by` it, add
+  042 `live.toml` with the 042 coordinates and a <15 s latency check, and run
+  `make e2e`, `make swarm-accept --strict` and `make accept-live`.
+- [ ] T6 (AC-5): Add the 041/042 visual regions (mobile sheet chrome + builder
+  CTA, desktop nav/sidebar) for the 062 gate, deploy to Render, run the live
+  route twice and capture the 390×844 screenshot; the configured region must be
+  >=90% similar.
