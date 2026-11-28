@@ -39,9 +39,21 @@ The **harness** that builds it is the published
   let the queue implement it. A request to *change the harness itself* (roles,
   guards, verification) goes to the **factory repo** with its own spec. Only
   small, isolated direct edits (a one-line fix) bypass the spec step.
-- **Clarify by grilling first.** Iteratively question the user until the picture
-  is unambiguous — goal, scope, priorities, edge cases, anything interpretable two
-  ways. Do not guess.
+- **Clarify by grilling first — always with the `question` tool.** Every question
+  to the user (a grilling round, one ambiguity, a choice between approaches) goes
+  through the `question` tool, never as prose in a reply. Probe goal, scope,
+  priorities, edge cases and anything interpretable two ways; keep asking in
+  rounds until the picture is unambiguous, then act. A round asks the whole
+  frontier at once — one entry per decision, your recommended option first and
+  labelled `(Recommended)`, `multiple: true` where choices stack — then waits.
+  Where the `grilling` skill's numbered-round markdown format says otherwise,
+  **this rule wins**.
+- **The queue cannot ask you anything.** It is unattended CrewAI: an ambiguous
+  brief produces a guess or a `needs_human` stop hours later, not a question. So
+  every decision that shapes a spec must be settled through the `question` tool
+  *before* `specs/product/**` is written — goal, scope, non-goals, edge cases, and
+  what each AC will actually check. An ambiguous brief is an authoring bug, not
+  the swarm's problem; `spec.md` records the answers so the run stays explainable.
 - **Spec before code.** Requirements, acceptance criteria and scope in `specs/`
   first; one task maps to one AC.
 - **Visual-check UI in the built-in browser.** A map can render no tiles while
