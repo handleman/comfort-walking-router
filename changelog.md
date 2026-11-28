@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-11-28 (swarm v2: one implementer, one auditor — v0.7.0)
+## 2026-11-28 (swarm v2: one implementer, one auditor — v0.7.1)
 - **Factory v0.7.0 (061 Swarm v2).** The default flow is one whole-task
   implementer (brief + ACs + plan + design, plans inside its own tool loop), the
   harness runs every gate as `Harness Gatekeeper`, and one read-only auditor
@@ -12,7 +12,13 @@
   $5.36/81 runs, QA $0.37/282, verifier $0.57/94; 24% delta-guard stops and a
   median of one plan step. The 060 classifier counts are corrected to
   126 coding / 52 e2e / 64 visual.
-- The app is pinned to **v0.7.0** in `harness/.venv`.
+- **v0.7.1** fixes the first v2 pilot: 042 T2 read the tree for 31 calls,
+  claimed the files were landed, and stopped on `no_delta` with an empty git
+  delta. An empty-delta round now feeds that record back and retries on the
+  escalation tier (only the last round stops `no_delta`); the implementer is
+  told to land early, retry a non-unique `Repo Edit`, prove the write with
+  `git diff --stat`, and gets 60 iterations.
+- The app is pinned to **v0.7.1** in `harness/.venv`.
 
 ## 2026-11-28 (Figma cache and e2e artifacts are local)
 - **`designs/` is no longer committed.** The Figma cache is a local, disposable
