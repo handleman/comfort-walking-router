@@ -89,11 +89,40 @@ describe('reverseLabel', () => {
     })
 
     await expect(reverseLabel(48.1, 11.5)).resolves.toBe('Marienplatz, München')
-
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const url = String(fetchMock.mock.calls[0]?.[0])
     expect(url).toContain('/geocode/reverse')
     expect(url).toContain('lat=48.10000')
+  })
+
+  it('prefers the live `suggestions` contract when both fields are present', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        suggestions: [{ label: 'Untermenzing, Munich' }],
+        results: [{ label: 'Legacy result' }],
+      }),
+    })
+
+    await expect(reverseLabel(48.1, 11.5)).resolves.toBe('Untermenzing, Munich')
+  })
+
+  it('falls back to the legacy `results` contract when `suggestions` is absent', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [{ label: 'Legacy result' }] }),
+    })
+
+    await expect(reverseLabel(48.1, 11.5)).resolves.toBe('Legacy result')
+  })
+
+  it('falls back to the coordinate pair when both result lists are empty', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ suggestions: [] }),
+    })
+
+    await expect(reverseLabel(48.1, 11.5)).resolves.toBe('48.10000, 11.50000')
   })
 
   it('rejects on a non-OK response', async () => {
