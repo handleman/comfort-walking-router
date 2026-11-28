@@ -233,6 +233,9 @@
         throw new Error(message)
       }
       route = (await response.json()) as Route
+      // The request is done; clear the overlay before drawing so a slow or
+      // malformed live profile can never leave the spinner covering the map.
+      building = false
       drawRoute()
     } catch (err) {
       error =
