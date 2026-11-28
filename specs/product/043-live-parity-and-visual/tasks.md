@@ -25,7 +25,7 @@
   CTA, desktop nav/sidebar) for the 062 gate, deploy to Render, run the live
   route twice and capture the 390×844 screenshot; the configured region must be
   >=90% similar.
-- [ ] T3b (AC-3): Finish T3's bounded-corridor change: `comfort._overpass_features`
+- [ ] T7 (AC-3): Finish T3's bounded-corridor change: `comfort._overpass_features`
   returns `None` on every mirror failure (never live counts or an uncaught
   error); `factors_from_counts` accepts a valid GeoJSON corridor with a
   `highway=footway` way; the aggregate "all endpoints failed" line is emitted;
