@@ -370,11 +370,11 @@
     if ((window as unknown as { __ROUTE_FIXTURES__?: number }).__ROUTE_FIXTURES__) {
       ;(window as unknown as { __map?: L.Map }).__map = map
     }
-    loadPrefs()
     isSavedAvailable().then((ok) => {
       savedAvailable = ok
       if (ok) {
         void loadSaved()
+        void loadPrefs()
       } else {
         showSavedWalks = false
       }
