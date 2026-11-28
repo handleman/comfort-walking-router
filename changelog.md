@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-28 (swarm v2: one implementer, one auditor — v0.7.0)
+- **Factory v0.7.0 (061 Swarm v2).** The default flow is one whole-task
+  implementer (brief + ACs + plan + design, plans inside its own tool loop), the
+  harness runs every gate as `Harness Gatekeeper`, and one read-only auditor
+  judges the gates, delta and scenario. A rejected round reuses the same prompt
+  on an escalation model tier. `SWARM_FLOW_V2=0` keeps the v1 planner/QA/verifier
+  sequence for rollback. `run.json.flow` records the version, implementer rounds
+  and auditor verdicts; the 060 caps are unchanged.
+- The 061 evidence re-samples the 242-run corpus: coder $7.08/1052 calls, senior
+  $5.36/81 runs, QA $0.37/282, verifier $0.57/94; 24% delta-guard stops and a
+  median of one plan step. The 060 classifier counts are corrected to
+  126 coding / 52 e2e / 64 visual.
+- The app is pinned to **v0.7.0** in `harness/.venv`.
+
 ## 2026-11-28 (Figma cache and e2e artifacts are local)
 - **`designs/` is no longer committed.** The Figma cache is a local, disposable
   artifact rebuilt by `hq design sync` from the file key + token; the IR,
