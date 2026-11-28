@@ -108,3 +108,18 @@ w = 1280
 h = 800
 tolerance_px = 2
 ac = "AC-2"
+
+# 062: rendered parity for the mobile results sheet. The golden is the approved
+# 041-language sheet captured by the 042 mobile e2e; a regression below 90%
+# fails the strict pass. The map is excluded (the sheet is the bottom 360 px).
+[[visual]]
+id = "mobile-sheet"
+frame = "mobile"
+actual = "frontend/test-results/042-route-mobile.png"
+baseline = "specs/product/041-figma-redesign/visual/mobile-sheet.png"
+x = 0
+y = 484
+w = 390
+h = 360
+min_similarity = 0.90
+ac = "AC-3"

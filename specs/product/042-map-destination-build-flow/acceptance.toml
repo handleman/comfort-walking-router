@@ -1,7 +1,7 @@
-# 042 is interaction-first: the map pick, delayed spinner and dissolve are the
-# e2e oracle (frontend/e2e/build-route.spec.ts). A DOM check cannot address a
-# map coordinate deterministically, so the steps are declared N/A here rather
-# than pretending a selector proves them. The app-wide console check still runs.
+# 042 is interaction-first: the map pick, delayed spinner, dissolve and failure
+# are the e2e oracle (frontend/e2e/build-route.spec.ts). AC-1..5 and AC-7 are
+# covered_by it; AC-6 (scrim stacking) stays a declared N/A because a map
+# coordinate is not a stable selector. The app-wide console check still runs.
 
 [[check]]
 ac = "AC-8"
@@ -10,30 +10,31 @@ expect = 0
 viewport = "both"
 note = "The new flow must not introduce console errors on load"
 
-[[not_applicable]]
+[[covered_by]]
 ac = "AC-1"
-note = "map pick -> drawer, covered by e2e/build-route.spec.ts"
+test = "frontend/e2e/build-route.spec.ts"
 
-[[not_applicable]]
+[[covered_by]]
 ac = "AC-2"
-note = "builder parameters + Edit, covered by e2e/build-route.spec.ts"
+test = "frontend/e2e/build-route.spec.ts"
 
-[[not_applicable]]
+[[covered_by]]
 ac = "AC-3"
-note = "Build route -> delayed /route -> spinner, covered by e2e/build-route.spec.ts"
+test = "frontend/e2e/build-route.spec.ts"
 
-[[not_applicable]]
+[[covered_by]]
 ac = "AC-4"
-note = "overlay dissolve + route path, covered by e2e/build-route.spec.ts"
+test = "frontend/e2e/build-route.spec.ts"
 
-[[not_applicable]]
+[[covered_by]]
 ac = "AC-5"
-note = "500 -> reopened drawer with the error, covered by e2e/build-route.spec.ts"
+test = "frontend/e2e/build-route.spec.ts"
 
 [[not_applicable]]
 ac = "AC-6"
-note = "locate covered by the sheet scrim, covered by e2e/build-route.spec.ts"
+note = "scrim stacking is exercised by the 041 preferences e2e; this AC remains a declared N/A"
 
-[[not_applicable]]
+[[covered_by]]
 ac = "AC-7"
-note = "status/reduced motion, covered by e2e/build-route.spec.ts and the CSS guard"
+test = "frontend/e2e/build-route.spec.ts"
+

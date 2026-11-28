@@ -1,0 +1,20 @@
+# 043: the public deployment is the subject. `make accept-live` drives the
+# Render URL; the 042 coordinates are checked with a direct API smoke in the
+# operator runbook (the live browser lane uses the typed route).
+[target]
+kind = "remote"
+url = "https://comfort-walking-router.onrender.com/"
+
+[[check]]
+ac = "AC-1"
+kind = "absent"
+selector = "[data-testid='saved-walks']"
+viewport = "desktop"
+note = "no DATABASE_URL: Saved walks is hidden"
+
+[[check]]
+ac = "AC-5"
+kind = "exists"
+selector = "#map"
+viewport = "mobile"
+note = "the public mobile build serves the map"

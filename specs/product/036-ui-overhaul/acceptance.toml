@@ -3,11 +3,9 @@
 ac = "AC-1"
 note = "the step indicator was removed by 040-T9; superseded"
 
-[[check]]
+[[not_applicable]]
 ac = "AC-2"
-kind = "exists"
-selector = "section.prefs"
-viewport = "desktop"
+note = "041 replaces the collapsed Preferences block with the inline ComfortPanel"
 
 [[check]]
 ac = "AC-4"

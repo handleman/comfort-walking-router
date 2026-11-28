@@ -137,12 +137,8 @@ selector = "[data-testid='shade-balanced']"
 viewport = "desktop"
 note = "Choosing Balanced is clickable (persistence is the e2e/DB lane)"
 
-[[check]]
-ac = "AC-4"
-kind = "exists"
-selector = "[data-testid='saved-walks']"
-viewport = "desktop"
-note = "Saved walks nav action exists"
+# 043 AC-1: the Saved walks entry is hidden when the deployment has no
+# DATABASE_URL; the 005 live lane covers the configured-database case.
 
 [[check]]
 ac = "AC-4"

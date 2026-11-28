@@ -1,0 +1,26 @@
+# 043: the route/visual/spinner fixes are mostly e2e or live-only. The strict
+# pass checks the capability (Saved absent without a DB) and the e2e oracle;
+# the live lane checks the public deployment/route.
+
+[[check]]
+ac = "AC-1"
+kind = "absent"
+selector = "[data-testid='saved-walks']"
+viewport = "desktop"
+note = "no DATABASE_URL in the strict stand: Saved walks is hidden"
+
+[[covered_by]]
+ac = "AC-2"
+test = "frontend/e2e/build-route.spec.ts"
+
+[[not_applicable]]
+ac = "AC-3"
+note = "live-only: the public route latency is checked by live.toml/make accept-live"
+
+[[covered_by]]
+ac = "AC-4"
+test = "frontend/e2e/build-route.spec.ts"
+
+[[covered_by]]
+ac = "AC-5"
+test = "frontend/e2e/build-route.spec.ts"

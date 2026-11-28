@@ -60,6 +60,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('map pick opens the builder and Build route owns the request', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   let routeRequests = 0
   let release!: () => void
   const held = new Promise<void>((resolve) => {
@@ -88,6 +89,12 @@ test('map pick opens the builder and Build route owns the request', async ({ pag
   expect(routeRequests).toBe(0)
 
   await page.screenshot({ path: 'test-results/042-builder-mobile.png' })
+
+  // AC-2: Edit opens the styled preferences sheet; closing keeps the builder.
+  await page.getByRole('button', { name: 'Edit' }).click()
+  await expect(page.locator('[data-testid="prefs-sheet"]')).toBeVisible()
+  await page.locator('[data-testid="prefs-close"]').click()
+  await expect(page.locator('[data-testid="route-builder"]')).toBeVisible()
 
   await page.locator('[data-testid="build-route"]').click()
   await expect(page.locator('[data-testid="route-loading"]')).toBeVisible()

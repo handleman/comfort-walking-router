@@ -1,0 +1,23 @@
+# 042 visual parity (062). The Figma file has no "builder" frame; these are
+# approved golden renders of the fixed 041-language sheet, compared at >=90%
+# so a regression such as the unstyled Build route pill fails the strict pass.
+# The design tokens/regions in 041 remain the Figma source of truth.
+[figma]
+file_key = "jFwR8VpN5Nls2RjN2Ifh4y"
+node = "6:53"
+
+[[visual]]
+id = "builder-mobile"
+frame = "mobile"
+actual = "frontend/test-results/042-builder-mobile.png"
+baseline = "specs/product/042-map-destination-build-flow/visual/builder-mobile.png"
+min_similarity = 0.90
+ac = "AC-2"
+
+[[visual]]
+id = "route-mobile"
+frame = "mobile"
+actual = "frontend/test-results/042-route-mobile.png"
+baseline = "specs/product/042-map-destination-build-flow/visual/route-mobile.png"
+min_similarity = 0.90
+ac = "AC-4"
