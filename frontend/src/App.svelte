@@ -908,12 +908,19 @@
     // it; a failure reopens it with the error (AC-5).
     suppressAutoOpen = true
     drawerOpen = false
+    // A hung request must not leave the overlay up forever; the fetch has its
+    // own 30 s abort, this is the UI guard in case a provider stalls earlier.
+    const buildGuard = setTimeout(() => {
+      building = false
+      error = error || 'Route planning is taking too long. Please try again.'
+    }, 20_000)
     // The build only succeeded when planRoute left no error behind; a failed
     // build re-parks the planner so only the pill retries it, and reopens the
     // builder drawer so the error stays visible (AC-5).
     try {
       await planRoute()
     } finally {
+      clearTimeout(buildGuard)
       building = false
       const failed = error !== ''
       if (failed) {
