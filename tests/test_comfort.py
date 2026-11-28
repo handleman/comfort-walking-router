@@ -98,3 +98,30 @@ def test_geojson_from_the_provider_is_counted(monkeypatch):
 
 def test_a_route_without_coordinates_has_no_factors():
     assert comfort.corridor_factors({"coordinates": []}) is None
+
+
+def test_corridor_join_has_a_deadline_and_degrades_to_weather(monkeypatch):
+    """043 AC-3: a slow OSM corridor must not hold /route past the gateway."""
+    import time
+
+    from app import main
+
+    geometry = {"type": "LineString", "coordinates": []}
+    monkeypatch.setattr(main, "CORRIDOR_JOIN_BUDGET_SECONDS", 0.05)
+    monkeypatch.setattr(
+        main.comfort,
+        "corridor_data",
+        lambda geometry: (time.sleep(0.5), None)[1],
+    )
+    started = time.monotonic()
+    assert main._corridor_with_deadline(geometry) is None
+    assert time.monotonic() - started < 0.4
+
+
+def test_corridor_join_returns_the_fast_result(monkeypatch):
+    from app import main
+
+    geometry = {"type": "LineString", "coordinates": []}
+    payload = {"factors": {"quiet_factor": 0.8}}
+    monkeypatch.setattr(main.comfort, "corridor_data", lambda g: payload)
+    assert main._corridor_with_deadline(geometry) == payload

@@ -1,5 +1,7 @@
 import hashlib
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -159,6 +161,34 @@ def _route_id(
     return hashlib.sha1(key.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
+CORRIDOR_JOIN_BUDGET_SECONDS = 10.0
+
+
+def _corridor_with_deadline(geometry: dict[str, Any]) -> dict[str, Any] | None:
+    """Bound the OSM corridor join so `/route` answers within the gateway.
+
+    043 AC-3: the public Overpass mirrors can take minutes (three 90 s
+    attempts). The route itself does not need them: a slow corridor is a data
+    gap and the response is scored on weather alone. The worker is abandoned —
+    `shutdown(wait=False)` keeps the deadlined request from waiting on it.
+    """
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(comfort.corridor_data, geometry)
+    try:
+        return future.result(timeout=CORRIDOR_JOIN_BUDGET_SECONDS)
+    except FutureTimeoutError:
+        logging.getLogger(__name__).warning(
+            "corridor lookup exceeded %.0fs; scoring weather-only",
+            CORRIDOR_JOIN_BUDGET_SECONDS,
+        )
+        return None
+    except Exception as exc:  # noqa: BLE001 - a corridor defect is a data gap
+        logging.getLogger(__name__).warning("corridor lookup failed: %s", exc)
+        return None
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
 def _build_response(
     body: RouteRequest,
     start: tuple[float, float],
@@ -183,7 +213,7 @@ def _build_response(
     # 001 AC-2: real OSM corridor factors (best effort). Nothing downstream is
     # rejected when Overpass is unavailable; the explanation says so instead of
     # naming factors the route never had.
-    corridor = comfort.corridor_data(geometry)
+    corridor = _corridor_with_deadline(geometry)
     comfort_data = corridor["factors"] if corridor else None
     if comfort_data:
         props = {**props, **comfort_data}
