@@ -233,3 +233,76 @@ def test_incomplete_features_are_skipped(monkeypatch, feature, reason):
     }
     with _mock_get(payload):
         assert search("Main St") == [], reason
+
+
+def test_place_context_uses_the_city_bbox_from_a_locality_reverse(monkeypatch):
+    from app import geocoding
+
+    locality = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [27.517, 53.886]},
+        "properties": {
+            "feature_type": "locality",
+            "name": "Maskowski District",
+            "bbox": [27.419, 53.835, 27.554, 53.906],
+            "context": {
+                "place": {"name": "Minsk"},
+                "country": {"name": "Belarus", "country_code": "BY"},
+            },
+        },
+    }
+
+    def reverse(lat, lng, types):
+        return locality if types == "locality" else None
+
+    monkeypatch.setattr(geocoding, "_mapbox_token", lambda: "token")
+    monkeypatch.setattr(geocoding, "_mapbox_reverse_feature", reverse)
+    monkeypatch.setattr(
+        geocoding,
+        "_mapbox_city_bbox",
+        lambda city, code: (27.373281, 53.79213, 27.790498, 53.97125),
+    )
+    context = geocoding._context_mapbox(53.88672, 27.51741)
+    assert context is not None
+    assert context.country_code == "BY"
+    assert context.country_name == "Belarus"
+    assert context.city == "Minsk"
+    assert context.bbox == (27.373281, 53.79213, 27.790498, 53.97125)
+    assert context.source == "place"
+
+
+def test_place_context_photon_extent(monkeypatch):
+    from app import geocoding
+
+    payload = {
+        "features": [
+            {
+                "properties": {
+                    "countrycode": "by",
+                    "country": "Belarus",
+                    "city": "Minsk",
+                    "extent": [27.37, 53.97, 27.79, 53.79],
+                }
+            }
+        ]
+    }
+    monkeypatch.setattr(geocoding, "_get_json", lambda url, params: payload)
+    context = geocoding._context_photon(53.88672, 27.51741)
+    assert context is not None
+    assert context.country_code == "BY"
+    assert context.city == "Minsk"
+    assert context.bbox == (27.37, 53.79, 27.79, 53.97)
+    assert context.source == "place"
+
+
+def test_place_context_falls_back_to_a_radius(monkeypatch):
+    from app import geocoding
+
+    geocoding._CONTEXT_CACHE.clear()
+    monkeypatch.setattr(geocoding, "_mapbox_token", lambda: "token")
+    monkeypatch.setattr(geocoding, "_mapbox_reverse_feature", lambda lat, lng, types: None)
+    context = geocoding.context(53.88672, 27.51741)
+    assert context.source == "radius"
+    west, south, east, north = context.bbox
+    assert west < 27.51741 < east
+    assert south < 53.88672 < north
