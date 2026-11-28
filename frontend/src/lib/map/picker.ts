@@ -44,8 +44,9 @@ export function pickHint(role: PickRole): string {
 
 /**
  * Reverse geocode coordinates into a human-readable label via
- * GET /geocode/reverse. Throws on a non-OK response; falls back to the
- * formatted "lat, lng" pair when the result list is empty.
+ * GET /geocode/reverse. Accepts both the live `suggestions` contract and the
+ * legacy `results` contract; throws on a non-OK response and falls back to
+ * the formatted "lat, lng" pair when the result list is empty.
  */
 export async function reverseLabel(lat: number, lng: number): Promise<string> {
   const res = await fetch(
@@ -54,9 +55,16 @@ export async function reverseLabel(lat: number, lng: number): Promise<string> {
   if (!res.ok) {
     throw new Error('reverse geocode failed: ' + res.status)
   }
-  const data: { results?: unknown } = await res.json()
-  const results = Array.isArray(data?.results) ? data.results : []
-  const first = results[0] as { label?: unknown } | undefined
+  const data: {
+    suggestions?: unknown
+    results?: unknown
+  } = await res.json()
+  const candidates = Array.isArray(data?.suggestions)
+    ? data.suggestions
+    : Array.isArray(data?.results)
+      ? data.results
+      : []
+  const first = candidates[0] as { label?: unknown } | undefined
   const label = typeof first?.label === 'string' ? first.label : ''
   if (label) return label
   return lat.toFixed(5) + ', ' + lng.toFixed(5)
