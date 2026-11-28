@@ -334,18 +334,62 @@ def _build_response(
     )
 
 
+def _bbox_query(raw: str | None) -> tuple[float, float, float, float] | None:
+    """Parse `west,south,east,north`; 422 on a malformed or inverted box."""
+    if not raw:
+        return None
+    parts = raw.split(",")
+    if len(parts) != 4:
+        raise HTTPException(
+            status_code=422, detail="bbox must be west,south,east,north"
+        )
+    try:
+        west, south, east, north = (float(part) for part in parts)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="bbox must be four numbers") from exc
+    if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
+        raise HTTPException(
+            status_code=422, detail="bbox must be an ordered lon/lat box"
+        )
+    return (west, south, east, north)
+
+
+@app.get("/geocode/context")
+def geocode_context_endpoint(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+):
+    """Country + city + city bbox for the user's location (044)."""
+    context = geocoding.context(lat, lng)
+    return {
+        "country": context.country_name,
+        "country_code": context.country_code,
+        "city": context.city,
+        "bbox": list(context.bbox) if context.bbox else None,
+        "source": context.source,
+    }
+
+
 @app.get("/geocode")
 def geocode_endpoint(
     q: str = Query(min_length=2, max_length=120),
     lat: float | None = Query(None, ge=-90, le=90),
     lng: float | None = Query(None, ge=-180, le=180),
     limit: int = Query(5, ge=1, le=10),
+    country: str | None = Query(None, min_length=2, max_length=2),
+    bbox: str | None = Query(None),
 ):
-    key = f"fwd:{q.strip().lower()}:{lat}:{lng}:{limit}"
+    box = _bbox_query(bbox)
+    code = (country or "").strip().upper()
+    if code and not code.isalpha():
+        raise HTTPException(status_code=422, detail="country must be an ISO alpha-2 code")
+    key = f"fwd:{q.strip().lower()}:{lat}:{lng}:{limit}:{code}:{box}"
     cached = geocode_cache.get(key)
     if cached is not None:
         return {"suggestions": cached}
-    results = geocoding.search(q, lat, lng, limit)
+    results = geocoding.search(
+        q, lat, lng, limit, country=code, bbox=box
+    )
     geocode_cache.set(key, results)
     return {"suggestions": results}
 

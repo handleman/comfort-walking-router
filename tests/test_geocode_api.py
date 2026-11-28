@@ -23,7 +23,7 @@ def _fake_geocoding(monkeypatch):
     """Stub the geocoding providers and empty the SQLite geocode cache."""
     monkeypatch.setattr(
         "app.geocoding.search",
-        lambda q, lat, lng, limit: [dict(r) for r in FAKE_RESULTS[:limit]],
+        lambda q, lat, lng, limit, **kwargs: [dict(r) for r in FAKE_RESULTS[:limit]],
     )
     monkeypatch.setattr(
         "app.geocoding.reverse",
@@ -89,7 +89,7 @@ def test_geocode_serves_second_call_from_cache(monkeypatch) -> None:
     """The 5-minute SQLite cache: the provider fake runs once for two calls."""
     calls: list[tuple[str, float | None, float | None, int]] = []
 
-    def counting_search(q, lat, lng, limit):
+    def counting_search(q, lat, lng, limit, **kwargs):
         calls.append((q, lat, lng, limit))
         return [dict(r) for r in FAKE_RESULTS[:limit]]
 
@@ -104,3 +104,53 @@ def test_geocode_serves_second_call_from_cache(monkeypatch) -> None:
     assert len(calls) == 1
     assert first.json()["suggestions"] == FAKE_RESULTS
     assert second.json()["suggestions"] == first.json()["suggestions"]
+
+
+def test_geocode_context_returns_country_city_and_bbox(monkeypatch):
+    from app import geocoding
+
+    monkeypatch.setattr(
+        geocoding,
+        "context",
+        lambda lat, lng: geocoding.PlaceContext(
+            "BY", "Belarus", "Minsk", (27.373, 53.792, 27.790, 53.971), "place"
+        ),
+    )
+    response = client.get("/geocode/context", params={"lat": 53.88672, "lng": 27.51741})
+    assert response.status_code == 200
+    assert response.json() == {
+        "country": "Belarus",
+        "country_code": "BY",
+        "city": "Minsk",
+        "bbox": [27.373, 53.792, 27.790, 53.971],
+        "source": "place",
+    }
+
+
+def test_geocode_passes_country_and_bbox(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake(q, lat, lng, limit, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr("app.geocoding.search", fake)
+    geocode_cache.clear()
+    response = client.get(
+        "/geocode",
+        params={
+            "q": "Lenina",
+            "country": "by",
+            "bbox": "27.373,53.792,27.790,53.971",
+        },
+    )
+    assert response.status_code == 200
+    assert captured["country"] == "BY"
+    assert captured["bbox"] == (27.373, 53.792, 27.790, 53.971)
+
+
+def test_geocode_rejects_an_inverted_bbox():
+    response = client.get(
+        "/geocode", params={"q": "x", "bbox": "27.790,53.792,27.373,53.971"}
+    )
+    assert response.status_code == 422

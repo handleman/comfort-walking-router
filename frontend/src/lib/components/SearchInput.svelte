@@ -30,14 +30,21 @@
 
   /** Increment to close the popup from the host (a map pick / build). */
   export let closeToken = 0
+
+  /** Geocoding scope from the user's location (044). */
+  export let country = ''
+  export let bbox: [number, number, number, number] | null = null
   let suggestions: Suggestion[] = []
   let open = false
   let activeIndex = -1
   let suppressSearch = false
   let listEl: HTMLUListElement | null = null
 
-  let fetchSuggestions: (q: string) => Promise<Suggestion[]> = createSuggestionFetcher(baseUrl)
-  $: fetchSuggestions = createSuggestionFetcher(baseUrl)
+  let fetchSuggestions: (q: string) => Promise<Suggestion[]> = createSuggestionFetcher(baseUrl, {
+    country,
+    bbox,
+  })
+  $: fetchSuggestions = createSuggestionFetcher(baseUrl, { country, bbox })
   let lastCloseToken = closeToken
   $: if (closeToken !== lastCloseToken) {
     lastCloseToken = closeToken

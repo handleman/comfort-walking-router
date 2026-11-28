@@ -142,6 +142,15 @@
   let savedError = ''
   let prefsError = ''
   let locateError = ''
+  interface GeocodeContext {
+    country: string
+    country_code: string
+    city: string
+    bbox: [number, number, number, number] | null
+    source: string
+  }
+  let geocodeContext: GeocodeContext | null = null
+  let geocodeContextKey = ''
   let didCenterOnUser = false
   // AC-5: opens when the start geolocation request fails with no fix.
   let startModalOpen = false
@@ -435,10 +444,27 @@
     }
   }
 
+  async function loadGeocodeContext(lat: number, lng: number) {
+    const key = `${lat.toFixed(3)},${lng.toFixed(3)}`
+    if (key === geocodeContextKey) return
+    geocodeContextKey = key
+    try {
+      const response = await fetch(`/geocode/context?lat=${lat}&lng=${lng}`)
+      if (!response.ok) return
+      const data = (await response.json()) as GeocodeContext
+      if (Array.isArray(data.bbox) && data.bbox.length === 4) {
+        geocodeContext = data
+      }
+    } catch {
+      // A context lookup is an optimisation; unrestricted search is fine.
+    }
+  }
+
   async function onLocationFound(e: L.LocationEvent) {
     locateError = ''
     if (!map) return
     const { lat, lng } = e.latlng
+    void loadGeocodeContext(lat, lng)
     // Center once on the first fix, then keep the view where the user put it
     // (the watch must not yank the map around while they browse a route).
     if (!didCenterOnUser) {
@@ -1103,6 +1129,13 @@
       bind:endSelected={endSuggestion}
       {activePick}
       closeToken={searchCloseToken}
+      country={geocodeContext?.country_code ?? ''}
+      bbox={geocodeContext?.bbox ?? null}
+      scopeLabel={geocodeContext?.city
+        ? `Searching in ${geocodeContext.city}`
+        : geocodeContext?.country
+          ? `Searching in ${geocodeContext.country}`
+          : ''}
       on:pick={(e) => beginPick(e.detail)}
       on:swap={swapEndpoints}
     />
@@ -1124,6 +1157,13 @@
           bind:endSelected={endSuggestion}
           {activePick}
           closeToken={searchCloseToken}
+          country={geocodeContext?.country_code ?? ''}
+          bbox={geocodeContext?.bbox ?? null}
+          scopeLabel={geocodeContext?.city
+            ? `Searching in ${geocodeContext.city}`
+            : geocodeContext?.country
+              ? `Searching in ${geocodeContext.country}`
+              : ''}
           on:pick={(e) => beginPick(e.detail)}
           on:swap={swapEndpoints}
         />

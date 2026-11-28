@@ -45,6 +45,11 @@
   /** Increment to close both suggestion popups (map pick / build). */
   export let closeToken = 0
 
+  /** Country/city scope from the user's location (044). */
+  export let country = ''
+  export let bbox: [number, number, number, number] | null = null
+  export let scopeLabel = ''
+
   /** Extra classes forwarded to the host element (e.g. positioning). */
   export let extraClass: string = ''
 
@@ -65,6 +70,10 @@
   aria-label="Route search"
   data-testid="top-card"
 >
+  {#if scopeLabel}
+    <p class="search-scope" data-testid="search-scope">{scopeLabel}</p>
+  {/if}
+
   <div class="row row-origin">
     <button
       type="button"
@@ -88,6 +97,8 @@
         bind:query={startQuery}
         bind:selected={startSelected}
         {closeToken}
+        {country}
+        {bbox}
       />
     </span>
   </div>
@@ -133,12 +144,22 @@
         bind:query={endQuery}
         bind:selected={endSelected}
         {closeToken}
+        {country}
+        {bbox}
       />
     </span>
   </div>
 </div>
 
 <style>
+  .search-scope {
+    margin: 0 0 2px;
+    padding: 0 6px;
+    color: var(--cwr-muted, #63756a);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
   .top-search-card {
     position: absolute;
     top: 1rem;

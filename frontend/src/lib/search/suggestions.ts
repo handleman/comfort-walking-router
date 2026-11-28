@@ -14,8 +14,17 @@ export interface Suggestion {
 const DEBOUNCE_MS = 280
 const MIN_QUERY_LENGTH = 2
 
+/** Country/city scope from the user's geolocation (044). */
+export interface PlaceScope {
+  country?: string
+  bbox?: [number, number, number, number] | null
+}
+
 /** Build a debounced, cancellable suggestion fetcher against `baseUrl`. */
-export function createSuggestionFetcher(baseUrl: string): (q: string) => Promise<Suggestion[]> {
+export function createSuggestionFetcher(
+  baseUrl: string,
+  scope: PlaceScope | null = null,
+): (q: string) => Promise<Suggestion[]> {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let abortController: AbortController | null = null
   let requestId = 0
@@ -34,7 +43,10 @@ export function createSuggestionFetcher(baseUrl: string): (q: string) => Promise
     return new Promise<Suggestion[]>((resolve) => {
       debounceTimer = setTimeout(() => {
         abortController = new AbortController()
-        fetch(`${baseUrl}/geocode?q=${encodeURIComponent(q)}`, {
+        const params = new URLSearchParams({ q })
+        if (scope?.country) params.set('country', scope.country)
+        if (scope?.bbox) params.set('bbox', scope.bbox.join(','))
+        fetch(`${baseUrl}/geocode?${params.toString()}`, {
           signal: abortController.signal,
         })
           .then((res) => (res.ok ? res.json() : Promise.resolve({ suggestions: [] })))

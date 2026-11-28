@@ -183,14 +183,16 @@ def _mapbox_suggestions(payload: dict[str, Any]) -> list[Suggestion]:
     return out
 
 
-def _photon_suggestions(payload: dict[str, Any]) -> list[Suggestion]:
-    """Normalize a Photon GeoJSON response."""
+def _photon_suggestions(payload: dict[str, Any], country: str = "") -> list[Suggestion]:
+    """Normalize a Photon GeoJSON response, optionally filtered by country."""
     attribution = _attribution(payload, PHOTON_ATTRIBUTION)
     out: list[Suggestion] = []
     for feature in payload.get("features") or []:
         if not isinstance(feature, dict):
             continue
         props = feature.get("properties") or {}
+        if country and str(props.get("countrycode") or "").upper() != country:
+            continue
         coordinates = (feature.get("geometry") or {}).get("coordinates") or []
         try:
             lng = float(coordinates[0])
@@ -226,7 +228,15 @@ def _get_json(url: str, params: dict[str, Any]) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
-def _search_mapbox(q: str, lat: float | None, lng: float | None, limit: int) -> list[Suggestion]:
+def _search_mapbox(
+    q: str,
+    lat: float | None,
+    lng: float | None,
+    limit: int,
+    *,
+    country: str = "",
+    bbox: tuple[float, float, float, float] | None = None,
+) -> list[Suggestion]:
     params: dict[str, Any] = {
         "q": q,
         "access_token": _mapbox_token(),
@@ -237,6 +247,10 @@ def _search_mapbox(q: str, lat: float | None, lng: float | None, limit: int) -> 
     }
     if lat is not None and lng is not None:
         params["proximity"] = f"{lng},{lat}"
+    if country:
+        params["country"] = country.lower()
+    if bbox is not None:
+        params["bbox"] = ",".join(f"{value:.6f}" for value in bbox)
     payload = _get_json(MAPBOX_FORWARD_URL, params)
     if payload is None:
         return []
@@ -260,7 +274,15 @@ def _reverse_mapbox(lat: float, lng: float) -> list[Suggestion]:
     return _mapbox_suggestions(payload)
 
 
-def _search_photon(q: str, lat: float | None, lng: float | None, limit: int) -> list[Suggestion]:
+def _search_photon(
+    q: str,
+    lat: float | None,
+    lng: float | None,
+    limit: int,
+    *,
+    country: str = "",
+    bbox: tuple[float, float, float, float] | None = None,
+) -> list[Suggestion]:
     params: dict[str, Any] = {
         "q": q,
         "limit": max(1, min(int(limit), 20)),
@@ -269,10 +291,12 @@ def _search_photon(q: str, lat: float | None, lng: float | None, limit: int) -> 
     if lat is not None and lng is not None:
         params["lat"] = lat
         params["lon"] = lng
+    if bbox is not None:
+        params["bbox"] = ",".join(f"{value:.6f}" for value in bbox)
     payload = _get_json(PHOTON_URL, params)
     if payload is None:
         return []
-    return _photon_suggestions(payload)
+    return _photon_suggestions(payload, country=country)
 
 
 def _reverse_photon(lat: float, lng: float) -> list[Suggestion]:
@@ -290,6 +314,9 @@ def search(
     lat: float | None = None,
     lng: float | None = None,
     limit: int = 5,
+    *,
+    country: str = "",
+    bbox: tuple[float, float, float, float] | None = None,
 ) -> list[Suggestion]:
     """Forward geocode `q` into normalized suggestions.
 
@@ -320,8 +347,10 @@ def search(
             )
         ]
     if _mapbox_token():
-        return _search_mapbox(query, lat, lng, limit)
-    return _search_photon(query, lat, lng, limit)
+        return _search_mapbox(
+            query, lat, lng, limit, country=country, bbox=bbox
+        )
+    return _search_photon(query, lat, lng, limit, country=country, bbox=bbox)
 
 
 def reverse(lat: float, lng: float) -> list[Suggestion]:
@@ -510,6 +539,10 @@ def context(lat: float, lng: float) -> PlaceContext:
     point (`source="radius"`); with no provider data at all the radius is
     recorded without a country (unrestricted). Cached by rounded coordinates.
     """
+    from . import fixtures
+
+    if fixtures.route_fixtures_enabled():
+        return _radius_context(lat, lng)
     key = (round(float(lat), 3), round(float(lng), 3))
     cached = _CONTEXT_CACHE.get(key)
     if cached is not None:

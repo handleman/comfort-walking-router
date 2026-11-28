@@ -306,3 +306,22 @@ def test_place_context_falls_back_to_a_radius(monkeypatch):
     west, south, east, north = context.bbox
     assert west < 27.51741 < east
     assert south < 53.88672 < north
+
+
+def test_photon_suggestions_filter_by_country():
+    from app.geocoding import _photon_suggestions
+
+    payload = {
+        "features": [
+            {
+                "properties": {"name": "Local", "countrycode": "by", "osm_id": 1, "osm_type": "N"},
+                "geometry": {"coordinates": [27.5, 53.9]},
+            },
+            {
+                "properties": {"name": "Foreign", "countrycode": "de", "osm_id": 2, "osm_type": "N"},
+                "geometry": {"coordinates": [11.5, 48.1]},
+            },
+        ]
+    }
+    out = _photon_suggestions(payload, country="BY")
+    assert [s.label for s in out] == ["Local"]
