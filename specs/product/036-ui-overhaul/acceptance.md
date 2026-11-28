@@ -1,11 +1,11 @@
 # 036-ui-overhaul — Acceptance
 
-Generated: 2026-11-26T17:35:47Z · Verdict: **PASS** (0 failed · 3 passed · 0 unverified · 3 n/a)
+Generated: 2026-11-28T13:14:39Z · Verdict: **FAIL** (1 failed · 2 passed · 0 unverified · 3 n/a · 0 e2e)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
 | AC-1 | N/A | declared | the step indicator was removed by 040-T9; superseded |
-| AC-2 | PASS | probe | found 1 element(s) |
+| AC-2 | FAIL | probe | not found |
 | AC-3 | PASS | probe | found 1 element(s); found 1 element(s); found 1 element(s); found 1 element(s) |
 | AC-4 | PASS | probe | found 1 element(s); found 1 element(s) |
 | AC-5 | N/A | declared | aesthetic judgement; the vision pass is advisory |

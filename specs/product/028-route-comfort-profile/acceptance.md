@@ -1,6 +1,6 @@
 # 028-route-comfort-profile — Acceptance
 
-Generated: 2026-11-27T22:16:20Z · Verdict: **PASS** (0 failed · 2 passed · 0 unverified · 4 n/a)
+Generated: 2026-11-28T13:14:39Z · Verdict: **PASS** (0 failed · 2 passed · 0 unverified · 4 n/a · 0 e2e)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |

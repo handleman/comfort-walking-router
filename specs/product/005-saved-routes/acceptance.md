@@ -1,6 +1,6 @@
 # 005-saved-routes — Acceptance
 
-Generated: 2026-11-26T17:35:47Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 7 n/a)
+Generated: 2026-11-28T13:14:39Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 7 n/a · 0 e2e)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
