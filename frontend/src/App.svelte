@@ -201,10 +201,13 @@
   async function planRoute() {
     if (!startCoords || !endCoords) return
     error = ''
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
     try {
       const response = await fetch('/route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           start,
           end,
@@ -231,7 +234,14 @@
       route = (await response.json()) as Route
       drawRoute()
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err)
+      error =
+        err instanceof DOMException && err.name === 'AbortError'
+          ? 'Route planning timed out. Please try again.'
+          : err instanceof Error
+            ? err.message
+            : String(err)
+    } finally {
+      clearTimeout(timeout)
     }
   }
 
