@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { saveRoute, toSavedRoute, type RouteSnapshot, type SavedRouteRow } from './savedRoutes'
+import {
+  isSavedAvailable,
+  resetSavedAvailable,
+  saveRoute,
+  toSavedRoute,
+  type RouteSnapshot,
+  type SavedRouteRow,
+} from './savedRoutes'
 
 const SNAPSHOT: RouteSnapshot = {
   name: 'Marienplatz, Munich',
@@ -37,6 +44,7 @@ const ROW: SavedRouteRow = {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  resetSavedAvailable()
 })
 
 describe('toSavedRoute', () => {
@@ -91,5 +99,44 @@ describe('saveRoute', () => {
     })
     expect(saved.id).toBe('route-1')
     expect(saved.snapshot).toEqual(SNAPSHOT)
+  })
+})
+
+describe('isSavedAvailable', () => {
+  it('reads saved_routes from GET /capabilities', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ saved_routes: true, database: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await isSavedAvailable()).toBe(true)
+  })
+
+  it('is false when the API reports the feature off (no database)', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ saved_routes: false, database: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await isSavedAvailable()).toBe(false)
+  })
+
+  it('is false when /capabilities is unreachable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline')
+      }),
+    )
+
+    expect(await isSavedAvailable()).toBe(false)
   })
 })

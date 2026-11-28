@@ -129,6 +129,36 @@ const NO_DB_PREFS: Prefs = {
   avoid_traffic: false,
 }
 
+/** Feature flags from `GET /capabilities` (043 T1). */
+export interface Capabilities {
+  saved_routes: boolean
+  database: boolean
+}
+
+/**
+ * Whether the saved-routes feature is on. Cached after the first
+ * `/capabilities` probe so the UI hides Saved without a per-render fetch.
+ */
+let savedAvailable: boolean | null = null
+
+/** GET /capabilities; true when the saved-routes feature is available. */
+export async function isSavedAvailable(): Promise<boolean> {
+  if (savedAvailable !== null) return savedAvailable
+  try {
+    const res = await fetch('/capabilities')
+    const caps = (await res.json()) as Partial<Capabilities>
+    savedAvailable = caps.saved_routes === true
+  } catch {
+    savedAvailable = false
+  }
+  return savedAvailable
+}
+
+/** Test hook: reset the cached capability probe. */
+export function resetSavedAvailable(): void {
+  savedAvailable = null
+}
+
 /** POST a new saved route. */
 export async function saveRoute(name: string, snapshot: RouteSnapshot): Promise<SavedRoute> {
   const res = await fetch('/saved-routes', {

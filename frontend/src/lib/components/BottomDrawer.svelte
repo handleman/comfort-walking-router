@@ -41,6 +41,8 @@
   export let suppressAutoOpen = false
   /** Inline error slot of the no-route builder. */
   export let error = ''
+  /** 043 T1 (AC-1): false without a database — hide every Saved control. */
+  export let savedAvailable = true
   /** False while the picked destination has no buildable coordinates. */
   export let canBuild = true
   /** Map-picked destination shown in the no-route builder. */
@@ -95,14 +97,16 @@
         </svg>
         Walking
       </span>
-      <button
-        type="button"
-        class="sheet-saved"
-        data-testid="saved-walks-mobile"
-        on:click={() => dispatch('saved')}
-      >
-        Saved
-      </button>
+      {#if savedAvailable}
+        <button
+          type="button"
+          class="sheet-saved"
+          data-testid="saved-walks-mobile"
+          on:click={() => dispatch('saved')}
+        >
+          Saved
+        </button>
+      {/if}
     </div>
 
     <div class="prefs-row">
@@ -143,16 +147,18 @@
             <span>Start walk</span>
           </button>
         {/if}
-        <button
-          type="button"
-          class="save-route"
-          aria-label="Save route"
-          on:click={() => dispatch('save')}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d={SAVE_PATH} />
-          </svg>
-        </button>
+        {#if savedAvailable}
+          <button
+            type="button"
+            class="save-route"
+            aria-label="Save route"
+            on:click={() => dispatch('save')}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d={SAVE_PATH} />
+            </svg>
+          </button>
+        {/if}
       </div>
     {:else}
       <!-- No-route builder (042 T1): a map-picked destination has no walk yet,
