@@ -1,6 +1,6 @@
 # 044-local-autocomplete — Acceptance
 
-Generated: 2026-11-28T14:13:52Z · Verdict: **UNVERIFIED** (0 failed · 0 passed · 0 unverified · 1 n/a · 4 e2e)
+Generated: 2026-11-28T14:14:10Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 0 n/a · 4 e2e)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ Generated: 2026-11-28T14:13:52Z · Verdict: **UNVERIFIED** (0 failed · 0 passed
 | AC-2 | E2E | e2e | frontend/e2e/autocomplete-scope.spec.ts |
 | AC-3 | E2E | e2e | frontend/e2e/autocomplete-scope.spec.ts |
 | AC-5 | E2E | e2e | frontend/e2e/autocomplete-scope.spec.ts |
-| AC-4 | N/A | declared | regression coverage is the full e2e suite and the strict pass for 001-043 |
+| AC-4 | PASS | probe | 0 console error(s); 0 console error(s) |
 
 ## Global checks
 
