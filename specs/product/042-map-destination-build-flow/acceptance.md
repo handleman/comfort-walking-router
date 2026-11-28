@@ -1,16 +1,16 @@
 # 042-map-destination-build-flow — Acceptance
 
-Generated: 2026-11-28T10:02:46Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 7 n/a · 0 e2e)
+Generated: 2026-11-28T13:12:12Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 1 n/a · 6 e2e)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
-| AC-1 | N/A | declared | map pick -> drawer, covered by e2e/build-route.spec.ts |
-| AC-2 | N/A | declared | builder parameters + Edit, covered by e2e/build-route.spec.ts |
-| AC-3 | N/A | declared | Build route -> delayed /route -> spinner, covered by e2e/build-route.spec.ts |
-| AC-4 | N/A | declared | overlay dissolve + route path, covered by e2e/build-route.spec.ts |
-| AC-5 | N/A | declared | 500 -> reopened drawer with the error, covered by e2e/build-route.spec.ts |
-| AC-6 | N/A | declared | locate covered by the sheet scrim, covered by e2e/build-route.spec.ts |
-| AC-7 | N/A | declared | status/reduced motion, covered by e2e/build-route.spec.ts and the CSS guard |
+| AC-1 | E2E | e2e | frontend/e2e/build-route.spec.ts |
+| AC-2 | E2E | e2e | frontend/e2e/build-route.spec.ts |
+| AC-3 | E2E | e2e | frontend/e2e/build-route.spec.ts |
+| AC-4 | E2E | e2e | frontend/e2e/build-route.spec.ts |
+| AC-5 | E2E | e2e | frontend/e2e/build-route.spec.ts |
+| AC-7 | E2E | e2e | frontend/e2e/build-route.spec.ts |
+| AC-6 | N/A | declared | scrim stacking is exercised by the 041 preferences e2e; this AC remains a declared N/A |
 | AC-8 | PASS | probe | 0 console error(s); 0 console error(s) |
 
 ## Global checks
