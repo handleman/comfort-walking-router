@@ -1,6 +1,6 @@
 # 044 Local Autocomplete — Tasks
 
-- [ ] T1 (AC-1): Add `PlaceContext` and `geocoding.context` (Mapbox place/country
+- [x] T1 (AC-1): Add `PlaceContext` and `geocoding.context` (Mapbox place/country
   reverse, Photon extent, radius/country fallback, cached) with unit tests for
   the Mapbox, Photon and fallback paths. Mapbox reverse accepts ONE type per
   call (`types=place,country` is a 422); for the 042 coordinate `types=place` is
