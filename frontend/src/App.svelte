@@ -37,6 +37,7 @@
   }
 
   import { onMount } from 'svelte'
+  import { fade } from 'svelte/transition'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
   import { materialPaths } from './lib/map/material'
@@ -866,16 +867,30 @@
     error = ''
     awaitingBuild = false
     suppressAutoOpen = false
-    drawerOpen = true
+    // AC-3: Build route owns the request — the builder drawer closes while
+    // the full-screen overlay owns the in-flight state.
+    drawerOpen = false
     // The build only succeeded when planRoute left no error behind; a failed
-    // build re-parks the planner so only the pill retries it.
+    // build re-parks the planner so only the pill retries it, and reopens the
+    // builder drawer so the error stays visible (AC-5).
     try {
       await planRoute()
     } finally {
       building = false
       const failed = error !== ''
+      if (failed) {
+        // AC-5: a failed build leaves no route behind — the map stays clean
+        // and the builder drawer is the only surface that talks about the
+        // attempt. Re-park the planner so only the pill retries it.
+        route = null
+        if (routeLayer) {
+          routeLayer.remove()
+          routeLayer = null
+        }
+      }
       awaitingBuild = failed
       suppressAutoOpen = failed
+      drawerOpen = failed
     }
   }
 
@@ -1206,6 +1221,19 @@
       </li>
     {/each}
   </ul>
+
+  {#if building}
+    <div
+      class="route-loading"
+      data-testid="route-loading"
+      role="status"
+      aria-live="polite"
+      transition:fade={{ duration: 180 }}
+    >
+      <div class="route-loading-spinner" aria-hidden="true"></div>
+      <span class="sr-only">Finding your walk…</span>
+    </div>
+  {/if}
 
   <!-- Mobile results sheet ("Your kind of walk", 041 T4): the shared card
        and CTA live inside the sheet; the desktop sidebar never renders it. -->
@@ -2168,6 +2196,34 @@
     justify-content: center;
     padding: 20px;
     background: rgb(23 43 36 / 0.35);
+  }
+
+  /* 042 AC-3/AC-4: full-screen build-route overlay. It dims the whole app
+     (including the top nav and drawer) and centres a spinner while the /route
+     request is in flight; `transition:fade` dissolves it on success. */
+  .route-loading {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(23 43 36 / 0.35);
+  }
+
+  .route-loading-spinner {
+    width: 44px;
+    height: 44px;
+    border: 4px solid rgb(255 255 255 / 0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: route-loading-spin 0.8s linear infinite;
+  }
+
+  @keyframes route-loading-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .app-dialog {
