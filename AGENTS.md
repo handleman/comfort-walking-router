@@ -34,6 +34,12 @@ The **harness** that builds it is the published
 
 ## Spec-driven workflow (the rules)
 
+- **Who reads what.** This file governs the **outer** agent (OpenCode, and any
+  other tool that follows the `AGENTS.md` convention). The queue never reads it:
+  crew behaviour comes only from the `tasks.md` brief line, the spec, the
+  `swarm.yaml` contract, the prompts in the harness package, and
+  `harness/agents/skills/<role>.md`. Whatever you want the swarm to honour must be
+  written into the spec — not into this file.
 - **Route requests by target.** A request about the *built app* goes to the
   **queue**: write `spec.md` + `plan.md` + `tasks.md` under `specs/product/…` and
   let the queue implement it. A request to *change the harness itself* (roles,
