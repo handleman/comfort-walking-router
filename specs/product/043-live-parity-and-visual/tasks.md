@@ -32,3 +32,9 @@
   an invalid-JSON payload raises `OverpassProviderError` matching "invalid
   JSON". Update `tests/test_overpass_retry.py` from the old `[90,90,90]`
   sequential expectation to the bounded budget. `pytest -q` green.
+- [ ] T8 (AC-3): Do not rewrite the Overpass provider or its 90 s test.
+  Bound the route response at the join: wrap `comfort.corridor_data(geometry)`
+  in a short-lived executor with a 10 s deadline in `_build_response`; on
+  `TimeoutError`, use `corridor = None` and keep the weather-only score. Add a
+  pytest that a sleeping corridor returns in <10 s with `comfort_data is None`.
+  `pytest -q` green.
