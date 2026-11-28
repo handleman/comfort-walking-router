@@ -281,7 +281,14 @@
     end = ''
   }
 
+  function dismissSearchDropdowns() {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+  }
+
   function beginPick(role: PickRole) {
+    dismissSearchDropdowns()
     activePick = togglePickRole(activePick, role)
     pickError = ''
     if (map) map.getContainer().classList.toggle('crosshair', activePick !== null)
@@ -353,11 +360,14 @@
     if ((window as unknown as { __ROUTE_FIXTURES__?: number }).__ROUTE_FIXTURES__) {
       ;(window as unknown as { __map?: L.Map }).__map = map
     }
-    loadSaved()
     loadPrefs()
     isSavedAvailable().then((ok) => {
       savedAvailable = ok
-      if (!ok) showSavedWalks = false
+      if (ok) {
+        void loadSaved()
+      } else {
+        showSavedWalks = false
+      }
     })
 
     // Stop the watcher when a walk ends (Stop or arrival both clear `active`)
@@ -876,6 +886,7 @@
   // resulting route opens the sheet with the 041 result card.
   async function handleBuildRoute() {
     if (!startCoords || !endCoords) return
+    dismissSearchDropdowns()
     building = true
     error = ''
     awaitingBuild = false
@@ -1238,19 +1249,6 @@
     {/each}
   </ul>
 
-  {#if building}
-    <div
-      class="route-loading"
-      data-testid="route-loading"
-      role="status"
-      aria-live="polite"
-      transition:fade={{ duration: 180 }}
-    >
-      <div class="route-loading-spinner" aria-hidden="true"></div>
-      <span class="sr-only">Finding your walk…</span>
-    </div>
-  {/if}
-
   <!-- Mobile results sheet ("Your kind of walk", 041 T4): the shared card
        and CTA live inside the sheet; the desktop sidebar never renders it. -->
   {#if !isDesktop}
@@ -1411,6 +1409,19 @@
     </div>
   {/if}
 </main>
+
+{#if building}
+  <div
+    class="route-loading"
+    data-testid="route-loading"
+    role="status"
+    aria-live="polite"
+    transition:fade={{ duration: 180 }}
+  >
+    <div class="route-loading-spinner" aria-hidden="true"></div>
+    <span class="sr-only">Finding your walk…</span>
+  </div>
+{/if}
 
 <style>
   :global(html),
@@ -2222,7 +2233,7 @@
   .route-loading {
     position: fixed;
     inset: 0;
-    z-index: 1300;
+    z-index: 2000;
     display: flex;
     align-items: center;
     justify-content: center;
