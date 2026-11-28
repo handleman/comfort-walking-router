@@ -36,7 +36,7 @@
     attribution?: string
   }
 
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { fade } from 'svelte/transition'
   import L from 'leaflet'
   import { personIcon, startPinIcon, endPinIcon } from './lib/map/icons'
@@ -233,9 +233,10 @@
         throw new Error(message)
       }
       route = (await response.json()) as Route
-      // The request is done; clear the overlay before drawing so a slow or
-      // malformed live profile can never leave the spinner covering the map.
+      // The request is done; flush the overlay away before drawing so a slow
+      // or malformed live profile can never leave the spinner covering the map.
       building = false
+      await tick()
       drawRoute()
     } catch (err) {
       error =
