@@ -114,6 +114,7 @@
   let mapElement: HTMLDivElement
   let map: L.Map | null = null
   let activePick: PickRole | null = null
+  let searchCloseToken = 0
   let pickBusy = false
   let pickError = ''
   let routeLayer: L.LayerGroup | null = null
@@ -299,6 +300,7 @@
 
   function beginPick(role: PickRole) {
     dismissSearchDropdowns()
+    searchCloseToken += 1
     activePick = togglePickRole(activePick, role)
     pickError = ''
     if (map) map.getContainer().classList.toggle('crosshair', activePick !== null)
@@ -897,6 +899,7 @@
   async function handleBuildRoute() {
     if (!startCoords || !endCoords) return
     dismissSearchDropdowns()
+    searchCloseToken += 1
     building = true
     error = ''
     awaitingBuild = false
@@ -1088,6 +1091,7 @@
       bind:startSelected={startSuggestion}
       bind:endSelected={endSuggestion}
       {activePick}
+      closeToken={searchCloseToken}
       on:pick={(e) => beginPick(e.detail)}
       on:swap={swapEndpoints}
     />
@@ -1108,6 +1112,7 @@
           bind:startSelected={startSuggestion}
           bind:endSelected={endSuggestion}
           {activePick}
+          closeToken={searchCloseToken}
           on:pick={(e) => beginPick(e.detail)}
           on:swap={swapEndpoints}
         />

@@ -27,6 +27,9 @@
 
   /** Current query text; bindable so the host form stays in sync. */
   export let query = ''
+
+  /** Increment to close the popup from the host (a map pick / build). */
+  export let closeToken = 0
   let suggestions: Suggestion[] = []
   let open = false
   let activeIndex = -1
@@ -35,6 +38,12 @@
 
   let fetchSuggestions: (q: string) => Promise<Suggestion[]> = createSuggestionFetcher(baseUrl)
   $: fetchSuggestions = createSuggestionFetcher(baseUrl)
+  let lastCloseToken = closeToken
+  $: if (closeToken !== lastCloseToken) {
+    lastCloseToken = closeToken
+    open = false
+    activeIndex = -1
+  }
 
   $: void runSearch(query)
 

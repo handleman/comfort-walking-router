@@ -42,6 +42,9 @@
   /** Base URL forwarded one-way to the SearchInput suggestion fetcher. */
   export let baseUrl = ''
 
+  /** Increment to close both suggestion popups (map pick / build). */
+  export let closeToken = 0
+
   /** Extra classes forwarded to the host element (e.g. positioning). */
   export let extraClass: string = ''
 
@@ -84,6 +87,7 @@
         required
         bind:query={startQuery}
         bind:selected={startSelected}
+        {closeToken}
       />
     </span>
   </div>
@@ -128,6 +132,7 @@
         required
         bind:query={endQuery}
         bind:selected={endSelected}
+        {closeToken}
       />
     </span>
   </div>
