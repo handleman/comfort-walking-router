@@ -1,6 +1,6 @@
 # 043-live-parity-and-visual — Acceptance
 
-Generated: 2026-11-28T13:15:35Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 1 n/a · 3 e2e)
+Generated: 2026-11-28T13:16:59Z · Verdict: **PASS** (0 failed · 1 passed · 0 unverified · 1 n/a · 3 e2e)
 
 | AC | Verdict | Source | Evidence |
 | --- | --- | --- | --- |
