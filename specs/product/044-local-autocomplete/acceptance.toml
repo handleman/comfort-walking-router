@@ -1,0 +1,24 @@
+# 044: the suggestion scope is a browser interaction; the local autocomplete
+# e2e asserts the context hint and the country/bbox query parameters.
+[[covered_by]]
+ac = "AC-1"
+test = "frontend/e2e/autocomplete-scope.spec.ts"
+
+[[covered_by]]
+ac = "AC-2"
+test = "frontend/e2e/autocomplete-scope.spec.ts"
+
+[[covered_by]]
+ac = "AC-3"
+test = "frontend/e2e/autocomplete-scope.spec.ts"
+
+[[check]]
+ac = "AC-4"
+kind = "console_errors"
+expect = 0
+viewport = "both"
+note = "the scoped search must not introduce console errors"
+
+[[covered_by]]
+ac = "AC-5"
+test = "frontend/e2e/autocomplete-scope.spec.ts"
