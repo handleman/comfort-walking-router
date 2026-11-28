@@ -123,3 +123,16 @@ w = 390
 h = 360
 min_similarity = 0.90
 ac = "AC-3"
+
+# 062: the desktop sidebar is the design surface (the map tiles are excluded).
+[[visual]]
+id = "desktop-sidebar"
+frame = "desktop"
+actual = "frontend/test-results/041-desktop-route.png"
+baseline = "specs/product/041-figma-redesign/visual/desktop-sidebar.png"
+x = 0
+y = 72
+w = 380
+h = 728
+min_similarity = 0.90
+ac = "AC-2"
