@@ -170,6 +170,37 @@ def test_missing_bearer_token_is_401(client: TestClient) -> None:
     assert response.status_code == 401
 
 
+def test_capabilities_reports_saved_routes_when_db_configured(
+    client: TestClient,
+) -> None:
+    """043 T1 AC-1: a configured database turns the feature on."""
+    response = client.get("/capabilities")
+
+    assert response.status_code == 200
+    assert response.json() == {"saved_routes": True, "database": True}
+
+
+def test_capabilities_reports_saved_routes_off_without_db(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """043 T1 AC-1: no DATABASE_URL -> the feature flags are false."""
+    monkeypatch.setattr("app.db.DATABASE_URL", None)
+    with TestClient(fastapi_app) as test_client:
+        response = test_client.get("/capabilities")
+
+    assert response.status_code == 200
+    assert response.json() == {"saved_routes": False, "database": False}
+
+
+def test_saved_routes_503_without_db(monkeypatch: pytest.MonkeyPatch) -> None:
+    """043 T1 AC-1: the saved-routes API keeps returning 503 with no database."""
+    monkeypatch.setattr("app.db.DATABASE_URL", None)
+    with TestClient(fastapi_app) as test_client:
+        response = test_client.get("/saved-routes")
+
+    assert response.status_code == 503
+
+
 @pytest.mark.skipif(
     os.getenv("DATABASE_URL") is None, reason="DATABASE_URL not set"
 )

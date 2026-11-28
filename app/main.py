@@ -26,6 +26,18 @@ app = FastAPI(title="Comfort Walking Router")
 app.include_router(saved_routes.router)
 
 
+@app.get("/capabilities", tags=["meta"])
+def get_capabilities() -> dict[str, bool]:
+    """Feature flags for the client (043 T1 AC-1).
+
+    `saved_routes`/`database` are both driven by `DATABASE_URL`: the saved
+    routes feature has no offline mode, so it is on exactly when the database
+    is. The client hides the Saved UI when `saved_routes` is false.
+    """
+    database = bool(app_db.DATABASE_URL)
+    return {"saved_routes": database, "database": database}
+
+
 @app.on_event("startup")
 def _migrate_schema() -> None:
     """Run saved-routes migrations at boot when a database is configured (035),

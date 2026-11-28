@@ -76,6 +76,7 @@
     deleteRoute,
     ensureToken,
     getPrefs,
+    isSavedAvailable,
     listRoutes,
     recallRoute,
     saveRoute,
@@ -123,6 +124,9 @@
   let suggestionAttribution = ''
   let error = ''
   let savedRoutes: SavedRoute[] = []
+  // 043 T1 (AC-1): the saved-routes feature is off without a database; the UI
+  // hides every Saved control and never opens the dialog.
+  let savedAvailable = true
   let prefs: Prefs | null = null
   let showPrefs = false
   // 041: the shade control is the design's single comfort preference.
@@ -346,6 +350,10 @@
     map.on('click', onMapClick)
     loadSaved()
     loadPrefs()
+    isSavedAvailable().then((ok) => {
+      savedAvailable = ok
+      if (!ok) showSavedWalks = false
+    })
 
     // Stop the watcher when a walk ends (Stop or arrival both clear `active`)
     // and re-arm it when a new walk starts, so fixes stay continuous while
@@ -961,14 +969,16 @@
 
   <nav class="nav-center" aria-label="Primary">
     <button type="button" class="nav-link primary">Plan a walk</button>
-    <button
-      type="button"
-      class="nav-link secondary"
-      data-testid="saved-walks"
-      on:click={() => (showSavedWalks = true)}
-    >
-      Saved walks
-    </button>
+    {#if savedAvailable}
+      <button
+        type="button"
+        class="nav-link secondary"
+        data-testid="saved-walks"
+        on:click={() => (showSavedWalks = true)}
+      >
+        Saved walks
+      </button>
+    {/if}
   </nav>
 
   <div class="nav-right">
@@ -1254,6 +1264,7 @@
       on:start={() => startWalk(walkRoute, route?.comfort_profile ?? [])}
       on:save={handleSaveRoute}
       on:saved={() => (showSavedWalks = true)}
+      {savedAvailable}
     />
 
     <!-- 041 T5 (AC-3/AC-4): the mobile "Walk your way" comfort sheet, opened
@@ -1309,7 +1320,7 @@
     />
   {/if}
 
-  {#if showSavedWalks}
+  {#if showSavedWalks && savedAvailable}
     <div class="dialog-scrim" role="presentation" on:click|self={() => (showSavedWalks = false)}>
       <section
         class="app-dialog"
