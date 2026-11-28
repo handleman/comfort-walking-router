@@ -348,6 +348,11 @@
     map.on('locationfound', onLocationFound)
     map.on('locationerror', onLocationError)
     map.on('click', onMapClick)
+    // 042 T4: fixtures-only hook for the mobile e2e to fire a deterministic
+    // destination click. Never exposed in a normal run.
+    if ((window as unknown as { __ROUTE_FIXTURES__?: number }).__ROUTE_FIXTURES__) {
+      ;(window as unknown as { __map?: L.Map }).__map = map
+    }
     loadSaved()
     loadPrefs()
     isSavedAvailable().then((ok) => {
@@ -874,9 +879,10 @@
     building = true
     error = ''
     awaitingBuild = false
-    suppressAutoOpen = false
-    // AC-3: Build route owns the request — the builder drawer closes while
-    // the full-screen overlay owns the in-flight state.
+    // AC-3/AC-4: the builder stays suppressed after a success, so the overlay
+    // dissolves into the map and the drawer stays closed until the walker opens
+    // it; a failure reopens it with the error (AC-5).
+    suppressAutoOpen = true
     drawerOpen = false
     // The build only succeeded when planRoute left no error behind; a failed
     // build re-parks the planner so only the pill retries it, and reopens the
@@ -897,7 +903,7 @@
         }
       }
       awaitingBuild = failed
-      suppressAutoOpen = failed
+      suppressAutoOpen = true
       drawerOpen = failed
     }
   }
@@ -1257,6 +1263,7 @@
       {preferenceSummary}
       {suppressAutoOpen}
       {error}
+      destinationLabel={end}
       canBuild={endCoords !== null}
       {building}
       on:edit={() => (showPrefsSheet = true)}
@@ -2219,14 +2226,28 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgb(23 43 36 / 0.35);
+    background: rgb(23 43 36 / 0.45);
   }
 
   .route-loading-spinner {
-    width: 44px;
-    height: 44px;
-    border: 4px solid rgb(255 255 255 / 0.35);
-    border-top-color: #ffffff;
+    box-sizing: border-box;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.22);
+  }
+
+  .route-loading-spinner::after {
+    content: '';
+    box-sizing: border-box;
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--cwr-brand-tint, #d8f3e7);
+    border-top-color: var(--cwr-brand, #17765c);
     border-radius: 50%;
     animation: route-loading-spin 0.8s linear infinite;
   }
