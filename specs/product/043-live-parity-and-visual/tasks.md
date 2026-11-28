@@ -18,9 +18,10 @@
   screenshot used by the visual gate.
 - [ ] T5 (AC-5): Restore `frontend/e2e/build-route.spec.ts` (mobile 390×844,
   fixture reverse geocode, no `/route` before Build, held spinner, success
-  dissolve + drawn route, 500 reopen), declare AC-1..7 `covered_by` it, add
-  042 `live.toml` with the 042 coordinates and a <15 s latency check, and run
-  `make e2e`, `make swarm-accept --strict` and `make accept-live`.
+  dissolve + drawn route, 500 reopen), save the builder and route viewport
+  screenshots under `frontend/test-results/`, declare AC-1..7 `covered_by` it,
+  add 042 `live.toml` with the 042 coordinates and a <15 s latency check, and
+  run `make e2e`, `make swarm-accept --strict` and `make accept-live`.
 - [ ] T6 (AC-5): Add the 041/042 visual regions (mobile sheet chrome + builder
   CTA, desktop nav/sidebar) for the 062 gate, deploy to Render, run the live
   route twice and capture the 390×844 screenshot; the configured region must be
