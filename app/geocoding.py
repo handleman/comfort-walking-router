@@ -414,7 +414,7 @@ def _mapbox_reverse_feature(lat: float, lng: float, types: str) -> dict[str, Any
 def _mapbox_city_bbox(city: str, country_code: str) -> tuple[float, float, float, float] | None:
     """Resolve a city's bbox with one forward place lookup.
 
-    Mapbox reverse `place` is empty for some coordinates (Minsk returns the
+    Mapbox reverse `place` is empty for some coordinates (it returns the
     locality/district instead); the forward place feature carries the bbox.
     """
     if not city:

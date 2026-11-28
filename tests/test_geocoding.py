@@ -325,3 +325,31 @@ def test_photon_suggestions_filter_by_country():
     }
     out = _photon_suggestions(payload, country="BY")
     assert [s.label for s in out] == ["Local"]
+
+
+def test_place_context_follows_the_coordinates_not_a_fixed_city(monkeypatch):
+    """A second city proves the context is provider-driven, not Minsk-specific."""
+    from app import geocoding
+
+    berlin = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [13.405, 52.52]},
+        "properties": {
+            "feature_type": "place",
+            "name": "Berlin",
+            "bbox": [13.228, 52.357, 13.761, 52.675],
+            "context": {"country": {"name": "Germany", "country_code": "DE"}},
+        },
+    }
+
+    def reverse(lat, lng, types):
+        return berlin if types == "place" else None
+
+    monkeypatch.setattr(geocoding, "_mapbox_token", lambda: "token")
+    monkeypatch.setattr(geocoding, "_mapbox_reverse_feature", reverse)
+    context = geocoding._context_mapbox(52.52, 13.405)
+    assert context is not None
+    assert context.country_code == "DE"
+    assert context.city == "Berlin"
+    assert context.bbox == (13.228, 52.357, 13.761, 52.675)
+    assert context.source == "place"
