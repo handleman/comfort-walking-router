@@ -2264,6 +2264,17 @@
     align-items: center;
     justify-content: center;
     background: rgb(23 43 36 / 0.45);
+    /* Compositor-level guard: even if a live profile blocks the JS timer,
+       the overlay cannot cover the map forever. */
+    animation: route-loading-guard 0.2s linear 15s forwards;
+  }
+
+  @keyframes route-loading-guard {
+    to {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
   }
 
   .route-loading-spinner {
