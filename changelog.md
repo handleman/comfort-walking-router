@@ -6,6 +6,8 @@
 - **90% visual acceptance.** Factory v0.8.1 adds `[[visual]]` regions to `design.toml` (Figma/golden baseline, crop/mask, `min_similarity` 0.90). 041 and 042 declare mobile regions; 042 AC-1..5/7 are `covered_by` `frontend/e2e/build-route.spec.ts`. The full strict pass is **18 specs, all PASS** (001–044).
 - **044 local autocomplete.** `GET /geocode/context` resolves country/city and the exact city bbox (Minsk: BY, `27.373,53.792,27.790,53.971`), with a country/radius fallback. `/geocode` accepts `country`/`bbox`; Mapbox gets both, Photon gets the bbox and filters by country code. Both endpoint fields show “Searching in Minsk” and send the scope. Live context: **HTTP 200 in 0.46 s**; a live `Lenina` query returns a Minsk street.
 - **041 is the one accepted operator-written UI exception** (all seven tasks recorded manually). It is strict/visual accepted; future app/UI/e2e work stays queue-owned, and only small isolated fixes may bypass with a manual record.
+- **V2 reliability (factory v0.8.2):** a provider tool-schema/serialization failure is now a non-retryable crew contract error, so v2 escalates instead of re-billing the same failed crew three times; preflight rejects Gemini/Claude for implementer/auditor/escalation (they stay vision-only).
+- **Desktop visual parity:** 041 now captures the 1280×800 desktop route state and the strict pass compares the 380×728 sidebar at >=90%; 21 e2e tests.
 - **Model profile:** Kimi K2.7 Code implementer, Kimi K3 escalation/visual QA, Gemini 4 Argon acceptance vision; DeepSeek V4 Pro remains the text fallback. The app is pinned to factory **v0.8.1**.
 
 ## 2026-11-28 (swarm v2: one implementer, one auditor — v0.7.1)
